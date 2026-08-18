@@ -21,6 +21,7 @@ class InboundEmail:
     subject: str
     attachment_filename: str | None
     attachment_bytes: bytes | None
+    provider_message_id: str | None = None
 
 
 @dataclass

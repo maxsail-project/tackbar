@@ -219,3 +219,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Backend secrets and token files
+backend/secrets/
+backend/token.json
