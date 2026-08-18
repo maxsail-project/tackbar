@@ -369,3 +369,74 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 TackBar se desarrolla como proyecto open-source.
 
 La licencia, las guías de contribución y el roadmap público evolucionarán a medida que madure el proyecto.
+
+---
+
+# About the author / Sobre el autor
+
+Hi! I'm **Maximiliano Mannise**, a software engineer working in the industry since 1998, a data and analytics enthusiast, and a passionate sailor.
+
+I've been sailing for more than 20 years: first for fun, later in cruising regattas, and since 2020 in the **Snipe dinghy class**.
+
+My professional background naturally leads me to approach sailing from an analytical perspective: tracks, speed, headings, metrics and comparisons.
+
+**MaxSail Analytics** started as an experimental tool to explore sailing GPS data and understand what happened on the water.
+
+**TackBar** takes that idea one step further.
+
+The goal is not only to analyze an individual track, but to make the post-sailing debriefing easier and more collaborative: collect tracks from several sailors, automatically identify which activities belong to the same session, compare them and discuss what happened.
+
+TackBar is an open-source project and is currently in an early proof-of-concept stage.
+
+Contributions, ideas, testing and feedback from sailors, coaches and developers are very welcome.
+
+**See you on the water — and afterwards at TackBar!**
+
+---
+
+¡Hola! Soy **Maximiliano Mannise**, ingeniero en informática, trabajando en el sector desde 1998, apasionado por los datos, los indicadores y las métricas, y también por la vela.
+
+Navego desde hace más de 20 años: primero por diversión, después en regatas de crucero y, desde 2020, en **vela ligera clase Snipe**.
+
+Por deformación profesional, suelo llevar también la navegación al terreno analítico: tracks, velocidad, rumbos, métricas y comparaciones.
+
+**MaxSail Analytics** nació como una herramienta experimental para explorar datos GPS de navegación y comprender mejor qué había ocurrido en el agua.
+
+**TackBar** lleva esa idea un paso más allá.
+
+El objetivo ya no es únicamente analizar un track individual, sino facilitar un debriefing posterior a la navegación más sencillo y colaborativo: recoger tracks de varios regatistas, identificar automáticamente qué actividades pertenecen a la misma sesión, compararlas y discutir qué ocurrió.
+
+TackBar es un proyecto open-source y actualmente se encuentra en fase inicial de prueba de concepto.
+
+Cualquier colaboración, idea, prueba o feedback por parte de regatistas, entrenadores y desarrolladores será muy bienvenido.
+
+**¡Nos vemos en el agua... y después en TackBar!**
+
+---
+
+## Contact / Contacto
+
+* **Author / Autor:** Maximiliano Mannise
+* **LinkedIn:** https://www.linkedin.com/in/mmannise
+* **Email:** [maxsail.project@gmail.com](mailto:maxsail.project@gmail.com)
+* **GitHub:** maxsail-project
+
+---
+
+## License / Licencia
+
+This project is released under the **MIT License**.
+
+Este proyecto se publica bajo la **licencia MIT**.
+
+---
+
+## Contributions / Contribuciones
+
+Contributions, suggestions and forks are welcome.
+
+If you'd like to report a bug, suggest an enhancement or contribute to TackBar, please open an **issue** or **pull request** in this repository.
+
+Las mejoras, sugerencias y forks son bienvenidos.
+
+Si quieres reportar un error, proponer una mejora o colaborar con TackBar, abre un **issue** o un **pull request** en este repositorio.
