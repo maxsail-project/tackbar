@@ -1,5 +1,7 @@
 import re
+from io import BytesIO
 from pathlib import Path
+from typing import BinaryIO
 
 import pandas as pd
 
@@ -18,9 +20,22 @@ REQUIRED_COLUMNS = {
 }
 
 
-def parse_vakaros_csv(file_path: str | Path) -> Activity:
-    path = Path(file_path)
-    frame = pd.read_csv(path, compression="gzip")
+def parse_vakaros_csv(
+    source: str | Path | bytes | BinaryIO,
+    original_filename: str | None = None,
+) -> Activity:
+    if isinstance(source, (str, Path)):
+        csv_source: str | Path | BinaryIO = source
+        filename = original_filename or Path(source).name
+    else:
+        if original_filename is None:
+            raise ValueError(
+                "original_filename is required when parsing Vakaros data from bytes"
+            )
+        csv_source = BytesIO(source) if isinstance(source, bytes) else source
+        filename = original_filename
+
+    frame = pd.read_csv(csv_source, compression="gzip")
 
     missing_columns = sorted(REQUIRED_COLUMNS - set(frame.columns))
     if missing_columns:
@@ -38,8 +53,8 @@ def parse_vakaros_csv(file_path: str | Path) -> Activity:
     first_sample = frame.iloc[0]
     return Activity(
         source="vakaros",
-        original_filename=path.name,
-        device_name=_extract_device_name(path.name),
+        original_filename=filename,
+        device_name=_extract_device_name(filename),
         start_time=frame.iloc[0]["timestamp"].to_pydatetime(),
         end_time=frame.iloc[-1]["timestamp"].to_pydatetime(),
         start_lat=float(first_sample["latitude"]),

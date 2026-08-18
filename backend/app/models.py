@@ -13,3 +13,19 @@ class Activity:
     start_lat: float
     start_lon: float
     samples: list[dict[str, Any]]
+
+
+@dataclass
+class InboundEmail:
+    sender_email: str
+    subject: str
+    attachment_filename: str | None
+    attachment_bytes: bytes | None
+
+
+@dataclass
+class IngestionResult:
+    sender_email: str
+    subject: str
+    attachment_filename: str
+    activity: Activity
