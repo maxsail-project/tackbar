@@ -1,4 +1,4 @@
-# TackBar Roadmap
+# TackBar Initial Roadmap
 
 TackBar development will evolve incrementally, validating each step with real sailing activities before adding more complexity.
 
