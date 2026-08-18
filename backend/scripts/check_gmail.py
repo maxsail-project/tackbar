@@ -8,6 +8,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_DIR))
 
 from app.email_providers.gmail import GmailAdapter  # noqa: E402
+from app.repositories.participants import ParticipantRepository  # noqa: E402
 from app.services.gmail_processing import (  # noqa: E402
     GmailProcessingHistory,
     process_gmail_email,
@@ -17,6 +18,7 @@ from app.services.gmail_processing import (  # noqa: E402
 def main() -> None:
     emails = GmailAdapter().get_candidate_emails()
     history = GmailProcessingHistory()
+    participants = ParticipantRepository()
 
     if not emails:
         print("No unread Gmail messages with matching CSV.GZ attachments found.")
@@ -41,6 +43,15 @@ def main() -> None:
         print(f"Start time: {activity.start_time.isoformat()}")
         print(f"End time: {activity.end_time.isoformat()}")
         print(f"Sample count: {len(activity.samples)}")
+
+        participant = participants.find_by_email(result.sender_email)
+        if participant is None:
+            print(f"Unknown participant: {result.sender_email}")
+        else:
+            print(f"Participant: {participant.name}")
+            print(f"Boat: {participant.boat_name}")
+            print(f"Class: {participant.sailing_class}")
+            print(f"Sail number: {participant.sail_number or 'Not configured'}")
         print()
 
 

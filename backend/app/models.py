@@ -30,3 +30,14 @@ class IngestionResult:
     subject: str
     attachment_filename: str
     activity: Activity
+
+
+@dataclass
+class Participant:
+    id: str
+    name: str
+    email: str
+    boat_name: str
+    sailing_class: str
+    sail_number: str | None
+    category: str
