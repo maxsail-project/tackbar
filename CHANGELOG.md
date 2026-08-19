@@ -4,6 +4,54 @@ All notable changes to TackBar will be documented in this file.
 
 ---
 
+## v0.2.0 — Automatic Session Detection
+
+### English
+
+Automatic grouping of sailing activities into sessions.
+
+### Added
+
+- Automatic Session creation and matching.
+- Temporal matching using sailing activity intervals.
+- Geographical matching using GPS track centers.
+- Activity spatial summaries including center and bounding box.
+- Deterministic and idempotent Session assignment.
+- Automatic creation of participants from previously unknown sender emails.
+- Persistent provider-independent ingestion history.
+
+### Validated
+
+Multiple real sailing tracks from the same sailing area and time period were automatically grouped into the same Session.
+
+Matching thresholds remain intentionally simple and will be refined with additional real-world sailing data.
+
+---
+
+## v0.2.0 — Detección automática de sesiones
+
+### Español
+
+Agrupación automática de actividades de navegación en sesiones.
+
+### Añadido
+
+- Creación y matching automático de Sesiones.
+- Matching temporal mediante intervalos de las actividades.
+- Matching geográfico mediante centros GPS de los tracks.
+- Resumen espacial de Activities mediante centro y bounding box.
+- Asignación de Sesiones determinista e idempotente.
+- Creación automática de participantes para nuevos remitentes.
+- Historial de ingesta persistente e independiente del proveedor.
+
+### Validado
+
+Varios tracks reales correspondientes a la misma zona y periodo de navegación fueron agrupados automáticamente en una misma Sesión.
+
+Los umbrales de matching se mantienen deliberadamente simples y se ajustarán posteriormente utilizando más datos reales.
+
+---
+
 ## v0.1.0 — Email Track Ingestion PoC
 
 ### English
