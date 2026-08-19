@@ -8,6 +8,10 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_PARTICIPANTS_PATH = BACKEND_DIR / "data" / "participants.json"
 
 
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 class ParticipantRepository:
     def __init__(
         self,
@@ -16,9 +20,9 @@ class ParticipantRepository:
         self.path = Path(path)
 
     def find_by_email(self, sender_email: str) -> Participant | None:
-        normalized_email = sender_email.strip().casefold()
+        normalized_email = normalize_email(sender_email)
         for participant in self._load():
-            if participant.email.strip().casefold() == normalized_email:
+            if normalize_email(participant.id) == normalized_email:
                 return participant
         return None
 
@@ -26,4 +30,7 @@ class ParticipantRepository:
         data = json.loads(self.path.read_text(encoding="utf-8"))
         if not isinstance(data, list):
             raise ValueError("Participant configuration must contain a JSON list")
-        return [Participant(**item) for item in data]
+        participants = [Participant(**item) for item in data]
+        for participant in participants:
+            participant.id = normalize_email(participant.id)
+        return participants

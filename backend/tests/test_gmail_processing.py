@@ -1,12 +1,15 @@
 from pathlib import Path
-from uuid import uuid4
+from typing import Callable
 
 import pytest
 
 from app.models import InboundEmail
-from app.services.gmail_processing import (
-    GmailProcessingHistory,
-    process_gmail_email,
+from app.repositories.activities import ActivityRepository
+from app.repositories.participants import ParticipantRepository
+from app.services.ingestion_history import IngestionHistory
+from app.services.ingestion_processing import (
+    UnknownParticipantError,
+    process_provider_email,
 )
 
 
@@ -14,20 +17,23 @@ FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "VK-Maxi-URU 10-8-2026.csv.gz"
 )
 FILENAME = "VK-Maxi-URU 10-8-2026.csv.gz"
-BACKEND_DIR = Path(__file__).resolve().parents[1]
+PARTICIPANTS = [
+    {
+        "id": "mmannise@gmail.com",
+        "name": "Maxi URU",
+        "boat_name": "Zafar",
+        "sailing_class": "Snipe",
+        "sail_number": "URU-32115",
+    }
+]
 
 
-@pytest.fixture
-def history_path() -> Path:
-    path = BACKEND_DIR / "tmp" / f"test-gmail-history-{uuid4()}.json"
-    yield path
-    if path.exists():
-        path.unlink()
-
-
-def _email(attachment_bytes: bytes) -> InboundEmail:
+def _email(
+    attachment_bytes: bytes,
+    sender_email: str = "mmannise@gmail.com",
+) -> InboundEmail:
     return InboundEmail(
-        sender_email="maxi@example.com",
+        sender_email=sender_email,
         subject=FILENAME,
         attachment_filename=FILENAME,
         attachment_bytes=attachment_bytes,
@@ -35,54 +41,109 @@ def _email(attachment_bytes: bytes) -> InboundEmail:
     )
 
 
-def test_new_message_is_processed_and_recorded(history_path: Path) -> None:
-    history = GmailProcessingHistory(history_path)
+def _repositories(
+    temporary_json_file: Callable[[str, object], Path],
+) -> tuple[ParticipantRepository, ActivityRepository, IngestionHistory]:
+    return (
+        ParticipantRepository(
+            temporary_json_file("participants", PARTICIPANTS)
+        ),
+        ActivityRepository(temporary_json_file("activities", [])),
+        IngestionHistory(temporary_json_file("ingestion-history", [])),
+    )
 
-    result = process_gmail_email(_email(FIXTURE_PATH.read_bytes()), history)
 
-    assert result is not None
-    assert result.activity.device_name == "VK-Maxi-URU"
-    assert history.is_processed("gmail-message-1")
-
-
-def test_processed_message_is_skipped_on_second_run(history_path: Path) -> None:
-    history = GmailProcessingHistory(history_path)
+def test_provider_and_message_id_deduplicate_ingestion(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    participants, activities, history = _repositories(temporary_json_file)
     email = _email(FIXTURE_PATH.read_bytes())
 
-    assert process_gmail_email(email, history) is not None
-    assert process_gmail_email(email, history) is None
+    first = process_provider_email(
+        "gmail", email, participants, activities, history
+    )
+    second = process_provider_email(
+        "gmail", email, participants, activities, history
+    )
+
+    assert first is not None
+    assert second is None
     assert len(history.records()) == 1
 
 
-def test_history_record_contains_readable_metadata(history_path: Path) -> None:
-    history = GmailProcessingHistory(history_path)
+def test_same_message_id_from_different_provider_is_not_skipped(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    participants, activities, history = _repositories(temporary_json_file)
+    email = _email(FIXTURE_PATH.read_bytes())
 
-    process_gmail_email(_email(FIXTURE_PATH.read_bytes()), history)
+    gmail_result = process_provider_email(
+        "gmail", email, participants, activities, history
+    )
+    other_provider_result = process_provider_email(
+        "future-provider", email, participants, activities, history
+    )
+
+    assert gmail_result is not None
+    assert other_provider_result is not None
+    assert other_provider_result.activity_created is False
+    assert other_provider_result.activity.id == gmail_result.activity.id
+    assert len(history.records()) == 2
+
+
+def test_processed_history_stores_provider_and_activity_id(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    participants, activities, history = _repositories(temporary_json_file)
+
+    result = process_provider_email(
+        "gmail",
+        _email(FIXTURE_PATH.read_bytes()),
+        participants,
+        activities,
+        history,
+    )
     record = history.records()[0]
 
-    assert record == {
-        "gmail_message_id": "gmail-message-1",
-        "sender_email": "maxi@example.com",
-        "subject": FILENAME,
-        "attachment_filename": FILENAME,
-        "device_name": "VK-Maxi-URU",
-        "activity_start_time": "2026-08-10T18:08:03.026000+00:00",
-        "activity_end_time": "2026-08-10T18:38:09.074000+00:00",
-        "sample_count": 3613,
-        "processed_at": record["processed_at"],
-        "status": "processed",
-    }
-    assert "samples" not in record
+    assert result is not None
+    assert record["provider"] == "gmail"
+    assert record["provider_message_id"] == "gmail-message-1"
+    assert record["activity_id"] == result.activity.id
+    assert record["status"] == "processed"
     assert record["processed_at"].endswith("+00:00")
 
 
-def test_failed_processing_is_not_recorded_as_processed(
-    history_path: Path,
+def test_unknown_participant_is_not_processed(
+    temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    history = GmailProcessingHistory(history_path)
+    participants, activities, history = _repositories(temporary_json_file)
+
+    with pytest.raises(UnknownParticipantError, match="unknown@example.com"):
+        process_provider_email(
+            "gmail",
+            _email(FIXTURE_PATH.read_bytes(), " UNKNOWN@EXAMPLE.COM "),
+            participants,
+            activities,
+            history,
+        )
+
+    assert history.records() == []
+    assert activities._load() == []
+
+
+def test_failed_attachment_is_not_processed(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    participants, activities, history = _repositories(temporary_json_file)
 
     with pytest.raises(ValueError):
-        process_gmail_email(_email(b"not a gzip file"), history)
+        process_provider_email(
+            "gmail",
+            _email(b"not a gzip file"),
+            participants,
+            activities,
+            history,
+        )
 
-    assert not history.is_processed("gmail-message-1")
     assert history.records() == []
+    assert activities._load() == []

@@ -12,6 +12,8 @@ class Activity:
     end_time: datetime
     start_lat: float
     start_lon: float
+    end_lat: float
+    end_lon: float
     samples: list[dict[str, Any]]
 
 
@@ -36,8 +38,23 @@ class IngestionResult:
 class Participant:
     id: str
     name: str
-    email: str
     boat_name: str
     sailing_class: str
-    sail_number: str | None
-    category: str
+    sail_number: str
+
+
+@dataclass
+class StoredActivity:
+    id: str
+    participant_id: str
+    source: str
+    device_name: str
+    original_filename: str
+    start_time: datetime
+    end_time: datetime
+    start_lat: float
+    start_lon: float
+    end_lat: float
+    end_lon: float
+    sample_count: int
+    attachment_sha256: str

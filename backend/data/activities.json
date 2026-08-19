@@ -1,0 +1,17 @@
+[
+  {
+    "id": "f4323b06-209b-4cc7-8b61-b14f9935aceb",
+    "participant_id": "mmannise@gmail.com",
+    "source": "vakaros",
+    "device_name": "VK-Maxi-URU",
+    "original_filename": "VK-Maxi-URU 10-8-2026.csv.gz",
+    "start_time": "2026-08-10T18:08:03.026000+00:00",
+    "end_time": "2026-08-10T18:38:09.074000+00:00",
+    "start_lat": 39.4822805,
+    "start_lon": -0.3313507,
+    "end_lat": 39.4823246,
+    "end_lon": -0.3315065,
+    "sample_count": 3613,
+    "attachment_sha256": "ad0db0635cb9de9c1fb686146266dc38ecabe32df6707987936e71b5f19d8974"
+  }
+]

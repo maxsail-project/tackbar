@@ -51,6 +51,7 @@ def parse_vakaros_csv(
     frame = frame.sort_values("timestamp").reset_index(drop=True)
 
     first_sample = frame.iloc[0]
+    last_sample = frame.iloc[-1]
     return Activity(
         source="vakaros",
         original_filename=filename,
@@ -59,6 +60,8 @@ def parse_vakaros_csv(
         end_time=frame.iloc[-1]["timestamp"].to_pydatetime(),
         start_lat=float(first_sample["latitude"]),
         start_lon=float(first_sample["longitude"]),
+        end_lat=float(last_sample["latitude"]),
+        end_lon=float(last_sample["longitude"]),
         samples=frame.to_dict(orient="records"),
     )
 

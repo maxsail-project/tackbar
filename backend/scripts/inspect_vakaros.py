@@ -35,6 +35,8 @@ def main() -> None:
         "end_time": activity.end_time.isoformat(),
         "start_lat": activity.start_lat,
         "start_lon": activity.start_lon,
+        "end_lat": activity.end_lat,
+        "end_lon": activity.end_lon,
         "sample_count": len(activity.samples),
         "sample_columns": list(samples.columns),
     }

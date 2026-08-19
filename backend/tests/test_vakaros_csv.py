@@ -28,6 +28,8 @@ def test_parse_real_vakaros_csv_fixture() -> None:
     assert activity.end_time.tzinfo == timezone.utc
     assert activity.start_lat == float(activity.samples[0]["latitude"])
     assert activity.start_lon == float(activity.samples[0]["longitude"])
+    assert activity.end_lat == float(activity.samples[-1]["latitude"])
+    assert activity.end_lon == float(activity.samples[-1]["longitude"])
     assert all(
         earlier["timestamp"] <= later["timestamp"]
         for earlier, later in zip(activity.samples, activity.samples[1:])
