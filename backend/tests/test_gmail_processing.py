@@ -12,7 +12,6 @@ from app.services.ingestion_history import (
     IngestionHistory,
 )
 from app.services.ingestion_processing import (
-    UnknownParticipantError,
     process_provider_email,
 )
 
@@ -68,13 +67,14 @@ def test_legacy_tmp_history_is_copied_without_deletion(
 def _email(
     attachment_bytes: bytes,
     sender_email: str = "mmannise@gmail.com",
+    provider_message_id: str = "gmail-message-1",
 ) -> InboundEmail:
     return InboundEmail(
         sender_email=sender_email,
         subject=FILENAME,
         attachment_filename=FILENAME,
         attachment_bytes=attachment_bytes,
-        provider_message_id="gmail-message-1",
+        provider_message_id=provider_message_id,
     )
 
 
@@ -112,6 +112,7 @@ def test_provider_and_message_id_deduplicate_ingestion(
     )
 
     assert first is not None
+    assert first.participant_created is False
     assert second is None
     assert len(history.records()) == 1
 
@@ -136,6 +137,52 @@ def test_same_message_id_from_different_provider_is_not_skipped(
     assert other_provider_result.activity_created is False
     assert other_provider_result.activity.id == gmail_result.activity.id
     assert len(history.records()) == 2
+
+
+def test_different_gmail_messages_with_identical_attachment_reuse_activity(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    attachment_bytes = FIXTURE_PATH.read_bytes()
+
+    first = process_provider_email(
+        "gmail",
+        _email(attachment_bytes, provider_message_id="gmail-message-1"),
+        participants,
+        activities,
+        sessions,
+        history,
+    )
+    second = process_provider_email(
+        "gmail",
+        _email(attachment_bytes, provider_message_id="gmail-message-2"),
+        participants,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first.activity_created is True
+    assert second.activity_created is False
+    assert first.activity.id == second.activity.id
+    assert first.activity.participant_id == "mmannise@gmail.com"
+    assert first.activity.attachment_sha256 == second.activity.attachment_sha256
+    assert len(activities.all()) == 1
+
+    records = history.records()
+    assert [record["provider"] for record in records] == ["gmail", "gmail"]
+    assert [record["provider_message_id"] for record in records] == [
+        "gmail-message-1",
+        "gmail-message-2",
+    ]
+    assert [record["activity_id"] for record in records] == [
+        first.activity.id,
+        first.activity.id,
+    ]
 
 
 def test_processed_history_stores_provider_and_activity_id(
@@ -163,26 +210,59 @@ def test_processed_history_stores_provider_and_activity_id(
     assert record["processed_at"].endswith("+00:00")
 
 
-def test_unknown_participant_is_not_processed(
+def test_unknown_participant_is_created_and_full_flow_continues(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     participants, activities, sessions, history = _repositories(
         temporary_json_file
     )
 
-    with pytest.raises(UnknownParticipantError, match="unknown@example.com"):
+    result = process_provider_email(
+        "gmail",
+        _email(FIXTURE_PATH.read_bytes(), " UNKNOWN@EXAMPLE.COM "),
+        participants,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    assert result.participant_created is True
+    assert result.participant.id == "unknown@example.com"
+    assert result.activity.participant_id == "unknown@example.com"
+    assert result.session_match.status == "created"
+    assert result.activity.id in result.session_match.session.activity_ids
+    assert history.is_processed("gmail", "gmail-message-1")
+
+
+def test_ingestion_is_recorded_only_after_complete_flow_succeeds(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+
+    def fail_session_matching(*args, **kwargs):
+        raise RuntimeError("session persistence failed")
+
+    monkeypatch.setattr(
+        "app.services.ingestion_processing.match_activity_to_session",
+        fail_session_matching,
+    )
+
+    with pytest.raises(RuntimeError, match="session persistence failed"):
         process_provider_email(
             "gmail",
-            _email(FIXTURE_PATH.read_bytes(), " UNKNOWN@EXAMPLE.COM "),
+            _email(FIXTURE_PATH.read_bytes(), "new@example.com"),
             participants,
             activities,
             sessions,
             history,
         )
 
+    assert participants.find_by_email("new@example.com") is not None
     assert history.records() == []
-    assert activities.all() == []
-    assert sessions.all() == []
 
 
 def test_failed_attachment_is_not_processed(

@@ -2,20 +2,17 @@ from dataclasses import dataclass
 
 from app.models import InboundEmail, Participant, StoredActivity
 from app.repositories.activities import ActivityRepository
-from app.repositories.participants import ParticipantRepository, normalize_email
+from app.repositories.participants import ParticipantRepository
 from app.repositories.sessions import SessionRepository
 from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
 
 
-class UnknownParticipantError(ValueError):
-    """Raised when an inbound sender is not a configured participant."""
-
-
 @dataclass
 class IngestionProcessingResult:
     participant: Participant
+    participant_created: bool
     activity: StoredActivity
     activity_created: bool
     session_match: SessionMatchResult
@@ -37,11 +34,9 @@ def process_provider_email(
         return None
 
     ingestion = process_inbound_email(email)
-    participant = participants.find_by_email(ingestion.sender_email)
-    if participant is None:
-        raise UnknownParticipantError(
-            f"Unknown participant: {normalize_email(ingestion.sender_email)}"
-        )
+    participant, participant_created = participants.find_or_create_by_email(
+        ingestion.sender_email
+    )
 
     if email.attachment_bytes is None:
         raise ValueError("Inbound email has no attachment bytes")
@@ -60,6 +55,7 @@ def process_provider_email(
 
     return IngestionProcessingResult(
         participant=participant,
+        participant_created=participant_created,
         activity=stored_activity,
         activity_created=created,
         session_match=session_match,

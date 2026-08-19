@@ -43,10 +43,10 @@ class IngestionResult:
 @dataclass
 class Participant:
     id: str
-    name: str
-    boat_name: str
-    sailing_class: str
-    sail_number: str
+    name: str | None
+    boat_name: str | None
+    sailing_class: str | None
+    sail_number: str | None
 
 
 @dataclass

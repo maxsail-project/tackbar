@@ -13,7 +13,6 @@ from app.repositories.participants import ParticipantRepository  # noqa: E402
 from app.repositories.sessions import SessionRepository  # noqa: E402
 from app.services.ingestion_history import IngestionHistory  # noqa: E402
 from app.services.ingestion_processing import (  # noqa: E402
-    UnknownParticipantError,
     process_provider_email,
 )
 
@@ -39,9 +38,6 @@ def main() -> None:
                 sessions=sessions,
                 history=history,
             )
-        except UnknownParticipantError as error:
-            print(error)
-            continue
         except ValueError as error:
             print(f"Failed to process {email.attachment_filename}: {error}")
             continue
@@ -54,11 +50,13 @@ def main() -> None:
         activity = result.activity
         activity_status = "created" if result.activity_created else "already existed"
 
+        participant_status = "created" if result.participant_created else "existing"
+        print(f"Participant: {participant_status}")
         print(f"Participant id: {participant.id}")
-        print(f"Participant name: {participant.name}")
-        print(f"Boat: {participant.boat_name}")
-        print(f"Class: {participant.sailing_class}")
-        print(f"Sail number: {participant.sail_number}")
+        print(f"Participant name: {participant.name or '-'}")
+        print(f"Boat: {participant.boat_name or '-'}")
+        print(f"Class: {participant.sailing_class or '-'}")
+        print(f"Sail number: {participant.sail_number or '-'}")
         print(f"Activity id: {activity.id}")
         print(f"Source: {activity.source}")
         print(f"Device: {activity.device_name}")

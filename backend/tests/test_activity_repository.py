@@ -72,6 +72,30 @@ def test_same_participant_and_attachment_returns_existing_activity(
     assert second.id == first.id
 
 
+def test_same_participant_and_filename_with_different_bytes_creates_activities(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    repository = ActivityRepository(temporary_json_file("activities", []))
+    parsed = parse_vakaros_csv(FIXTURE_PATH)
+    first_attachment = FIXTURE_PATH.read_bytes()
+    second_attachment = first_attachment + b"different attachment content"
+
+    first, first_created = repository.find_or_create(
+        " MMANNISE@GMAIL.COM ", parsed, first_attachment
+    )
+    second, second_created = repository.find_or_create(
+        "mmannise@gmail.com", parsed, second_attachment
+    )
+
+    assert first_created is True
+    assert second_created is True
+    assert first.participant_id == second.participant_id == "mmannise@gmail.com"
+    assert first.original_filename == second.original_filename == FIXTURE_PATH.name
+    assert first.attachment_sha256 != second.attachment_sha256
+    assert first.id != second.id
+    assert len(repository.all()) == 2
+
+
 def test_same_attachment_for_different_participant_creates_activity(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
