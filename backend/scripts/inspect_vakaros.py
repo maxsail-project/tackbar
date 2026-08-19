@@ -37,6 +37,12 @@ def main() -> None:
         "start_lon": activity.start_lon,
         "end_lat": activity.end_lat,
         "end_lon": activity.end_lon,
+        "center_lat": activity.center_lat,
+        "center_lon": activity.center_lon,
+        "min_lat": activity.min_lat,
+        "max_lat": activity.max_lat,
+        "min_lon": activity.min_lon,
+        "max_lon": activity.max_lon,
         "sample_count": len(activity.samples),
         "sample_columns": list(samples.columns),
     }

@@ -10,6 +10,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 from app.email_providers.gmail import GmailAdapter  # noqa: E402
 from app.repositories.activities import ActivityRepository  # noqa: E402
 from app.repositories.participants import ParticipantRepository  # noqa: E402
+from app.repositories.sessions import SessionRepository  # noqa: E402
 from app.services.ingestion_history import IngestionHistory  # noqa: E402
 from app.services.ingestion_processing import (  # noqa: E402
     UnknownParticipantError,
@@ -22,6 +23,7 @@ def main() -> None:
     history = IngestionHistory()
     participants = ParticipantRepository()
     activities = ActivityRepository()
+    sessions = SessionRepository()
 
     if not emails:
         print("No unread Gmail messages with matching CSV.GZ attachments found.")
@@ -34,6 +36,7 @@ def main() -> None:
                 email=email,
                 participants=participants,
                 activities=activities,
+                sessions=sessions,
                 history=history,
             )
         except UnknownParticipantError as error:
@@ -65,6 +68,9 @@ def main() -> None:
         print(f"End position: {activity.end_lat}, {activity.end_lon}")
         print(f"Sample count: {activity.sample_count}")
         print(f"Activity: {activity_status}")
+        print(f"Session id: {result.session_match.session.id}")
+        print(f"Session activity count: {result.session_match.activity_count}")
+        print(f"Session status: {result.session_match.status}")
         print()
 
 

@@ -45,6 +45,12 @@ def test_first_activity_creates_uuid_backed_record(
     )
     assert activity.end_lat == parsed.end_lat
     assert activity.end_lon == parsed.end_lon
+    assert activity.center_lat == parsed.center_lat
+    assert activity.center_lon == parsed.center_lon
+    assert activity.min_lat == parsed.min_lat
+    assert activity.max_lat == parsed.max_lat
+    assert activity.min_lon == parsed.min_lon
+    assert activity.max_lon == parsed.max_lon
 
 
 def test_same_participant_and_attachment_returns_existing_activity(
@@ -98,8 +104,53 @@ def test_persisted_activity_has_only_activity_domain_fields(
     expected_fields = {field.name for field in fields(StoredActivity)}
 
     assert set(record) == expected_fields
+    assert record["center_lat"] == parsed.center_lat
+    assert record["center_lon"] == parsed.center_lon
+    assert record["min_lat"] == parsed.min_lat
+    assert record["max_lat"] == parsed.max_lat
+    assert record["min_lon"] == parsed.min_lon
+    assert record["max_lon"] == parsed.max_lon
     assert "samples" not in record
     assert "gmail_message_id" not in record
     assert "provider_message_id" not in record
     assert "gmail_message_id" not in {field.name for field in fields(Activity)}
     assert "provider_message_id" not in {field.name for field in fields(Activity)}
+
+
+def test_existing_activity_is_enriched_with_spatial_metadata(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    path = temporary_json_file("activities", [])
+    repository = ActivityRepository(path)
+    attachment_bytes = FIXTURE_PATH.read_bytes()
+    parsed = parse_vakaros_csv(FIXTURE_PATH)
+    original, _ = repository.find_or_create(
+        "mmannise@gmail.com", parsed, attachment_bytes
+    )
+
+    records = json.loads(path.read_text(encoding="utf-8"))
+    for field_name in (
+        "center_lat",
+        "center_lon",
+        "min_lat",
+        "max_lat",
+        "min_lon",
+        "max_lon",
+    ):
+        records[0].pop(field_name)
+    path.write_text(json.dumps(records), encoding="utf-8")
+
+    enriched, created = repository.find_or_create(
+        "mmannise@gmail.com", parsed, attachment_bytes
+    )
+    persisted = json.loads(path.read_text(encoding="utf-8"))[0]
+
+    assert created is False
+    assert enriched.id == original.id
+    assert len(repository.all()) == 1
+    assert persisted["center_lat"] == parsed.center_lat
+    assert persisted["center_lon"] == parsed.center_lon
+    assert persisted["min_lat"] == parsed.min_lat
+    assert persisted["max_lat"] == parsed.max_lat
+    assert persisted["min_lon"] == parsed.min_lon
+    assert persisted["max_lon"] == parsed.max_lon

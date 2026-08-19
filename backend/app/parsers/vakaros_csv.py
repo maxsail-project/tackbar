@@ -50,6 +50,17 @@ def parse_vakaros_csv(
     frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
     frame = frame.sort_values("timestamp").reset_index(drop=True)
 
+    gps_samples = frame[["latitude", "longitude"]].apply(
+        pd.to_numeric,
+        errors="coerce",
+    )
+    gps_samples = gps_samples[
+        gps_samples["latitude"].between(-90, 90)
+        & gps_samples["longitude"].between(-180, 180)
+    ]
+    if gps_samples.empty:
+        raise ValueError("Vakaros CSV contains no valid GPS samples")
+
     first_sample = frame.iloc[0]
     last_sample = frame.iloc[-1]
     return Activity(
@@ -62,6 +73,12 @@ def parse_vakaros_csv(
         start_lon=float(first_sample["longitude"]),
         end_lat=float(last_sample["latitude"]),
         end_lon=float(last_sample["longitude"]),
+        center_lat=float(gps_samples["latitude"].median()),
+        center_lon=float(gps_samples["longitude"].median()),
+        min_lat=float(gps_samples["latitude"].min()),
+        max_lat=float(gps_samples["latitude"].max()),
+        min_lon=float(gps_samples["longitude"].min()),
+        max_lon=float(gps_samples["longitude"].max()),
         samples=frame.to_dict(orient="records"),
     )
 

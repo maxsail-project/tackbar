@@ -3,8 +3,10 @@ from dataclasses import dataclass
 from app.models import InboundEmail, Participant, StoredActivity
 from app.repositories.activities import ActivityRepository
 from app.repositories.participants import ParticipantRepository, normalize_email
+from app.repositories.sessions import SessionRepository
 from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
+from app.services.session_matcher import SessionMatchResult, match_activity_to_session
 
 
 class UnknownParticipantError(ValueError):
@@ -16,6 +18,7 @@ class IngestionProcessingResult:
     participant: Participant
     activity: StoredActivity
     activity_created: bool
+    session_match: SessionMatchResult
 
 
 def process_provider_email(
@@ -23,6 +26,7 @@ def process_provider_email(
     email: InboundEmail,
     participants: ParticipantRepository,
     activities: ActivityRepository,
+    sessions: SessionRepository,
     history: IngestionHistory,
 ) -> IngestionProcessingResult | None:
     provider_message_id = email.provider_message_id
@@ -47,10 +51,16 @@ def process_provider_email(
         ingestion.activity,
         email.attachment_bytes,
     )
+    session_match = match_activity_to_session(
+        stored_activity,
+        activities,
+        sessions,
+    )
     history.record_processed(provider, provider_message_id, stored_activity.id)
 
     return IngestionProcessingResult(
         participant=participant,
         activity=stored_activity,
         activity_created=created,
+        session_match=session_match,
     )

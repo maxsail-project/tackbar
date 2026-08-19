@@ -6,7 +6,11 @@ import pytest
 from app.models import InboundEmail
 from app.repositories.activities import ActivityRepository
 from app.repositories.participants import ParticipantRepository
-from app.services.ingestion_history import IngestionHistory
+from app.repositories.sessions import SessionRepository
+from app.services.ingestion_history import (
+    DEFAULT_HISTORY_PATH,
+    IngestionHistory,
+)
 from app.services.ingestion_processing import (
     UnknownParticipantError,
     process_provider_email,
@@ -28,6 +32,39 @@ PARTICIPANTS = [
 ]
 
 
+def test_default_history_path_is_persistent_data() -> None:
+    assert DEFAULT_HISTORY_PATH == (
+        Path(__file__).resolve().parents[1]
+        / "data"
+        / "ingestion_history.json"
+    )
+
+
+def test_legacy_tmp_history_is_copied_without_deletion(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    legacy_records = [
+        {
+            "provider": "gmail",
+            "provider_message_id": "legacy-message",
+            "processed_at": "2026-08-18T10:00:00+00:00",
+            "status": "processed",
+            "activity_id": "activity-1",
+        }
+    ]
+    legacy_path = temporary_json_file("legacy-history", legacy_records)
+    new_path = legacy_path.with_name(f"new-{legacy_path.name}")
+
+    history = IngestionHistory(new_path, legacy_path=legacy_path)
+
+    assert history.records() == legacy_records
+    assert new_path.exists()
+    assert legacy_path.exists()
+    assert IngestionHistory(new_path).records() == legacy_records
+
+    new_path.unlink()
+
+
 def _email(
     attachment_bytes: bytes,
     sender_email: str = "mmannise@gmail.com",
@@ -43,12 +80,18 @@ def _email(
 
 def _repositories(
     temporary_json_file: Callable[[str, object], Path],
-) -> tuple[ParticipantRepository, ActivityRepository, IngestionHistory]:
+) -> tuple[
+    ParticipantRepository,
+    ActivityRepository,
+    SessionRepository,
+    IngestionHistory,
+]:
     return (
         ParticipantRepository(
             temporary_json_file("participants", PARTICIPANTS)
         ),
         ActivityRepository(temporary_json_file("activities", [])),
+        SessionRepository(temporary_json_file("sessions", [])),
         IngestionHistory(temporary_json_file("ingestion-history", [])),
     )
 
@@ -56,14 +99,16 @@ def _repositories(
 def test_provider_and_message_id_deduplicate_ingestion(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, history = _repositories(temporary_json_file)
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
     email = _email(FIXTURE_PATH.read_bytes())
 
     first = process_provider_email(
-        "gmail", email, participants, activities, history
+        "gmail", email, participants, activities, sessions, history
     )
     second = process_provider_email(
-        "gmail", email, participants, activities, history
+        "gmail", email, participants, activities, sessions, history
     )
 
     assert first is not None
@@ -74,14 +119,16 @@ def test_provider_and_message_id_deduplicate_ingestion(
 def test_same_message_id_from_different_provider_is_not_skipped(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, history = _repositories(temporary_json_file)
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
     email = _email(FIXTURE_PATH.read_bytes())
 
     gmail_result = process_provider_email(
-        "gmail", email, participants, activities, history
+        "gmail", email, participants, activities, sessions, history
     )
     other_provider_result = process_provider_email(
-        "future-provider", email, participants, activities, history
+        "future-provider", email, participants, activities, sessions, history
     )
 
     assert gmail_result is not None
@@ -94,13 +141,16 @@ def test_same_message_id_from_different_provider_is_not_skipped(
 def test_processed_history_stores_provider_and_activity_id(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, history = _repositories(temporary_json_file)
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
 
     result = process_provider_email(
         "gmail",
         _email(FIXTURE_PATH.read_bytes()),
         participants,
         activities,
+        sessions,
         history,
     )
     record = history.records()[0]
@@ -116,7 +166,9 @@ def test_processed_history_stores_provider_and_activity_id(
 def test_unknown_participant_is_not_processed(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, history = _repositories(temporary_json_file)
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
 
     with pytest.raises(UnknownParticipantError, match="unknown@example.com"):
         process_provider_email(
@@ -124,17 +176,21 @@ def test_unknown_participant_is_not_processed(
             _email(FIXTURE_PATH.read_bytes(), " UNKNOWN@EXAMPLE.COM "),
             participants,
             activities,
+            sessions,
             history,
         )
 
     assert history.records() == []
-    assert activities._load() == []
+    assert activities.all() == []
+    assert sessions.all() == []
 
 
 def test_failed_attachment_is_not_processed(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, history = _repositories(temporary_json_file)
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
 
     with pytest.raises(ValueError):
         process_provider_email(
@@ -142,8 +198,10 @@ def test_failed_attachment_is_not_processed(
             _email(b"not a gzip file"),
             participants,
             activities,
+            sessions,
             history,
         )
 
     assert history.records() == []
-    assert activities._load() == []
+    assert activities.all() == []
+    assert sessions.all() == []

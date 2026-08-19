@@ -1,5 +1,6 @@
 from datetime import timezone
 from pathlib import Path
+from statistics import median
 
 from app.parsers.vakaros_csv import REQUIRED_COLUMNS, parse_vakaros_csv
 
@@ -30,6 +31,14 @@ def test_parse_real_vakaros_csv_fixture() -> None:
     assert activity.start_lon == float(activity.samples[0]["longitude"])
     assert activity.end_lat == float(activity.samples[-1]["latitude"])
     assert activity.end_lon == float(activity.samples[-1]["longitude"])
+    latitudes = [float(sample["latitude"]) for sample in activity.samples]
+    longitudes = [float(sample["longitude"]) for sample in activity.samples]
+    assert activity.center_lat == median(latitudes)
+    assert activity.center_lon == median(longitudes)
+    assert activity.min_lat == min(latitudes)
+    assert activity.max_lat == max(latitudes)
+    assert activity.min_lon == min(longitudes)
+    assert activity.max_lon == max(longitudes)
     assert all(
         earlier["timestamp"] <= later["timestamp"]
         for earlier, later in zip(activity.samples, activity.samples[1:])

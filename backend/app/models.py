@@ -14,6 +14,12 @@ class Activity:
     start_lon: float
     end_lat: float
     end_lon: float
+    center_lat: float
+    center_lon: float
+    min_lat: float
+    max_lat: float
+    min_lon: float
+    max_lon: float
     samples: list[dict[str, Any]]
 
 
@@ -56,5 +62,17 @@ class StoredActivity:
     start_lon: float
     end_lat: float
     end_lon: float
+    center_lat: float | None
+    center_lon: float | None
+    min_lat: float | None
+    max_lat: float | None
+    min_lon: float | None
+    max_lon: float | None
     sample_count: int
     attachment_sha256: str
+
+
+@dataclass
+class Session:
+    id: str
+    activity_ids: list[str]

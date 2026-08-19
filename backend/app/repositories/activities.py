@@ -36,6 +36,8 @@ class ActivityRepository:
                 stored_activity.participant_id == normalized_participant_id
                 and stored_activity.attachment_sha256 == attachment_sha256
             ):
+                if _enrich_spatial_metadata(stored_activity, activity):
+                    self._save(activities)
                 return stored_activity, False
 
         stored_activity = StoredActivity(
@@ -50,12 +52,31 @@ class ActivityRepository:
             start_lon=activity.start_lon,
             end_lat=activity.end_lat,
             end_lon=activity.end_lon,
+            center_lat=activity.center_lat,
+            center_lon=activity.center_lon,
+            min_lat=activity.min_lat,
+            max_lat=activity.max_lat,
+            min_lon=activity.min_lon,
+            max_lon=activity.max_lon,
             sample_count=len(activity.samples),
             attachment_sha256=attachment_sha256,
         )
         activities.append(stored_activity)
         self._save(activities)
         return stored_activity, True
+
+    def all(self) -> list[StoredActivity]:
+        return self._load()
+
+    def get_by_id(self, activity_id: str) -> StoredActivity | None:
+        return next(
+            (
+                activity
+                for activity in self._load()
+                if activity.id == activity_id
+            ),
+            None,
+        )
 
     def _load(self) -> list[StoredActivity]:
         if not self.path.exists():
@@ -69,6 +90,12 @@ class ActivityRepository:
             StoredActivity(
                 **{
                     **item,
+                    "center_lat": item.get("center_lat"),
+                    "center_lon": item.get("center_lon"),
+                    "min_lat": item.get("min_lat"),
+                    "max_lat": item.get("max_lat"),
+                    "min_lon": item.get("min_lon"),
+                    "max_lon": item.get("max_lon"),
                     "start_time": _parse_datetime(item["start_time"]),
                     "end_time": _parse_datetime(item["end_time"]),
                 }
@@ -93,3 +120,22 @@ class ActivityRepository:
 
 def _parse_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value)
+
+
+def _enrich_spatial_metadata(
+    stored_activity: StoredActivity,
+    parsed_activity: Activity,
+) -> bool:
+    changed = False
+    for field_name in (
+        "center_lat",
+        "center_lon",
+        "min_lat",
+        "max_lat",
+        "min_lon",
+        "max_lon",
+    ):
+        if getattr(stored_activity, field_name) is None:
+            setattr(stored_activity, field_name, getattr(parsed_activity, field_name))
+            changed = True
+    return changed

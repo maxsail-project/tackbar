@@ -1,6 +1,6 @@
 [
   {
-    "id": "f4323b06-209b-4cc7-8b61-b14f9935aceb",
+    "id": "d1b482c9-3981-4405-a705-5ac114764066",
     "participant_id": "mmannise@gmail.com",
     "source": "vakaros",
     "device_name": "VK-Maxi-URU",
@@ -11,6 +11,12 @@
     "start_lon": -0.3313507,
     "end_lat": 39.4823246,
     "end_lon": -0.3315065,
+    "center_lat": 39.4822156,
+    "center_lon": -0.3329051,
+    "min_lat": 39.4806245,
+    "max_lat": 39.484411,
+    "min_lon": -0.3347943,
+    "max_lon": -0.3313246,
     "sample_count": 3613,
     "attachment_sha256": "ad0db0635cb9de9c1fb686146266dc38ecabe32df6707987936e71b5f19d8974"
   }

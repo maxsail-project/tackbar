@@ -1,0 +1,16 @@
+[
+  {
+    "provider": "gmail",
+    "provider_message_id": "1a018eb54d042386",
+    "processed_at": "2026-08-19T08:45:45.966959+00:00",
+    "status": "processed",
+    "activity_id": "d1b482c9-3981-4405-a705-5ac114764066"
+  },
+  {
+    "provider": "gmail",
+    "provider_message_id": "1a014e8df8ec0dbd",
+    "processed_at": "2026-08-19T08:45:46.015974+00:00",
+    "status": "processed",
+    "activity_id": "d1b482c9-3981-4405-a705-5ac114764066"
+  }
+]
