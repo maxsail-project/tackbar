@@ -2,7 +2,7 @@ from datetime import timezone
 from pathlib import Path
 from statistics import median
 
-from app.parsers.vakaros_csv import REQUIRED_COLUMNS, parse_vakaros_csv
+from app.parsers.vakaros_csv import parse_vakaros_csv
 
 
 FIXTURE_PATH = (
@@ -22,17 +22,26 @@ def test_parse_real_vakaros_csv_fixture() -> None:
     assert activity.original_filename == FIXTURE_PATH.name
     assert activity.device_name == "VK-Maxi-URU"
     assert activity.samples
-    assert set(activity.samples[0]) >= REQUIRED_COLUMNS
-    assert activity.start_time == activity.samples[0]["timestamp"]
-    assert activity.end_time == activity.samples[-1]["timestamp"]
+    assert set(activity.samples[0]) == {
+        "utc",
+        "lat",
+        "lon",
+        "cog",
+        "sog",
+        "hdg",
+        "heel",
+        "trim",
+    }
+    assert activity.start_time == activity.samples[0]["utc"]
+    assert activity.end_time == activity.samples[-1]["utc"]
     assert activity.start_time.tzinfo == timezone.utc
     assert activity.end_time.tzinfo == timezone.utc
-    assert activity.start_lat == float(activity.samples[0]["latitude"])
-    assert activity.start_lon == float(activity.samples[0]["longitude"])
-    assert activity.end_lat == float(activity.samples[-1]["latitude"])
-    assert activity.end_lon == float(activity.samples[-1]["longitude"])
-    latitudes = [float(sample["latitude"]) for sample in activity.samples]
-    longitudes = [float(sample["longitude"]) for sample in activity.samples]
+    assert activity.start_lat == float(activity.samples[0]["lat"])
+    assert activity.start_lon == float(activity.samples[0]["lon"])
+    assert activity.end_lat == float(activity.samples[-1]["lat"])
+    assert activity.end_lon == float(activity.samples[-1]["lon"])
+    latitudes = [float(sample["lat"]) for sample in activity.samples]
+    longitudes = [float(sample["lon"]) for sample in activity.samples]
     assert activity.center_lat == median(latitudes)
     assert activity.center_lon == median(longitudes)
     assert activity.min_lat == min(latitudes)
@@ -40,6 +49,6 @@ def test_parse_real_vakaros_csv_fixture() -> None:
     assert activity.min_lon == min(longitudes)
     assert activity.max_lon == max(longitudes)
     assert all(
-        earlier["timestamp"] <= later["timestamp"]
+        earlier["utc"] <= later["utc"]
         for earlier, later in zip(activity.samples, activity.samples[1:])
     )

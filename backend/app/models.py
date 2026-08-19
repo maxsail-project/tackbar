@@ -70,6 +70,7 @@ class StoredActivity:
     max_lon: float | None
     sample_count: int
     attachment_sha256: str
+    track_file: str | None = None
 
 
 @dataclass

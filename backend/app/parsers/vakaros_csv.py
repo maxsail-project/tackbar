@@ -63,6 +63,18 @@ def parse_vakaros_csv(
 
     first_sample = frame.iloc[0]
     last_sample = frame.iloc[-1]
+    samples = pd.DataFrame(
+        {
+            "utc": frame["timestamp"],
+            "lat": frame["latitude"],
+            "lon": frame["longitude"],
+            "cog": frame["cog"],
+            "sog": frame["sog_kts"],
+            "hdg": frame["hdg_true"],
+            "heel": frame["heel"],
+            "trim": frame["trim"],
+        }
+    )
     return Activity(
         source="vakaros",
         original_filename=filename,
@@ -79,7 +91,7 @@ def parse_vakaros_csv(
         max_lat=float(gps_samples["latitude"].max()),
         min_lon=float(gps_samples["longitude"].min()),
         max_lon=float(gps_samples["longitude"].max()),
-        samples=frame.to_dict(orient="records"),
+        samples=samples.to_dict(orient="records"),
     )
 
 

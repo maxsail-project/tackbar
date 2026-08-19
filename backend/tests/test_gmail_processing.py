@@ -113,6 +113,17 @@ def test_provider_and_message_id_deduplicate_ingestion(
 
     assert first is not None
     assert first.participant_created is False
+    assert first.activity.track_file == (
+        f"tracks/{first.activity.id}.csv.gz"
+    )
+    assert (activities.path.parent / first.activity.track_file).exists()
+    archived_original = (
+        activities.path.parent
+        / "originals"
+        / first.activity.id
+        / first.activity.original_filename
+    )
+    assert archived_original.read_bytes() == email.attachment_bytes
     assert second is None
     assert len(history.records()) == 1
 

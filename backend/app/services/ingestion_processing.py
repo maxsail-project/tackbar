@@ -4,9 +4,11 @@ from app.models import InboundEmail, Participant, StoredActivity
 from app.repositories.activities import ActivityRepository
 from app.repositories.participants import ParticipantRepository
 from app.repositories.sessions import SessionRepository
+from app.services.activity_tracks import persist_activity_track
 from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
+from app.storage.track_storage import TrackStorage
 
 
 @dataclass
@@ -25,6 +27,7 @@ def process_provider_email(
     activities: ActivityRepository,
     sessions: SessionRepository,
     history: IngestionHistory,
+    track_storage: TrackStorage | None = None,
 ) -> IngestionProcessingResult | None:
     provider_message_id = email.provider_message_id
     if not provider_message_id:
@@ -45,6 +48,14 @@ def process_provider_email(
         participant.id,
         ingestion.activity,
         email.attachment_bytes,
+    )
+    storage = track_storage or TrackStorage(activities.path.parent)
+    stored_activity = persist_activity_track(
+        stored_activity,
+        ingestion.activity,
+        email.attachment_bytes,
+        activities,
+        storage,
     )
     session_match = match_activity_to_session(
         stored_activity,

@@ -78,6 +78,49 @@ class ActivityRepository:
             None,
         )
 
+    def set_track_file(
+        self,
+        activity_id: str,
+        track_file: str,
+    ) -> StoredActivity:
+        activities = self._load()
+        for activity in activities:
+            if activity.id == activity_id:
+                activity.track_file = track_file
+                self._save(activities)
+                return activity
+        raise ValueError(f"Activity not found: {activity_id}")
+
+    def refresh_track_metadata(
+        self,
+        activity_id: str,
+        parsed_activity: Activity,
+        track_file: str,
+    ) -> StoredActivity:
+        activities = self._load()
+        for activity in activities:
+            if activity.id != activity_id:
+                continue
+
+            activity.device_name = parsed_activity.device_name
+            activity.start_time = parsed_activity.start_time
+            activity.end_time = parsed_activity.end_time
+            activity.start_lat = parsed_activity.start_lat
+            activity.start_lon = parsed_activity.start_lon
+            activity.end_lat = parsed_activity.end_lat
+            activity.end_lon = parsed_activity.end_lon
+            activity.center_lat = parsed_activity.center_lat
+            activity.center_lon = parsed_activity.center_lon
+            activity.min_lat = parsed_activity.min_lat
+            activity.max_lat = parsed_activity.max_lat
+            activity.min_lon = parsed_activity.min_lon
+            activity.max_lon = parsed_activity.max_lon
+            activity.sample_count = len(parsed_activity.samples)
+            activity.track_file = track_file
+            self._save(activities)
+            return activity
+        raise ValueError(f"Activity not found: {activity_id}")
+
     def _load(self) -> list[StoredActivity]:
         if not self.path.exists():
             return []

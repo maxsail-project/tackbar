@@ -15,6 +15,7 @@ from app.services.ingestion_history import IngestionHistory  # noqa: E402
 from app.services.ingestion_processing import (  # noqa: E402
     process_provider_email,
 )
+from app.storage.track_storage import TrackStorage  # noqa: E402
 
 
 def main() -> None:
@@ -23,6 +24,7 @@ def main() -> None:
     participants = ParticipantRepository()
     activities = ActivityRepository()
     sessions = SessionRepository()
+    track_storage = TrackStorage()
 
     if not emails:
         print("No unread Gmail messages with matching CSV.GZ attachments found.")
@@ -37,6 +39,7 @@ def main() -> None:
                 activities=activities,
                 sessions=sessions,
                 history=history,
+                track_storage=track_storage,
             )
         except ValueError as error:
             print(f"Failed to process {email.attachment_filename}: {error}")
@@ -65,6 +68,7 @@ def main() -> None:
         print(f"Start position: {activity.start_lat}, {activity.start_lon}")
         print(f"End position: {activity.end_lat}, {activity.end_lon}")
         print(f"Sample count: {activity.sample_count}")
+        print(f"Track: {activity.track_file}")
         print(f"Activity: {activity_status}")
         print(f"Session id: {result.session_match.session.id}")
         print(f"Session activity count: {result.session_match.activity_count}")

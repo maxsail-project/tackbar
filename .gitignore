@@ -206,6 +206,10 @@ tempCodeRunnerFile.py
 # TackBar local inspection output
 backend/tmp/
 
+# TackBar runtime activity files
+backend/data/originals/
+backend/data/tracks/
+
 # Ruff stuff:
 .ruff_cache/
 
