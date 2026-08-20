@@ -4,6 +4,94 @@ All notable changes to TackBar will be documented in this file.
 
 ---
 
+## v0.3.0 — Multi-Track Viewer
+
+### English
+
+First functional proof of concept of the mobile-first Session Viewer for visual sailing debriefing and synchronized Activity comparison.
+
+### Added
+
+* Canonical normalized track persistence with immutable original files, replaceable normalized tracks and offline Activity reprocessing.
+* Mobile-first Session Viewer with Primary Activity and optional Comparison Activity.
+* Complete real-track visualization with MapLibre and automatic fitting to the selected track interval.
+* Ephemeral shared Analysis Window using absolute GPS/UTC time.
+* Synchronized replay with a single playback clock and x1, x2, x5 and x10 speeds.
+* Summary metrics for the selected Analysis Window: Distance, Avg SOG, Dominant COG, Avg HEEL and Avg TRIM.
+* SOG and COG time-series charts synchronized with replay.
+* Two-Activity visual comparison with shared Analysis Window, synchronized boat positions, map tracks, charts and summary metrics.
+* Support for uncompressed Vakaros `.csv` attachments in addition to `.csv.gz`.
+
+### Design
+
+* Activity remains the identity of each received track; Session groups compatible Activities without merging them.
+* Primary and Comparison Activities share one absolute GPS/UTC Analysis Window and one `playbackTime`.
+* Two-Activity synchronization is timestamp-based and does not depend on sample index or sampling frequency.
+* COG summary calculations preserve circular 0°/360° semantics.
+* Frontend fixtures are intentionally used to validate the complete viewer experience before introducing the backend read API.
+
+### Validated
+
+Real sailing data was used to validate the complete Session Viewer flow:
+
+`Session → Activities → Analysis Window → Map → Replay → Summary → SOG / COG`
+
+The viewer supports one or two Activities over the same temporal window, with synchronized tracks, boat positions, metrics and charts.
+
+### Next
+
+The next development stage will replace frontend development fixtures with a narrow read-only backend API for Sessions, Activities and normalized tracks.
+
+---
+
+## v0.3.0 — Visor Multi-Track
+
+### Español
+
+Primera prueba de concepto funcional del Session Viewer mobile-first para debriefing visual y comparación sincronizada de Actividades de navegación.
+
+### Añadido
+
+* Persistencia canónica de tracks normalizados con originales inmutables, tracks normalizados reemplazables y reprocesamiento offline de Actividades.
+* Session Viewer mobile-first con Actividad principal y Actividad de comparación opcional.
+* Visualización de tracks reales completos con MapLibre y ajuste automático al intervalo seleccionado.
+* Analysis Window compartida y efímera basada en tiempo absoluto GPS/UTC.
+* Replay sincronizado con un único reloj y velocidades x1, x2, x5 y x10.
+* Métricas resumen para la Analysis Window seleccionada: distancia, SOG promedio, COG dominante, HEEL promedio y TRIM promedio.
+* Gráficos temporales de SOG y COG sincronizados con el replay.
+* Comparación visual de dos Actividades con Analysis Window compartida, posiciones sincronizadas, tracks, gráficos y métricas resumen.
+* Soporte para adjuntos Vakaros `.csv` sin comprimir además de `.csv.gz`.
+
+### Diseño
+
+* La Actividad mantiene la identidad de cada track recibido; la Sesión agrupa Actividades compatibles sin fusionarlas.
+* Las Actividades principal y de comparación comparten una única Analysis Window GPS/UTC y un único `playbackTime`.
+* La sincronización de dos Actividades se basa en timestamps y no depende del índice de muestras ni de su frecuencia.
+* Los cálculos resumen de COG preservan la semántica circular 0°/360°.
+* Los fixtures frontend se utilizan intencionadamente para validar la experiencia completa del visor antes de introducir la API de lectura del backend.
+
+### Validado
+
+Se utilizaron datos reales de navegación para validar el flujo completo del Session Viewer:
+
+`Sesión → Actividades → Analysis Window → Mapa → Replay → Resumen → SOG / COG`
+
+El visor permite trabajar con una o dos Actividades sobre la misma ventana temporal, con tracks, posiciones de barco, métricas y gráficos sincronizados.
+
+### Siguiente
+
+La siguiente etapa sustituirá los fixtures de desarrollo frontend por una API backend de solo lectura para Sesiones, Actividades y tracks normalizados.
+
+---
+
+## v0.2.0 — Detección automática de sesiones
+
+---
+
+## v0.2.0 — Automatic Session Detection
+
+---
+
 ## v0.2.0 — Automatic Session Detection
 
 ### English
