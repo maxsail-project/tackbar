@@ -81,6 +81,12 @@ Activity
 Session
 ```
 
+The current `Participant` representation is transitional and may contain both
+person and default boat metadata. Domain evolution should preserve a clear
+separation between the person-level Sailor identity and the Boat used for a
+specific Activity. Email may remain an external ingestion identity without
+becoming the permanent identity of every future domain concept.
+
 For the Session Viewer:
 
 ```text
@@ -171,13 +177,18 @@ However:
 
 TackBar should rethink each concept according to its own collaborative, mobile-first product workflow.
 
+Reusable TackBar sailing-analysis logic should evolve as an independent Python
+analytics/domain layer or library when demonstrated needs require it. This
+direction does not imply that a mature standalone analytics library is already
+delivered and does not expand the current release into advanced analytics.
+
 ---
 
 ## 5. Architecture principles
 
 Keep responsibilities clearly separated.
 
-Current backend responsibilities include:
+The backend responsibility boundary includes:
 
 - email/provider ingestion;
 - attachment extraction;
@@ -228,6 +239,16 @@ The frontend must not:
 The frontend should consume a stable API contract.
 
 Storage implementation must remain hidden from the frontend.
+
+The backend owns persistence access, domain resolution and canonical track
+loading. The frontend may own ephemeral Viewer interaction and presentation
+state such as Activity selection, Analysis Window, filtered samples,
+`playbackTime`, replay, map/chart presentation and calculations derived from
+the normalized samples it receives.
+
+Do not duplicate the same interaction or metric calculation in both layers.
+Moving existing tested presentation logic between frontend and backend
+requires an explicit, demonstrated product, correctness or performance reason.
 
 This allows later migration from JSON/filesystem storage to other persistence mechanisms without redesigning the UI.
 
@@ -432,12 +453,14 @@ Initial summary concepts are:
 - Average HEEL;
 - Average TRIM.
 
-Initial graphical selectable metrics are:
+Currently delivered graphical selectable metrics are:
 
 - SOG;
 - COG;
-- HEEL;
-- TRIM.
+
+HEEL and TRIM remain basic metric candidates for later Viewer work when their
+normalized values are available. Missing values must remain unavailable rather
+than invented.
 
 The same selected metric is shown for both Activities.
 
@@ -508,6 +531,27 @@ Consider architectural migration only when demonstrated problems appear, such as
 - operational complexity caused by the current persistence model.
 
 Data volume alone is not sufficient reason to introduce complex infrastructure.
+
+The current PoC persistence direction is JSON metadata plus filesystem track
+and original files. Track-file volume alone is not a reason to introduce
+SQLite.
+
+Measure before migrating. Practical review signals include:
+
+- an individual metadata JSON collection approaching approximately 10–20 MB;
+- metadata scans or full-file rewrites becoming a meaningful part of measured
+  request latency;
+- persistence/query work contributing approximately 100–200 ms of measured
+  latency;
+- increasingly complex auxiliary indexes added solely to compensate for JSON
+  lookup cost.
+
+These values trigger profiling and reconsideration, not automatic migration.
+A database becomes justified by demonstrated needs such as multiple concurrent
+writers, multiple modifying workers, atomic multi-entity transactions,
+referential integrity, materially complex relational queries, lost-update or
+locking problems, repeated corruption/interrupted writes, unacceptable
+measured latency, or operational complexity maintaining JSON consistency.
 
 ---
 

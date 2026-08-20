@@ -55,38 +55,45 @@ Initial matching signals:
 
 ---
 
-## PoC 3 — Multi-track viewer
+## PoC 3 — Multi-track viewer (delivered in v0.3.x)
 
-Goal: visualize several sailors from the same session together.
+Goal: visualize and compare one or two Activities from the same Session.
 
-Planned scope:
+Delivered baseline:
 
-* Display multiple tracks on the same map
-* Differentiate participants and boats
-* Synchronize activities by time
-* Navigate through the session timeline
-* Display basic activity information
-* Show basic comparative metrics
-* Provide a tablet-friendly interface
+* Primary Activity and optional Comparison Activity
+* Two distinguishable tracks on the same map
+* Shared GPS/UTC Analysis Window and `playbackTime`
+* Synchronized replay at x1, x2, x5 and x10
+* Basic summary metrics and SOG/COG time-series charts
+* Mobile-first interface with responsive tablet behavior
+* Public sanitized demo fixtures for Viewer validation
 
 ---
 
 ## PoC 4 — Collaborative sailing debrief
 
-Goal: validate TackBar as a real post-sailing debriefing tool.
+Goal: validate TackBar as a real post-sailing visual debriefing tool connected
+to Sessions and Activities actually persisted by the backend.
 
 Planned scope:
 
-* Session overview
-* Participant list
-* User-to-boat association
-* Boat metadata
-* Sailing class
-* Sail number
-* Shared session access
-* Selection of relevant moments
-* Basic track comparison
-* Post-sailing discussion workflow
+* Resolve the Sailor/Boat domain direction before freezing the API contract
+* Separate person-level Sailor identity from Boat context
+* Expose recent Sessions, Session detail, Activities and canonical normalized tracks through a narrow read-only FastAPI boundary
+* Replace frontend Session/track fixtures with backend-provided data
+* Preserve the validated one/two-Activity Viewer, shared Analysis Window, map, replay, metrics and charts
+* Review remaining basic Viewer charts incrementally; HEEL/TRIM time series are candidates when data is available, not mandatory v0.4 exit criteria
+* Perform a focused mobile/tablet UX review after runtime integration
+* Use the ephemeral Analysis Window to isolate relevant sailing intervals manually
+* Validate the complete persisted Session → API → Viewer → debrief workflow
+
+Collaborative discussion occurs between sailors looking at the phone/tablet
+together. Chat, comments, messaging and real-time multi-user collaboration are
+not required.
+
+Persisted or automatically detected starts, legs, races, maneuvers and other
+semantic segments remain important future work, but do not block v0.4.
 
 ---
 
@@ -96,13 +103,15 @@ Goal: validate TackBar with real sailors, coaches and sailing sessions.
 
 Expected scope:
 
-* Multiple users
+* Multiple sailors
 * Multiple boats
 * Automatic activity ingestion
 * Reliable session matching
 * Shared debriefing sessions
-* Tablet-first user experience
-* Basic user and boat management
+* Mobile-first phone/tablet user experience
+* Basic Sailor and Boat management
+* Invite-only participant activation and pilot-access enforcement
+* Explicit privacy/data-use acceptance
 * Improved sailing analytics
 * Feedback from real sailors and coaches
 
@@ -110,7 +119,7 @@ Expected scope:
 
 ## Future integrations
 
-Current Vakaros `.csv` and `.csv.gz` ingestion remains the governing implementation. The remaining Vakaros formats are a non-priority backlog and do not block current v0.3 frontend work.
+Current Vakaros `.csv` and `.csv.gz` ingestion remains the governing implementation. The remaining Vakaros formats are a non-priority backlog and do not block v0.4 collaborative debrief work.
 
 ### Backlog — Complete Vakaros multi-format ingestion
 
@@ -268,38 +277,47 @@ Señales iniciales utilizadas para el matching:
 
 ---
 
-## PoC 3 — Visor multi-track
+## PoC 3 — Visor multi-track (entregado en v0.3.x)
 
-Objetivo: visualizar conjuntamente a varios regatistas pertenecientes a una misma sesión.
+Objetivo: visualizar y comparar una o dos Activities de la misma Session.
 
-Alcance previsto:
+Baseline entregada:
 
-* Mostrar varios tracks en un mismo mapa
-* Diferenciar participantes y barcos
-* Sincronizar las actividades temporalmente
-* Navegar por la línea temporal de la sesión
-* Mostrar información básica de cada actividad
-* Mostrar métricas comparativas básicas
-* Proporcionar una interfaz adaptada a tablet
+* Activity principal y Activity de comparación opcional
+* Dos tracks diferenciables en el mismo mapa
+* Analysis Window GPS/UTC y `playbackTime` compartidos
+* Replay sincronizado a x1, x2, x5 y x10
+* Métricas resumen básicas y gráficos temporales SOG/COG
+* Interfaz mobile-first con comportamiento responsive en tablet
+* Fixtures públicos sanitizados para validar el Viewer
 
 ---
 
 ## PoC 4 — Debriefing colaborativo de vela
 
-Objetivo: validar TackBar como herramienta real de debriefing después de navegar.
+Objetivo: validar TackBar como herramienta real de debriefing visual posterior
+a la navegación, conectada con Sessions y Activities realmente persistidas por
+el backend.
 
 Alcance previsto:
 
-* Vista general de sesión
-* Lista de participantes
-* Asociación usuario-barco
-* Metadata del barco
-* Clase de vela
-* Número de vela
-* Acceso compartido a la sesión
-* Selección de momentos relevantes
-* Comparación básica de tracks
-* Flujo de discusión posterior a la navegación
+* Resolver la dirección de dominio Sailor/Boat antes de congelar el contrato API
+* Separar la identidad personal Sailor del contexto Boat
+* Exponer Sessions recientes, detalle de Session, Activities y tracks normalizados canónicos mediante una API FastAPI estrecha y de solo lectura
+* Sustituir los fixtures frontend de Sessions/tracks por datos proporcionados por el backend
+* Preservar el Viewer validado de una/dos Activities, Analysis Window compartida, mapa, replay, métricas y gráficos
+* Revisar incrementalmente los gráficos básicos restantes del Viewer; las series temporales HEEL/TRIM son candidatas cuando existan datos, no criterios obligatorios de salida de v0.4
+* Realizar una revisión UX enfocada a móvil/tablet después de la integración runtime
+* Utilizar la Analysis Window efímera para aislar manualmente intervalos relevantes
+* Validar el flujo completo Session persistida → API → Viewer → debriefing
+
+La discusión colaborativa ocurre entre los regatistas reunidos alrededor del
+móvil/tablet. No requiere chat, comentarios, mensajería ni colaboración
+multiusuario en tiempo real.
+
+La persistencia o detección automática de salidas, tramos, regatas, maniobras u
+otros segmentos semánticos sigue siendo trabajo futuro importante, pero no
+bloquea v0.4.
 
 ---
 
@@ -309,13 +327,15 @@ Objetivo: validar TackBar con regatistas, entrenadores y sesiones de navegación
 
 Alcance esperado:
 
-* Varios usuarios
+* Varios regatistas
 * Varios barcos
 * Ingesta automática de actividades
 * Detección fiable de sesiones
 * Sesiones de debriefing compartidas
-* Experiencia tablet-first
-* Gestión básica de usuarios y barcos
+* Experiencia mobile-first en móvil/tablet
+* Gestión básica de Sailors y Boats
+* Activación por invitación y control de acceso al piloto
+* Aceptación explícita del uso/privacidad de datos
 * Mejora de la analítica de navegación
 * Feedback de regatistas y entrenadores reales
 
@@ -323,7 +343,7 @@ Alcance esperado:
 
 ## Integraciones futuras
 
-La ingesta Vakaros `.csv` y `.csv.gz` actualmente soportada continúa siendo la implementación vigente. Los formatos Vakaros restantes quedan como backlog no prioritario y no bloquean el trabajo actual del frontend v0.3.
+La ingesta Vakaros `.csv` y `.csv.gz` actualmente soportada continúa siendo la implementación vigente. Los formatos Vakaros restantes quedan como backlog no prioritario y no bloquean el trabajo de debriefing colaborativo v0.4.
 
 ### Backlog — Completar la ingesta Vakaros multiformato
 

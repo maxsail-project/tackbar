@@ -19,6 +19,11 @@ For work related to Sessions, Activities, tracks, comparison, metrics, replay, o
 
 `docs/session-viewer-requirements.md`
 
+For v0.4 work related to Sailor, Boat, the Session Viewer API,
+frontend/backend integration, or collaborative debriefing, also read:
+
+`docs/v0.4-collaborative-debrief-requirements.md`
+
 Treat these documents as repository constraints, not optional background.
 
 If instructions conflict, stop and report the conflict before implementing.

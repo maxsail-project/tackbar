@@ -1,9 +1,21 @@
 # TackBar v0.3 — Session Viewer Requirements
 
-**Status:** Draft for implementation planning  
-**Revision:** 2 — Session → Activity → Analysis Window model  
-**Scope:** PoC / mobile-first collaborative sailing debrief  
+**Status:** Delivered v0.3.x Session Viewer baseline
+
+**Revision:** 3 — Delivered semantics and v0.4 handoff
+
+**Scope:** PoC / mobile-first collaborative sailing debrief
+
 **Primary use case:** 5–10 sailors sharing tracks after sailing and comparing one or two boats quickly from a phone.
+
+This document governs the delivered v0.3.x Session Viewer semantics. Current
+v0.4 evolution is governed by
+`docs/v0.4-collaborative-debrief-requirements.md`.
+
+v0.4 preserves the validated functional semantics in this document unless it
+explicitly overrides them. In particular, a v0.4 requirement may supersede a
+historical architectural ownership decision while retaining the existing
+Analysis Window, comparison, replay and circular-angle behavior.
 
 ---
 
@@ -366,12 +378,14 @@ model.
 
 The user selects one metric at a time.
 
-Initial selectable metrics:
+Delivered v0.3.x selectable time-series/replay metrics:
 
 - `sog`
 - `cog`
-- `heel`
-- `trim`
+
+HEEL and TRIM remain supported in the summary metric model but are not enabled
+for time-series/replay selection in the delivered v0.3.x Viewer. They are
+planned as later basic Viewer work when source values are available.
 
 `hdg` remains available in normalized data and may be added later if useful, but is not required in the first Session Viewer increment.
 
@@ -384,8 +398,6 @@ Examples:
 ```text
 SOG vs SOG
 COG vs COG
-HEEL vs HEEL
-TRIM vs TRIM
 ```
 
 Not:
@@ -456,13 +468,14 @@ The chart uses the same Analysis Window as the map and comparison table.
 
 ### FR-16 — Metric selector
 
-Provide a simple selector:
+The delivered selector presents the complete basic metric model while clearly
+distinguishing enabled and deferred choices:
 
 ```text
-SOG | COG | HEEL | TRIM
+SOG | COG | HEEL (deferred) | TRIM (deferred)
 ```
 
-Changing the metric updates:
+SOG and COG are enabled in v0.3.x. Changing the enabled metric updates:
 
 - the time-series chart;
 - the selected metric value in the map/replay context.
@@ -706,7 +719,7 @@ Target flow:
 10. TackBar establishes the common GPS-time overlap.
 11. User adjusts the shared Analysis Window.
 12. Map and comparison table update to that window.
-13. User selects one metric (`SOG`, `COG`, `HEEL`, `TRIM`).
+13. User selects one currently enabled metric (`SOG` or `COG`).
 14. Chart shows that same metric for one or two Activities.
 15. User moves the common replay cursor to inspect both boats at the same GPS time.
 
@@ -729,6 +742,10 @@ Frontend must not read `activities.json`, `sessions.json` or CSV.GZ files direct
 
 Frontend must consume a backend API.
 
+This boundary was not delivered in v0.3.x: the Viewer was validated with
+public frontend fixtures and the read API was deferred. It becomes current
+implementation work under the v0.4 requirements.
+
 ### AR-03
 
 Backend is responsible for:
@@ -739,13 +756,24 @@ Backend is responsible for:
 - calculating comparison-table metrics;
 - returning chart/map sample data.
 
+**v0.4 ownership note:** this was the original v0.3 architectural direction,
+not the ownership used by the delivered fixture-based Viewer. For current v0.4
+work, `docs/v0.4-collaborative-debrief-requirements.md` supersedes the
+calculation/filtering portion of AR-03: the backend owns persistence, domain
+resolution and canonical normalized-track loading, while the frontend retains
+its tested ephemeral Analysis Window, filtering, summary, replay and
+presentation calculations. The same logic must not be duplicated in both
+layers.
+
 ### AR-04
 
 Storage implementation must remain hidden behind backend code so JSON/filesystem can later be replaced without redesigning the frontend contract.
 
 ### AR-05
 
-Viewer endpoints are read-only for the v0.3 PoC.
+Viewer endpoints were intended to be read-only for the v0.3 PoC. They were not
+delivered in v0.3.x; v0.4 preserves the read-only constraint when introducing
+the API.
 
 ### AR-06
 
@@ -814,9 +842,11 @@ When one Participant has multiple Activities, the UI must make them distinguisha
 
 ---
 
-## 16. Future concepts explicitly preserved
+## 16. Delivered refinements and future concepts preserved
 
-The following concepts are **not requirements for v0.3**, but the design should not block them:
+This section records both later concepts that the design should not block and
+interaction refinements that became part of the delivered v0.3.x baseline.
+Each item states its own status.
 
 ### FC-01 — Saved Segment
 
@@ -853,47 +883,21 @@ Future versions may help identify or discard:
 
 No such automatic behavior is required now.
 
-### FC-05 — Participant vs Boat identity
+### FC-05 — Active v0.4 Sailor/Boat domain evolution
 
-A Participant represents a person and is identified externally by email.
-
-Participant fields conceptually belong to the person:
-
-- `id` = external email address
-- `name`
-
-Boat-related fields describe the boat used for a specific sailing Activity:
-
-- `boat_name`
-- `sailing_class`
-- `sail_number`
-
-A Participant may sail with different boats and different sail numbers over time.
-
-Therefore, TackBar must not assume:
-
-`Participant == Boat`
-
-Current PoC data may still keep `boat_name`, `sailing_class` and `sail_number` on Participant as temporary/default metadata.
-
-Future domain evolution may introduce Activity-level boat context or a separate Boat entity.
-
-Possible future model:
+The delivered implementation uses `Participant` as a transitional concept and
+stores person and boat/default metadata together. TackBar must not assume:
 
 ```text
-Participant
-  id
-  name
-
-Boat
-  boat_name
-  sailing_class
-  sail_number
-
-Activity
-  participant_id
-  boat_id / boat context
+Participant == Boat
+email == Boat
 ```
+
+Separating the person-level `Sailor` concept from `Boat` and associating the
+relevant context with each Activity is an active v0.4 domain-evolution topic.
+The exact Participant migration, Sailor identity, Boat persistence and
+Activity relationship are intentionally deferred to the focused analysis
+required by `docs/v0.4-collaborative-debrief-requirements.md`.
 
 ### FC-06 — Session Timeline and Replay interaction
 
@@ -1025,9 +1029,12 @@ The viewer operates from normalized TackBar tracks and existing domain metadata 
 
 ---
 
-## 18. Recommended implementation sequence
+## 18. Historical v0.3 implementation sequence
 
-The next implementation work should be split into small, independently testable increments.
+This was the recommended sequence recorded during v0.3 planning. It was not
+completed in this exact order: the Viewer was delivered with frontend fixtures
+while the read API was deferred. The sequence is retained as historical
+baseline context and does not govern v0.4 implementation order.
 
 1. Define/read the Session Viewer backend read contract.
 2. Expose Session list and Session detail with Activity/Participant context.
@@ -1057,7 +1064,7 @@ The v0.3 PoC should remain deliberately simple while keeping this separation cle
 
 ---
 
-## Data Privacy, Participant Registration and Pilot Access
+## Data Privacy and future v0.5 Real Sailing Pilot access
 
 ### Public repository and private runtime data
 
@@ -1134,7 +1141,17 @@ frontend demonstration.
 
 ---
 
-### Closed pilot
+### Future v0.5 Real Sailing Pilot requirements
+
+PA-01 through PA-07 are preserved as governing requirements for the v0.5 Real
+Sailing Pilot / pilot-access chapter. They are not v0.4 requirements or v0.4
+exit criteria. The current implementation may continue its existing
+Participant behavior during v0.4 unless a separate focused requirement changes
+it.
+
+v0.4 does not require public registration, authentication, an authorization
+platform, invite-management UI or privacy-acceptance workflow. Private runtime
+data must still remain outside Git and use `TACKBAR_DATA_DIR`.
 
 **PA-01 — Invite-only pilot**
 
@@ -1259,6 +1276,10 @@ PoC:
 Possible next step:
 
 `SQLite + files`
+
+This is a conditional possibility, not a planned default. The v0.4 persistence
+policy requires measured database behavior needs before migration; JSON/files
+remain the governing PoC strategy.
 
 Later deployments MAY use another private database/object storage solution.
 

@@ -43,7 +43,10 @@ The first TackBar proof of concept focuses on a deliberately simple workflow:
 5. The sender email identifies the sailor.
 6. Date, time and GPS proximity are used to determine which sailing session the activity belongs to.
 7. Tracks from multiple sailors are grouped automatically.
-8. The resulting session can be opened and reviewed collaboratively.
+8. The v0.3.x Session Viewer demonstrates collaborative visual review using
+   public demo Sessions and tracks.
+9. v0.4 connects the Viewer to Sessions and tracks actually persisted by the
+   backend.
 
 Initial testing is being performed using **Vakaros activity exports**.
 
@@ -61,13 +64,16 @@ Example:
 
 For the initial PoC, the sender email address is used to identify the participant.
 
-The domain model is expected to evolve towards:
+The current `Participant` representation is transitional. The domain model is
+now evolving towards:
 
-`Email → User → Boat → Class / Category / Sail Number`
+`Email → Sailor → Boat → Activity`
 
-This keeps identity, boat information and activity data separated.
+This keeps person identity, boat information and Activity data separated.
 
-A user may eventually be associated with multiple boats, while each individual activity keeps a reference to the boat used during that particular session.
+A Sailor may be associated with multiple Boats over time, while each Activity
+can identify the Boat used for that sailing when known. The exact migration
+from the current `Participant` model is part of the v0.4 domain work.
 
 ---
 
@@ -118,18 +124,23 @@ TackBar is intended to remain device-independent.
 
 ## Architecture
 
-The initial architecture is intentionally simple:
+The current architecture is intentionally simple:
 
-`Email → Activity Ingestion → Track Parser → Session Matcher → TackBar`
+`Email → Activity Ingestion → Track Parser → Activity → Session Matcher → TackBar`
 
-Planned technology stack:
+Current technology and persistence:
 
-* **Frontend:** React + TypeScript
+* **Frontend:** React + TypeScript Session Viewer
 * **Backend:** Python + FastAPI
-* **Analytics:** independent Python library
-* **Initial persistence:** SQLite
-* **Activity ingestion:** inbound email webhook or Gmail API
-* **Target experience:** tablet-first web application / PWA
+* **Persistence:** JSON metadata plus filesystem originals and normalized tracks
+* **Activity ingestion:** Gmail API adapter with provider-independent downstream processing
+* **Target experience:** mobile-first web application that also works naturally on tablets
+
+The current v0.3.x Viewer has validated one/two-Activity comparison, a shared
+GPS/UTC Analysis Window, map, replay, summary metrics and SOG/COG charts using
+public demo fixtures. The v0.4 work will connect that Viewer to Sessions,
+Activities and normalized tracks actually persisted by the backend through a
+read-only API. SQLite is not a prerequisite for this PoC evolution.
 
 The ingestion layer is intended to remain independent from the analytics layer.
 
@@ -154,6 +165,11 @@ TackBar is a new and independent product direction.
 
 It does not inherit the Streamlit application architecture of MaxSail Analytics.
 
+Reusable TackBar sailing-analysis logic may evolve as an independent Python
+analytics/domain layer or library when needed. This direction does not claim a
+mature standalone analytics library is already delivered, and it does not turn
+v0.4 into an advanced analytics release.
+
 The focus is instead on:
 
 * collaborative debriefing;
@@ -169,9 +185,13 @@ The focus is instead on:
 
 **Early-stage proof of concept.**
 
-The immediate goal is to validate the complete workflow:
+The immediate v0.4 goal is to validate the complete runtime workflow:
 
-`multiple sailors → email tracks → automatic session detection → collaborative track comparison`
+`multiple sailors → track ingestion → automatic Session detection → persisted Session → backend API → collaborative visual debrief`
+
+The debrief is collaborative because sailors inspect and discuss the Session
+together around a phone or tablet; it does not require built-in chat or
+messaging.
 
 The project is not currently affiliated with or endorsed by Garmin, Vakaros or any other device manufacturer.
 
@@ -230,7 +250,10 @@ La primera prueba de concepto de TackBar se centra deliberadamente en un flujo m
 5. La dirección de correo remitente identifica al regatista.
 6. La fecha, la hora y la proximidad GPS permiten determinar a qué sesión pertenece la actividad.
 7. Los tracks de varios regatistas se agrupan automáticamente.
-8. La sesión resultante puede abrirse y analizarse de forma colaborativa.
+8. El Session Viewer v0.3.x demuestra la revisión visual colaborativa mediante
+   Sessions y tracks públicos de demostración.
+9. v0.4 conecta el Viewer con Sessions y tracks realmente persistidos por el
+   backend.
 
 Las primeras pruebas se están realizando utilizando **exportaciones de actividades Vakaros**.
 
@@ -248,13 +271,18 @@ Ejemplo:
 
 Para la PoC inicial, la dirección de correo del remitente se utiliza para identificar al participante.
 
-El modelo de dominio evolucionará hacia:
+La representación actual de `Participant` es transitoria. El modelo de dominio
+evoluciona ahora hacia:
 
-`Email → Usuario → Barco → Clase / Categoría / Número de vela`
+`Email → Sailor → Boat → Activity`
 
-Esto permite mantener separadas la identidad del usuario, la información del barco y los datos de cada actividad.
+Esto permite mantener separadas la identidad de la persona, la información del
+barco y los datos de cada Activity.
 
-Un usuario podrá estar asociado en el futuro a varios barcos, mientras que cada actividad individual conservará la referencia al barco utilizado en esa navegación concreta.
+Un Sailor podrá estar asociado a varios Boats a lo largo del tiempo, mientras
+que cada Activity podrá identificar el Boat utilizado en esa navegación cuando
+se conozca. La migración exacta desde el modelo `Participant` actual forma parte
+del trabajo de dominio de v0.4.
 
 ---
 
@@ -305,18 +333,24 @@ TackBar pretende ser independiente del dispositivo utilizado.
 
 ## Arquitectura
 
-La arquitectura inicial se mantiene deliberadamente sencilla:
+La arquitectura actual se mantiene deliberadamente sencilla:
 
-`Email → Ingesta de actividad → Parser de track → Session Matcher → TackBar`
+`Email → Ingesta de Activity → Parser de track → Activity → Session Matcher → TackBar`
 
-Stack tecnológico previsto:
+Tecnología y persistencia actuales:
 
-* **Frontend:** React + TypeScript
+* **Frontend:** Session Viewer con React + TypeScript
 * **Backend:** Python + FastAPI
-* **Analytics:** librería Python independiente
-* **Persistencia inicial:** SQLite
-* **Ingesta de actividad:** webhook de correo entrante o Gmail API
-* **Experiencia objetivo:** aplicación web/PWA tablet-first
+* **Persistencia:** metadata JSON más originales y tracks normalizados en el sistema de archivos
+* **Ingesta de Activity:** adaptador Gmail API con procesamiento posterior independiente del proveedor
+* **Experiencia objetivo:** aplicación web mobile-first que también funciona de forma natural en tablet
+
+El Viewer v0.3.x ya ha validado la comparación de una/dos Activities, una
+Analysis Window GPS/UTC compartida, mapa, replay, métricas resumen y gráficos
+SOG/COG mediante fixtures públicos de demostración. El trabajo de v0.4
+conectará ese Viewer con Sessions, Activities y tracks normalizados realmente
+persistidos por el backend mediante una API de solo lectura. SQLite no es un
+requisito previo para esta evolución de la PoC.
 
 La capa de ingestión permanecerá separada de la capa analítica.
 
@@ -341,6 +375,11 @@ TackBar representa una nueva dirección de producto independiente.
 
 No hereda la arquitectura de aplicación Streamlit de MaxSail Analytics.
 
+La lógica reutilizable de análisis de vela de TackBar podrá evolucionar como
+una capa o librería independiente de analítica/dominio en Python cuando sea
+necesario. Esta dirección no afirma que ya exista una librería independiente
+madura ni convierte v0.4 en una release de analítica avanzada.
+
 El foco pasa a estar en:
 
 * debriefing colaborativo;
@@ -356,9 +395,13 @@ El foco pasa a estar en:
 
 **Prueba de concepto en fase inicial.**
 
-El objetivo inmediato es validar el flujo completo:
+El objetivo inmediato de v0.4 es validar el flujo runtime completo:
 
-`varios regatistas → envío de tracks por email → detección automática de sesión → comparación colaborativa`
+`varios regatistas → ingesta de tracks → detección automática de Session → Session persistida → API backend → debriefing visual colaborativo`
+
+El debriefing es colaborativo porque los regatistas inspeccionan y comentan la
+Session juntos alrededor de un móvil o tablet; no requiere chat ni mensajería
+integrados.
 
 Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni ningún otro fabricante de dispositivos.
 
