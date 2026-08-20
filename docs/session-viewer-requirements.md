@@ -338,6 +338,30 @@ Automatic play/pause replay may be added after basic cursor interaction works an
 
 ## 6. Selected metric
 
+### Metric selection
+
+The Session Viewer metric model includes:
+
+- SOG
+- COG
+- HEEL
+- TRIM
+
+For the current v0.3.x Session Viewer, the time-series/replay metric selector
+MUST enable:
+
+- SOG
+- COG
+
+HEEL and TRIM remain part of the metric model and summary metrics, but their
+time-series charts and replay metric presentation are deferred.
+
+Disabled/deferred metrics MUST NOT appear as if they were currently supported
+for chart/replay selection.
+
+Future releases MAY enable HEEL and TRIM without changing the shared temporal
+model.
+
 ### FR-12 — One selected metric
 
 The user selects one metric at a time.
@@ -871,33 +895,42 @@ Activity
   boat_id / boat context
 ```
 
-### FC-06 — Future Analysis Window interaction
+### FC-06 — Session Timeline and Replay interaction
 
-The current v0.3 PoC uses two separate native range controls, one for `window_start` and one for `window_end`. This remains acceptable for current product validation and is not considered defective.
+The Session Viewer MUST separate:
 
-The preferred future interaction is one shared temporal range control with two handles on the same timeline:
+1. Analysis Window selection
+2. Replay playback control
 
-- left handle = Analysis Window start;
-- right handle = Analysis Window end.
+The Analysis Window MUST use one shared dual-handle control representing:
 
-The UI should continue to display explicitly:
+- windowStart
+- windowEnd
 
-- exact selected start GPS/UTC time;
-- exact selected end GPS/UTC time;
-- selected duration.
+This control defines the temporal subset used by:
 
-Conceptually:
+- map geometry
+- summary metrics
+- charts
+- comparison
 
-```text
-START                             END
-13:42:10 UTC                 15:07:33 UTC
+Replay MUST use a separate single-handle control located directly below the map.
 
-|---------●================●---------|
+This replay control represents `playbackTime` and MUST operate only within the
+currently selected Analysis Window.
 
-Duration: 1h 25m 23s
-```
+Invariants:
 
-This is a future usability improvement. A dual-handle control is not a current v0.3 acceptance criterion.
+- availableRange.start <= windowStart < windowEnd <= availableRange.end
+- windowStart <= playbackTime <= windowEnd
+
+Changing the Analysis Window MUST:
+
+- pause replay;
+- preserve playbackTime if still inside the new interval;
+- otherwise clamp playbackTime to the nearest boundary.
+
+Changing playbackTime MUST NOT modify the Analysis Window.
 
 ### FC-07 — Future Analysis Window responsiveness
 

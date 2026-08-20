@@ -1,8 +1,9 @@
-import type { SailingMetric } from '../types/session'
+import type { EnabledReplayMetric, SailingMetric } from '../types/session'
+import { isEnabledReplayMetric } from '../utils/metricPresentation'
 
 interface MetricSelectorProps {
-  selectedMetric: SailingMetric
-  onChange: (metric: SailingMetric) => void
+  selectedMetric: EnabledReplayMetric
+  onChange: (metric: EnabledReplayMetric) => void
 }
 
 const metrics: SailingMetric[] = ['SOG', 'COG', 'HEEL', 'TRIM']
@@ -21,14 +22,18 @@ export default function MetricSelector({
       </div>
       <div className="metric-options">
         {metrics.map((metric) => {
-          const isAvailable = metric === 'SOG' || metric === 'COG'
+          const isAvailable = isEnabledReplayMetric(metric)
 
           return (
             <button
               type="button"
               key={metric}
               className={selectedMetric === metric ? 'is-active' : ''}
-              onClick={() => onChange(metric)}
+              onClick={() => {
+                if (isAvailable) {
+                  onChange(metric)
+                }
+              }}
               aria-pressed={selectedMetric === metric}
               disabled={!isAvailable}
               title={isAvailable ? `${metric} time-series metric` : 'Available in a later increment'}

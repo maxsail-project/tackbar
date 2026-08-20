@@ -1,5 +1,7 @@
 export type SailingMetric = 'SOG' | 'COG' | 'HEEL' | 'TRIM'
 
+export type EnabledReplayMetric = Extract<SailingMetric, 'SOG' | 'COG'>
+
 export interface ParticipantOption {
   id: string
   name: string | null

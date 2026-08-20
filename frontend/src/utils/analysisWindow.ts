@@ -1,5 +1,5 @@
 import type { TrackSample } from '../types/track'
-import { timestampToMilliseconds } from './replay'
+import { clampPlaybackTime, timestampToMilliseconds } from './replay'
 
 export interface AnalysisWindowRange {
   start: number
@@ -7,6 +7,12 @@ export interface AnalysisWindowRange {
 }
 
 export type AnalysisWindowBoundary = 'start' | 'end'
+
+export interface SessionTimelineState {
+  analysisWindow: AnalysisWindowRange
+  playbackTime: number
+  isPlaying: false
+}
 
 export const ANALYSIS_WINDOW_STEP_MS = 1_000
 
@@ -85,6 +91,32 @@ export function updateAnalysisWindow(
       activityEnd,
       Math.max(requestedTime, current.start + minimumDuration),
     ),
+  }
+}
+
+export function updateSessionTimelineWindow(
+  current: AnalysisWindowRange,
+  boundary: AnalysisWindowBoundary,
+  requestedTime: number,
+  available: AnalysisWindowRange,
+  playbackTime: number,
+): SessionTimelineState {
+  const analysisWindow = updateAnalysisWindow(
+    current,
+    boundary,
+    requestedTime,
+    available.start,
+    available.end,
+  )
+
+  return {
+    analysisWindow,
+    playbackTime: clampPlaybackTime(
+      playbackTime,
+      analysisWindow.start,
+      analysisWindow.end,
+    ),
+    isPlaying: false,
   }
 }
 

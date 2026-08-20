@@ -10,24 +10,24 @@ import TrackMap from '../components/TrackMap'
 import { mockSessions } from '../data/mockSessions'
 import { demoComparisonActivityTrack } from '../data/demoComparisonActivityTrack'
 import { demoPrimaryActivityTrack } from '../data/demoPrimaryActivityTrack'
-import type { SailingMetric, SessionSummary } from '../types/session'
+import type { EnabledReplayMetric, SessionSummary } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import {
   createFullAnalysisWindow,
   filterSamplesByAnalysisWindow,
   intersectAnalysisWindowRanges,
   reconcileAnalysisWindow,
-  updateAnalysisWindow,
+  updateSessionTimelineWindow,
   type AnalysisWindowBoundary,
   type AnalysisWindowRange,
 } from '../utils/analysisWindow'
 import {
   advancePlaybackTime,
   clampPlaybackTime,
-  nearestSample,
   timestampToMilliseconds,
   type PlaybackSpeed,
 } from '../utils/replay'
+import { resolveReplayPresentation } from '../utils/metricPresentation'
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
 
 const DEVELOPMENT_TRACKS = [demoPrimaryActivityTrack, demoComparisonActivityTrack]
@@ -51,7 +51,7 @@ function SessionViewer({ session }: { session: SessionSummary }) {
     session.activities[0]?.activity_id ?? '',
   )
   const [comparisonActivityId, setComparisonActivityId] = useState<string | null>(null)
-  const [selectedMetric, setSelectedMetric] = useState<SailingMetric>('SOG')
+  const [selectedMetric, setSelectedMetric] = useState<EnabledReplayMetric>('SOG')
   const [isPlaying, setIsPlaying] = useState(false)
   const [speed, setSpeed] = useState<PlaybackSpeed>(1)
 
@@ -121,6 +121,22 @@ function SessionViewer({ session }: { session: SessionSummary }) {
   const playbackTimeRef = useRef(playbackTime)
   const analysisWindowRef = useRef(analysisWindow)
   const speedRef = useRef(speed)
+  const primaryReplayPresentation = useMemo(
+    () => resolveReplayPresentation(
+      primaryWindowSamples,
+      playbackTime,
+      selectedMetric,
+    ),
+    [playbackTime, primaryWindowSamples, selectedMetric],
+  )
+  const comparisonReplayPresentation = useMemo(
+    () => resolveReplayPresentation(
+      comparisonWindowSamples,
+      playbackTime,
+      selectedMetric,
+    ),
+    [comparisonWindowSamples, playbackTime, selectedMetric],
+  )
 
   useEffect(() => {
     speedRef.current = speed
@@ -222,37 +238,25 @@ function SessionViewer({ session }: { session: SessionSummary }) {
       || availableRange === null
     ) return
 
-    const nextWindow = updateAnalysisWindow(
+    const nextTimeline = updateSessionTimelineWindow(
       analysisWindow,
       boundary,
       requestedTime,
-      availableRange.start,
-      availableRange.end,
-    )
-    const nextPlaybackTime = clampPlaybackTime(
+      availableRange,
       playbackTimeRef.current,
-      nextWindow.start,
-      nextWindow.end,
     )
 
-    setIsPlaying(false)
-    setAnalysisWindow(nextWindow)
-    analysisWindowRef.current = nextWindow
-    playbackTimeRef.current = nextPlaybackTime
-    setPlaybackTime(nextPlaybackTime)
+    setIsPlaying(nextTimeline.isPlaying)
+    setAnalysisWindow(nextTimeline.analysisWindow)
+    analysisWindowRef.current = nextTimeline.analysisWindow
+    playbackTimeRef.current = nextTimeline.playbackTime
+    setPlaybackTime(nextTimeline.playbackTime)
   }
 
   if (!primaryActivity) {
     return <p className="empty-state">This mock Session has no Activities.</p>
   }
 
-  const primaryCurrentSog = primaryTrack && primaryWindowSamples.length > 0
-    ? nearestSample(primaryTrack.samples, playbackTime).sog
-    : null
-  const comparisonCurrentSog = comparisonTrack
-    && comparisonWindowSamples.length > 0
-    ? nearestSample(comparisonTrack.samples, playbackTime).sog
-    : null
   const hasNoTemporalOverlap = primaryTrack !== null
     && comparisonTrack !== null
     && availableRange === null
@@ -260,6 +264,7 @@ function SessionViewer({ session }: { session: SessionSummary }) {
     && analysisWindow !== null
     && windowStart !== null
     && windowEnd !== null
+    && primaryWindowSamples.length > 0
   const unavailableMessage = hasNoTemporalOverlap
     ? 'The selected Activities do not overlap in GPS/UTC time.'
     : comparisonActivityId !== null && comparisonTrack === null
@@ -293,31 +298,18 @@ function SessionViewer({ session }: { session: SessionSummary }) {
         />
       </section>
 
-      {canReplay && primaryTrack && windowStart !== null && windowEnd !== null ? (
-        <>
-          <TrackMap
-            primaryTrack={primaryTrack}
-            primaryVisibleSamples={primaryWindowSamples}
-            comparisonTrack={comparisonTrack}
-            comparisonVisibleSamples={comparisonWindowSamples}
-            windowStart={windowStart}
-            playbackTime={playbackTime}
-            primaryCurrentSog={primaryCurrentSog}
-            comparisonCurrentSog={comparisonCurrentSog}
-          />
-          <ReplayControls
-            playbackTime={playbackTime}
-            replayStart={windowStart}
-            replayEnd={windowEnd}
-            currentSog={primaryCurrentSog}
-            isPlaying={isPlaying}
-            speed={speed}
-            onTogglePlayback={togglePlayback}
-            onScrub={scrubTo}
-            onScrubStart={() => setIsPlaying(false)}
-            onSpeedChange={setSpeed}
-          />
-        </>
+      {canReplay && primaryTrack ? (
+        <TrackMap
+          primaryVisibleSamples={primaryWindowSamples}
+          comparisonVisibleSamples={comparisonWindowSamples}
+          primaryBoatPosition={primaryReplayPresentation.position}
+          comparisonBoatPosition={comparisonReplayPresentation.position}
+          hasComparison={comparisonTrack !== null}
+          playbackTime={playbackTime}
+          selectedMetric={selectedMetric}
+          primaryCurrentMetric={primaryReplayPresentation.metricValue}
+          comparisonCurrentMetric={comparisonReplayPresentation.metricValue}
+        />
       ) : (
         <section className="track-unavailable" aria-live="polite">
           <strong>
@@ -327,13 +319,25 @@ function SessionViewer({ session }: { session: SessionSummary }) {
         </section>
       )}
 
+      {canReplay && windowStart !== null && windowEnd !== null && (
+        <ReplayControls
+          playbackTime={playbackTime}
+          replayStart={windowStart}
+          replayEnd={windowEnd}
+          selectedMetric={selectedMetric}
+          currentMetric={primaryReplayPresentation.metricValue}
+          isPlaying={isPlaying}
+          speed={speed}
+          onTogglePlayback={togglePlayback}
+          onScrub={scrubTo}
+          onScrubStart={() => setIsPlaying(false)}
+          onSpeedChange={setSpeed}
+        />
+      )}
       <AnalysisWindow
-        activityStart={availableRange?.start ?? null}
-        activityEnd={availableRange?.end ?? null}
-        windowStart={windowStart}
-        windowEnd={windowEnd}
-        onStartChange={(nextStart) => changeAnalysisWindow('start', nextStart)}
-        onEndChange={(nextEnd) => changeAnalysisWindow('end', nextEnd)}
+        availableRange={availableRange}
+        analysisWindow={analysisWindow}
+        onWindowChange={changeAnalysisWindow}
       />
       <ComparisonTable
         primaryLabel={primaryActivity.participant.name ?? primaryActivity.participant.id}

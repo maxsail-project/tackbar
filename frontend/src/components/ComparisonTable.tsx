@@ -1,5 +1,6 @@
 import type { SummaryMetrics } from '../utils/summaryMetrics'
 import { ACTIVITY_COLORS } from '../config/activityColors'
+import { formatAverageSog } from '../utils/metricPresentation'
 
 interface ComparisonTableProps {
   primaryLabel: string
@@ -28,7 +29,7 @@ const rows: SummaryRow[] = [
   },
   {
     label: 'Avg SOG',
-    format: (metrics) => formatNullable(metrics.avgSogKnots, 2, ' kn'),
+    format: (metrics) => formatAverageSog(metrics.avgSogKnots),
   },
   {
     label: 'Dominant COG',

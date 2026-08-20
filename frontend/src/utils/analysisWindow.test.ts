@@ -7,6 +7,7 @@ import {
   intersectAnalysisWindowRanges,
   reconcileAnalysisWindow,
   updateAnalysisWindow,
+  updateSessionTimelineWindow,
 } from './analysisWindow'
 
 const samples: TrackSample[] = [
@@ -118,5 +119,83 @@ describe('Analysis Window', () => {
       .toEqual({ start: 11, end: 12 })
     expect(reconcileAnalysisWindow({ start: 20, end: 21 }, available))
       .toEqual(available)
+  })
+
+  it('keeps the Analysis Window inside availableRange', () => {
+    const available = { start: activityStart, end: activityEnd }
+    const current = {
+      start: activityStart + 10_000,
+      end: activityEnd - 10_000,
+    }
+
+    expect(updateSessionTimelineWindow(
+      current,
+      'start',
+      activityStart - 10_000,
+      available,
+      activityStart + 15_000,
+    ).analysisWindow).toEqual({
+      start: activityStart,
+      end: activityEnd - 10_000,
+    })
+    expect(updateSessionTimelineWindow(
+      current,
+      'end',
+      activityEnd + 10_000,
+      available,
+      activityStart + 15_000,
+    ).analysisWindow).toEqual({
+      start: activityStart + 10_000,
+      end: activityEnd,
+    })
+  })
+
+  it('preserves playbackTime when a changed window still contains it', () => {
+    const playbackTime = activityStart + 20_000
+    const result = updateSessionTimelineWindow(
+      { start: activityStart, end: activityEnd },
+      'start',
+      activityStart + 10_000,
+      { start: activityStart, end: activityEnd },
+      playbackTime,
+    )
+
+    expect(result.playbackTime).toBe(playbackTime)
+  })
+
+  it('clamps playbackTime to a changed window start', () => {
+    const result = updateSessionTimelineWindow(
+      { start: activityStart, end: activityEnd },
+      'start',
+      activityStart + 20_000,
+      { start: activityStart, end: activityEnd },
+      activityStart + 10_000,
+    )
+
+    expect(result.playbackTime).toBe(activityStart + 20_000)
+  })
+
+  it('clamps playbackTime to a changed window end', () => {
+    const result = updateSessionTimelineWindow(
+      { start: activityStart, end: activityEnd },
+      'end',
+      activityStart + 10_000,
+      { start: activityStart, end: activityEnd },
+      activityStart + 20_000,
+    )
+
+    expect(result.playbackTime).toBe(activityStart + 10_000)
+  })
+
+  it('requires replay to pause when the Analysis Window changes', () => {
+    const result = updateSessionTimelineWindow(
+      { start: activityStart, end: activityEnd },
+      'start',
+      activityStart + 10_000,
+      { start: activityStart, end: activityEnd },
+      activityStart + 20_000,
+    )
+
+    expect(result.isPlaying).toBe(false)
   })
 })

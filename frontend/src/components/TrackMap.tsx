@@ -7,19 +7,22 @@ import Map, {
 } from 'react-map-gl/maplibre'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { MAP_STYLE_URL } from '../config/map'
-import type { ActivityTrack, TrackSample } from '../types/track'
-import { formatGpsTime, interpolatePosition } from '../utils/replay'
+import type { EnabledReplayMetric } from '../types/session'
+import type { TrackSample } from '../types/track'
+import { formatMetricValue } from '../utils/metricPresentation'
+import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import { buildTrackGeometry, combineTrackBounds } from '../utils/trackGeometry'
 
 interface TrackMapProps {
-  primaryTrack: ActivityTrack
   primaryVisibleSamples: TrackSample[]
-  comparisonTrack?: ActivityTrack | null
   comparisonVisibleSamples?: TrackSample[]
-  windowStart: number
+  primaryBoatPosition: TrackPosition | null
+  comparisonBoatPosition?: TrackPosition | null
+  hasComparison?: boolean
   playbackTime: number
-  primaryCurrentSog: number | null
-  comparisonCurrentSog?: number | null
+  selectedMetric: EnabledReplayMetric
+  primaryCurrentMetric: number | null
+  comparisonCurrentMetric?: number | null
 }
 
 const PRIMARY_TRACK_PAINT = {
@@ -45,14 +48,15 @@ const FIT_OPTIONS = {
 }
 
 export default function TrackMap({
-  primaryTrack,
   primaryVisibleSamples,
-  comparisonTrack = null,
   comparisonVisibleSamples = [],
-  windowStart,
+  primaryBoatPosition,
+  comparisonBoatPosition = null,
+  hasComparison = false,
   playbackTime,
-  primaryCurrentSog,
-  comparisonCurrentSog = null,
+  selectedMetric,
+  primaryCurrentMetric,
+  comparisonCurrentMetric = null,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
   const primaryGeometry = useMemo(
@@ -72,20 +76,9 @@ export default function TrackMap({
       .filter((candidate) => candidate !== undefined)
     return bounds.length > 0 ? combineTrackBounds(bounds) : null
   }, [comparisonGeometry, primaryGeometry])
-  const primaryBoatPosition = primaryVisibleSamples.length > 0
-    ? interpolatePosition(primaryTrack.samples, playbackTime)
-    : null
-  const comparisonBoatPosition = comparisonTrack
-    && comparisonVisibleSamples.length > 0
-    ? interpolatePosition(comparisonTrack.samples, playbackTime)
-    : null
-  const windowFocus = useMemo(
-    () => primaryVisibleSamples[0]
-      ?? interpolatePosition(primaryTrack.samples, windowStart),
-    [primaryTrack.samples, primaryVisibleSamples, windowStart],
-  )
+  const windowFocus = primaryVisibleSamples[0]
   const fitTrack = useCallback(() => {
-    if (!mapRef.current) return
+    if (!mapRef.current || !windowFocus) return
 
     if (combinedBounds) {
       mapRef.current.fitBounds(combinedBounds, FIT_OPTIONS)
@@ -96,11 +89,13 @@ export default function TrackMap({
       center: [windowFocus.lon, windowFocus.lat],
       zoom: 14,
     })
-  }, [combinedBounds, windowFocus.lat, windowFocus.lon])
+  }, [combinedBounds, windowFocus])
 
   useEffect(() => {
     fitTrack()
   }, [fitTrack])
+
+  if (!windowFocus) return null
 
   return (
     <section className="map-panel" aria-label="Session track map">
@@ -185,11 +180,9 @@ export default function TrackMap({
         <span>GPS time</span>
         <strong>{formatGpsTime(playbackTime)}</strong>
         <span className="map-status__metric">
-          P {primaryCurrentSog === null ? '—' : `${primaryCurrentSog.toFixed(1)} kt`}
-          {comparisonTrack && (
-            <> · C {comparisonCurrentSog === null
-              ? '—'
-              : `${comparisonCurrentSog.toFixed(1)} kt`}</>
+          {selectedMetric} · P {formatMetricValue(selectedMetric, primaryCurrentMetric)}
+          {hasComparison && (
+            <> · C {formatMetricValue(selectedMetric, comparisonCurrentMetric)}</>
           )}
         </span>
       </div>
