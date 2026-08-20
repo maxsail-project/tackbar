@@ -4,6 +4,92 @@ All notable changes to TackBar will be documented in this file.
 
 ---
 
+## v0.3.1 — Session Viewer Stabilization
+
+### English
+
+Stabilization release focused on temporal interaction, replay consistency and the separation between public test data and private pilot data.
+
+### Added
+
+* Shared dual-handle Analysis Window control for selecting the active temporal interval.
+* Dedicated replay scrubber directly associated with the selected Analysis Window.
+* Public sanitized TEST dataset using the same persistence structure as private runtime data.
+* Configurable private runtime storage through `TACKBAR_DATA_DIR`.
+
+### Design
+
+* Analysis Window and Replay now have clearly separated responsibilities: the Analysis Window defines the interval to analyze, while `playbackTime` provides fine-grained navigation inside that interval.
+* Replay position, map markers, charts and current metric values are constrained to the selected Analysis Window.
+* Primary and Comparison Activities continue to share one absolute GPS/UTC Analysis Window and one synchronized `playbackTime`.
+* SOG and COG remain the enabled time-series/replay metrics; HEEL and TRIM remain available as summary metrics and are deferred for time-series visualization.
+* Public repository data is limited to intentionally publishable TEST/demo data. Real participant, ingestion and sailing data is stored outside the repository in private runtime storage.
+* TEST and private runtime environments share the same persistence model and application logic; only the configured data root changes.
+
+### Validated
+
+The Session Viewer was validated with the public two-Activity TEST dataset, including:
+
+`Analysis Window → Map → Replay → SOG / COG → Summary`
+
+Validation confirmed:
+
+* synchronized Primary and Comparison replay inside the selected Analysis Window;
+* fine-grained replay navigation over long Activities;
+* Analysis Window filtering across map, charts and summary metrics;
+* consistent SOG/COG replay presentation;
+* Avg SOG presentation in `kt`;
+* public TEST data separated from private runtime data.
+
+### Next
+
+The next development stage will introduce the read-only backend Session Viewer API and replace direct frontend fixtures with backend-provided Sessions, Activities and tracks.
+
+---
+
+## v0.3.1 — Estabilización del Session Viewer
+
+### Español
+
+Versión de estabilización centrada en la interacción temporal, la consistencia del replay y la separación entre datos públicos de prueba y datos privados del piloto.
+
+### Añadido
+
+* Control compartido de doble handle para seleccionar el intervalo activo de Analysis Window.
+* Control de replay independiente para navegación temporal precisa dentro de la Analysis Window seleccionada.
+* Dataset TEST público y sanitizado con la misma estructura de persistencia que los datos privados.
+* Almacenamiento runtime privado configurable mediante `TACKBAR_DATA_DIR`.
+
+### Diseño
+
+* Analysis Window y Replay tienen responsabilidades claramente separadas: Analysis Window define el intervalo a analizar y `playbackTime` permite navegación precisa dentro de ese intervalo.
+* La posición de replay, los marcadores del mapa, los gráficos y los valores de la métrica actual quedan limitados a la Analysis Window seleccionada.
+* Las Actividades Primary y Comparison continúan compartiendo una única Analysis Window GPS/UTC absoluta y un único `playbackTime` sincronizado.
+* SOG y COG siguen siendo las métricas habilitadas para series temporales/replay; HEEL y TRIM permanecen disponibles como métricas resumen y se difiere su visualización temporal.
+* El repositorio público contiene únicamente datos TEST/demo intencionadamente publicables. Los datos reales de participantes, ingesta y navegación se almacenan fuera del repositorio en almacenamiento runtime privado.
+* TEST y runtime privado utilizan el mismo modelo de persistencia y la misma lógica de aplicación; únicamente cambia la raíz de datos configurada.
+
+### Validado
+
+El Session Viewer fue validado con el dataset TEST público de dos Actividades, incluyendo:
+
+`Analysis Window → Mapa → Replay → SOG / COG → Resumen`
+
+La validación confirmó:
+
+* replay sincronizado de Primary y Comparison dentro de la Analysis Window seleccionada;
+* navegación temporal precisa sobre Actividades largas;
+* filtrado por Analysis Window en mapa, gráficos y métricas resumen;
+* presentación consistente de SOG/COG durante el replay;
+* presentación de Avg SOG en `kt`;
+* separación entre los datos TEST públicos y los datos runtime privados.
+
+### Siguiente
+
+La siguiente etapa introducirá la API backend de solo lectura del Session Viewer y sustituirá los fixtures directos del frontend por Sesiones, Actividades y tracks proporcionados por el backend.
+
+---
+
 ## v0.3.0 — Multi-Track Viewer
 
 ### English
