@@ -270,6 +270,8 @@ The same window drives:
 
 Changing the window must update all of them consistently.
 
+The replay cursor's `playbackTime` is constrained by the Analysis Window, but changing `playbackTime` alone must not change `window_start` or `window_end`.
+
 ### FR-07 — Default window with one Activity
 
 With one selected Activity, the initial available window is the Activity time range:
@@ -867,6 +869,62 @@ Boat
 Activity
   participant_id
   boat_id / boat context
+```
+
+### FC-06 — Future Analysis Window interaction
+
+The current v0.3 PoC uses two separate native range controls, one for `window_start` and one for `window_end`. This remains acceptable for current product validation and is not considered defective.
+
+The preferred future interaction is one shared temporal range control with two handles on the same timeline:
+
+- left handle = Analysis Window start;
+- right handle = Analysis Window end.
+
+The UI should continue to display explicitly:
+
+- exact selected start GPS/UTC time;
+- exact selected end GPS/UTC time;
+- selected duration.
+
+Conceptually:
+
+```text
+START                             END
+13:42:10 UTC                 15:07:33 UTC
+
+|---------●================●---------|
+
+Duration: 1h 25m 23s
+```
+
+This is a future usability improvement. A dual-handle control is not a current v0.3 acceptance criterion.
+
+### FC-07 — Future Analysis Window responsiveness
+
+For long Activities, adjusting the Analysis Window should feel responsive without changing its absolute GPS/UTC semantics.
+
+While the user is actively dragging a boundary, the viewer should avoid unnecessarily applying expensive map and chart recomputation on every pointer event. A simple future approach may:
+
+- display exact start/end values while interaction is in progress;
+- commit the final Analysis Window when the interaction completes; or
+- use a small debounce or throttle if immediate intermediate updates are useful.
+
+After the window is committed, the map, replay, metric chart and future summary metrics must remain synchronized to that same Analysis Window.
+
+This direction does not require or mandate downsampling, Web Workers, caching infrastructure or other premature performance mechanisms.
+
+### FC-08 — Future Dominant COG refinement
+
+The current governing behavior remains circular bins of approximately 10°, selecting the most frequent bin, with no SOG threshold. This behavior is accepted for TackBar v0.3, does not block it, and remains in force until a future decision is made.
+
+As a non-priority backlog refinement, evaluate with several real Activities and Analysis Windows:
+
+- whether samples with zero or very low SOG should be excluded because COG while stationary or nearly stationary may be sensor noise or may not represent the direction actually sailed; no SOG threshold is defined yet;
+- whether the circular bin width should remain approximately 10° or be reduced to approximately 5°, comparing directional resolution, stability of the dominant result, sensitivity to GPS/COG noise, and behavior across the evaluated Activities and Analysis Windows.
+
+Any future bin width must preserve mandatory circular semantics around the 0°/360° boundary. Any change must be validated empirically with real sailing data before changing the current requirement.
+
+This item is not currently prioritized and does not prescribe implementation architecture or ownership between the frontend and backend.
 
 ---
 

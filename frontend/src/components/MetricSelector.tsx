@@ -20,19 +20,24 @@ export default function MetricSelector({
         </div>
       </div>
       <div className="metric-options">
-        {metrics.map((metric) => (
-          <button
-            type="button"
-            key={metric}
-            className={selectedMetric === metric ? 'is-active' : ''}
-            onClick={() => onChange(metric)}
-            aria-pressed={selectedMetric === metric}
-          >
-            {metric}
-          </button>
-        ))}
+        {metrics.map((metric) => {
+          const isAvailable = metric === 'SOG' || metric === 'COG'
+
+          return (
+            <button
+              type="button"
+              key={metric}
+              className={selectedMetric === metric ? 'is-active' : ''}
+              onClick={() => onChange(metric)}
+              aria-pressed={selectedMetric === metric}
+              disabled={!isAvailable}
+              title={isAvailable ? `${metric} time-series metric` : 'Available in a later increment'}
+            >
+              {metric}
+            </button>
+          )
+        })}
       </div>
     </section>
   )
 }
-

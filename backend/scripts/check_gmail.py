@@ -27,7 +27,10 @@ def main() -> None:
     track_storage = TrackStorage()
 
     if not emails:
-        print("No unread Gmail messages with matching CSV.GZ attachments found.")
+        print(
+            "No unread Gmail messages with matching Vakaros CSV "
+            "attachments found."
+        )
         return
 
     for email in emails:

@@ -18,6 +18,11 @@ REQUIRED_COLUMNS = {
     "heel",
     "trim",
 }
+VAKAROS_CSV_SUFFIXES = (".csv.gz", ".csv")
+
+
+def has_vakaros_csv_suffix(value: str) -> bool:
+    return value.lower().endswith(VAKAROS_CSV_SUFFIXES)
 
 
 def parse_vakaros_csv(
@@ -35,7 +40,10 @@ def parse_vakaros_csv(
         csv_source = BytesIO(source) if isinstance(source, bytes) else source
         filename = original_filename
 
-    frame = pd.read_csv(csv_source, compression="gzip")
+    frame = pd.read_csv(
+        csv_source,
+        compression=_compression_for_filename(filename),
+    )
 
     missing_columns = sorted(REQUIRED_COLUMNS - set(frame.columns))
     if missing_columns:
@@ -97,7 +105,19 @@ def parse_vakaros_csv(
 
 def _extract_device_name(filename: str) -> str:
     name = filename
-    if name.lower().endswith(".csv.gz"):
-        name = name[:-7]
+    for suffix in VAKAROS_CSV_SUFFIXES:
+        if name.lower().endswith(suffix):
+            name = name[: -len(suffix)]
+            break
 
     return re.sub(r"\s+\d{1,2}-\d{1,2}-\d{4}$", "", name)
+
+
+def _compression_for_filename(filename: str) -> str | None:
+    if filename.lower().endswith(".csv.gz"):
+        return "gzip"
+    if filename.lower().endswith(".csv"):
+        return None
+    raise ValueError(
+        "Vakaros input filename must end with .csv or .csv.gz"
+    )

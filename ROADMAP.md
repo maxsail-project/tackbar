@@ -4,7 +4,9 @@ TackBar development will evolve incrementally, validating each step with real sa
 
 The roadmap is intentionally simple and focused on the core product hypothesis:
 
-**multiple sailors → share tracks → automatic session detection → collaborative debriefing**
+## Core product hypothesis
+
+multiple sailors → share tracks → automatic session detection → collaborative debriefing
 
 ---
 
@@ -108,16 +110,70 @@ Expected scope:
 
 ## Future integrations
 
-Potential activity sources and integrations include:
+Current Vakaros `.csv` and `.csv.gz` ingestion remains the governing implementation. The remaining Vakaros formats are a non-priority backlog and do not block current v0.3 frontend work.
 
-* Garmin Connect Activity API
-* Direct Vakaros integration
-* VKX support
-* FIT support
-* GPX support
-* Intervals.icu
-* Strava
-* Other sailing devices and activity platforms
+### Backlog — Complete Vakaros multi-format ingestion
+
+Future Vakaros ingestion should evaluate two content formats:
+
+* Vakaros CSV
+* Vakaros VKX
+
+across the relevant container forms:
+
+* uncompressed;
+* GZIP;
+* ZIP.
+
+Expected combinations to evaluate include:
+
+* `.csv`
+* `.csv.gz`
+* `.vkx`
+* `.vkx.gz`
+* `.zip` containing CSV and/or VKX
+
+The intended provider-independent flow is:
+
+```text
+attachment
+→ detect/decode container
+→ identify contained format
+→ CSV or VKX parser
+→ common TackBar normalization
+→ normalized Activity
+```
+
+CSV and VKX parsers must converge on the same provider-independent TackBar normalized model. Container format must not affect Activity or Session semantics.
+
+ZIP behavior when multiple valid sailing files are present must be decided explicitly before implementation; this roadmap does not define that policy.
+
+VKX may expose richer Vakaros information than CSV, such as timer, start-line or device-specific data. That information must be evaluated separately before extending the canonical normalized track schema. Vakaros-specific fields must not be added merely because VKX contains them.
+
+Logical deduplication across equivalent CSV, CSV.GZ, VKX or ZIP representations must also be evaluated explicitly later. No cross-format deduplication rule is defined by this backlog.
+
+### Next file-based ingestion chapter — GPX
+
+GPX is the next intended file-based ingestion chapter. Its primary purpose is to validate that TackBar parsing and normalization are genuinely independent from Vakaros. GPX should ultimately produce the same normalized TackBar Activity and track model. Implementation details remain deferred.
+
+### Later integration chapter — Garmin Connect
+
+Garmin Connect is a separate integration chapter after the file-format/parser foundation has been validated. The target direction is an official Garmin Connect or Activity API cloud-to-cloud flow, not scraping or private APIs.
+
+Garmin changes the acquisition mechanism, but downstream Activity, Session and analytics semantics must remain provider-independent. No Garmin API dependency or implementation requirement is introduced by this roadmap item.
+
+The intended progression is:
+
+```text
+Current Vakaros CSV/CSV.GZ
+→ backlog: VKX + GZIP/ZIP combinations
+→ GPX ingestion
+→ Garmin Connect integration
+```
+
+The deferred Vakaros backlog does not need to be completed before GPX begins.
+
+Other potential later sources and integrations remain FIT, direct Vakaros integration, Intervals.icu, Strava, and other sailing devices and activity platforms.
 
 TackBar is intended to remain device-independent.
 
@@ -267,16 +323,70 @@ Alcance esperado:
 
 ## Integraciones futuras
 
-Posibles fuentes de actividad e integraciones:
+La ingesta Vakaros `.csv` y `.csv.gz` actualmente soportada continúa siendo la implementación vigente. Los formatos Vakaros restantes quedan como backlog no prioritario y no bloquean el trabajo actual del frontend v0.3.
 
-* Garmin Connect Activity API
-* Integración directa con Vakaros
-* Soporte VKX
-* Soporte FIT
-* Soporte GPX
-* Intervals.icu
-* Strava
-* Otros dispositivos y plataformas de actividad
+### Backlog — Completar la ingesta Vakaros multiformato
+
+La futura ingesta Vakaros deberá evaluar dos formatos de contenido:
+
+* Vakaros CSV
+* Vakaros VKX
+
+con las formas de contenedor relevantes:
+
+* sin compresión;
+* GZIP;
+* ZIP.
+
+Las combinaciones que se deberán evaluar incluyen:
+
+* `.csv`
+* `.csv.gz`
+* `.vkx`
+* `.vkx.gz`
+* `.zip` que contenga CSV y/o VKX
+
+El flujo independiente del proveedor previsto es:
+
+```text
+adjunto
+→ detectar/decodificar contenedor
+→ identificar formato contenido
+→ parser CSV o VKX
+→ normalización común de TackBar
+→ Actividad normalizada
+```
+
+Los parsers CSV y VKX deben converger en el mismo modelo normalizado de TackBar, independiente del proveedor. El formato del contenedor no debe afectar a la semántica de Activity ni de Session.
+
+El comportamiento de los ZIP que contengan varios archivos de navegación válidos deberá decidirse explícitamente antes de implementarlo; este roadmap no define todavía esa política.
+
+VKX puede exponer información Vakaros más rica que CSV, como datos del temporizador, de la línea de salida o específicos del dispositivo. Esa información deberá evaluarse por separado antes de ampliar el esquema canónico del track normalizado. No deben añadirse campos específicos de Vakaros únicamente porque VKX los contenga.
+
+La deduplicación lógica entre representaciones equivalentes CSV, CSV.GZ, VKX o ZIP también deberá evaluarse explícitamente más adelante. Este backlog no define ninguna regla de deduplicación entre formatos.
+
+### Siguiente capítulo de ingesta por archivo — GPX
+
+GPX es el siguiente capítulo previsto de ingesta basada en archivos. Su objetivo principal es validar que el parsing y la normalización de TackBar son realmente independientes de Vakaros. GPX deberá producir finalmente el mismo modelo normalizado de Activity y track de TackBar. Los detalles de implementación quedan aplazados.
+
+### Capítulo posterior de integración — Garmin Connect
+
+Garmin Connect será un capítulo de integración separado después de validar la base de parsers y formatos de archivo. La dirección objetivo es un flujo cloud-to-cloud mediante la API oficial de Garmin Connect o Activity API, no scraping ni APIs privadas.
+
+Garmin cambia el mecanismo de adquisición, pero la semántica posterior de Activity, Session y analítica debe seguir siendo independiente del proveedor. Este elemento del roadmap no introduce dependencias ni requisitos de implementación para la API de Garmin.
+
+La progresión prevista es:
+
+```text
+Vakaros CSV/CSV.GZ actual
+→ backlog: VKX + combinaciones GZIP/ZIP
+→ ingesta GPX
+→ integración Garmin Connect
+```
+
+No es necesario completar el backlog Vakaros aplazado antes de comenzar GPX.
+
+Otras posibles fuentes e integraciones posteriores siguen siendo FIT, la integración directa con Vakaros, Intervals.icu, Strava y otros dispositivos y plataformas de actividad.
 
 TackBar pretende mantenerse independiente del dispositivo utilizado.
 

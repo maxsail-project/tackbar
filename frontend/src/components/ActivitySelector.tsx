@@ -6,6 +6,7 @@ interface ActivitySelectorProps {
   activities: ActivityOption[]
   selectedId: string | null
   onChange: (activityId: string | null) => void
+  disabled?: boolean
   optional?: boolean
 }
 
@@ -14,6 +15,7 @@ export default function ActivitySelector({
   activities,
   selectedId,
   onChange,
+  disabled = false,
   optional = false,
 }: ActivitySelectorProps) {
   return (
@@ -24,8 +26,13 @@ export default function ActivitySelector({
           value={selectedId ?? ''}
           onChange={(event) => onChange(event.target.value || null)}
           aria-label={label}
+          disabled={disabled}
         >
-          {optional && <option value="">+ Select another track</option>}
+          {optional && (
+            <option value="">
+              {disabled ? 'Comparison available in a later increment' : '+ Select another track'}
+            </option>
+          )}
           {activities.map((activity) => (
             <option key={activity.activity_id} value={activity.activity_id}>
               {formatActivityLabel(activity)}

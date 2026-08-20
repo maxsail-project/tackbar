@@ -33,5 +33,12 @@
     "processed_at": "2026-08-20T07:48:16.855039+00:00",
     "status": "processed",
     "activity_id": "8c36e153-5186-4ba3-b19f-cfa2636ec5cd"
+  },
+  {
+    "provider": "gmail",
+    "provider_message_id": "1a01f4a05f394c8b",
+    "processed_at": "2026-08-20T13:09:08.519370+00:00",
+    "status": "processed",
+    "activity_id": "1ffdaa10-68b1-4770-90da-ec486326bcf2"
   }
 ]

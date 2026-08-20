@@ -1,3 +1,4 @@
+import gzip
 import json
 from pathlib import Path
 
@@ -134,6 +135,54 @@ def test_reprocessing_restores_deleted_track_without_changing_identity_or_sessio
     assert len(repository.all()) == 1
     assert sessions.all() == [session]
     assert sessions.all()[0].activity_ids == [activity_id]
+
+
+def test_reprocessing_restores_track_from_archived_uncompressed_csv(
+    temporary_directory: Path,
+) -> None:
+    repository = ActivityRepository(temporary_directory / "activities.json")
+    storage = TrackStorage(temporary_directory)
+    original_filename = "VK-Maxi-URU 10-8-2026.csv"
+    original_bytes = gzip.decompress(FIXTURE_PATH.read_bytes())
+    parsed = parse_vakaros_csv(
+        original_bytes,
+        original_filename=original_filename,
+    )
+    stored, created = repository.find_or_create(
+        "mmannise@gmail.com",
+        parsed,
+        original_bytes,
+    )
+    assert created is True
+    persisted = persist_activity_track(
+        stored,
+        parsed,
+        original_bytes,
+        repository,
+        storage,
+    )
+    expected_track = pd.read_csv(
+        storage.track_path(persisted.id),
+        compression="gzip",
+    )
+
+    storage.track_path(persisted.id).unlink()
+    reprocessed = reprocess_activity(persisted.id, repository, storage)
+    restored_track = pd.read_csv(
+        storage.track_path(persisted.id),
+        compression="gzip",
+    )
+
+    assert reprocessed.id == persisted.id
+    assert reprocessed.participant_id == persisted.participant_id
+    assert reprocessed.attachment_sha256 == persisted.attachment_sha256
+    assert reprocessed.original_filename == original_filename
+    assert storage.original_path(
+        persisted.id,
+        original_filename,
+    ).read_bytes() == original_bytes
+    pd.testing.assert_frame_equal(restored_track, expected_track)
+    assert len(repository.all()) == 1
 
 
 def test_reprocessing_reports_unknown_activity(

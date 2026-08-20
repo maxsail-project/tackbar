@@ -1,3 +1,4 @@
+import gzip
 from datetime import timezone
 from pathlib import Path
 from statistics import median
@@ -52,3 +53,19 @@ def test_parse_real_vakaros_csv_fixture() -> None:
         earlier["utc"] <= later["utc"]
         for earlier, later in zip(activity.samples, activity.samples[1:])
     )
+
+
+def test_parse_equivalent_uncompressed_vakaros_csv() -> None:
+    csv_bytes = gzip.decompress(FIXTURE_PATH.read_bytes())
+
+    activity = parse_vakaros_csv(
+        csv_bytes,
+        original_filename="VK-Maxi-URU 10-8-2026.CSV",
+    )
+
+    assert activity.source == "vakaros"
+    assert activity.original_filename == "VK-Maxi-URU 10-8-2026.CSV"
+    assert activity.device_name == "VK-Maxi-URU"
+    assert len(activity.samples) == 3613
+    assert activity.start_time == activity.samples[0]["utc"]
+    assert activity.end_time == activity.samples[-1]["utc"]

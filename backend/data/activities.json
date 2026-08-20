@@ -86,5 +86,27 @@
     "sample_count": 40540,
     "attachment_sha256": "b69ce338644e7983ad7499de09f67966d0b031cb6ada7c3a6b5074c7acb3dab9",
     "track_file": "tracks/8c36e153-5186-4ba3-b19f-cfa2636ec5cd.csv.gz"
+  },
+  {
+    "id": "1ffdaa10-68b1-4770-90da-ec486326bcf2",
+    "participant_id": "mmannise@gmail.com",
+    "source": "vakaros",
+    "device_name": "VK Trucho",
+    "original_filename": "VK Trucho 15-8-2026.csv",
+    "start_time": "2026-08-15T12:14:07.087000+00:00",
+    "end_time": "2026-08-15T14:17:11.075000+00:00",
+    "start_lat": 39.428022797341,
+    "start_lon": -0.329318626471827,
+    "end_lat": 39.408961197341,
+    "end_lon": -0.314340426471827,
+    "center_lat": 39.409328097341,
+    "center_lon": -0.317019326471827,
+    "min_lat": 39.405919297341,
+    "max_lat": 39.428306597341,
+    "min_lon": -0.329799726471827,
+    "max_lon": -0.308995026471827,
+    "sample_count": 14769,
+    "attachment_sha256": "07d9f8e1bd8bc63ebeda6a492ce8005cac6ce24c8a421b892b38ed23b2a96630",
+    "track_file": "tracks/1ffdaa10-68b1-4770-90da-ec486326bcf2.csv.gz"
   }
 ]

@@ -1,3 +1,4 @@
+import gzip
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,23 @@ def test_process_valid_email(fixture_bytes: bytes) -> None:
     assert len(result.activity.samples) == 3613
 
 
+def test_process_valid_uncompressed_csv_email(fixture_bytes: bytes) -> None:
+    filename = "VK-Maxi-URU 10-8-2026.CSV"
+    email = InboundEmail(
+        sender_email="maxi@example.com",
+        subject=f"  {filename}  ",
+        attachment_filename=filename,
+        attachment_bytes=gzip.decompress(fixture_bytes),
+    )
+
+    result = process_inbound_email(email)
+
+    assert result.attachment_filename == filename
+    assert result.activity.original_filename == filename
+    assert result.activity.device_name == "VK-Maxi-URU"
+    assert len(result.activity.samples) == 3613
+
+
 def test_rejects_email_without_attachment() -> None:
     email = InboundEmail(
         sender_email="maxi@example.com",
@@ -55,7 +73,9 @@ def test_rejects_email_without_attachment() -> None:
         process_inbound_email(email)
 
 
-def test_rejects_subject_without_csv_gz_suffix(fixture_bytes: bytes) -> None:
+def test_rejects_subject_without_supported_csv_suffix(
+    fixture_bytes: bytes,
+) -> None:
     email = InboundEmail(
         sender_email="maxi@example.com",
         subject="Training session",
@@ -67,13 +87,13 @@ def test_rejects_subject_without_csv_gz_suffix(fixture_bytes: bytes) -> None:
         process_inbound_email(email)
 
 
-def test_rejects_attachment_without_csv_gz_suffix(
+def test_rejects_attachment_without_supported_csv_suffix(
     fixture_bytes: bytes,
 ) -> None:
     email = InboundEmail(
         sender_email="maxi@example.com",
         subject=VALID_FILENAME,
-        attachment_filename="VK-Maxi-URU 10-8-2026.csv",
+        attachment_filename="VK-Maxi-URU 10-8-2026.txt",
         attachment_bytes=fixture_bytes,
     )
 

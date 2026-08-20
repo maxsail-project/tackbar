@@ -21,50 +21,32 @@ const lucia: ParticipantOption = {
   sail_number: null,
 }
 
-const emailOnlyParticipant: ParticipantOption = {
-  id: 'mmannise@icloud.com',
-  name: null,
-  boat_name: null,
-  sail_number: null,
+const mariano: ParticipantOption = {
+  id: 'arroyomariano@hotmail.com',
+  name: 'Mariano Arroyo',
+  boat_name: 'El elegido',
+  sail_number: 'ARG-32000',
 }
 
 export const mockSessions: SessionSummary[] = [
   {
-    session_id: 'local-session-19-aug',
-    date_label: '19 Aug',
+    session_id: '00ef902a-d49d-44e2-9f4b-c3f258407b5f',
+    date_label: '15 Aug',
     location_label: 'Sailing Area',
-    start_time: '11:05',
-    track_count: 5,
+    start_time: '11:51',
+    track_count: 2,
     activities: [
       {
-        activity_id: '0df54d24-249a-4cb4-a7d5-e24bd0b31fd1',
+        activity_id: '8c36e153-5186-4ba3-b19f-cfa2636ec5cd',
+        participant: mariano,
+        start_time: '2026-08-15T11:51:03.056000Z',
+        end_time: '2026-08-16T09:06:16.057000Z',
+      },
+      {
+        activity_id: '1ffdaa10-68b1-4770-90da-ec486326bcf2',
         participant: maxi,
-        start_time: '2026-08-19T11:03:00Z',
-        end_time: '2026-08-19T12:42:00Z',
-      },
-      {
-        activity_id: 'b90e0be7-80e1-4e95-85e0-95462fef6559',
-        participant: juan,
-        start_time: '2026-08-19T11:08:00Z',
-        end_time: '2026-08-19T11:47:00Z',
-      },
-      {
-        activity_id: '6d034deb-9237-4492-8f50-6db395a43b30',
-        participant: maxi,
-        start_time: '2026-08-19T12:01:00Z',
-        end_time: '2026-08-19T12:39:00Z',
-      },
-      {
-        activity_id: '397e2ffc-9dab-4c92-a702-b250581eca6b',
-        participant: lucia,
-        start_time: '2026-08-19T11:12:00Z',
-        end_time: '2026-08-19T12:08:00Z',
-      },
-      {
-        activity_id: 'df2eb8bb-5d2a-47d2-a2dd-ebbb7ac4f338',
-        participant: emailOnlyParticipant,
-        start_time: '2026-08-19T11:15:00Z',
-        end_time: '2026-08-19T11:59:00Z',
+        start_time: '2026-08-15T12:14:07.087000Z',
+        end_time: '2026-08-15T14:17:11.075000Z',
       },
     ],
   },

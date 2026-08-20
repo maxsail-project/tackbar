@@ -1,3 +1,4 @@
+import gzip
 from pathlib import Path
 from typing import Callable
 
@@ -68,11 +69,12 @@ def _email(
     attachment_bytes: bytes,
     sender_email: str = "mmannise@gmail.com",
     provider_message_id: str = "gmail-message-1",
+    filename: str = FILENAME,
 ) -> InboundEmail:
     return InboundEmail(
         sender_email=sender_email,
-        subject=FILENAME,
-        attachment_filename=FILENAME,
+        subject=filename,
+        attachment_filename=filename,
         attachment_bytes=attachment_bytes,
         provider_message_id=provider_message_id,
     )
@@ -194,6 +196,104 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
         first.activity.id,
         first.activity.id,
     ]
+
+
+def test_csv_ingestion_archives_exact_original_and_reuses_by_raw_sha(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    csv_bytes = gzip.decompress(FIXTURE_PATH.read_bytes())
+    csv_filename = "VK-Maxi-URU 10-8-2026.csv"
+
+    first = process_provider_email(
+        "gmail",
+        _email(
+            csv_bytes,
+            provider_message_id="gmail-csv-1",
+            filename=csv_filename,
+        ),
+        participants,
+        activities,
+        sessions,
+        history,
+    )
+    second = process_provider_email(
+        "gmail",
+        _email(
+            csv_bytes,
+            provider_message_id="gmail-csv-2",
+            filename=csv_filename,
+        ),
+        participants,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first.activity_created is True
+    assert second.activity_created is False
+    assert second.activity.id == first.activity.id
+    assert first.activity.original_filename == csv_filename
+    assert first.activity.sample_count == 3613
+    assert first.session_match.session.id == second.session_match.session.id
+    archived_original = (
+        activities.path.parent
+        / "originals"
+        / first.activity.id
+        / csv_filename
+    )
+    assert archived_original.read_bytes() == csv_bytes
+    assert len(history.records()) == 2
+    assert {
+        record["activity_id"] for record in history.records()
+    } == {first.activity.id}
+
+
+def test_equivalent_csv_and_csv_gz_keep_raw_attachment_deduplication(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    participants, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    compressed_bytes = FIXTURE_PATH.read_bytes()
+    csv_bytes = gzip.decompress(compressed_bytes)
+
+    compressed = process_provider_email(
+        "gmail",
+        _email(compressed_bytes, provider_message_id="gmail-gzip"),
+        participants,
+        activities,
+        sessions,
+        history,
+    )
+    uncompressed = process_provider_email(
+        "gmail",
+        _email(
+            csv_bytes,
+            provider_message_id="gmail-csv",
+            filename="VK-Maxi-URU 10-8-2026.csv",
+        ),
+        participants,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert compressed is not None
+    assert uncompressed is not None
+    assert compressed.activity_created is True
+    assert uncompressed.activity_created is True
+    assert compressed.activity.id != uncompressed.activity.id
+    assert (
+        compressed.activity.attachment_sha256
+        != uncompressed.activity.attachment_sha256
+    )
+    assert len(activities.all()) == 2
+    assert len(history.records()) == 2
 
 
 def test_processed_history_stores_provider_and_activity_id(

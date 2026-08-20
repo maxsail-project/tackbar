@@ -1,27 +1,197 @@
-import Map from 'react-map-gl/maplibre'
-import { INITIAL_MAP_VIEW, MAP_STYLE_URL } from '../config/map'
-import type { SailingMetric } from '../types/session'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import Map, {
+  Layer,
+  Marker,
+  Source,
+  type MapRef,
+} from 'react-map-gl/maplibre'
+import { ACTIVITY_COLORS } from '../config/activityColors'
+import { MAP_STYLE_URL } from '../config/map'
+import type { ActivityTrack, TrackSample } from '../types/track'
+import { formatGpsTime, interpolatePosition } from '../utils/replay'
+import { buildTrackGeometry, combineTrackBounds } from '../utils/trackGeometry'
 
 interface TrackMapProps {
-  metric: SailingMetric
+  primaryTrack: ActivityTrack
+  primaryVisibleSamples: TrackSample[]
+  comparisonTrack?: ActivityTrack | null
+  comparisonVisibleSamples?: TrackSample[]
+  windowStart: number
+  playbackTime: number
+  primaryCurrentSog: number | null
+  comparisonCurrentSog?: number | null
 }
 
-export default function TrackMap({ metric }: TrackMapProps) {
+const PRIMARY_TRACK_PAINT = {
+  'line-color': ACTIVITY_COLORS.primary,
+  'line-opacity': 0.92,
+  'line-width': 4,
+}
+
+const COMPARISON_TRACK_PAINT = {
+  'line-color': ACTIVITY_COLORS.comparison,
+  'line-opacity': 0.88,
+  'line-width': 4,
+}
+
+const TRACK_LAYOUT = {
+  'line-cap': 'round' as const,
+  'line-join': 'round' as const,
+}
+
+const FIT_OPTIONS = {
+  padding: { top: 42, right: 42, bottom: 106, left: 42 },
+  duration: 0,
+}
+
+export default function TrackMap({
+  primaryTrack,
+  primaryVisibleSamples,
+  comparisonTrack = null,
+  comparisonVisibleSamples = [],
+  windowStart,
+  playbackTime,
+  primaryCurrentSog,
+  comparisonCurrentSog = null,
+}: TrackMapProps) {
+  const mapRef = useRef<MapRef>(null)
+  const primaryGeometry = useMemo(
+    () => primaryVisibleSamples.length >= 2
+      ? buildTrackGeometry(primaryVisibleSamples)
+      : null,
+    [primaryVisibleSamples],
+  )
+  const comparisonGeometry = useMemo(
+    () => comparisonVisibleSamples.length >= 2
+      ? buildTrackGeometry(comparisonVisibleSamples)
+      : null,
+    [comparisonVisibleSamples],
+  )
+  const combinedBounds = useMemo(() => {
+    const bounds = [primaryGeometry?.bounds, comparisonGeometry?.bounds]
+      .filter((candidate) => candidate !== undefined)
+    return bounds.length > 0 ? combineTrackBounds(bounds) : null
+  }, [comparisonGeometry, primaryGeometry])
+  const primaryBoatPosition = primaryVisibleSamples.length > 0
+    ? interpolatePosition(primaryTrack.samples, playbackTime)
+    : null
+  const comparisonBoatPosition = comparisonTrack
+    && comparisonVisibleSamples.length > 0
+    ? interpolatePosition(comparisonTrack.samples, playbackTime)
+    : null
+  const windowFocus = useMemo(
+    () => primaryVisibleSamples[0]
+      ?? interpolatePosition(primaryTrack.samples, windowStart),
+    [primaryTrack.samples, primaryVisibleSamples, windowStart],
+  )
+  const fitTrack = useCallback(() => {
+    if (!mapRef.current) return
+
+    if (combinedBounds) {
+      mapRef.current.fitBounds(combinedBounds, FIT_OPTIONS)
+      return
+    }
+
+    mapRef.current.jumpTo({
+      center: [windowFocus.lon, windowFocus.lat],
+      zoom: 14,
+    })
+  }, [combinedBounds, windowFocus.lat, windowFocus.lon])
+
+  useEffect(() => {
+    fitTrack()
+  }, [fitTrack])
+
   return (
     <section className="map-panel" aria-label="Session track map">
       <Map
-        initialViewState={INITIAL_MAP_VIEW}
+        ref={mapRef}
+        initialViewState={combinedBounds
+          ? {
+              bounds: combinedBounds,
+              fitBoundsOptions: FIT_OPTIONS,
+            }
+          : {
+              longitude: windowFocus.lon,
+              latitude: windowFocus.lat,
+              zoom: 14,
+            }}
         mapStyle={MAP_STYLE_URL}
         attributionControl={{ compact: true }}
-      />
-      <div className="map-status" aria-label="Future map status">
+        onLoad={fitTrack}
+      >
+        {primaryGeometry && (
+          <Source
+            id="primary-activity-track"
+            type="geojson"
+            data={primaryGeometry.geoJson}
+          >
+            <Layer
+              id="primary-activity-track-line"
+              type="line"
+              paint={PRIMARY_TRACK_PAINT}
+              layout={TRACK_LAYOUT}
+            />
+          </Source>
+        )}
+        {comparisonGeometry && (
+          <Source
+            id="comparison-activity-track"
+            type="geojson"
+            data={comparisonGeometry.geoJson}
+          >
+            <Layer
+              id="comparison-activity-track-line"
+              type="line"
+              paint={COMPARISON_TRACK_PAINT}
+              layout={TRACK_LAYOUT}
+            />
+          </Source>
+        )}
+        {primaryBoatPosition && (
+          <Marker
+            longitude={primaryBoatPosition.lon}
+            latitude={primaryBoatPosition.lat}
+            anchor="center"
+          >
+            <div
+              className="boat-marker"
+              style={{ backgroundColor: ACTIVITY_COLORS.primary }}
+              role="img"
+              aria-label="Primary boat position"
+            >
+              <span aria-hidden="true">P</span>
+            </div>
+          </Marker>
+        )}
+        {comparisonBoatPosition && (
+          <Marker
+            longitude={comparisonBoatPosition.lon}
+            latitude={comparisonBoatPosition.lat}
+            anchor="center"
+          >
+            <div
+              className="boat-marker"
+              style={{ backgroundColor: ACTIVITY_COLORS.comparison }}
+              role="img"
+              aria-label="Comparison boat position"
+            >
+              <span aria-hidden="true">C</span>
+            </div>
+          </Marker>
+        )}
+      </Map>
+      <div className="map-status" aria-label="Current replay values">
         <span>GPS time</span>
-        <strong>11:24:18</strong>
-        <span className="map-status__metric">Metric · {metric}</span>
-      </div>
-      <div className="track-placeholder" aria-hidden="true">
-        <span className="track-placeholder__line" />
-        <span className="track-placeholder__boat">●</span>
+        <strong>{formatGpsTime(playbackTime)}</strong>
+        <span className="map-status__metric">
+          P {primaryCurrentSog === null ? '—' : `${primaryCurrentSog.toFixed(1)} kt`}
+          {comparisonTrack && (
+            <> · C {comparisonCurrentSog === null
+              ? '—'
+              : `${comparisonCurrentSog.toFixed(1)} kt`}</>
+          )}
+        </span>
       </div>
     </section>
   )

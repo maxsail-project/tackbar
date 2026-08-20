@@ -1,22 +1,212 @@
+import { useMemo } from 'react'
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { SailingMetric } from '../types/session'
+import type { TrackSample } from '../types/track'
+import { buildCogChartPoints } from '../utils/metricChartData'
+import { formatGpsTime, timestampToMilliseconds } from '../utils/replay'
 
 interface MetricChartProps {
   metric: SailingMetric
+  primarySamples: TrackSample[] | null
+  comparisonSamples?: TrackSample[] | null
+  playbackTime: number | null
+  primaryLabel: string
+  comparisonLabel?: string
 }
 
-export default function MetricChart({ metric }: MetricChartProps) {
+function formatAxisTime(timestamp: number) {
+  return formatGpsTime(timestamp).slice(0, 5)
+}
+
+export default function MetricChart({
+  metric,
+  primarySamples,
+  comparisonSamples,
+  playbackTime,
+  primaryLabel,
+  comparisonLabel,
+}: MetricChartProps) {
+  const chartPoints = useMemo(
+    () => {
+      const pointsByTime = new Map<number, {
+        time: number
+        primarySog?: number | null
+        comparisonSog?: number | null
+      }>()
+
+      primarySamples?.forEach((sample) => {
+        const time = timestampToMilliseconds(sample.utc)
+        pointsByTime.set(time, {
+          ...pointsByTime.get(time),
+          time,
+          primarySog: sample.sog,
+        })
+      })
+      comparisonSamples?.forEach((sample) => {
+        const time = timestampToMilliseconds(sample.utc)
+        pointsByTime.set(time, {
+          ...pointsByTime.get(time),
+          time,
+          comparisonSog: sample.sog,
+        })
+      })
+
+      return [...pointsByTime.values()].sort((first, second) => (
+        first.time - second.time
+      ))
+    },
+    [comparisonSamples, primarySamples],
+  )
+  const primaryCogPoints = useMemo(
+    () => buildCogChartPoints(primarySamples ?? []),
+    [primarySamples],
+  )
+  const comparisonCogPoints = useMemo(
+    () => buildCogChartPoints(comparisonSamples ?? []),
+    [comparisonSamples],
+  )
+  const hasValidCog = primaryCogPoints.some((point) => point.cog !== null)
+    || comparisonCogPoints.some((point) => point.cog !== null)
+
+  if (metric !== 'SOG' && metric !== 'COG') {
+    return (
+      <section className="metric-chart metric-chart--empty" aria-label={`${metric} chart unavailable`}>
+        <strong>{metric} chart is not available yet</strong>
+      </section>
+    )
+  }
+
+  const hasChartData = metric === 'SOG' ? chartPoints.length > 0 : hasValidCog
+
+  if (!hasChartData || playbackTime === null) {
+    return (
+      <section className="metric-chart metric-chart--empty" aria-label={`${metric} chart unavailable`}>
+        <strong>No {metric} track data for the selected Activities</strong>
+      </section>
+    )
+  }
+
+  const isCog = metric === 'COG'
+
   return (
-    <section className="chart-placeholder" aria-label={`${metric} chart placeholder`}>
-      <div className="chart-placeholder__grid" aria-hidden="true">
-        <span />
-        <span />
-        <span />
+    <section className="metric-chart" aria-label={`${metric} time-series chart`}>
+      <div className="metric-chart__heading">
+        <strong>{metric} over GPS time</strong>
+        <span>{isCog ? 'degrees' : 'knots'} · UTC</span>
       </div>
-      <div className="chart-placeholder__content">
-        <strong>{metric} chart</strong>
-        <span>Metric data will appear here</span>
+      <div className="metric-chart__canvas">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={chartPoints}
+            margin={{ top: 8, right: 8, bottom: 0, left: -12 }}
+            accessibilityLayer
+          >
+            <CartesianGrid stroke="#dbe6e8" strokeDasharray="3 4" vertical={false} />
+            <XAxis
+              dataKey="time"
+              type="number"
+              scale="time"
+              domain={['dataMin', 'dataMax']}
+              tickFormatter={formatAxisTime}
+              minTickGap={28}
+              tick={{ fill: '#60777e', fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: '#b9cbcf' }}
+            />
+            <YAxis
+              width={42}
+              domain={isCog ? [0, 360] : undefined}
+              ticks={isCog ? [0, 90, 180, 270, 360] : undefined}
+              tickFormatter={isCog ? (value) => `${value}°` : undefined}
+              unit={isCog ? undefined : ' kt'}
+              allowDataOverflow={isCog}
+              tick={{ fill: '#60777e', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <Tooltip
+              labelFormatter={(value) => `${formatGpsTime(Number(value))} UTC`}
+              formatter={(value, name) => [
+                value === null || value === undefined
+                  ? '—'
+                  : `${Number(value).toFixed(1)}${isCog ? '°' : ' kt'}`,
+                name,
+              ]}
+            />
+            <ReferenceLine
+              x={playbackTime}
+              stroke="#ed7658"
+              strokeWidth={2}
+              ifOverflow="extendDomain"
+            />
+            {isCog ? (
+              <>
+                <Line
+                  type="linear"
+                  data={primaryCogPoints}
+                  dataKey="cog"
+                  name={primaryLabel}
+                  stroke={ACTIVITY_COLORS.primary}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                  connectNulls={false}
+                />
+                {comparisonSamples && (
+                  <Line
+                    type="linear"
+                    data={comparisonCogPoints}
+                    dataKey="cog"
+                    name={comparisonLabel ?? 'Compare'}
+                    stroke={ACTIVITY_COLORS.comparison}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    isAnimationActive={false}
+                    connectNulls={false}
+                  />
+                )}
+              </>
+            ) : (
+              <Line
+                type="linear"
+                dataKey="primarySog"
+                name={primaryLabel}
+                stroke={ACTIVITY_COLORS.primary}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+                connectNulls
+              />
+            )}
+            {!isCog && comparisonSamples && (
+              <Line
+                type="linear"
+                dataKey="comparisonSog"
+                name={comparisonLabel ?? 'Compare'}
+                stroke={ACTIVITY_COLORS.comparison}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+                connectNulls
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </section>
   )
 }
-
