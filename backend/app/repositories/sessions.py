@@ -30,6 +30,12 @@ class SessionRepository:
             None,
         )
 
+    def get_by_id(self, session_id: str) -> Session | None:
+        return next(
+            (session for session in self.all() if session.id == session_id),
+            None,
+        )
+
     def create(self, activity_id: str) -> Session:
         if self.find_by_activity_id(activity_id) is not None:
             raise ValueError("Activity already belongs to a Session")
