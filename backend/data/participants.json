@@ -8,9 +8,16 @@
   },
   {
     "id": "mmannise@icloud.com",
-    "name": null,
-    "boat_name": null,
-    "sailing_class": null,
-    "sail_number": null
+    "name": "Maxi",
+    "boat_name": "La Celeste",
+    "sailing_class": "Snipe",
+    "sail_number": "URU-30782"
+  },
+  {
+    "id": "arroyomariano@hotmail.com",
+    "name": "Mariano Arroyo",
+    "boat_name": "El elegido",
+    "sailing_class": "Snipe",
+    "sail_number": "ARG-32000"
   }
 ]
