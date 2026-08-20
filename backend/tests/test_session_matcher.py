@@ -26,7 +26,7 @@ def _activity_record(
     end_time: datetime,
     center_lat: float = 0.0,
     center_lon: float = 0.0,
-    participant_id: str = "sailor@example.com",
+    sailor_id: str = "30000000-0000-4000-8000-000000000001",
     min_lat: float | None = None,
     max_lat: float | None = None,
     min_lon: float | None = None,
@@ -34,7 +34,8 @@ def _activity_record(
 ) -> dict[str, object]:
     return {
         "id": activity_id,
-        "participant_id": participant_id,
+        "sailor_id": sailor_id,
+        "boat_id": None,
         "source": "vakaros",
         "device_name": "VK-Test",
         "original_filename": f"{activity_id}.csv.gz",
@@ -263,7 +264,7 @@ def test_repeated_matching_is_idempotent_and_does_not_duplicate_id(
     ) == 1
 
 
-def test_multiple_activities_from_same_participant_are_allowed(
+def test_multiple_activities_from_same_sailor_are_allowed(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     result, _ = _match_second_activity(

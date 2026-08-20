@@ -5,7 +5,8 @@ from typing import Callable
 import pytest
 
 from app.repositories.activities import ActivityRepository
-from app.repositories.participants import ParticipantRepository
+from app.repositories.boats import BoatRepository
+from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.storage.track_storage import TrackStorage
 from scripts.build_tracks_index import TRACK_INDEX_COLUMNS, build_tracks_index
@@ -18,19 +19,35 @@ ACTIVITY_D = "44444444-4444-4444-8444-444444444444"
 ACTIVITY_E = "55555555-5555-4555-8555-555555555555"
 SESSION_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 SESSION_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+SAILOR_A = "30000000-0000-4000-8000-000000000001"
+SAILOR_B = "30000000-0000-4000-8000-000000000002"
+SAILOR_Z = "30000000-0000-4000-8000-000000000003"
+BOAT_A = "40000000-0000-4000-8000-000000000001"
 
 
-def _participant(
-    participant_id: str,
+def _sailor(
+    sailor_id: str,
+    email: str,
     name: str | None = None,
-    boat_name: str | None = None,
-    sailing_class: str | None = None,
-    sail_number: str | None = None,
+    default_boat_id: str | None = None,
 ) -> dict[str, str | None]:
     return {
-        "id": participant_id,
+        "id": sailor_id,
+        "email": email,
         "name": name,
-        "boat_name": boat_name,
+        "default_boat_id": default_boat_id,
+    }
+
+
+def _boat(
+    boat_id: str,
+    name: str | None,
+    sailing_class: str | None,
+    sail_number: str | None,
+) -> dict[str, str | None]:
+    return {
+        "id": boat_id,
+        "name": name,
         "sailing_class": sailing_class,
         "sail_number": sail_number,
     }
@@ -38,14 +55,16 @@ def _participant(
 
 def _activity(
     activity_id: str,
-    participant_id: str,
+    sailor_id: str,
     start_time: str,
+    boat_id: str | None = None,
     original_filename: str = "VK-Test.csv.gz",
     track_file: str | None = None,
 ) -> dict[str, object]:
     record: dict[str, object] = {
         "id": activity_id,
-        "participant_id": participant_id,
+        "sailor_id": sailor_id,
+        "boat_id": boat_id,
         "source": "vakaros",
         "device_name": "VK-Test",
         "original_filename": original_filename,
@@ -71,14 +90,19 @@ def _activity(
 
 def _repositories(
     temporary_json_file: Callable[[str, object], Path],
-    participants: list[dict[str, object]],
+    sailors: list[dict[str, object]],
+    boats: list[dict[str, object]],
     activities: list[dict[str, object]],
     sessions: list[dict[str, object]],
-) -> tuple[ParticipantRepository, ActivityRepository, SessionRepository]:
+) -> tuple[
+    SailorRepository,
+    BoatRepository,
+    ActivityRepository,
+    SessionRepository,
+]:
     return (
-        ParticipantRepository(
-            temporary_json_file("index-participants", participants)
-        ),
+        SailorRepository(temporary_json_file("index-sailors", sailors)),
+        BoatRepository(temporary_json_file("index-boats", boats)),
         ActivityRepository(
             temporary_json_file("index-activities", activities)
         ),
@@ -91,19 +115,21 @@ def _read_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(csv_file))
 
 
-def test_known_participant_session_track_and_original_are_indexed(
+def test_known_sailor_boat_session_track_and_original_are_indexed(
     temporary_json_file: Callable[[str, object], Path],
     temporary_directory: Path,
 ) -> None:
     track_file = f"tracks/{ACTIVITY_A}.csv.gz"
-    participants, activities, sessions = _repositories(
+    sailors, boats, activities, sessions = _repositories(
         temporary_json_file,
-        [_participant("sailor-a@example.com", "Sailor A", "Demo Boat A", "Snipe", "DEMO-1")],
+        [_sailor(SAILOR_A, "sailor-a@example.com", "Sailor A", BOAT_A)],
+        [_boat(BOAT_A, "Demo Boat A", "Snipe", "DEMO-1")],
         [
             _activity(
                 ACTIVITY_A,
-                "sailor-a@example.com",
+                SAILOR_A,
                 "2031-06-10T20:08:03+02:00",
+                boat_id=BOAT_A,
                 track_file=track_file,
             )
         ],
@@ -114,7 +140,7 @@ def test_known_participant_session_track_and_original_are_indexed(
     output = temporary_directory / "tracks-index.csv"
     output.write_text("stale output", encoding="utf-8")
 
-    build_tracks_index(participants, activities, sessions, storage, output)
+    build_tracks_index(sailors, boats, activities, sessions, storage, output)
     rows = _read_rows(output)
 
     assert list(rows[0]) == TRACK_INDEX_COLUMNS
@@ -124,8 +150,10 @@ def test_known_participant_session_track_and_original_are_indexed(
             "activity_date": "2031-06-10",
             "start_time_utc": "2031-06-10T18:08:03.000000Z",
             "end_time_utc": "2031-06-10T18:08:03.000000Z",
-            "participant_id": "sailor-a@example.com",
-            "participant_name": "Sailor A",
+            "sailor_id": SAILOR_A,
+            "sailor_email": "sailor-a@example.com",
+            "sailor_name": "Sailor A",
+            "boat_id": BOAT_A,
             "boat_name": "Demo Boat A",
             "sailing_class": "Snipe",
             "sail_number": "DEMO-1",
@@ -140,20 +168,22 @@ def test_known_participant_session_track_and_original_are_indexed(
     ]
 
 
-def test_null_participant_metadata_and_missing_files_are_empty(
+def test_null_sailor_metadata_unknown_boat_and_missing_files_are_empty(
     temporary_json_file: Callable[[str, object], Path],
     temporary_directory: Path,
 ) -> None:
-    participants, activities, sessions = _repositories(
+    sailors, boats, activities, sessions = _repositories(
         temporary_json_file,
-        [_participant("new@example.com")],
-        [_activity(ACTIVITY_A, "new@example.com", "2031-06-10T10:00:00Z")],
+        [_sailor(SAILOR_A, "new@example.com")],
+        [],
+        [_activity(ACTIVITY_A, SAILOR_A, "2031-06-10T10:00:00Z")],
         [],
     )
     output = temporary_directory / "tracks-index.csv"
 
     build_tracks_index(
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         TrackStorage(temporary_directory),
@@ -161,8 +191,10 @@ def test_null_participant_metadata_and_missing_files_are_empty(
     )
     row = _read_rows(output)[0]
 
-    assert row["participant_id"] == "new@example.com"
-    assert row["participant_name"] == ""
+    assert row["sailor_id"] == SAILOR_A
+    assert row["sailor_email"] == "new@example.com"
+    assert row["sailor_name"] == ""
+    assert row["boat_id"] == ""
     assert row["boat_name"] == ""
     assert row["sailing_class"] == ""
     assert row["sail_number"] == ""
@@ -175,26 +207,28 @@ def test_multiple_activities_are_sorted_deterministically(
     temporary_json_file: Callable[[str, object], Path],
     temporary_directory: Path,
 ) -> None:
-    participants, activities, sessions = _repositories(
+    sailors, boats, activities, sessions = _repositories(
         temporary_json_file,
         [
-            _participant("a@example.com"),
-            _participant("b@example.com"),
-            _participant("z@example.com"),
+            _sailor(SAILOR_A, "a@example.com"),
+            _sailor(SAILOR_B, "b@example.com"),
+            _sailor(SAILOR_Z, "z@example.com"),
         ],
+        [],
         [
-            _activity(ACTIVITY_E, "z@example.com", "2031-06-12T09:00:00Z"),
-            _activity(ACTIVITY_D, "z@example.com", "2031-06-11T11:00:00Z"),
-            _activity(ACTIVITY_C, "b@example.com", "2031-06-11T10:00:00Z"),
-            _activity(ACTIVITY_B, "a@example.com", "2031-06-11T10:00:00Z"),
-            _activity(ACTIVITY_A, "a@example.com", "2031-06-11T10:00:00Z"),
+            _activity(ACTIVITY_E, SAILOR_Z, "2031-06-12T09:00:00Z"),
+            _activity(ACTIVITY_D, SAILOR_Z, "2031-06-11T11:00:00Z"),
+            _activity(ACTIVITY_C, SAILOR_B, "2031-06-11T10:00:00Z"),
+            _activity(ACTIVITY_B, SAILOR_A, "2031-06-11T10:00:00Z"),
+            _activity(ACTIVITY_A, SAILOR_A, "2031-06-11T10:00:00Z"),
         ],
         [],
     )
     output = temporary_directory / "tracks-index.csv"
 
     build_tracks_index(
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         TrackStorage(temporary_directory),
@@ -214,10 +248,11 @@ def test_activity_in_multiple_sessions_raises_clear_error(
     temporary_json_file: Callable[[str, object], Path],
     temporary_directory: Path,
 ) -> None:
-    participants, activities, sessions = _repositories(
+    sailors, boats, activities, sessions = _repositories(
         temporary_json_file,
-        [_participant("sailor-a@example.com")],
-        [_activity(ACTIVITY_A, "sailor-a@example.com", "2031-06-10T10:00:00Z")],
+        [_sailor(SAILOR_A, "sailor-a@example.com")],
+        [],
+        [_activity(ACTIVITY_A, SAILOR_A, "2031-06-10T10:00:00Z")],
         [
             {"id": SESSION_A, "activity_ids": [ACTIVITY_A]},
             {"id": SESSION_B, "activity_ids": [ACTIVITY_A]},
@@ -226,7 +261,8 @@ def test_activity_in_multiple_sessions_raises_clear_error(
 
     with pytest.raises(ValueError, match="belongs to multiple Sessions"):
         build_tracks_index(
-            participants,
+            sailors,
+            boats,
             activities,
             sessions,
             TrackStorage(temporary_directory),
@@ -238,15 +274,16 @@ def test_csv_writer_escapes_names_and_filenames(
     temporary_json_file: Callable[[str, object], Path],
     temporary_directory: Path,
 ) -> None:
-    participant_name = 'Sailor A, "Demo"'
+    sailor_name = 'Sailor A, "Demo"'
     original_filename = 'track, "fast".csv.gz'
-    participants, activities, sessions = _repositories(
+    sailors, boats, activities, sessions = _repositories(
         temporary_json_file,
-        [_participant("sailor-a@example.com", participant_name)],
+        [_sailor(SAILOR_A, "sailor-a@example.com", sailor_name)],
+        [],
         [
             _activity(
                 ACTIVITY_A,
-                "sailor-a@example.com",
+                SAILOR_A,
                 "2031-06-10T10:00:00Z",
                 original_filename=original_filename,
             )
@@ -256,7 +293,8 @@ def test_csv_writer_escapes_names_and_filenames(
     output = temporary_directory / "tracks-index.csv"
 
     build_tracks_index(
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         TrackStorage(temporary_directory),
@@ -265,7 +303,7 @@ def test_csv_writer_escapes_names_and_filenames(
     raw_csv = output.read_text(encoding="utf-8")
     row = _read_rows(output)[0]
 
-    assert row["participant_name"] == participant_name
+    assert row["sailor_name"] == sailor_name
     assert row["original_filename"] == original_filename
     assert '"Sailor A, ""Demo"""' in raw_csv
     assert '"track, ""fast"".csv.gz"' in raw_csv

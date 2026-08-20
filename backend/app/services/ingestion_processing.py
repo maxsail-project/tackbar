@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
-from app.models import InboundEmail, Participant, StoredActivity
+from app.models import InboundEmail, Sailor, StoredActivity
 from app.repositories.activities import ActivityRepository
-from app.repositories.participants import ParticipantRepository
+from app.repositories.boats import BoatRepository
+from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.activity_tracks import persist_activity_track
 from app.services.email_ingestion import process_inbound_email
@@ -13,8 +14,8 @@ from app.storage.track_storage import TrackStorage
 
 @dataclass
 class IngestionProcessingResult:
-    participant: Participant
-    participant_created: bool
+    sailor: Sailor
+    sailor_created: bool
     activity: StoredActivity
     activity_created: bool
     session_match: SessionMatchResult
@@ -23,7 +24,8 @@ class IngestionProcessingResult:
 def process_provider_email(
     provider: str,
     email: InboundEmail,
-    participants: ParticipantRepository,
+    sailors: SailorRepository,
+    boats: BoatRepository,
     activities: ActivityRepository,
     sessions: SessionRepository,
     history: IngestionHistory,
@@ -37,15 +39,22 @@ def process_provider_email(
         return None
 
     ingestion = process_inbound_email(email)
-    participant, participant_created = participants.find_or_create_by_email(
+    sailor, sailor_created = sailors.find_or_create_by_email(
         ingestion.sender_email
     )
+
+    boat_id = sailor.default_boat_id
+    if boat_id is not None and boats.get_by_id(boat_id) is None:
+        raise ValueError(
+            f"Sailor {sailor.id} references missing default Boat: {boat_id}"
+        )
 
     if email.attachment_bytes is None:
         raise ValueError("Inbound email has no attachment bytes")
 
     stored_activity, created = activities.find_or_create(
-        participant.id,
+        sailor.id,
+        boat_id,
         ingestion.activity,
         email.attachment_bytes,
     )
@@ -65,8 +74,8 @@ def process_provider_email(
     history.record_processed(provider, provider_message_id, stored_activity.id)
 
     return IngestionProcessingResult(
-        participant=participant,
-        participant_created=participant_created,
+        sailor=sailor,
+        sailor_created=sailor_created,
         activity=stored_activity,
         activity_created=created,
         session_match=session_match,

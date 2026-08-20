@@ -41,10 +41,17 @@ class IngestionResult:
 
 
 @dataclass
-class Participant:
+class Sailor:
+    id: str
+    email: str
+    name: str | None
+    default_boat_id: str | None
+
+
+@dataclass
+class Boat:
     id: str
     name: str | None
-    boat_name: str | None
     sailing_class: str | None
     sail_number: str | None
 
@@ -52,7 +59,8 @@ class Participant:
 @dataclass
 class StoredActivity:
     id: str
-    participant_id: str
+    sailor_id: str
+    boat_id: str | None
     source: str
     device_name: str
     original_filename: str

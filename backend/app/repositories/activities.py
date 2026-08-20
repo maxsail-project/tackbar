@@ -6,7 +6,6 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.models import Activity, StoredActivity
-from app.repositories.participants import normalize_email
 from app.runtime_paths import runtime_paths
 
 
@@ -20,17 +19,17 @@ class ActivityRepository:
 
     def find_or_create(
         self,
-        participant_id: str,
+        sailor_id: str,
+        boat_id: str | None,
         activity: Activity,
         attachment_bytes: bytes,
     ) -> tuple[StoredActivity, bool]:
-        normalized_participant_id = normalize_email(participant_id)
         attachment_sha256 = calculate_attachment_sha256(attachment_bytes)
         activities = self._load()
 
         for stored_activity in activities:
             if (
-                stored_activity.participant_id == normalized_participant_id
+                stored_activity.sailor_id == sailor_id
                 and stored_activity.attachment_sha256 == attachment_sha256
             ):
                 if _enrich_spatial_metadata(stored_activity, activity):
@@ -39,7 +38,8 @@ class ActivityRepository:
 
         stored_activity = StoredActivity(
             id=str(uuid4()),
-            participant_id=normalized_participant_id,
+            sailor_id=sailor_id,
+            boat_id=boat_id,
             source=activity.source,
             device_name=activity.device_name,
             original_filename=activity.original_filename,

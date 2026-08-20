@@ -16,6 +16,8 @@ from app.storage.track_storage import TrackStorage
 FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
+SAILOR_ID = "30000000-0000-4000-8000-000000000001"
+BOAT_ID = "40000000-0000-4000-8000-000000000001"
 
 
 def _create_activity(
@@ -26,7 +28,8 @@ def _create_activity(
     original_bytes = FIXTURE_PATH.read_bytes()
     parsed = parse_vakaros_csv(FIXTURE_PATH)
     activity, created = repository.find_or_create(
-        "sailor-a@example.com",
+        SAILOR_ID,
+        BOAT_ID,
         parsed,
         original_bytes,
     )
@@ -73,7 +76,8 @@ def test_existing_activity_without_track_file_is_enriched_without_duplicate(
     parsed = parse_vakaros_csv(FIXTURE_PATH)
 
     existing, created = repository.find_or_create(
-        " SAILOR-A@EXAMPLE.COM ",
+        SAILOR_ID,
+        BOAT_ID,
         parsed,
         original_bytes,
     )
@@ -113,7 +117,8 @@ def test_reprocessing_restores_deleted_track_without_changing_identity_or_sessio
     expected_track = pd.read_csv(track_path, compression="gzip")
     identity = (
         initial.id,
-        initial.participant_id,
+        initial.sailor_id,
+        initial.boat_id,
         initial.source,
         initial.original_filename,
         initial.attachment_sha256,
@@ -127,7 +132,8 @@ def test_reprocessing_restores_deleted_track_without_changing_identity_or_sessio
     pd.testing.assert_frame_equal(restored_track, expected_track)
     assert (
         reprocessed.id,
-        reprocessed.participant_id,
+        reprocessed.sailor_id,
+        reprocessed.boat_id,
         reprocessed.source,
         reprocessed.original_filename,
         reprocessed.attachment_sha256,
@@ -149,7 +155,8 @@ def test_reprocessing_restores_track_from_archived_uncompressed_csv(
         original_filename=original_filename,
     )
     stored, created = repository.find_or_create(
-        "sailor-a@example.com",
+        SAILOR_ID,
+        BOAT_ID,
         parsed,
         original_bytes,
     )
@@ -174,7 +181,8 @@ def test_reprocessing_restores_track_from_archived_uncompressed_csv(
     )
 
     assert reprocessed.id == persisted.id
-    assert reprocessed.participant_id == persisted.participant_id
+    assert reprocessed.sailor_id == persisted.sailor_id
+    assert reprocessed.boat_id == persisted.boat_id
     assert reprocessed.attachment_sha256 == persisted.attachment_sha256
     assert reprocessed.original_filename == original_filename
     assert storage.original_path(

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "40000000-0000-4000-8000-000000000001",
+    "name": "Demo Boat A",
+    "sailing_class": "Snipe",
+    "sail_number": "DEMO-1001"
+  },
+  {
+    "id": "40000000-0000-4000-8000-000000000002",
+    "name": "Demo Boat B",
+    "sailing_class": "Snipe",
+    "sail_number": "DEMO-1002"
+  }
+]

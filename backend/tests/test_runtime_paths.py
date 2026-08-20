@@ -7,7 +7,8 @@ import pytest
 
 from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
 from app.repositories.activities import ActivityRepository
-from app.repositories.participants import ParticipantRepository
+from app.repositories.boats import BoatRepository
+from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.runtime_paths import (
     DATA_DIR_ENVIRONMENT_VARIABLE,
@@ -23,6 +24,14 @@ from app.storage.track_storage import TrackStorage
 DEMO_ACTIVITY_IDS = {
     "10000000-0000-4000-8000-000000000001",
     "10000000-0000-4000-8000-000000000002",
+}
+DEMO_SAILOR_IDS = {
+    "30000000-0000-4000-8000-000000000001",
+    "30000000-0000-4000-8000-000000000002",
+}
+DEMO_BOAT_IDS = {
+    "40000000-0000-4000-8000-000000000001",
+    "40000000-0000-4000-8000-000000000002",
 }
 
 
@@ -53,7 +62,8 @@ def test_default_repositories_share_the_configured_root(
     monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(configured_root))
     paths = runtime_paths()
 
-    assert ParticipantRepository().path == paths.participants
+    assert SailorRepository().path == paths.sailors
+    assert BoatRepository().path == paths.boats
     assert ActivityRepository().path == paths.activities
     assert SessionRepository().path == paths.sessions
     assert IngestionHistory().path == paths.ingestion_history
@@ -84,20 +94,24 @@ def test_real_ingestion_rejects_a_root_inside_the_repository(
 
 def test_public_test_data_has_complete_consistent_storage() -> None:
     paths = runtime_paths(PUBLIC_TEST_DATA_ROOT)
-    participants = ParticipantRepository(paths.participants)
+    sailors = SailorRepository(paths.sailors)
+    boats = BoatRepository(paths.boats)
     activities = ActivityRepository(paths.activities).all()
     sessions = SessionRepository(paths.sessions).all()
     history = IngestionHistory(paths.ingestion_history).records()
 
-    participant_records = json.loads(
-        paths.participants.read_text(encoding="utf-8")
+    sailor_records = json.loads(
+        paths.sailors.read_text(encoding="utf-8")
     )
-    assert {record["id"] for record in participant_records} == {
-        "sailor-a@example.com",
-        "sailor-b@example.com",
-    }
-    assert participants.find_by_email(" SAILOR-A@EXAMPLE.COM ") is not None
+    boat_records = json.loads(paths.boats.read_text(encoding="utf-8"))
+    assert {record["id"] for record in sailor_records} == DEMO_SAILOR_IDS
+    assert {record["id"] for record in boat_records} == DEMO_BOAT_IDS
+    assert sailors.find_by_email(" SAILOR-A@EXAMPLE.COM ") is not None
+    assert {sailor.default_boat_id for sailor in sailors.all()} == DEMO_BOAT_IDS
+    assert {boat.id for boat in boats.all()} == DEMO_BOAT_IDS
     assert {activity.id for activity in activities} == DEMO_ACTIVITY_IDS
+    assert {activity.sailor_id for activity in activities} == DEMO_SAILOR_IDS
+    assert {activity.boat_id for activity in activities} == DEMO_BOAT_IDS
     assert len(sessions) == 1
     assert set(sessions[0].activity_ids) == DEMO_ACTIVITY_IDS
     assert {record["activity_id"] for record in history} == DEMO_ACTIVITY_IDS

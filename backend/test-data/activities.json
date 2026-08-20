@@ -1,7 +1,8 @@
 [
   {
     "id": "10000000-0000-4000-8000-000000000001",
-    "participant_id": "sailor-a@example.com",
+    "sailor_id": "30000000-0000-4000-8000-000000000001",
+    "boat_id": "40000000-0000-4000-8000-000000000001",
     "source": "vakaros",
     "device_name": "vakaros-demo-primary",
     "original_filename": "vakaros-demo-primary.csv.gz",
@@ -23,7 +24,8 @@
   },
   {
     "id": "10000000-0000-4000-8000-000000000002",
-    "participant_id": "sailor-b@example.com",
+    "sailor_id": "30000000-0000-4000-8000-000000000002",
+    "boat_id": "40000000-0000-4000-8000-000000000002",
     "source": "vakaros",
     "device_name": "vakaros-demo-comparison",
     "original_filename": "vakaros-demo-comparison.csv.gz",

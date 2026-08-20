@@ -16,6 +16,10 @@ from app.repositories.activities import (
 FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
+SAILOR_A = "30000000-0000-4000-8000-000000000001"
+SAILOR_B = "30000000-0000-4000-8000-000000000002"
+BOAT_A = "40000000-0000-4000-8000-000000000001"
+BOAT_B = "40000000-0000-4000-8000-000000000002"
 
 
 def test_attachment_sha256_is_calculated_from_bytes() -> None:
@@ -34,12 +38,13 @@ def test_first_activity_creates_uuid_backed_record(
     parsed = parse_vakaros_csv(FIXTURE_PATH)
 
     activity, created = ActivityRepository(path).find_or_create(
-        "sailor-a@example.com", parsed, attachment_bytes
+        SAILOR_A, BOAT_A, parsed, attachment_bytes
     )
 
     assert created is True
     assert str(UUID(activity.id)) == activity.id
-    assert activity.participant_id == "sailor-a@example.com"
+    assert activity.sailor_id == SAILOR_A
+    assert activity.boat_id == BOAT_A
     assert activity.attachment_sha256 == calculate_attachment_sha256(
         attachment_bytes
     )
@@ -53,7 +58,7 @@ def test_first_activity_creates_uuid_backed_record(
     assert activity.max_lon == parsed.max_lon
 
 
-def test_same_participant_and_attachment_returns_existing_activity(
+def test_same_sailor_and_attachment_returns_existing_activity(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     repository = ActivityRepository(temporary_json_file("activities", []))
@@ -61,18 +66,19 @@ def test_same_participant_and_attachment_returns_existing_activity(
     parsed = parse_vakaros_csv(FIXTURE_PATH)
 
     first, first_created = repository.find_or_create(
-        "sailor-a@example.com", parsed, attachment_bytes
+        SAILOR_A, BOAT_A, parsed, attachment_bytes
     )
     second, second_created = repository.find_or_create(
-        " SAILOR-A@EXAMPLE.COM ", parsed, attachment_bytes
+        SAILOR_A, BOAT_B, parsed, attachment_bytes
     )
 
     assert first_created is True
     assert second_created is False
     assert second.id == first.id
+    assert second.boat_id == BOAT_A
 
 
-def test_same_participant_and_filename_with_different_bytes_creates_activities(
+def test_same_sailor_and_filename_with_different_bytes_creates_activities(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     repository = ActivityRepository(temporary_json_file("activities", []))
@@ -81,22 +87,22 @@ def test_same_participant_and_filename_with_different_bytes_creates_activities(
     second_attachment = first_attachment + b"different attachment content"
 
     first, first_created = repository.find_or_create(
-        " SAILOR-A@EXAMPLE.COM ", parsed, first_attachment
+        SAILOR_A, BOAT_A, parsed, first_attachment
     )
     second, second_created = repository.find_or_create(
-        "sailor-a@example.com", parsed, second_attachment
+        SAILOR_A, BOAT_A, parsed, second_attachment
     )
 
     assert first_created is True
     assert second_created is True
-    assert first.participant_id == second.participant_id == "sailor-a@example.com"
+    assert first.sailor_id == second.sailor_id == SAILOR_A
     assert first.original_filename == second.original_filename == FIXTURE_PATH.name
     assert first.attachment_sha256 != second.attachment_sha256
     assert first.id != second.id
     assert len(repository.all()) == 2
 
 
-def test_same_attachment_for_different_participant_creates_activity(
+def test_same_attachment_for_different_sailor_creates_activity(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     repository = ActivityRepository(temporary_json_file("activities", []))
@@ -104,10 +110,10 @@ def test_same_attachment_for_different_participant_creates_activity(
     parsed = parse_vakaros_csv(FIXTURE_PATH)
 
     first, _ = repository.find_or_create(
-        "sailor-a@example.com", parsed, attachment_bytes
+        SAILOR_A, BOAT_A, parsed, attachment_bytes
     )
     second, created = repository.find_or_create(
-        "crew@example.com", parsed, attachment_bytes
+        SAILOR_B, BOAT_A, parsed, attachment_bytes
     )
 
     assert created is True
@@ -121,7 +127,7 @@ def test_persisted_activity_has_only_activity_domain_fields(
     attachment_bytes = FIXTURE_PATH.read_bytes()
     parsed = parse_vakaros_csv(FIXTURE_PATH)
     ActivityRepository(path).find_or_create(
-        "sailor-a@example.com", parsed, attachment_bytes
+        SAILOR_A, BOAT_A, parsed, attachment_bytes
     )
 
     record = json.loads(path.read_text(encoding="utf-8"))[0]
@@ -149,7 +155,7 @@ def test_existing_activity_is_enriched_with_spatial_metadata(
     attachment_bytes = FIXTURE_PATH.read_bytes()
     parsed = parse_vakaros_csv(FIXTURE_PATH)
     original, _ = repository.find_or_create(
-        "sailor-a@example.com", parsed, attachment_bytes
+        SAILOR_A, None, parsed, attachment_bytes
     )
 
     records = json.loads(path.read_text(encoding="utf-8"))
@@ -165,12 +171,13 @@ def test_existing_activity_is_enriched_with_spatial_metadata(
     path.write_text(json.dumps(records), encoding="utf-8")
 
     enriched, created = repository.find_or_create(
-        "sailor-a@example.com", parsed, attachment_bytes
+        SAILOR_A, BOAT_B, parsed, attachment_bytes
     )
     persisted = json.loads(path.read_text(encoding="utf-8"))[0]
 
     assert created is False
     assert enriched.id == original.id
+    assert enriched.boat_id is None
     assert len(repository.all()) == 1
     assert persisted["center_lat"] == parsed.center_lat
     assert persisted["center_lon"] == parsed.center_lon

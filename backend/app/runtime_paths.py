@@ -13,7 +13,8 @@ DATA_DIR_ENVIRONMENT_VARIABLE = "TACKBAR_DATA_DIR"
 @dataclass(frozen=True)
 class RuntimePaths:
     root: Path
-    participants: Path
+    sailors: Path
+    boats: Path
     activities: Path
     sessions: Path
     ingestion_history: Path
@@ -43,7 +44,8 @@ def runtime_paths(data_root: str | Path | None = None) -> RuntimePaths:
     )
     return RuntimePaths(
         root=root,
-        participants=root / "participants.json",
+        sailors=root / "sailors.json",
+        boats=root / "boats.json",
         activities=root / "activities.json",
         sessions=root / "sessions.json",
         ingestion_history=root / "ingestion_history.json",

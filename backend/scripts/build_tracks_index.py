@@ -13,7 +13,8 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 from app.models import Session, StoredActivity  # noqa: E402
 from app.repositories.activities import ActivityRepository  # noqa: E402
-from app.repositories.participants import ParticipantRepository  # noqa: E402
+from app.repositories.boats import BoatRepository  # noqa: E402
+from app.repositories.sailors import SailorRepository  # noqa: E402
 from app.repositories.sessions import SessionRepository  # noqa: E402
 from app.storage.track_storage import TrackStorage  # noqa: E402
 
@@ -23,8 +24,10 @@ TRACK_INDEX_COLUMNS = [
     "activity_date",
     "start_time_utc",
     "end_time_utc",
-    "participant_id",
-    "participant_name",
+    "sailor_id",
+    "sailor_email",
+    "sailor_name",
+    "boat_id",
     "boat_name",
     "sailing_class",
     "sail_number",
@@ -39,7 +42,8 @@ TRACK_INDEX_COLUMNS = [
 
 
 def build_tracks_index(
-    participants: ParticipantRepository,
+    sailors: SailorRepository,
+    boats: BoatRepository,
     activities: ActivityRepository,
     sessions: SessionRepository,
     storage: TrackStorage,
@@ -50,7 +54,7 @@ def build_tracks_index(
         activities.all(),
         key=lambda activity: (
             -_as_utc(activity.start_time).timestamp(),
-            activity.participant_id,
+            activity.sailor_id,
             activity.id,
         ),
     )
@@ -58,7 +62,8 @@ def build_tracks_index(
     rows = [
         _activity_row(
             activity,
-            participants,
+            sailors,
+            boats,
             session_by_activity.get(activity.id, ""),
             storage,
         )
@@ -90,11 +95,17 @@ def _resolve_sessions(sessions: list[Session]) -> dict[str, str]:
 
 def _activity_row(
     activity: StoredActivity,
-    participants: ParticipantRepository,
+    sailors: SailorRepository,
+    boats: BoatRepository,
     session_id: str,
     storage: TrackStorage,
 ) -> dict[str, object]:
-    participant = participants.find_by_email(activity.participant_id)
+    sailor = sailors.get_by_id(activity.sailor_id)
+    boat = (
+        boats.get_by_id(activity.boat_id)
+        if activity.boat_id is not None
+        else None
+    )
     start_time = _as_utc(activity.start_time)
     original_path = storage.original_path(
         activity.id,
@@ -111,13 +122,13 @@ def _activity_row(
         "activity_date": start_time.date().isoformat(),
         "start_time_utc": _format_utc(start_time),
         "end_time_utc": _format_utc(activity.end_time),
-        "participant_id": activity.participant_id,
-        "participant_name": (participant.name or "") if participant else "",
-        "boat_name": (participant.boat_name or "") if participant else "",
-        "sailing_class": (
-            participant.sailing_class or ""
-        ) if participant else "",
-        "sail_number": (participant.sail_number or "") if participant else "",
+        "sailor_id": activity.sailor_id,
+        "sailor_email": sailor.email if sailor else "",
+        "sailor_name": (sailor.name or "") if sailor else "",
+        "boat_id": activity.boat_id or "",
+        "boat_name": (boat.name or "") if boat else "",
+        "sailing_class": (boat.sailing_class or "") if boat else "",
+        "sail_number": (boat.sail_number or "") if boat else "",
         "source": activity.source,
         "device_name": activity.device_name or "",
         "original_filename": activity.original_filename,
@@ -142,7 +153,8 @@ def _format_utc(value: datetime) -> str:
 
 def main() -> None:
     rows = build_tracks_index(
-        ParticipantRepository(),
+        SailorRepository(),
+        BoatRepository(),
         ActivityRepository(),
         SessionRepository(),
         TrackStorage(),
@@ -156,8 +168,8 @@ def main() -> None:
         f"{len({row['session_id'] for row in rows if row['session_id']})}"
     )
     print(
-        "Participants referenced: "
-        f"{len({row['participant_id'] for row in rows})}"
+        "Sailors referenced: "
+        f"{len({row['sailor_id'] for row in rows})}"
     )
 
 

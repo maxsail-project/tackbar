@@ -1,4 +1,5 @@
 import gzip
+import json
 from pathlib import Path
 from typing import Callable
 
@@ -6,7 +7,8 @@ import pytest
 
 from app.models import InboundEmail
 from app.repositories.activities import ActivityRepository
-from app.repositories.participants import ParticipantRepository
+from app.repositories.boats import BoatRepository
+from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.ingestion_history import (
     DEFAULT_HISTORY_PATH,
@@ -21,11 +23,20 @@ FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
 FILENAME = "vakaros-demo.csv.gz"
-PARTICIPANTS = [
+SAILOR_ID = "30000000-0000-4000-8000-000000000001"
+BOAT_ID = "40000000-0000-4000-8000-000000000001"
+SAILORS = [
     {
-        "id": "sailor-a@example.com",
+        "id": SAILOR_ID,
+        "email": "sailor-a@example.com",
         "name": "Sailor A",
-        "boat_name": "Demo Boat A",
+        "default_boat_id": BOAT_ID,
+    }
+]
+BOATS = [
+    {
+        "id": BOAT_ID,
+        "name": "Demo Boat A",
         "sailing_class": "Snipe",
         "sail_number": "DEMO-1001",
     }
@@ -83,15 +94,15 @@ def _email(
 def _repositories(
     temporary_json_file: Callable[[str, object], Path],
 ) -> tuple[
-    ParticipantRepository,
+    SailorRepository,
+    BoatRepository,
     ActivityRepository,
     SessionRepository,
     IngestionHistory,
 ]:
     return (
-        ParticipantRepository(
-            temporary_json_file("participants", PARTICIPANTS)
-        ),
+        SailorRepository(temporary_json_file("sailors", SAILORS)),
+        BoatRepository(temporary_json_file("boats", BOATS)),
         ActivityRepository(temporary_json_file("activities", [])),
         SessionRepository(temporary_json_file("sessions", [])),
         IngestionHistory(temporary_json_file("ingestion-history", [])),
@@ -101,20 +112,20 @@ def _repositories(
 def test_provider_and_message_id_deduplicate_ingestion(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
     email = _email(FIXTURE_PATH.read_bytes())
 
     first = process_provider_email(
-        "gmail", email, participants, activities, sessions, history
+        "gmail", email, sailors, boats, activities, sessions, history
     )
     second = process_provider_email(
-        "gmail", email, participants, activities, sessions, history
+        "gmail", email, sailors, boats, activities, sessions, history
     )
 
     assert first is not None
-    assert first.participant_created is False
+    assert first.sailor_created is False
     assert first.activity.track_file == (
         f"tracks/{first.activity.id}.csv.gz"
     )
@@ -133,16 +144,16 @@ def test_provider_and_message_id_deduplicate_ingestion(
 def test_same_message_id_from_different_provider_is_not_skipped(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
     email = _email(FIXTURE_PATH.read_bytes())
 
     gmail_result = process_provider_email(
-        "gmail", email, participants, activities, sessions, history
+        "gmail", email, sailors, boats, activities, sessions, history
     )
     other_provider_result = process_provider_email(
-        "future-provider", email, participants, activities, sessions, history
+        "future-provider", email, sailors, boats, activities, sessions, history
     )
 
     assert gmail_result is not None
@@ -155,7 +166,7 @@ def test_same_message_id_from_different_provider_is_not_skipped(
 def test_different_gmail_messages_with_identical_attachment_reuse_activity(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
     attachment_bytes = FIXTURE_PATH.read_bytes()
@@ -163,7 +174,8 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
     first = process_provider_email(
         "gmail",
         _email(attachment_bytes, provider_message_id="gmail-message-1"),
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         history,
@@ -171,7 +183,8 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
     second = process_provider_email(
         "gmail",
         _email(attachment_bytes, provider_message_id="gmail-message-2"),
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         history,
@@ -182,7 +195,8 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
     assert first.activity_created is True
     assert second.activity_created is False
     assert first.activity.id == second.activity.id
-    assert first.activity.participant_id == "sailor-a@example.com"
+    assert first.activity.sailor_id == SAILOR_ID
+    assert first.activity.boat_id == BOAT_ID
     assert first.activity.attachment_sha256 == second.activity.attachment_sha256
     assert len(activities.all()) == 1
 
@@ -201,7 +215,7 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
 def test_csv_ingestion_archives_exact_original_and_reuses_by_raw_sha(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
     csv_bytes = gzip.decompress(FIXTURE_PATH.read_bytes())
@@ -214,7 +228,8 @@ def test_csv_ingestion_archives_exact_original_and_reuses_by_raw_sha(
             provider_message_id="gmail-csv-1",
             filename=csv_filename,
         ),
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         history,
@@ -226,7 +241,8 @@ def test_csv_ingestion_archives_exact_original_and_reuses_by_raw_sha(
             provider_message_id="gmail-csv-2",
             filename=csv_filename,
         ),
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         history,
@@ -256,7 +272,7 @@ def test_csv_ingestion_archives_exact_original_and_reuses_by_raw_sha(
 def test_equivalent_csv_and_csv_gz_keep_raw_attachment_deduplication(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
     compressed_bytes = FIXTURE_PATH.read_bytes()
@@ -265,7 +281,8 @@ def test_equivalent_csv_and_csv_gz_keep_raw_attachment_deduplication(
     compressed = process_provider_email(
         "gmail",
         _email(compressed_bytes, provider_message_id="gmail-gzip"),
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         history,
@@ -277,7 +294,8 @@ def test_equivalent_csv_and_csv_gz_keep_raw_attachment_deduplication(
             provider_message_id="gmail-csv",
             filename="vakaros-demo.csv",
         ),
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         history,
@@ -299,14 +317,15 @@ def test_equivalent_csv_and_csv_gz_keep_raw_attachment_deduplication(
 def test_processed_history_stores_provider_and_activity_id(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
 
     result = process_provider_email(
         "gmail",
         _email(FIXTURE_PATH.read_bytes()),
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         history,
@@ -321,36 +340,96 @@ def test_processed_history_stores_provider_and_activity_id(
     assert record["processed_at"].endswith("+00:00")
 
 
-def test_unknown_participant_is_created_and_full_flow_continues(
+def test_unknown_sailor_is_created_and_full_flow_continues(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
 
     result = process_provider_email(
         "gmail",
         _email(FIXTURE_PATH.read_bytes(), " UNKNOWN@EXAMPLE.COM "),
-        participants,
+        sailors,
+        boats,
         activities,
         sessions,
         history,
     )
 
     assert result is not None
-    assert result.participant_created is True
-    assert result.participant.id == "unknown@example.com"
-    assert result.activity.participant_id == "unknown@example.com"
+    assert result.sailor_created is True
+    assert result.sailor.email == "unknown@example.com"
+    assert result.activity.sailor_id == result.sailor.id
+    assert result.activity.boat_id is None
     assert result.session_match.status == "created"
     assert result.activity.id in result.session_match.session.activity_ids
     assert history.is_processed("gmail", "gmail-message-1")
+
+
+def test_known_sailor_without_default_boat_creates_activity_with_unknown_boat(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    sailor_records = SAILORS.copy()
+    sailor_records[0] = {**sailor_records[0], "default_boat_id": None}
+    sailors.path.write_text(
+        json.dumps(sailor_records, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    result = process_provider_email(
+        "gmail",
+        _email(FIXTURE_PATH.read_bytes()),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    assert result.activity.boat_id is None
+
+
+def test_missing_default_boat_fails_before_activity_creation(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    sailor_records = SAILORS.copy()
+    sailor_records[0] = {
+        **sailor_records[0],
+        "default_boat_id": "49999999-9999-4999-8999-999999999999",
+    }
+    sailors.path.write_text(
+        json.dumps(sailor_records, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="missing default Boat"):
+        process_provider_email(
+            "gmail",
+            _email(FIXTURE_PATH.read_bytes()),
+            sailors,
+            boats,
+            activities,
+            sessions,
+            history,
+        )
+
+    assert activities.all() == []
+    assert history.records() == []
 
 
 def test_ingestion_is_recorded_only_after_complete_flow_succeeds(
     temporary_json_file: Callable[[str, object], Path],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
 
@@ -366,20 +445,21 @@ def test_ingestion_is_recorded_only_after_complete_flow_succeeds(
         process_provider_email(
             "gmail",
             _email(FIXTURE_PATH.read_bytes(), "new@example.com"),
-            participants,
+            sailors,
+            boats,
             activities,
             sessions,
             history,
         )
 
-    assert participants.find_by_email("new@example.com") is not None
+    assert sailors.find_by_email("new@example.com") is not None
     assert history.records() == []
 
 
 def test_failed_attachment_is_not_processed(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    participants, activities, sessions, history = _repositories(
+    sailors, boats, activities, sessions, history = _repositories(
         temporary_json_file
     )
 
@@ -387,7 +467,8 @@ def test_failed_attachment_is_not_processed(
         process_provider_email(
             "gmail",
             _email(b"not a gzip file"),
-            participants,
+            sailors,
+            boats,
             activities,
             sessions,
             history,
