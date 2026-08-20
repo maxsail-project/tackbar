@@ -84,14 +84,6 @@ La siguiente etapa sustituirá los fixtures de desarrollo frontend por una API b
 
 ---
 
-## v0.2.0 — Detección automática de sesiones
-
----
-
-## v0.2.0 — Automatic Session Detection
-
----
-
 ## v0.2.0 — Automatic Session Detection
 
 ### English
