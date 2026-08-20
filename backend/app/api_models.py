@@ -40,3 +40,20 @@ class SessionDetailResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     activities: list[ActivityContextResponse]
+
+
+class TrackSampleResponse(BaseModel):
+    utc: str
+    lat: float
+    lon: float
+    cog: float | None
+    sog: float | None
+    dist: float
+    hdg: float | None
+    heel: float | None
+    trim: float | None
+
+
+class ActivityTrackResponse(BaseModel):
+    activity_id: str
+    samples: list[TrackSampleResponse]

@@ -1,10 +1,14 @@
 import re
+from math import isfinite
 from pathlib import Path
 from uuid import UUID
 
 import pandas as pd
 
-from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
+from app.normalization.track_normalizer import (
+    CANONICAL_TRACK_COLUMNS,
+    OPTIONAL_SAMPLE_COLUMNS,
+)
 from app.runtime_paths import runtime_paths
 
 
@@ -78,6 +82,29 @@ class TrackStorage:
         safe_activity_id = _canonical_activity_id(activity_id)
         return f"tracks/{safe_activity_id}.csv.gz"
 
+    def read_normalized_track(self, activity_id: str) -> pd.DataFrame:
+        path = self.track_path(activity_id)
+        if not path.is_file():
+            raise FileNotFoundError(f"Normalized track does not exist: {path}")
+
+        track = pd.read_csv(path, compression="gzip")
+        if list(track.columns) != CANONICAL_TRACK_COLUMNS:
+            raise ValueError(
+                "Normalized track columns must exactly match the TackBar schema"
+            )
+        if track.empty:
+            raise ValueError("Normalized track contains no samples")
+        if not track["activity_id"].eq(activity_id).all():
+            raise ValueError("Normalized track contains a different Activity id")
+
+        _validate_utc(track["utc"])
+        _validate_required_number(track["lat"], "lat", -90.0, 90.0)
+        _validate_required_number(track["lon"], "lon", -180.0, 180.0)
+        _validate_required_number(track["dist"], "dist", 0.0)
+        for column in OPTIONAL_SAMPLE_COLUMNS:
+            _validate_optional_number(track[column], column)
+        return track
+
 
 def _canonical_activity_id(activity_id: str) -> str:
     try:
@@ -97,3 +124,49 @@ def _safe_original_filename(original_filename: str) -> str:
     if not safe_filename:
         raise ValueError("Original filename cannot be safely stored")
     return safe_filename
+
+
+def _validate_utc(values: pd.Series) -> None:
+    for value in values:
+        if pd.isna(value):
+            raise ValueError("Normalized track contains invalid utc values")
+        try:
+            timestamp = pd.Timestamp(value)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "Normalized track contains invalid utc values"
+            ) from error
+        if pd.isna(timestamp) or timestamp.tzinfo is None:
+            raise ValueError("Normalized track utc values must be timezone-aware")
+        if timestamp.utcoffset().total_seconds() != 0:
+            raise ValueError("Normalized track utc values must be UTC")
+
+
+def _validate_required_number(
+    values: pd.Series,
+    field_name: str,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> None:
+    numbers = pd.to_numeric(values, errors="coerce")
+    if numbers.isna().any() or not numbers.map(isfinite).all():
+        raise ValueError(
+            f"Normalized track contains invalid {field_name} values"
+        )
+    if minimum is not None and not numbers.ge(minimum).all():
+        raise ValueError(
+            f"Normalized track contains invalid {field_name} values"
+        )
+    if maximum is not None and not numbers.le(maximum).all():
+        raise ValueError(
+            f"Normalized track contains invalid {field_name} values"
+        )
+
+
+def _validate_optional_number(values: pd.Series, field_name: str) -> None:
+    present = values.notna()
+    numbers = pd.to_numeric(values, errors="coerce")
+    if numbers[present].isna().any() or not numbers[present].map(isfinite).all():
+        raise ValueError(
+            f"Normalized track contains invalid {field_name} values"
+        )
