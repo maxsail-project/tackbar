@@ -14,7 +14,7 @@ from app.repositories.activities import (
 
 
 FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "VK-Maxi-URU 10-8-2026.csv.gz"
+    Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
 
 
@@ -34,12 +34,12 @@ def test_first_activity_creates_uuid_backed_record(
     parsed = parse_vakaros_csv(FIXTURE_PATH)
 
     activity, created = ActivityRepository(path).find_or_create(
-        "mmannise@gmail.com", parsed, attachment_bytes
+        "sailor-a@example.com", parsed, attachment_bytes
     )
 
     assert created is True
     assert str(UUID(activity.id)) == activity.id
-    assert activity.participant_id == "mmannise@gmail.com"
+    assert activity.participant_id == "sailor-a@example.com"
     assert activity.attachment_sha256 == calculate_attachment_sha256(
         attachment_bytes
     )
@@ -61,10 +61,10 @@ def test_same_participant_and_attachment_returns_existing_activity(
     parsed = parse_vakaros_csv(FIXTURE_PATH)
 
     first, first_created = repository.find_or_create(
-        "mmannise@gmail.com", parsed, attachment_bytes
+        "sailor-a@example.com", parsed, attachment_bytes
     )
     second, second_created = repository.find_or_create(
-        " MMANNISE@GMAIL.COM ", parsed, attachment_bytes
+        " SAILOR-A@EXAMPLE.COM ", parsed, attachment_bytes
     )
 
     assert first_created is True
@@ -81,15 +81,15 @@ def test_same_participant_and_filename_with_different_bytes_creates_activities(
     second_attachment = first_attachment + b"different attachment content"
 
     first, first_created = repository.find_or_create(
-        " MMANNISE@GMAIL.COM ", parsed, first_attachment
+        " SAILOR-A@EXAMPLE.COM ", parsed, first_attachment
     )
     second, second_created = repository.find_or_create(
-        "mmannise@gmail.com", parsed, second_attachment
+        "sailor-a@example.com", parsed, second_attachment
     )
 
     assert first_created is True
     assert second_created is True
-    assert first.participant_id == second.participant_id == "mmannise@gmail.com"
+    assert first.participant_id == second.participant_id == "sailor-a@example.com"
     assert first.original_filename == second.original_filename == FIXTURE_PATH.name
     assert first.attachment_sha256 != second.attachment_sha256
     assert first.id != second.id
@@ -104,7 +104,7 @@ def test_same_attachment_for_different_participant_creates_activity(
     parsed = parse_vakaros_csv(FIXTURE_PATH)
 
     first, _ = repository.find_or_create(
-        "mmannise@gmail.com", parsed, attachment_bytes
+        "sailor-a@example.com", parsed, attachment_bytes
     )
     second, created = repository.find_or_create(
         "crew@example.com", parsed, attachment_bytes
@@ -121,7 +121,7 @@ def test_persisted_activity_has_only_activity_domain_fields(
     attachment_bytes = FIXTURE_PATH.read_bytes()
     parsed = parse_vakaros_csv(FIXTURE_PATH)
     ActivityRepository(path).find_or_create(
-        "mmannise@gmail.com", parsed, attachment_bytes
+        "sailor-a@example.com", parsed, attachment_bytes
     )
 
     record = json.loads(path.read_text(encoding="utf-8"))[0]
@@ -149,7 +149,7 @@ def test_existing_activity_is_enriched_with_spatial_metadata(
     attachment_bytes = FIXTURE_PATH.read_bytes()
     parsed = parse_vakaros_csv(FIXTURE_PATH)
     original, _ = repository.find_or_create(
-        "mmannise@gmail.com", parsed, attachment_bytes
+        "sailor-a@example.com", parsed, attachment_bytes
     )
 
     records = json.loads(path.read_text(encoding="utf-8"))
@@ -165,7 +165,7 @@ def test_existing_activity_is_enriched_with_spatial_metadata(
     path.write_text(json.dumps(records), encoding="utf-8")
 
     enriched, created = repository.find_or_create(
-        "mmannise@gmail.com", parsed, attachment_bytes
+        "sailor-a@example.com", parsed, attachment_bytes
     )
     persisted = json.loads(path.read_text(encoding="utf-8"))[0]
 

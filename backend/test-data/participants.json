@@ -1,0 +1,16 @@
+[
+  {
+    "id": "sailor-a@example.com",
+    "name": "Sailor A",
+    "boat_name": "Demo Boat A",
+    "sailing_class": "Snipe",
+    "sail_number": "DEMO-1001"
+  },
+  {
+    "id": "sailor-b@example.com",
+    "name": "Sailor B",
+    "boat_name": "Demo Boat B",
+    "sailing_class": "Snipe",
+    "sail_number": "DEMO-1002"
+  }
+]

@@ -18,16 +18,16 @@ from app.services.ingestion_processing import (
 
 
 FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "VK-Maxi-URU 10-8-2026.csv.gz"
+    Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
-FILENAME = "VK-Maxi-URU 10-8-2026.csv.gz"
+FILENAME = "vakaros-demo.csv.gz"
 PARTICIPANTS = [
     {
-        "id": "mmannise@gmail.com",
-        "name": "Maxi URU",
-        "boat_name": "Zafar",
+        "id": "sailor-a@example.com",
+        "name": "Sailor A",
+        "boat_name": "Demo Boat A",
         "sailing_class": "Snipe",
-        "sail_number": "URU-32115",
+        "sail_number": "DEMO-1001",
     }
 ]
 
@@ -35,7 +35,7 @@ PARTICIPANTS = [
 def test_default_history_path_is_persistent_data() -> None:
     assert DEFAULT_HISTORY_PATH == (
         Path(__file__).resolve().parents[1]
-        / "data"
+        / "test-data"
         / "ingestion_history.json"
     )
 
@@ -47,7 +47,7 @@ def test_legacy_tmp_history_is_copied_without_deletion(
         {
             "provider": "gmail",
             "provider_message_id": "legacy-message",
-            "processed_at": "2026-08-18T10:00:00+00:00",
+            "processed_at": "2031-06-18T10:00:00+00:00",
             "status": "processed",
             "activity_id": "activity-1",
         }
@@ -67,7 +67,7 @@ def test_legacy_tmp_history_is_copied_without_deletion(
 
 def _email(
     attachment_bytes: bytes,
-    sender_email: str = "mmannise@gmail.com",
+    sender_email: str = "sailor-a@example.com",
     provider_message_id: str = "gmail-message-1",
     filename: str = FILENAME,
 ) -> InboundEmail:
@@ -182,7 +182,7 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
     assert first.activity_created is True
     assert second.activity_created is False
     assert first.activity.id == second.activity.id
-    assert first.activity.participant_id == "mmannise@gmail.com"
+    assert first.activity.participant_id == "sailor-a@example.com"
     assert first.activity.attachment_sha256 == second.activity.attachment_sha256
     assert len(activities.all()) == 1
 
@@ -205,7 +205,7 @@ def test_csv_ingestion_archives_exact_original_and_reuses_by_raw_sha(
         temporary_json_file
     )
     csv_bytes = gzip.decompress(FIXTURE_PATH.read_bytes())
-    csv_filename = "VK-Maxi-URU 10-8-2026.csv"
+    csv_filename = "vakaros-demo.csv"
 
     first = process_provider_email(
         "gmail",
@@ -275,7 +275,7 @@ def test_equivalent_csv_and_csv_gz_keep_raw_attachment_deduplication(
         _email(
             csv_bytes,
             provider_message_id="gmail-csv",
-            filename="VK-Maxi-URU 10-8-2026.csv",
+            filename="vakaros-demo.csv",
         ),
         participants,
         activities,

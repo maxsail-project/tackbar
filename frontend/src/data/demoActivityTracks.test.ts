@@ -1,32 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { mockSessions } from './mockSessions'
-import { realComparisonActivityTrack } from './realComparisonActivityTrack'
-import { realActivityTrack } from './realActivityTrack'
+import { demoComparisonActivityTrack } from './demoComparisonActivityTrack'
+import { demoPrimaryActivityTrack } from './demoPrimaryActivityTrack'
 import { buildTrackGeometry } from '../utils/trackGeometry'
 
-const ACTIVITY_ID = '8c36e153-5186-4ba3-b19f-cfa2636ec5cd'
+const ACTIVITY_ID = '10000000-0000-4000-8000-000000000001'
 const EXPECTED_SAMPLE_COUNT = 40_540
-const EXPECTED_START = '2026-08-15T11:51:03.056000Z'
-const EXPECTED_END = '2026-08-16T09:06:16.057000Z'
-const COMPARISON_ACTIVITY_ID = '1ffdaa10-68b1-4770-90da-ec486326bcf2'
+const EXPECTED_START = '2031-06-15T08:00:00Z'
+const EXPECTED_END = '2031-06-16T05:15:13.001000Z'
+const COMPARISON_ACTIVITY_ID = '10000000-0000-4000-8000-000000000002'
 const COMPARISON_SAMPLE_COUNT = 14_769
-const COMPARISON_START = '2026-08-15T12:14:07.087000Z'
-const COMPARISON_END = '2026-08-15T14:17:11.075000Z'
-const SESSION_ID = '00ef902a-d49d-44e2-9f4b-c3f258407b5f'
+const COMPARISON_START = '2031-06-15T08:23:04.031000Z'
+const COMPARISON_END = '2031-06-15T10:26:08.019000Z'
+const SESSION_ID = '20000000-0000-4000-8000-000000000001'
 
-describe('complete real Activity fixture', () => {
+describe('complete public demo Activity fixtures', () => {
   it('matches the Activity identity and complete UTC range', () => {
     const activity = mockSessions
       .flatMap((session) => session.activities)
       .find((candidate) => candidate.activity_id === ACTIVITY_ID)
 
     expect(activity).toBeDefined()
-    expect(realActivityTrack.activity_id).toBe(ACTIVITY_ID)
-    expect(realActivityTrack.samples).toHaveLength(EXPECTED_SAMPLE_COUNT)
-    expect(realActivityTrack.samples[0].utc).toBe(EXPECTED_START)
-    expect(realActivityTrack.samples.at(-1)?.utc).toBe(EXPECTED_END)
-    expect(realActivityTrack.samples[0].dist).toBe(0)
-    expect(realActivityTrack.samples.at(-1)?.dist).toBe(0.17)
+    expect(demoPrimaryActivityTrack.activity_id).toBe(ACTIVITY_ID)
+    expect(demoPrimaryActivityTrack.samples).toHaveLength(EXPECTED_SAMPLE_COUNT)
+    expect(demoPrimaryActivityTrack.samples[0].utc).toBe(EXPECTED_START)
+    expect(demoPrimaryActivityTrack.samples.at(-1)?.utc).toBe(EXPECTED_END)
+    expect(demoPrimaryActivityTrack.samples[0].dist).toBe(0)
+    expect(demoPrimaryActivityTrack.samples.at(-1)?.dist).toBe(0.17)
     expect(activity?.start_time).toBe(EXPECTED_START)
     expect(activity?.end_time).toBe(EXPECTED_END)
   })
@@ -34,7 +34,7 @@ describe('complete real Activity fixture', () => {
   it('keeps all samples chronological with valid rendering coordinates', () => {
     let previousTime = -Infinity
 
-    for (const trackSample of realActivityTrack.samples) {
+    for (const trackSample of demoPrimaryActivityTrack.samples) {
       const currentTime = Date.parse(trackSample.utc)
       expect(Number.isFinite(currentTime)).toBe(true)
       expect(currentTime).toBeGreaterThanOrEqual(previousTime)
@@ -50,18 +50,18 @@ describe('complete real Activity fixture', () => {
   })
 
   it('builds one LineString coordinate per sample and complete bounds', () => {
-    const { geoJson, bounds } = buildTrackGeometry(realActivityTrack.samples)
+    const { geoJson, bounds } = buildTrackGeometry(demoPrimaryActivityTrack.samples)
 
     expect(geoJson.geometry.coordinates).toHaveLength(EXPECTED_SAMPLE_COUNT)
-    expect(geoJson.geometry.coordinates[0]).toEqual([-0.3290002, 39.4282267])
-    expect(geoJson.geometry.coordinates.at(-1)).toEqual([-0.3286852, 39.4281786])
+    expect(geoJson.geometry.coordinates[0]).toEqual([-30.75, 0.25])
+    expect(geoJson.geometry.coordinates.at(-1)).toEqual([-30.749882863, 0.250218618])
     expect(bounds).toEqual([
-      [-0.3300904, 39.4058115],
-      [-0.3092857, 39.4284513],
+      [-30.750200728, 0.248991785],
+      [-30.724468312, 0.258694939],
     ])
   })
 
-  it('keeps the complete real comparison Activity in the same Session', () => {
+  it('keeps the complete demo comparison Activity in the same Session', () => {
     const session = mockSessions.find((candidate) => (
       candidate.session_id === SESSION_ID
     ))
@@ -71,17 +71,17 @@ describe('complete real Activity fixture', () => {
 
     expect(session?.activities.map((candidate) => candidate.activity_id))
       .toEqual([ACTIVITY_ID, COMPARISON_ACTIVITY_ID])
-    expect(realComparisonActivityTrack.activity_id).toBe(COMPARISON_ACTIVITY_ID)
-    expect(realComparisonActivityTrack.samples).toHaveLength(COMPARISON_SAMPLE_COUNT)
-    expect(realComparisonActivityTrack.samples[0].utc).toBe(COMPARISON_START)
-    expect(realComparisonActivityTrack.samples.at(-1)?.utc).toBe(COMPARISON_END)
+    expect(demoComparisonActivityTrack.activity_id).toBe(COMPARISON_ACTIVITY_ID)
+    expect(demoComparisonActivityTrack.samples).toHaveLength(COMPARISON_SAMPLE_COUNT)
+    expect(demoComparisonActivityTrack.samples[0].utc).toBe(COMPARISON_START)
+    expect(demoComparisonActivityTrack.samples.at(-1)?.utc).toBe(COMPARISON_END)
     expect(activity?.start_time).toBe(COMPARISON_START)
     expect(activity?.end_time).toBe(COMPARISON_END)
   })
 
   it('preserves every comparison sample and its complete geometry', () => {
     let previousTime = -Infinity
-    for (const trackSample of realComparisonActivityTrack.samples) {
+    for (const trackSample of demoComparisonActivityTrack.samples) {
       const currentTime = Date.parse(trackSample.utc)
       expect(Number.isFinite(currentTime)).toBe(true)
       expect(currentTime).toBeGreaterThanOrEqual(previousTime)
@@ -92,16 +92,16 @@ describe('complete real Activity fixture', () => {
     }
 
     const { geoJson, bounds } = buildTrackGeometry(
-      realComparisonActivityTrack.samples,
+      demoComparisonActivityTrack.samples,
     )
     expect(geoJson.geometry.coordinates).toHaveLength(COMPARISON_SAMPLE_COUNT)
     expect(geoJson.geometry.coordinates[0])
-      .toEqual([-0.329318626471827, 39.428022797341])
+      .toEqual([-30.749876917, 0.249705173])
     expect(geoJson.geometry.coordinates.at(-1))
-      .toEqual([-0.314340426471827, 39.408961197341])
+      .toEqual([-30.728265426, 0.255196042])
     expect(bounds).toEqual([
-      [-0.329799726471827, 39.405919297341],
-      [-0.308995026471827, 39.428306597341],
+      [-30.750238172, 0.249238014],
+      [-30.724505755, 0.258941168],
     ])
   })
 })

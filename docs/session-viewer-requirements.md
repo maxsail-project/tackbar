@@ -1021,3 +1021,214 @@ The Session Viewer should preserve this mental model:
 > **Session organizes what was shared. Activity represents what was received. Analysis Window defines what the sailors are discussing right now.**
 
 The v0.3 PoC should remain deliberately simple while keeping this separation clean enough for later features such as Saved Segments, richer metadata and more mature collaborative debrief workflows.
+
+---
+
+## Data Privacy, Participant Registration and Pilot Access
+
+### Public repository and private runtime data
+
+**DP-01 — Public repository data**
+
+The TackBar source repository is public.
+
+The public repository MUST contain only:
+
+- source code;
+- documentation;
+- tests;
+- synthetic, fictional or sanitized demo fixtures.
+
+Real participant data MUST NOT be committed to the public repository.
+
+Real participant data includes, at minimum:
+
+- names;
+- email addresses;
+- boat names;
+- sail numbers;
+- provider message identifiers;
+- original attachment metadata when identifiable;
+- real Activity tracks;
+- real GPS positions;
+- real sailing timestamps.
+
+---
+
+**DP-02 — Demo fixtures**
+
+Public test and frontend fixtures MUST use fictional participant identities and
+sanitized or synthetic sailing data.
+
+Demo fixtures MAY preserve realistic sailing characteristics such as:
+
+- track shape;
+- sampling frequency;
+- SOG behaviour;
+- COG behaviour;
+- heading;
+- heel;
+- trim;
+- comparison and replay characteristics.
+
+They MUST NOT expose identifiable participant or navigation data.
+
+---
+
+**DP-03 — Private runtime storage**
+
+Real TackBar runtime data MUST be stored outside the source repository.
+
+The backend MUST obtain the private runtime storage location through
+configuration rather than assuming that runtime data belongs to the repository.
+
+For the PoC, a configurable local directory such as `TACKBAR_DATA_DIR`
+is sufficient.
+
+The persistence implementation MAY initially remain JSON/file based.
+
+Migration to SQLite or another database is a separate architectural decision.
+
+---
+
+**DP-04 — Repository independence**
+
+The source repository MUST be capable of being cloned, tested and demonstrated
+without access to private TackBar runtime data.
+
+Public demo fixtures MUST provide the data required for automated tests and
+frontend demonstration.
+
+---
+
+### Closed pilot
+
+**PA-01 — Invite-only pilot**
+
+The initial TackBar pilot is closed and invitation-only.
+
+Participants MUST be explicitly registered before TackBar processes their
+sailing Activities.
+
+There is no public self-registration requirement for the initial pilot.
+
+---
+
+**PA-02 — Participant states**
+
+A Participant MUST have an explicit registration state.
+
+Initial states:
+
+- `invited`
+- `active`
+- `revoked`
+
+Only `active` Participants are authorized for Activity ingestion.
+
+---
+
+**PA-03 — Email identity**
+
+For the initial pilot, the normalized participant email is the external
+identity used by email ingestion.
+
+Normalization:
+
+`strip().lower()`
+
+An incoming sender email MUST match an `active` Participant before its
+attachment is processed.
+
+---
+
+**PA-04 — Unknown or inactive sender**
+
+When an email is received from a sender that is not an active Participant:
+
+- the sailing attachment MUST NOT be parsed;
+- no Activity MUST be created;
+- no Session MUST be created;
+- the attachment MUST NOT be persisted as participant runtime data.
+
+A minimal technical rejection/audit event MAY be recorded when needed.
+
+---
+
+### Invitation and acceptance
+
+**PA-05 — Invitation**
+
+A participant enters the pilot through an invitation initiated by TackBar
+administration.
+
+The initial PoC MAY implement invitation/activation manually without requiring
+a complete user-management UI.
+
+---
+
+**PA-06 — Explicit acceptance**
+
+Before becoming `active`, an invited Participant MUST explicitly accept the
+current pilot privacy/data-use notice.
+
+The system MUST be able to associate the acceptance with:
+
+- Participant;
+- notice/version accepted;
+- acceptance timestamp.
+
+Minimum conceptual data:
+
+- `privacy_notice_version`
+- `accepted_at`
+
+---
+
+**PA-07 — Activation**
+
+The participant lifecycle is:
+
+`invited → explicit acceptance → active`
+
+Only after activation may TackBar process Activities associated with that
+participant email.
+
+A revoked Participant MUST no longer be allowed to ingest new Activities.
+
+---
+
+### Pilot data boundary
+
+**DP-05 — Private pilot data**
+
+Real pilot information is private TackBar runtime data.
+
+This includes:
+
+`Participant → Activity → Track → Session`
+
+and provider ingestion metadata associated with those entities.
+
+Such information MUST remain in private runtime storage and outside the public
+Git repository.
+
+---
+
+**DP-06 — Storage evolution**
+
+Private persistence is intentionally implementation-independent.
+
+PoC:
+
+`JSON + files`
+
+Possible next step:
+
+`SQLite + files`
+
+Later deployments MAY use another private database/object storage solution.
+
+Encryption at rest, cloud persistence and advanced identity management are
+future deployment/security decisions and are not required merely to remove
+runtime data from Git.

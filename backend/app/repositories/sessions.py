@@ -4,15 +4,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.models import Session
-
-
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_SESSIONS_PATH = BACKEND_DIR / "data" / "sessions.json"
+from app.runtime_paths import runtime_paths
 
 
 class SessionRepository:
-    def __init__(self, path: str | Path = DEFAULT_SESSIONS_PATH) -> None:
-        self.path = Path(path)
+    def __init__(self, path: str | Path | None = None) -> None:
+        self.path = runtime_paths().sessions if path is None else Path(path)
 
     def all(self) -> list[Session]:
         if not self.path.exists():

@@ -3,22 +3,27 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.runtime_paths import BACKEND_DIR, PUBLIC_TEST_DATA_ROOT, runtime_paths
 
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_HISTORY_PATH = BACKEND_DIR / "data" / "ingestion_history.json"
+DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
 LEGACY_HISTORY_PATH = BACKEND_DIR / "tmp" / "ingestion_history.json"
 
 
 class IngestionHistory:
     def __init__(
         self,
-        path: str | Path = DEFAULT_HISTORY_PATH,
+        path: str | Path | None = None,
         legacy_path: str | Path | None = None,
     ) -> None:
-        self.path = Path(path)
+        uses_default_path = path is None
+        self.path = (
+            runtime_paths().ingestion_history
+            if uses_default_path
+            else Path(path)
+        )
         if legacy_path is not None:
             self.legacy_path = Path(legacy_path)
-        elif self.path == DEFAULT_HISTORY_PATH:
+        elif uses_default_path:
             self.legacy_path = LEGACY_HISTORY_PATH
         else:
             self.legacy_path = None

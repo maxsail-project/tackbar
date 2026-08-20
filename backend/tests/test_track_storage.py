@@ -74,7 +74,7 @@ def test_normalized_track_is_written_as_csv_gz(
     storage = TrackStorage(temporary_directory)
     frame = normalize_track(
         ACTIVITY_ID,
-        [{"utc": "2026-08-10T10:00:00Z", "lat": 39.4, "lon": -0.3}],
+        [{"utc": "2031-06-10T10:00:00Z", "lat": 0.25, "lon": -30.75}],
     )
 
     track_file = storage.write_normalized_track(ACTIVITY_ID, frame)
@@ -86,9 +86,9 @@ def test_normalized_track_is_written_as_csv_gz(
     )
     assert list(persisted.columns) == list(frame.columns)
     assert persisted.iloc[0]["activity_id"] == ACTIVITY_ID
-    assert persisted.iloc[0]["utc"] == "2026-08-10T10:00:00Z"
-    assert persisted.iloc[0]["lat"] == 39.4
-    assert persisted.iloc[0]["lon"] == -0.3
+    assert persisted.iloc[0]["utc"] == "2031-06-10T10:00:00Z"
+    assert persisted.iloc[0]["lat"] == 0.25
+    assert persisted.iloc[0]["lon"] == -30.75
     assert persisted.iloc[0]["dist"] == 0.0
     assert persisted[["cog", "sog", "hdg", "heel", "trim"]].isna().all().all()
 
@@ -100,9 +100,9 @@ def test_persisted_distance_has_exactly_two_decimal_places(
     frame = normalize_track(
         ACTIVITY_ID,
         [
-            {"utc": "2026-08-10T10:00:00Z", "lat": 0.0, "lon": 0.0},
-            {"utc": "2026-08-10T10:00:01Z", "lat": 0.0, "lon": 0.001},
-            {"utc": "2026-08-10T10:00:02Z", "lat": 0.0, "lon": 0.003},
+            {"utc": "2031-06-10T10:00:00Z", "lat": 0.0, "lon": 0.0},
+            {"utc": "2031-06-10T10:00:01Z", "lat": 0.0, "lon": 0.001},
+            {"utc": "2031-06-10T10:00:02Z", "lat": 0.0, "lon": 0.003},
         ],
     )
 
@@ -127,5 +127,5 @@ def test_track_storage_rejects_noncanonical_schema(
     with pytest.raises(ValueError, match="exactly match"):
         storage.write_normalized_track(
             ACTIVITY_ID,
-            pd.DataFrame({"utc": ["2026-08-10T10:00:00Z"]}),
+            pd.DataFrame({"utc": ["2031-06-10T10:00:00Z"]}),
         )

@@ -14,7 +14,7 @@ from app.storage.track_storage import TrackStorage
 
 
 FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "VK-Maxi-URU 10-8-2026.csv.gz"
+    Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
 
 
@@ -26,7 +26,7 @@ def _create_activity(
     original_bytes = FIXTURE_PATH.read_bytes()
     parsed = parse_vakaros_csv(FIXTURE_PATH)
     activity, created = repository.find_or_create(
-        "mmannise@gmail.com",
+        "sailor-a@example.com",
         parsed,
         original_bytes,
     )
@@ -73,7 +73,7 @@ def test_existing_activity_without_track_file_is_enriched_without_duplicate(
     parsed = parse_vakaros_csv(FIXTURE_PATH)
 
     existing, created = repository.find_or_create(
-        " MMANNISE@GMAIL.COM ",
+        " SAILOR-A@EXAMPLE.COM ",
         parsed,
         original_bytes,
     )
@@ -142,14 +142,14 @@ def test_reprocessing_restores_track_from_archived_uncompressed_csv(
 ) -> None:
     repository = ActivityRepository(temporary_directory / "activities.json")
     storage = TrackStorage(temporary_directory)
-    original_filename = "VK-Maxi-URU 10-8-2026.csv"
+    original_filename = "vakaros-demo.csv"
     original_bytes = gzip.decompress(FIXTURE_PATH.read_bytes())
     parsed = parse_vakaros_csv(
         original_bytes,
         original_filename=original_filename,
     )
     stored, created = repository.find_or_create(
-        "mmannise@gmail.com",
+        "sailor-a@example.com",
         parsed,
         original_bytes,
     )

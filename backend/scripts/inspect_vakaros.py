@@ -1,4 +1,4 @@
-"""Inspect the real Vakaros fixture and export normalized parser output."""
+"""Inspect the public demo Vakaros fixture and export normalized parser output."""
 
 import json
 import sys
@@ -14,7 +14,7 @@ from app.parsers.vakaros_csv import parse_vakaros_csv  # noqa: E402
 
 
 FIXTURE_PATH = (
-    BACKEND_DIR / "tests" / "fixtures" / "VK-Maxi-URU 10-8-2026.csv.gz"
+    BACKEND_DIR / "tests" / "fixtures" / "vakaros-demo.csv.gz"
 )
 OUTPUT_DIR = BACKEND_DIR / "tmp"
 SUMMARY_PATH = OUTPUT_DIR / "activity-summary.json"

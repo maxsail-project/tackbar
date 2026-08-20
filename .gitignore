@@ -205,10 +205,13 @@ tempCodeRunnerFile.py
 
 # TackBar local inspection output
 backend/tmp/
+backend/pytest-cache-files-*/
 
-# TackBar runtime activity files
-backend/data/originals/
-backend/data/tracks/
+# Legacy repository-local runtime data awaiting private migration
+backend/data/
+
+# TackBar private runtime backup used before public-history cleanup
+backend/.private-runtime-backup/
 
 # Ruff stuff:
 .ruff_cache/

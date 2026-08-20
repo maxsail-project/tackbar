@@ -7,7 +7,7 @@ from app.email_providers.gmail import GmailAdapter
 
 
 FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "VK-Maxi-URU 10-8-2026.csv.gz"
+    Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
 
 
@@ -23,10 +23,10 @@ def test_get_candidate_emails_from_gmail_response() -> None:
         "id": "message-1",
         "payload": {
             "headers": [
-                {"name": "From", "value": "Maxi <maxi@example.com>"},
+                {"name": "From", "value": "Sailor A <sailor-a@example.com>"},
                 {
                     "name": "Subject",
-                    "value": "  VK-Maxi-URU 10-8-2026.CSV.GZ  ",
+                    "value": "  vakaros-demo.CSV.GZ  ",
                 },
             ],
             "parts": [
@@ -38,7 +38,7 @@ def test_get_candidate_emails_from_gmail_response() -> None:
                             "body": {"data": "bm90ZXM="},
                         },
                         {
-                            "filename": "VK-Maxi-URU 10-8-2026.csv.gz",
+                            "filename": "vakaros-demo.csv.gz",
                             "body": {"attachmentId": "attachment-1"},
                         },
                     ],
@@ -53,9 +53,9 @@ def test_get_candidate_emails_from_gmail_response() -> None:
     emails = GmailAdapter(service=service).get_candidate_emails()
 
     assert len(emails) == 1
-    assert emails[0].sender_email == "maxi@example.com"
-    assert emails[0].subject == "  VK-Maxi-URU 10-8-2026.CSV.GZ  "
-    assert emails[0].attachment_filename == "VK-Maxi-URU 10-8-2026.csv.gz"
+    assert emails[0].sender_email == "sailor-a@example.com"
+    assert emails[0].subject == "  vakaros-demo.CSV.GZ  "
+    assert emails[0].attachment_filename == "vakaros-demo.csv.gz"
     assert emails[0].attachment_bytes == fixture_bytes
     assert emails[0].provider_message_id == "message-1"
     messages.list.assert_called_once_with(
@@ -77,12 +77,12 @@ def test_get_candidate_uncompressed_csv_from_gmail_response() -> None:
         "id": "message-csv",
         "payload": {
             "headers": [
-                {"name": "From", "value": "Maxi <maxi@example.com>"},
-                {"name": "Subject", "value": "VK-Maxi-URU 10-8-2026.CSV"},
+                {"name": "From", "value": "Sailor A <sailor-a@example.com>"},
+                {"name": "Subject", "value": "vakaros-demo.CSV"},
             ],
             "parts": [
                 {
-                    "filename": "VK-Maxi-URU 10-8-2026.CSV",
+                    "filename": "vakaros-demo.CSV",
                     "body": {"data": encoded_attachment.rstrip("=")},
                 }
             ],
@@ -92,7 +92,7 @@ def test_get_candidate_uncompressed_csv_from_gmail_response() -> None:
     emails = GmailAdapter(service=service).get_candidate_emails()
 
     assert len(emails) == 1
-    assert emails[0].attachment_filename == "VK-Maxi-URU 10-8-2026.CSV"
+    assert emails[0].attachment_filename == "vakaros-demo.CSV"
     assert emails[0].attachment_bytes == csv_bytes
     assert emails[0].provider_message_id == "message-csv"
     messages.attachments.return_value.get.assert_not_called()
@@ -108,12 +108,12 @@ def test_ignores_message_with_unsupported_subject() -> None:
         "id": "message-1",
         "payload": {
             "headers": [
-                {"name": "From", "value": "maxi@example.com"},
+                {"name": "From", "value": "sailor-a@example.com"},
                 {"name": "Subject", "value": "Training session"},
             ],
             "parts": [
                 {
-                    "filename": "VK-Maxi-URU 10-8-2026.csv.gz",
+                    "filename": "vakaros-demo.csv.gz",
                     "body": {"attachmentId": "attachment-1"},
                 }
             ],

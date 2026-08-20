@@ -7,10 +7,7 @@ from uuid import uuid4
 
 from app.models import Activity, StoredActivity
 from app.repositories.participants import normalize_email
-
-
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_ACTIVITIES_PATH = BACKEND_DIR / "data" / "activities.json"
+from app.runtime_paths import runtime_paths
 
 
 def calculate_attachment_sha256(attachment_bytes: bytes) -> str:
@@ -18,8 +15,8 @@ def calculate_attachment_sha256(attachment_bytes: bytes) -> str:
 
 
 class ActivityRepository:
-    def __init__(self, path: str | Path = DEFAULT_ACTIVITIES_PATH) -> None:
-        self.path = Path(path)
+    def __init__(self, path: str | Path | None = None) -> None:
+        self.path = runtime_paths().activities if path is None else Path(path)
 
     def find_or_create(
         self,

@@ -10,10 +10,10 @@ import {
 } from './analysisWindow'
 
 const samples: TrackSample[] = [
-  { utc: '2026-08-15T13:03:00Z', lat: 10, lon: 20, dist: 0, sog: 4, cog: null, heel: null, trim: null },
-  { utc: '2026-08-15T13:03:10Z', lat: 11, lon: 21, dist: 1, sog: 5, cog: null, heel: null, trim: null },
-  { utc: '2026-08-15T13:03:20Z', lat: 12, lon: 22, dist: 1, sog: 6, cog: null, heel: null, trim: null },
-  { utc: '2026-08-15T13:03:30Z', lat: 13, lon: 23, dist: 1, sog: 7, cog: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 0, sog: 4, cog: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:10Z', lat: 11, lon: 21, dist: 1, sog: 5, cog: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:20Z', lat: 12, lon: 22, dist: 1, sog: 6, cog: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:30Z', lat: 13, lon: 23, dist: 1, sog: 7, cog: null, heel: null, trim: null },
 ]
 
 const activityStart = timestampToMilliseconds(samples[0].utc)

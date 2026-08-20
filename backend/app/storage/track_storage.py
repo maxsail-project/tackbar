@@ -5,15 +5,14 @@ from uuid import UUID
 import pandas as pd
 
 from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
-
-
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_DATA_ROOT = BACKEND_DIR / "data"
+from app.runtime_paths import runtime_paths
 
 
 class TrackStorage:
-    def __init__(self, data_root: str | Path = DEFAULT_DATA_ROOT) -> None:
-        self.data_root = Path(data_root)
+    def __init__(self, data_root: str | Path | None = None) -> None:
+        self.data_root = (
+            runtime_paths().root if data_root is None else Path(data_root)
+        )
         self.originals_root = self.data_root / "originals"
         self.tracks_root = self.data_root / "tracks"
 

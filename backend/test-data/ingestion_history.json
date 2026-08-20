@@ -1,0 +1,16 @@
+[
+  {
+    "provider": "demo",
+    "provider_message_id": "demo-message-primary",
+    "processed_at": "2031-06-17T12:00:00+00:00",
+    "status": "processed",
+    "activity_id": "10000000-0000-4000-8000-000000000001"
+  },
+  {
+    "provider": "demo",
+    "provider_message_id": "demo-message-comparison",
+    "processed_at": "2031-06-17T12:00:00+00:00",
+    "status": "processed",
+    "activity_id": "10000000-0000-4000-8000-000000000002"
+  }
+]

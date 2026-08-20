@@ -7,13 +7,13 @@ from app.parsers.vakaros_csv import parse_vakaros_csv
 
 
 FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "VK-Maxi-URU 10-8-2026.csv.gz"
+    Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
 
 
-def test_parse_real_vakaros_csv_fixture() -> None:
+def test_parse_demo_vakaros_csv_fixture() -> None:
     assert FIXTURE_PATH.exists(), (
-        "Missing real Vakaros fixture. Place it at "
+        "Missing public demo Vakaros fixture. Place it at "
         f"{FIXTURE_PATH}"
     )
 
@@ -21,7 +21,7 @@ def test_parse_real_vakaros_csv_fixture() -> None:
 
     assert activity.source == "vakaros"
     assert activity.original_filename == FIXTURE_PATH.name
-    assert activity.device_name == "VK-Maxi-URU"
+    assert activity.device_name == "vakaros-demo"
     assert activity.samples
     assert set(activity.samples[0]) == {
         "utc",
@@ -60,12 +60,12 @@ def test_parse_equivalent_uncompressed_vakaros_csv() -> None:
 
     activity = parse_vakaros_csv(
         csv_bytes,
-        original_filename="VK-Maxi-URU 10-8-2026.CSV",
+        original_filename="vakaros-demo.CSV",
     )
 
     assert activity.source == "vakaros"
-    assert activity.original_filename == "VK-Maxi-URU 10-8-2026.CSV"
-    assert activity.device_name == "VK-Maxi-URU"
+    assert activity.original_filename == "vakaros-demo.CSV"
+    assert activity.device_name == "vakaros-demo"
     assert len(activity.samples) == 3613
     assert activity.start_time == activity.samples[0]["utc"]
     assert activity.end_time == activity.samples[-1]["utc"]

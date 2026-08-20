@@ -11,6 +11,7 @@ from app.email_providers.gmail import GmailAdapter  # noqa: E402
 from app.repositories.activities import ActivityRepository  # noqa: E402
 from app.repositories.participants import ParticipantRepository  # noqa: E402
 from app.repositories.sessions import SessionRepository  # noqa: E402
+from app.runtime_paths import require_private_data_root  # noqa: E402
 from app.services.ingestion_history import IngestionHistory  # noqa: E402
 from app.services.ingestion_processing import (  # noqa: E402
     process_provider_email,
@@ -19,6 +20,7 @@ from app.storage.track_storage import TrackStorage  # noqa: E402
 
 
 def main() -> None:
+    require_private_data_root()
     emails = GmailAdapter().get_candidate_emails()
     history = IngestionHistory()
     participants = ParticipantRepository()

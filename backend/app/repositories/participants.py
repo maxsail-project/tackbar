@@ -3,10 +3,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from app.models import Participant
-
-
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_PARTICIPANTS_PATH = BACKEND_DIR / "data" / "participants.json"
+from app.runtime_paths import runtime_paths
 
 
 def normalize_email(email: str) -> str:
@@ -16,9 +13,11 @@ def normalize_email(email: str) -> str:
 class ParticipantRepository:
     def __init__(
         self,
-        path: str | Path = DEFAULT_PARTICIPANTS_PATH,
+        path: str | Path | None = None,
     ) -> None:
-        self.path = Path(path)
+        self.path = (
+            runtime_paths().participants if path is None else Path(path)
+        )
 
     def find_by_email(self, sender_email: str) -> Participant | None:
         normalized_email = normalize_email(sender_email)

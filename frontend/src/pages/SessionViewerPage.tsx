@@ -8,8 +8,8 @@ import MetricSelector from '../components/MetricSelector'
 import ReplayControls from '../components/ReplayControls'
 import TrackMap from '../components/TrackMap'
 import { mockSessions } from '../data/mockSessions'
-import { realComparisonActivityTrack } from '../data/realComparisonActivityTrack'
-import { realActivityTrack } from '../data/realActivityTrack'
+import { demoComparisonActivityTrack } from '../data/demoComparisonActivityTrack'
+import { demoPrimaryActivityTrack } from '../data/demoPrimaryActivityTrack'
 import type { SailingMetric, SessionSummary } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import {
@@ -30,7 +30,7 @@ import {
 } from '../utils/replay'
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
 
-const DEVELOPMENT_TRACKS = [realActivityTrack, realComparisonActivityTrack]
+const DEVELOPMENT_TRACKS = [demoPrimaryActivityTrack, demoComparisonActivityTrack]
 
 function findDevelopmentTrack(activityId: string | null) {
   return DEVELOPMENT_TRACKS.find((track) => (

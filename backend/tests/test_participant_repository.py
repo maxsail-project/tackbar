@@ -9,11 +9,11 @@ from app.repositories.participants import ParticipantRepository
 
 PARTICIPANTS = [
     {
-        "id": "mmannise@gmail.com",
-        "name": "Maxi URU",
-        "boat_name": "Zafar",
+        "id": "sailor-a@example.com",
+        "name": "Sailor A",
+        "boat_name": "Demo Boat A",
         "sailing_class": "Snipe",
-        "sail_number": "URU-32115",
+        "sail_number": "DEMO-1001",
     }
 ]
 
@@ -30,33 +30,33 @@ def test_normalized_email_is_participant_id(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     participant = _repository(temporary_json_file).find_by_email(
-        "mmannise@gmail.com"
+        "sailor-a@example.com"
     )
 
     assert participant is not None
-    assert participant.id == "mmannise@gmail.com"
+    assert participant.id == "sailor-a@example.com"
 
 
 def test_uppercase_email_lookup_succeeds(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     participant = _repository(temporary_json_file).find_by_email(
-        "MMANNISE@GMAIL.COM"
+        "SAILOR-A@EXAMPLE.COM"
     )
 
     assert participant is not None
-    assert participant.name == "Maxi URU"
+    assert participant.name == "Sailor A"
 
 
 def test_whitespace_email_lookup_succeeds(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     participant = _repository(temporary_json_file).find_by_email(
-        "  mmannise@gmail.com  "
+        "  sailor-a@example.com  "
     )
 
     assert participant is not None
-    assert participant.id == "mmannise@gmail.com"
+    assert participant.id == "sailor-a@example.com"
 
 
 def test_unknown_participant_returns_none(
@@ -76,11 +76,11 @@ def test_known_participant_is_reused_without_modification(
     original_records = json.loads(repository.path.read_text(encoding="utf-8"))
 
     participant, created = repository.find_or_create_by_email(
-        " MMANNISE@GMAIL.COM "
+        " SAILOR-A@EXAMPLE.COM "
     )
 
     assert created is False
-    assert participant.name == "Maxi URU"
+    assert participant.name == "Sailor A"
     assert json.loads(repository.path.read_text(encoding="utf-8")) == (
         original_records
     )

@@ -11,7 +11,7 @@ from app.parsers.vakaros_csv import parse_vakaros_csv
 
 
 FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "VK-Maxi-URU 10-8-2026.csv.gz"
+    Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 )
 ACTIVITY_ID = "4f17e0e1-4e36-4d4e-b059-a1a33fb1be2f"
 
@@ -29,7 +29,9 @@ def test_vakaros_track_normalizes_to_canonical_schema() -> None:
     assert normalized["activity_id"].eq(ACTIVITY_ID).all()
     assert len(normalized) == len(source) == len(activity.samples)
 
-    normalized_timestamps = pd.to_datetime(normalized["utc"], utc=True)
+    normalized_timestamps = pd.to_datetime(
+        normalized["utc"], utc=True, format="mixed"
+    )
     assert normalized_timestamps.tolist() == source["timestamp"].tolist()
     assert normalized_timestamps.diff().tolist()[1:] == (
         source["timestamp"].diff().tolist()[1:]
@@ -52,7 +54,7 @@ def test_equivalent_csv_and_csv_gz_normalize_identically() -> None:
     compressed_activity = parse_vakaros_csv(FIXTURE_PATH)
     uncompressed_activity = parse_vakaros_csv(
         gzip.decompress(FIXTURE_PATH.read_bytes()),
-        original_filename="VK-Maxi-URU 10-8-2026.csv",
+        original_filename="vakaros-demo.csv",
     )
 
     compressed_track = normalize_track(
@@ -74,9 +76,9 @@ def test_distance_uses_each_pair_of_consecutive_points() -> None:
     normalized = normalize_track(
         ACTIVITY_ID,
         [
-            {"utc": "2026-08-10T10:00:00Z", "lat": 0.0, "lon": 0.0},
-            {"utc": "2026-08-10T10:00:01Z", "lat": 0.0, "lon": 0.001},
-            {"utc": "2026-08-10T10:00:02Z", "lat": 0.0, "lon": 0.003},
+            {"utc": "2031-06-10T10:00:00Z", "lat": 0.0, "lon": 0.0},
+            {"utc": "2031-06-10T10:00:01Z", "lat": 0.0, "lon": 0.001},
+            {"utc": "2031-06-10T10:00:02Z", "lat": 0.0, "lon": 0.003},
         ],
     )
 
@@ -88,7 +90,7 @@ def test_distance_uses_each_pair_of_consecutive_points() -> None:
 def test_missing_optional_fields_remain_as_empty_canonical_columns() -> None:
     normalized = normalize_track(
         ACTIVITY_ID,
-        [{"utc": "2026-08-10T10:00:00Z", "lat": 39.4, "lon": -0.3}],
+        [{"utc": "2031-06-10T10:00:00Z", "lat": 0.25, "lon": -30.75}],
     )
 
     assert list(normalized.columns) == CANONICAL_TRACK_COLUMNS

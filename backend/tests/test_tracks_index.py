@@ -51,16 +51,16 @@ def _activity(
         "original_filename": original_filename,
         "start_time": start_time,
         "end_time": start_time,
-        "start_lat": 39.4,
-        "start_lon": -0.3,
-        "end_lat": 39.4,
-        "end_lon": -0.3,
-        "center_lat": 39.4,
-        "center_lon": -0.3,
-        "min_lat": 39.4,
-        "max_lat": 39.4,
-        "min_lon": -0.3,
-        "max_lon": -0.3,
+        "start_lat": 0.25,
+        "start_lon": -30.75,
+        "end_lat": 0.25,
+        "end_lon": -30.75,
+        "center_lat": 0.25,
+        "center_lon": -30.75,
+        "min_lat": 0.25,
+        "max_lat": 0.25,
+        "min_lon": -30.75,
+        "max_lon": -30.75,
         "sample_count": 10,
         "attachment_sha256": activity_id.replace("-", ""),
     }
@@ -98,12 +98,12 @@ def test_known_participant_session_track_and_original_are_indexed(
     track_file = f"tracks/{ACTIVITY_A}.csv.gz"
     participants, activities, sessions = _repositories(
         temporary_json_file,
-        [_participant("maxi@example.com", "Maxi", "Zafar", "Snipe", "URU-1")],
+        [_participant("sailor-a@example.com", "Sailor A", "Demo Boat A", "Snipe", "DEMO-1")],
         [
             _activity(
                 ACTIVITY_A,
-                "maxi@example.com",
-                "2026-08-10T20:08:03+02:00",
+                "sailor-a@example.com",
+                "2031-06-10T20:08:03+02:00",
                 track_file=track_file,
             )
         ],
@@ -121,14 +121,14 @@ def test_known_participant_session_track_and_original_are_indexed(
     assert rows == [
         {
             "activity_id": ACTIVITY_A,
-            "activity_date": "2026-08-10",
-            "start_time_utc": "2026-08-10T18:08:03.000000Z",
-            "end_time_utc": "2026-08-10T18:08:03.000000Z",
-            "participant_id": "maxi@example.com",
-            "participant_name": "Maxi",
-            "boat_name": "Zafar",
+            "activity_date": "2031-06-10",
+            "start_time_utc": "2031-06-10T18:08:03.000000Z",
+            "end_time_utc": "2031-06-10T18:08:03.000000Z",
+            "participant_id": "sailor-a@example.com",
+            "participant_name": "Sailor A",
+            "boat_name": "Demo Boat A",
             "sailing_class": "Snipe",
-            "sail_number": "URU-1",
+            "sail_number": "DEMO-1",
             "source": "vakaros",
             "device_name": "VK-Test",
             "original_filename": "VK-Test.csv.gz",
@@ -147,7 +147,7 @@ def test_null_participant_metadata_and_missing_files_are_empty(
     participants, activities, sessions = _repositories(
         temporary_json_file,
         [_participant("new@example.com")],
-        [_activity(ACTIVITY_A, "new@example.com", "2026-08-10T10:00:00Z")],
+        [_activity(ACTIVITY_A, "new@example.com", "2031-06-10T10:00:00Z")],
         [],
     )
     output = temporary_directory / "tracks-index.csv"
@@ -183,11 +183,11 @@ def test_multiple_activities_are_sorted_deterministically(
             _participant("z@example.com"),
         ],
         [
-            _activity(ACTIVITY_E, "z@example.com", "2026-08-12T09:00:00Z"),
-            _activity(ACTIVITY_D, "z@example.com", "2026-08-11T11:00:00Z"),
-            _activity(ACTIVITY_C, "b@example.com", "2026-08-11T10:00:00Z"),
-            _activity(ACTIVITY_B, "a@example.com", "2026-08-11T10:00:00Z"),
-            _activity(ACTIVITY_A, "a@example.com", "2026-08-11T10:00:00Z"),
+            _activity(ACTIVITY_E, "z@example.com", "2031-06-12T09:00:00Z"),
+            _activity(ACTIVITY_D, "z@example.com", "2031-06-11T11:00:00Z"),
+            _activity(ACTIVITY_C, "b@example.com", "2031-06-11T10:00:00Z"),
+            _activity(ACTIVITY_B, "a@example.com", "2031-06-11T10:00:00Z"),
+            _activity(ACTIVITY_A, "a@example.com", "2031-06-11T10:00:00Z"),
         ],
         [],
     )
@@ -216,8 +216,8 @@ def test_activity_in_multiple_sessions_raises_clear_error(
 ) -> None:
     participants, activities, sessions = _repositories(
         temporary_json_file,
-        [_participant("maxi@example.com")],
-        [_activity(ACTIVITY_A, "maxi@example.com", "2026-08-10T10:00:00Z")],
+        [_participant("sailor-a@example.com")],
+        [_activity(ACTIVITY_A, "sailor-a@example.com", "2031-06-10T10:00:00Z")],
         [
             {"id": SESSION_A, "activity_ids": [ACTIVITY_A]},
             {"id": SESSION_B, "activity_ids": [ACTIVITY_A]},
@@ -238,16 +238,16 @@ def test_csv_writer_escapes_names_and_filenames(
     temporary_json_file: Callable[[str, object], Path],
     temporary_directory: Path,
 ) -> None:
-    participant_name = 'Maxi, "URU"'
+    participant_name = 'Sailor A, "Demo"'
     original_filename = 'track, "fast".csv.gz'
     participants, activities, sessions = _repositories(
         temporary_json_file,
-        [_participant("maxi@example.com", participant_name)],
+        [_participant("sailor-a@example.com", participant_name)],
         [
             _activity(
                 ACTIVITY_A,
-                "maxi@example.com",
-                "2026-08-10T10:00:00Z",
+                "sailor-a@example.com",
+                "2031-06-10T10:00:00Z",
                 original_filename=original_filename,
             )
         ],
@@ -267,5 +267,5 @@ def test_csv_writer_escapes_names_and_filenames(
 
     assert row["participant_name"] == participant_name
     assert row["original_filename"] == original_filename
-    assert '"Maxi, ""URU"""' in raw_csv
+    assert '"Sailor A, ""Demo"""' in raw_csv
     assert '"track, ""fast"".csv.gz"' in raw_csv

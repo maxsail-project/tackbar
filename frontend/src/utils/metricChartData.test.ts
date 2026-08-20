@@ -5,8 +5,8 @@ import { buildCogChartPoints } from './metricChartData'
 function samplesWithCog(values: Array<number | null>): TrackSample[] {
   return values.map((cog, index) => ({
     utc: new Date(Date.UTC(2026, 7, 15, 13, 0, index)).toISOString(),
-    lat: 39.4,
-    lon: -0.3,
+    lat: 0.25,
+    lon: -30.75,
     dist: index === 0 ? 0 : 1,
     sog: 5,
     cog,
