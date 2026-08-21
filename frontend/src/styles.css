@@ -367,22 +367,9 @@ input:focus-visible {
   font-size: 0.8rem;
 }
 
-.replay-time {
-  color: #17323a;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-}
-
 .replay-section {
   padding-top: 14px;
   padding-bottom: 16px;
-}
-
-.replay-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .replay-scrub-row {
@@ -407,12 +394,28 @@ input:focus-visible {
 }
 
 .replay-range {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: baseline;
   margin: -5px 0 0;
   color: #6b7f85;
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   font-variant-numeric: tabular-nums;
+}
+
+.replay-range > :first-child {
+  justify-self: start;
+}
+
+.replay-range > :last-child {
+  justify-self: end;
+}
+
+.replay-range__current {
+  justify-self: center;
+  color: #17323a;
+  font-size: 0.8rem;
+  font-weight: 800;
 }
 
 .play-button,

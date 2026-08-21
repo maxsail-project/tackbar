@@ -32,10 +32,7 @@ export default function ReplayControls({
 
   return (
     <section className="content-section replay-section" aria-labelledby="replay-title">
-      <div className="replay-heading">
-        <p className="section-kicker" id="replay-title">Replay</p>
-        <strong className="replay-time">{formattedTime}</strong>
-      </div>
+      <p className="section-kicker" id="replay-title">Replay</p>
 
       <div className="replay-scrub-row">
         <button
@@ -63,6 +60,7 @@ export default function ReplayControls({
 
           <div className="replay-range" aria-hidden="true">
             <span>{formatGpsTime(replayStart)}</span>
+            <strong className="replay-range__current">{formattedTime}</strong>
             <span>{formatGpsTime(replayEnd)}</span>
           </div>
         </div>
