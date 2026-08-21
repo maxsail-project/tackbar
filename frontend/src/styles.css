@@ -387,9 +387,9 @@ input:focus-visible {
 
 .replay-scrub-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-columns: 48px minmax(0, 1fr) 64px;
   align-items: start;
-  gap: 10px;
+  gap: 8px;
   margin-top: 6px;
 }
 
@@ -415,15 +415,7 @@ input:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.replay-speed-row {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 10px;
-  margin-top: 5px;
-}
-
 .play-button,
-.speed-options button,
 .metric-options button {
   border: 1px solid #c9d9dc;
   border-radius: 10px;
@@ -439,16 +431,19 @@ input:focus-visible {
   border-color: #126f81;
 }
 
-.speed-options {
-  grid-column: 2;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
-  min-width: 0;
+.playback-speed-select {
   width: 100%;
+  min-width: 0;
+  padding: 0 6px;
+  border: 1px solid #c9d9dc;
+  border-radius: 10px;
+  color: #49656d;
+  background: #f7fafb;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
 }
 
-.speed-options button,
 .metric-options button {
   padding: 0 8px;
   color: #49656d;
@@ -456,7 +451,6 @@ input:focus-visible {
   font-weight: 800;
 }
 
-.speed-options button.is-active,
 .metric-options button.is-active {
   border-color: #168097;
   color: #fff;

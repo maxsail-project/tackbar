@@ -4,6 +4,11 @@ export const PLAYBACK_SPEEDS = [1, 2, 5, 10] as const
 
 export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number]
 
+export function parsePlaybackSpeed(value: string): PlaybackSpeed | null {
+  const numericValue = Number(value)
+  return PLAYBACK_SPEEDS.find((speed) => speed === numericValue) ?? null
+}
+
 export interface SurroundingSamples {
   before: TrackSample
   after: TrackSample

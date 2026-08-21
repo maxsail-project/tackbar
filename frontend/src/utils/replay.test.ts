@@ -7,6 +7,7 @@ import {
   formatGpsTime,
   interpolatePosition,
   nearestSample,
+  parsePlaybackSpeed,
   PLAYBACK_SPEEDS,
   timestampToMilliseconds,
 } from './replay'
@@ -22,6 +23,20 @@ const end = timestampToMilliseconds(samples[2].utc)
 describe('playback clock', () => {
   it('keeps the four supported playback speeds', () => {
     expect(PLAYBACK_SPEEDS).toEqual([1, 2, 5, 10])
+  })
+
+  it.each([
+    ['1', 1],
+    ['2', 2],
+    ['5', 5],
+    ['10', 10],
+  ] as const)('parses selector speed %s as numeric x%s', (value, expected) => {
+    expect(parsePlaybackSpeed(value)).toBe(expected)
+  })
+
+  it('rejects unsupported selector speeds', () => {
+    expect(parsePlaybackSpeed('20')).toBeNull()
+    expect(parsePlaybackSpeed('invalid')).toBeNull()
   })
 
   it.each([

@@ -1,5 +1,6 @@
 import {
   formatGpsTime,
+  parsePlaybackSpeed,
   PLAYBACK_SPEEDS,
   type PlaybackSpeed,
 } from '../utils/replay'
@@ -65,26 +66,21 @@ export default function ReplayControls({
             <span>{formatGpsTime(replayEnd)}</span>
           </div>
         </div>
-      </div>
-
-      <div className="replay-speed-row">
-        <div
-          className="speed-options"
-          role="group"
+        <select
+          className="playback-speed-select"
+          value={speed}
+          onChange={(event) => {
+            const nextSpeed = parsePlaybackSpeed(event.target.value)
+            if (nextSpeed !== null) {
+              onSpeedChange(nextSpeed)
+            }
+          }}
           aria-label="Playback speed"
         >
           {PLAYBACK_SPEEDS.map((option) => (
-            <button
-              type="button"
-              key={option}
-              className={speed === option ? 'is-active' : ''}
-              onClick={() => onSpeedChange(option)}
-              aria-pressed={speed === option}
-            >
-              x{option}
-            </button>
+            <option key={option} value={option}>x{option}</option>
           ))}
-        </div>
+        </select>
       </div>
     </section>
   )
