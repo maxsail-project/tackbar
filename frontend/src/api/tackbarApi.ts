@@ -1,4 +1,5 @@
 import type { SessionDetail, SessionListItem } from '../types/session'
+import type { ActivityTrack } from '../types/track'
 
 export class TackBarApiError extends Error {
   readonly status: number | null
@@ -17,7 +18,18 @@ export class SessionNotFoundError extends TackBarApiError {
   }
 }
 
-async function requestJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+export class ActivityTrackNotFoundError extends TackBarApiError {
+  constructor() {
+    super('Activity track not found.', 404)
+    this.name = 'ActivityTrackNotFoundError'
+  }
+}
+
+async function requestJson<T>(
+  path: string,
+  signal?: AbortSignal,
+  notFoundError?: () => TackBarApiError,
+): Promise<T> {
   let response: Response
 
   try {
@@ -34,8 +46,8 @@ async function requestJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   }
 
   if (!response.ok) {
-    if (response.status === 404) {
-      throw new SessionNotFoundError()
+    if (response.status === 404 && notFoundError) {
+      throw notFoundError()
     }
     throw new TackBarApiError('TackBar API request failed.', response.status)
   }
@@ -57,5 +69,14 @@ export function getSession(sessionId: string, signal?: AbortSignal) {
   return requestJson<SessionDetail>(
     `/api/sessions/${encodeURIComponent(sessionId)}`,
     signal,
+    () => new SessionNotFoundError(),
+  )
+}
+
+export function getActivityTrack(activityId: string, signal?: AbortSignal) {
+  return requestJson<ActivityTrack>(
+    `/api/activities/${encodeURIComponent(activityId)}/track`,
+    signal,
+    () => new ActivityTrackNotFoundError(),
   )
 }

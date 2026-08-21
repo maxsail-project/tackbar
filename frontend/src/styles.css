@@ -641,6 +641,15 @@ input:focus-visible {
   font-size: 0.85rem;
 }
 
+.track-load-message {
+  margin: 0;
+  padding: 10px 16px;
+  color: #526d74;
+  background: #edf4f5;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .comparison-table-wrap {
   width: 100%;
   margin-top: 12px;

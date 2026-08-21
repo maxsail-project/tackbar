@@ -9,11 +9,11 @@ import {
 import { timestampToMilliseconds } from './replay'
 
 const samples: TrackSample[] = [
-  { utc: '2031-06-15T13:02:50Z', lat: 0, lon: 0, dist: 0, sog: 99, cog: 1, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 1, sog: 4, cog: 100, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:10Z', lat: 12, lon: 24, dist: 1, sog: 8, cog: 120, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:20Z', lat: 14, lon: 28, dist: 1, sog: 6, cog: 140, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:30Z', lat: 50, lon: 60, dist: 1, sog: 88, cog: 359, heel: null, trim: null },
+  { utc: '2031-06-15T13:02:50Z', lat: 0, lon: 0, dist: 0, sog: 99, cog: 1, hdg: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 1, sog: 4, cog: 100, hdg: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:10Z', lat: 12, lon: 24, dist: 1, sog: 8, cog: 120, hdg: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:20Z', lat: 14, lon: 28, dist: 1, sog: 6, cog: 140, hdg: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:30Z', lat: 50, lon: 60, dist: 1, sog: 88, cog: 359, hdg: null, heel: null, trim: null },
 ]
 const windowStart = timestampToMilliseconds(samples[1].utc)
 const windowEnd = timestampToMilliseconds(samples[3].utc)
@@ -44,8 +44,8 @@ describe('selected replay metric presentation', () => {
 
   it('resolves primary and comparison independently at one shared playbackTime', () => {
     const comparisonSamples: TrackSample[] = [
-      { utc: '2031-06-15T13:03:02Z', lat: 30, lon: 40, dist: 0, sog: 3, cog: 200, heel: null, trim: null },
-      { utc: '2031-06-15T13:03:12Z', lat: 32, lon: 44, dist: 1, sog: 7, cog: 220, heel: null, trim: null },
+      { utc: '2031-06-15T13:03:02Z', lat: 30, lon: 40, dist: 0, sog: 3, cog: 200, hdg: null, heel: null, trim: null },
+      { utc: '2031-06-15T13:03:12Z', lat: 32, lon: 44, dist: 1, sog: 7, cog: 220, hdg: null, heel: null, trim: null },
     ]
     const sharedPlaybackTime = windowStart + 10_000
 

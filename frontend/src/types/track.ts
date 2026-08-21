@@ -5,6 +5,7 @@ export interface TrackSample {
   dist: number
   sog: number | null
   cog: number | null
+  hdg: number | null
   heel: number | null
   trim: number | null
 }

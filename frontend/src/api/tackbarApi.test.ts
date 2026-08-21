@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  ActivityTrackNotFoundError,
+  getActivityTrack,
   getSession,
   getSessions,
   SessionNotFoundError,
@@ -50,6 +52,44 @@ describe('TackBar Session API client', () => {
     await expect(getSession('missing')).rejects.toBeInstanceOf(SessionNotFoundError)
   })
 
+  it('gets an encoded Activity track and preserves canonical nullable sensors', async () => {
+    const track = {
+      activity_id: 'activity/id',
+      samples: [{
+        utc: '2031-06-15T08:00:00Z',
+        lat: 0.25,
+        lon: -30.75,
+        cog: null,
+        sog: null,
+        dist: 0,
+        hdg: 42.5,
+        heel: null,
+        trim: null,
+      }],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(track), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getActivityTrack('activity/id')).resolves.toEqual(track)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/activities/activity%2Fid/track',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
+
+  it('distinguishes a missing Activity track from a missing Session', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+
+    await expect(getActivityTrack('missing')).rejects.toBeInstanceOf(
+      ActivityTrackNotFoundError,
+    )
+    await expect(getActivityTrack('missing')).rejects.not.toBeInstanceOf(
+      SessionNotFoundError,
+    )
+  })
+
   it('reports other non-success responses as controlled API errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 503 })))
 
@@ -64,5 +104,12 @@ describe('TackBar Session API client', () => {
 
     await expect(getSessions()).rejects.toBeInstanceOf(TackBarApiError)
     await expect(getSessions()).rejects.toThrow('Unable to reach TackBar API.')
+  })
+
+  it('preserves AbortError cancellation', async () => {
+    const abortError = new DOMException('Request aborted', 'AbortError')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError))
+
+    await expect(getActivityTrack('activity-1')).rejects.toBe(abortError)
   })
 })

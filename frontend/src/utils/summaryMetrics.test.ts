@@ -13,6 +13,7 @@ function sample(
     dist: 0,
     sog: null,
     cog: null,
+    hdg: null,
     heel: null,
     trim: null,
     ...values,

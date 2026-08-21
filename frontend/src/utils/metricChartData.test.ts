@@ -10,6 +10,7 @@ function samplesWithCog(values: Array<number | null>): TrackSample[] {
     dist: index === 0 ? 0 : 1,
     sog: 5,
     cog,
+    hdg: null,
     heel: null,
     trim: null,
   }))

@@ -3,7 +3,17 @@ import type { TrackSample } from '../types/track'
 import { buildTrackGeometry, combineTrackBounds } from './trackGeometry'
 
 function sample(utc: string, lat: number, lon: number): TrackSample {
-  return { utc, lat, lon, dist: 0, sog: null, cog: null, heel: null, trim: null }
+  return {
+    utc,
+    lat,
+    lon,
+    dist: 0,
+    sog: null,
+    cog: null,
+    hdg: null,
+    heel: null,
+    trim: null,
+  }
 }
 
 describe('track geometry', () => {

@@ -11,9 +11,9 @@ import {
 
 const start = timestampToMilliseconds('2031-06-15T13:03:00Z')
 const samples: TrackSample[] = [
-  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 0, sog: 4, cog: null, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:10Z', lat: 12, lon: 24, dist: 1, sog: 8, cog: null, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:30Z', lat: 15, lon: 30, dist: 1, sog: 6, cog: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 0, sog: 4, cog: null, hdg: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:10Z', lat: 12, lon: 24, dist: 1, sog: 8, cog: null, hdg: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:30Z', lat: 15, lon: 30, dist: 1, sog: 6, cog: null, hdg: null, heel: null, trim: null },
 ]
 const end = timestampToMilliseconds(samples[2].utc)
 
@@ -79,8 +79,8 @@ describe('sample lookup and presentation', () => {
 
   it('resolves two differently spaced tracks at the same playbackTime', () => {
     const secondTrack: TrackSample[] = [
-      { utc: '2031-06-15T13:03:00Z', lat: 20, lon: 40, dist: 0, sog: 4, cog: null, heel: null, trim: null },
-      { utc: '2031-06-15T13:03:20Z', lat: 24, lon: 48, dist: 1, sog: 8, cog: null, heel: null, trim: null },
+      { utc: '2031-06-15T13:03:00Z', lat: 20, lon: 40, dist: 0, sog: 4, cog: null, hdg: null, heel: null, trim: null },
+      { utc: '2031-06-15T13:03:20Z', lat: 24, lon: 48, dist: 1, sog: 8, cog: null, hdg: null, heel: null, trim: null },
     ]
     const sharedPlaybackTime = start + 10_000
 

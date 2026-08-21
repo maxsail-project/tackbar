@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getSession, SessionNotFoundError } from '../api/tackbarApi'
+import {
+  ActivityTrackNotFoundError,
+  getActivityTrack,
+  getSession,
+  SessionNotFoundError,
+} from '../api/tackbarApi'
 import ActivitySelector from '../components/ActivitySelector'
 import AnalysisWindow from '../components/AnalysisWindow'
 import ComparisonTable from '../components/ComparisonTable'
@@ -8,8 +13,6 @@ import MetricChart from '../components/MetricChart'
 import MetricSelector from '../components/MetricSelector'
 import ReplayControls from '../components/ReplayControls'
 import TrackMap from '../components/TrackMap'
-import { demoComparisonActivityTrack } from '../data/demoComparisonActivityTrack'
-import { demoPrimaryActivityTrack } from '../data/demoPrimaryActivityTrack'
 import type { EnabledReplayMetric, SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import {
@@ -32,12 +35,64 @@ import { calculateSummaryMetrics } from '../utils/summaryMetrics'
 import { formatActivityIdentity } from '../utils/activityLabel'
 import { formatSessionRange } from '../utils/sessionPresentation'
 
-const DEVELOPMENT_TRACKS = [demoPrimaryActivityTrack, demoComparisonActivityTrack]
+type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
 
-function findDevelopmentTrack(activityId: string | null) {
-  return DEVELOPMENT_TRACKS.find((track) => (
-    track.activity_id === activityId
-  )) ?? null
+interface TrackLoadState {
+  activityId: string | null
+  status: TrackLoadStatus
+  track: ActivityTrack | null
+}
+
+function useActivityTrack(
+  activityId: string | null,
+  cache: Map<string, ActivityTrack>,
+): TrackLoadState {
+  const [state, setState] = useState<TrackLoadState>({
+    activityId: null,
+    status: 'idle',
+    track: null,
+  })
+
+  useEffect(() => {
+    if (activityId === null) {
+      setState({ activityId: null, status: 'idle', track: null })
+      return
+    }
+
+    const cachedTrack = cache.get(activityId)
+    if (cachedTrack) {
+      setState({ activityId, status: 'ready', track: cachedTrack })
+      return
+    }
+
+    const controller = new AbortController()
+    let isCurrent = true
+    setState({ activityId, status: 'loading', track: null })
+
+    getActivityTrack(activityId, controller.signal).then((track) => {
+      if (!isCurrent) return
+      if (track.activity_id !== activityId) {
+        setState({ activityId, status: 'error', track: null })
+        return
+      }
+      cache.set(activityId, track)
+      setState({ activityId, status: 'ready', track })
+    }).catch((error: unknown) => {
+      if (!isCurrent || (error instanceof DOMException && error.name === 'AbortError')) return
+      setState({
+        activityId,
+        status: error instanceof ActivityTrackNotFoundError ? 'not-found' : 'error',
+        track: null,
+      })
+    })
+
+    return () => {
+      isCurrent = false
+      controller.abort()
+    }
+  }, [activityId, cache])
+
+  return state
 }
 
 function activityTrackRange(track: ActivityTrack | null) {
@@ -56,6 +111,7 @@ function SessionViewer({ session }: { session: SessionDetail }) {
   const [selectedMetric, setSelectedMetric] = useState<EnabledReplayMetric>('SOG')
   const [isPlaying, setIsPlaying] = useState(false)
   const [speed, setSpeed] = useState<PlaybackSpeed>(1)
+  const trackCache = useRef(new Map<string, ActivityTrack>()).current
 
   const primaryActivity = session.activities.find(
     (activity) => activity.id === primaryActivityId,
@@ -66,8 +122,16 @@ function SessionViewer({ session }: { session: SessionDetail }) {
   const comparisonOptions = session.activities.filter(
     (activity) => activity.id !== primaryActivityId,
   )
-  const primaryTrack = findDevelopmentTrack(primaryActivityId)
-  const comparisonTrack = findDevelopmentTrack(comparisonActivityId)
+  const primaryTrackState = useActivityTrack(primaryActivityId || null, trackCache)
+  const comparisonTrackState = useActivityTrack(comparisonActivityId, trackCache)
+  const primaryTrack = primaryTrackState.activityId === primaryActivityId
+    && primaryTrackState.status === 'ready'
+    ? primaryTrackState.track
+    : null
+  const comparisonTrack = comparisonTrackState.activityId === comparisonActivityId
+    && comparisonTrackState.status === 'ready'
+    ? comparisonTrackState.track
+    : null
   const primaryRange = useMemo(
     () => activityTrackRange(primaryTrack),
     [primaryTrack],
@@ -79,7 +143,7 @@ function SessionViewer({ session }: { session: SessionDetail }) {
   const availableRange = useMemo(() => {
     if (primaryRange === null) return null
     if (comparisonActivityId === null) return primaryRange
-    if (comparisonRange === null) return null
+    if (comparisonRange === null) return primaryRange
     return intersectAnalysisWindowRanges(primaryRange, comparisonRange)
   }, [comparisonActivityId, comparisonRange, primaryRange])
   const [analysisWindow, setAnalysisWindow] = useState<AnalysisWindowRange | null>(
@@ -145,6 +209,12 @@ function SessionViewer({ session }: { session: SessionDetail }) {
   }, [speed])
 
   useEffect(() => {
+    if (primaryTrackState.status === 'loading') {
+      setIsPlaying(false)
+    }
+  }, [primaryTrackState.status])
+
+  useEffect(() => {
     const nextWindow = availableRange === null
       ? null
       : reconcileAnalysisWindow(analysisWindowRef.current, availableRange)
@@ -192,6 +262,7 @@ function SessionViewer({ session }: { session: SessionDetail }) {
 
   function changePrimary(activityId: string | null) {
     if (!activityId) return
+    setIsPlaying(false)
     setPrimaryActivityId(activityId)
     if (activityId === comparisonActivityId) {
       setComparisonActivityId(null)
@@ -260,18 +331,32 @@ function SessionViewer({ session }: { session: SessionDetail }) {
   }
 
   const hasNoTemporalOverlap = primaryTrack !== null
+    && primaryRange !== null
     && comparisonTrack !== null
-    && availableRange === null
+    && comparisonRange !== null
+    && intersectAnalysisWindowRanges(primaryRange, comparisonRange) === null
   const canReplay = primaryTrack !== null
     && analysisWindow !== null
     && windowStart !== null
     && windowEnd !== null
     && primaryWindowSamples.length > 0
-  const unavailableMessage = hasNoTemporalOverlap
-      ? 'The selected Activities do not overlap in GPS/UTC time.'
-      : comparisonActivityId !== null && comparisonTrack === null
-      ? 'Track unavailable for the selected comparison Activity.'
-      : 'Track unavailable for the selected Activity.'
+  const primaryTrackLoading = primaryActivityId !== ''
+    && (
+      primaryTrackState.activityId !== primaryActivityId
+      || primaryTrackState.status === 'loading'
+    )
+  const comparisonTrackLoading = comparisonActivityId !== null
+    && (
+      comparisonTrackState.activityId !== comparisonActivityId
+      || comparisonTrackState.status === 'loading'
+    )
+  const comparisonTrackUnavailable = comparisonActivityId !== null
+    && comparisonTrackState.activityId === comparisonActivityId
+    && (
+      comparisonTrackState.status === 'not-found'
+      || comparisonTrackState.status === 'error'
+      || (comparisonTrackState.status === 'ready' && comparisonRange === null)
+    )
 
   return (
     <main className="page-shell viewer-page">
@@ -299,7 +384,22 @@ function SessionViewer({ session }: { session: SessionDetail }) {
         />
       </section>
 
-      {canReplay && primaryTrack ? (
+      {comparisonTrackLoading && (
+        <p className="track-load-message" aria-live="polite">
+          Loading comparison track…
+        </p>
+      )}
+      {comparisonTrackUnavailable && (
+        <p className="track-load-message" role="alert">
+          Comparison track unavailable.
+        </p>
+      )}
+
+      {primaryTrackLoading ? (
+        <section className="track-unavailable" aria-live="polite">
+          <strong>Loading track…</strong>
+        </section>
+      ) : canReplay && primaryTrack ? (
         <TrackMap
           primaryVisibleSamples={primaryWindowSamples}
           comparisonVisibleSamples={comparisonWindowSamples}
@@ -316,7 +416,11 @@ function SessionViewer({ session }: { session: SessionDetail }) {
           <strong>
             {hasNoTemporalOverlap ? 'No comparable GPS/UTC interval' : 'Track unavailable'}
           </strong>
-          <span>{unavailableMessage}</span>
+          <span>
+            {hasNoTemporalOverlap
+              ? 'The selected Activities do not overlap in GPS/UTC time.'
+              : 'Track unavailable.'}
+          </span>
         </section>
       )}
 
