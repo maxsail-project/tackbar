@@ -1,4 +1,6 @@
-export type SailingMetric = 'SOG' | 'COG' | 'HEEL' | 'TRIM'
+export const SAILING_METRICS = ['SOG', 'COG', 'HEEL', 'TRIM'] as const
+
+export type SailingMetric = (typeof SAILING_METRICS)[number]
 
 export type EnabledReplayMetric = Extract<SailingMetric, 'SOG' | 'COG'>
 

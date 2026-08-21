@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { SAILING_METRICS } from '../types/session'
 import type { TrackSample } from '../types/track'
-import { buildCogChartPoints } from './metricChartData'
+import {
+  buildCogChartPoints,
+  buildScalarChartPoints,
+  type ScalarChartMetric,
+} from './metricChartData'
 
 function samplesWithCog(values: Array<number | null>): TrackSample[] {
   return values.map((cog, index) => ({
@@ -19,6 +24,71 @@ function samplesWithCog(values: Array<number | null>): TrackSample[] {
 function renderedValues(values: Array<number | null>) {
   return buildCogChartPoints(samplesWithCog(values)).map((point) => point.cog)
 }
+
+function samplesWithScalarValues(
+  metric: ScalarChartMetric,
+  values: Array<number | null>,
+): TrackSample[] {
+  const sampleField = metric.toLowerCase() as 'heel' | 'trim'
+  return values.map((value, index) => ({
+    utc: new Date(Date.UTC(2026, 7, 15, 13, 0, index)).toISOString(),
+    lat: 0.25,
+    lon: -30.75,
+    dist: index === 0 ? 0 : 1,
+    sog: null,
+    cog: null,
+    hdg: null,
+    heel: null,
+    trim: null,
+    [sampleField]: value,
+  }))
+}
+
+describe('Viewer metric selection', () => {
+  it('enables exactly SOG, COG, HEEL, and TRIM', () => {
+    expect(SAILING_METRICS).toEqual(['SOG', 'COG', 'HEEL', 'TRIM'])
+  })
+})
+
+describe('scalar chart data', () => {
+  it('preserves signed HEEL values, zero, and null gaps', () => {
+    const values = [6, 3, 0, -4, null, -8]
+    const points = buildScalarChartPoints(
+      samplesWithScalarValues('HEEL', values),
+      'HEEL',
+    )
+
+    expect(points.map((point) => point.value)).toEqual(values)
+  })
+
+  it('preserves signed TRIM values, zero, and null gaps', () => {
+    const values = [3, 0, -2, null, -5]
+    const points = buildScalarChartPoints(
+      samplesWithScalarValues('TRIM', values),
+      'TRIM',
+    )
+
+    expect(points.map((point) => point.value)).toEqual(values)
+  })
+
+  it('turns non-finite scalar values into null without inventing zero', () => {
+    const points = buildScalarChartPoints(
+      samplesWithScalarValues('HEEL', [Number.NaN, Number.POSITIVE_INFINITY]),
+      'HEEL',
+    )
+
+    expect(points.map((point) => point.value)).toEqual([null, null])
+  })
+
+  it('preserves every source timestamp in chronological order', () => {
+    const samples = samplesWithScalarValues('TRIM', [1, 2, 3])
+    const points = buildScalarChartPoints(samples, 'TRIM')
+
+    expect(points.map((point) => point.time)).toEqual(
+      samples.map((sample) => Date.parse(sample.utc)),
+    )
+  })
+})
 
 describe('COG chart data', () => {
   it('keeps an ordinary sequence continuous', () => {

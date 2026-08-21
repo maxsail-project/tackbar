@@ -1,12 +1,9 @@
-import type { EnabledReplayMetric, SailingMetric } from '../types/session'
-import { isEnabledReplayMetric } from '../utils/metricPresentation'
+import { SAILING_METRICS, type SailingMetric } from '../types/session'
 
 interface MetricSelectorProps {
-  selectedMetric: EnabledReplayMetric
-  onChange: (metric: EnabledReplayMetric) => void
+  selectedMetric: SailingMetric
+  onChange: (metric: SailingMetric) => void
 }
-
-const metrics: SailingMetric[] = ['SOG', 'COG', 'HEEL', 'TRIM']
 
 export default function MetricSelector({
   selectedMetric,
@@ -21,27 +18,18 @@ export default function MetricSelector({
         </div>
       </div>
       <div className="metric-options">
-        {metrics.map((metric) => {
-          const isAvailable = isEnabledReplayMetric(metric)
-
-          return (
-            <button
-              type="button"
-              key={metric}
-              className={selectedMetric === metric ? 'is-active' : ''}
-              onClick={() => {
-                if (isAvailable) {
-                  onChange(metric)
-                }
-              }}
-              aria-pressed={selectedMetric === metric}
-              disabled={!isAvailable}
-              title={isAvailable ? `${metric} time-series metric` : 'Available in a later increment'}
-            >
-              {metric}
-            </button>
-          )
-        })}
+        {SAILING_METRICS.map((metric) => (
+          <button
+            type="button"
+            key={metric}
+            className={selectedMetric === metric ? 'is-active' : ''}
+            onClick={() => onChange(metric)}
+            aria-pressed={selectedMetric === metric}
+            title={`${metric} time-series metric`}
+          >
+            {metric}
+          </button>
+        ))}
       </div>
     </section>
   )

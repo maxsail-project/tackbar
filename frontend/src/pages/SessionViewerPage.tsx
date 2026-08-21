@@ -13,7 +13,7 @@ import MetricChart from '../components/MetricChart'
 import MetricSelector from '../components/MetricSelector'
 import ReplayControls from '../components/ReplayControls'
 import TrackMap from '../components/TrackMap'
-import type { EnabledReplayMetric, SessionDetail } from '../types/session'
+import type { SailingMetric, SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import {
   createFullAnalysisWindow,
@@ -110,7 +110,7 @@ function SessionViewer({ session }: { session: SessionDetail }) {
     session.activities[0]?.id ?? '',
   )
   const [comparisonActivityId, setComparisonActivityId] = useState<string | null>(null)
-  const [selectedMetric, setSelectedMetric] = useState<EnabledReplayMetric>('SOG')
+  const [selectedMetric, setSelectedMetric] = useState<SailingMetric>('SOG')
   const [isPlaying, setIsPlaying] = useState(false)
   const [speed, setSpeed] = useState<PlaybackSpeed>(1)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current

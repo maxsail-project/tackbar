@@ -1,4 +1,4 @@
-import type { EnabledReplayMetric, SailingMetric } from '../types/session'
+import type { EnabledReplayMetric } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import { interpolatePosition, nearestSample, type TrackPosition } from './replay'
 
@@ -7,12 +7,6 @@ export interface ReplayPresentation {
   sog: number | null
   cog: number | null
   heel: number | null
-}
-
-export function isEnabledReplayMetric(
-  metric: SailingMetric,
-): metric is EnabledReplayMetric {
-  return metric === 'SOG' || metric === 'COG'
 }
 
 export function resolveReplayPresentation(
