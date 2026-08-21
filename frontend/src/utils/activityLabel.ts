@@ -1,14 +1,7 @@
-import type { ActivityOption } from '../types/session'
+import type { SessionActivity } from '../types/session'
 
 function firstNonEmpty(...values: Array<string | null | undefined>) {
   return values.map((value) => value?.trim()).find(Boolean)
-}
-
-function abbreviateParticipantId(participantId: string) {
-  const normalizedId = participantId.trim()
-  const atIndex = normalizedId.indexOf('@')
-
-  return atIndex === -1 ? normalizedId : normalizedId.slice(0, atIndex + 1)
 }
 
 function utcHourMinute(timestamp: string) {
@@ -19,13 +12,18 @@ function utcHourMinute(timestamp: string) {
   return timestampMatch?.[1] ?? timeOnlyMatch?.[1] ?? normalizedTimestamp
 }
 
-export function formatActivityLabel(activity: ActivityOption) {
-  const { participant } = activity
-  const identity = firstNonEmpty(
-    participant.sail_number,
-    participant.boat_name,
-    participant.name,
-  ) ?? abbreviateParticipantId(participant.id)
+export function formatActivityIdentity(activity: SessionActivity) {
+  return firstNonEmpty(
+    activity.boat?.sail_number,
+    activity.boat?.name,
+    activity.sailor.name,
+    activity.sailor.email,
+    activity.sailor.id,
+  ) ?? 'Activity'
+}
+
+export function formatActivityLabel(activity: SessionActivity) {
+  const identity = formatActivityIdentity(activity)
 
   return `${identity} · ${utcHourMinute(activity.start_time)}–${utcHourMinute(activity.end_time)}`
 }

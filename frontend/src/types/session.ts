@@ -2,25 +2,41 @@ export type SailingMetric = 'SOG' | 'COG' | 'HEEL' | 'TRIM'
 
 export type EnabledReplayMetric = Extract<SailingMetric, 'SOG' | 'COG'>
 
-export interface ParticipantOption {
+export interface SailorContext {
   id: string
   name: string | null
-  boat_name: string | null
+  email: string
+}
+
+export interface BoatContext {
+  id: string
+  name: string | null
+  sailing_class: string | null
   sail_number: string | null
 }
 
-export interface ActivityOption {
-  activity_id: string
-  participant: ParticipantOption
+export interface SessionActivity {
+  id: string
+  source: string
+  device_name: string
+  original_filename: string
   start_time: string
   end_time: string
+  sample_count: number
+  sailor: SailorContext
+  boat: BoatContext | null
 }
 
-export interface SessionSummary {
-  session_id: string
-  date_label: string
-  location_label: string
+export interface SessionListItem {
+  id: string
   start_time: string
-  track_count: number
-  activities: ActivityOption[]
+  end_time: string
+  activity_count: number
+}
+
+export interface SessionDetail {
+  id: string
+  start_time: string
+  end_time: string
+  activities: SessionActivity[]
 }

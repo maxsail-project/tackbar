@@ -1,9 +1,9 @@
-import type { ActivityOption } from '../types/session'
+import type { SessionActivity } from '../types/session'
 import { formatActivityLabel } from '../utils/activityLabel'
 
 interface ActivitySelectorProps {
   label: string
-  activities: ActivityOption[]
+  activities: SessionActivity[]
   selectedId: string | null
   onChange: (activityId: string | null) => void
   disabled?: boolean
@@ -34,7 +34,7 @@ export default function ActivitySelector({
             </option>
           )}
           {activities.map((activity) => (
-            <option key={activity.activity_id} value={activity.activity_id}>
+            <option key={activity.id} value={activity.id}>
               {formatActivityLabel(activity)}
             </option>
           ))}

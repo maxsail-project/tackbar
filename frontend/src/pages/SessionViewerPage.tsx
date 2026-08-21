@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { getSession, SessionNotFoundError } from '../api/tackbarApi'
 import ActivitySelector from '../components/ActivitySelector'
 import AnalysisWindow from '../components/AnalysisWindow'
 import ComparisonTable from '../components/ComparisonTable'
@@ -7,10 +8,9 @@ import MetricChart from '../components/MetricChart'
 import MetricSelector from '../components/MetricSelector'
 import ReplayControls from '../components/ReplayControls'
 import TrackMap from '../components/TrackMap'
-import { mockSessions } from '../data/mockSessions'
 import { demoComparisonActivityTrack } from '../data/demoComparisonActivityTrack'
 import { demoPrimaryActivityTrack } from '../data/demoPrimaryActivityTrack'
-import type { EnabledReplayMetric, SessionSummary } from '../types/session'
+import type { EnabledReplayMetric, SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import {
   createFullAnalysisWindow,
@@ -29,6 +29,8 @@ import {
 } from '../utils/replay'
 import { resolveReplayPresentation } from '../utils/metricPresentation'
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
+import { formatActivityIdentity } from '../utils/activityLabel'
+import { formatSessionRange } from '../utils/sessionPresentation'
 
 const DEVELOPMENT_TRACKS = [demoPrimaryActivityTrack, demoComparisonActivityTrack]
 
@@ -46,9 +48,9 @@ function activityTrackRange(track: ActivityTrack | null) {
   )
 }
 
-function SessionViewer({ session }: { session: SessionSummary }) {
+function SessionViewer({ session }: { session: SessionDetail }) {
   const [primaryActivityId, setPrimaryActivityId] = useState(
-    session.activities[0]?.activity_id ?? '',
+    session.activities[0]?.id ?? '',
   )
   const [comparisonActivityId, setComparisonActivityId] = useState<string | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<EnabledReplayMetric>('SOG')
@@ -56,13 +58,13 @@ function SessionViewer({ session }: { session: SessionSummary }) {
   const [speed, setSpeed] = useState<PlaybackSpeed>(1)
 
   const primaryActivity = session.activities.find(
-    (activity) => activity.activity_id === primaryActivityId,
+    (activity) => activity.id === primaryActivityId,
   ) ?? session.activities[0]
   const comparisonActivity = session.activities.find(
-    (activity) => activity.activity_id === comparisonActivityId,
+    (activity) => activity.id === comparisonActivityId,
   )
   const comparisonOptions = session.activities.filter(
-    (activity) => activity.activity_id !== primaryActivityId,
+    (activity) => activity.id !== primaryActivityId,
   )
   const primaryTrack = findDevelopmentTrack(primaryActivityId)
   const comparisonTrack = findDevelopmentTrack(comparisonActivityId)
@@ -254,7 +256,7 @@ function SessionViewer({ session }: { session: SessionSummary }) {
   }
 
   if (!primaryActivity) {
-    return <p className="empty-state">This mock Session has no Activities.</p>
+    return <p className="empty-state">This Session has no Activities.</p>
   }
 
   const hasNoTemporalOverlap = primaryTrack !== null
@@ -266,10 +268,10 @@ function SessionViewer({ session }: { session: SessionSummary }) {
     && windowEnd !== null
     && primaryWindowSamples.length > 0
   const unavailableMessage = hasNoTemporalOverlap
-    ? 'The selected Activities do not overlap in GPS/UTC time.'
-    : comparisonActivityId !== null && comparisonTrack === null
-      ? 'No development track fixture for the selected comparison Activity.'
-      : 'No replay fixture for this mock Activity.'
+      ? 'The selected Activities do not overlap in GPS/UTC time.'
+      : comparisonActivityId !== null && comparisonTrack === null
+      ? 'Track unavailable for the selected comparison Activity.'
+      : 'Track unavailable for the selected Activity.'
 
   return (
     <main className="page-shell viewer-page">
@@ -277,9 +279,8 @@ function SessionViewer({ session }: { session: SessionSummary }) {
         <div>
           <Link className="back-link" to="/sessions">← Sessions</Link>
           <p className="brand">TackBar</p>
-          <h1>{session.date_label} · {session.location_label} · {session.start_time}</h1>
+          <h1>{formatSessionRange(session.start_time, session.end_time)}</h1>
         </div>
-        <span className="mock-badge">Dev fixture</span>
       </header>
 
       <section className="selector-panel" aria-label="Activity selection">
@@ -340,11 +341,11 @@ function SessionViewer({ session }: { session: SessionSummary }) {
         onWindowChange={changeAnalysisWindow}
       />
       <ComparisonTable
-        primaryLabel={primaryActivity.participant.name ?? primaryActivity.participant.id}
+        primaryLabel={formatActivityIdentity(primaryActivity)}
         primaryMetrics={primarySummaryMetrics}
         comparisonLabel={
           comparisonActivity
-            ? comparisonActivity.participant.name ?? comparisonActivity.participant.id
+            ? formatActivityIdentity(comparisonActivity)
             : undefined
         }
         comparisonMetrics={comparisonSummaryMetrics}
@@ -358,10 +359,10 @@ function SessionViewer({ session }: { session: SessionSummary }) {
         primarySamples={canReplay ? primaryWindowSamples : null}
         comparisonSamples={comparisonActivity ? comparisonWindowSamples : undefined}
         playbackTime={canReplay ? playbackTime : null}
-        primaryLabel={primaryActivity.participant.name ?? primaryActivity.participant.id}
+        primaryLabel={formatActivityIdentity(primaryActivity)}
         comparisonLabel={
           comparisonActivity
-            ? comparisonActivity.participant.name ?? comparisonActivity.participant.id
+            ? formatActivityIdentity(comparisonActivity)
             : undefined
         }
       />
@@ -371,18 +372,67 @@ function SessionViewer({ session }: { session: SessionSummary }) {
 
 export default function SessionViewerPage() {
   const { sessionId } = useParams()
-  const session = mockSessions.find((candidate) => candidate.session_id === sessionId)
+  const [session, setSession] = useState<SessionDetail | null>(null)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
 
-  if (!session) {
+  useEffect(() => {
+    const controller = new AbortController()
+    let isCurrent = true
+
+    setSession(null)
+    setStatus('loading')
+
+    if (!sessionId) {
+      setStatus('not-found')
+      return () => {
+        isCurrent = false
+        controller.abort()
+      }
+    }
+
+    getSession(sessionId, controller.signal).then((loadedSession) => {
+      if (!isCurrent) return
+      setSession(loadedSession)
+      setStatus('ready')
+    }).catch((error: unknown) => {
+      if (!isCurrent || (error instanceof DOMException && error.name === 'AbortError')) return
+      setStatus(error instanceof SessionNotFoundError ? 'not-found' : 'error')
+    })
+
+    return () => {
+      isCurrent = false
+      controller.abort()
+    }
+  }, [sessionId])
+
+  if (status === 'loading') {
+    return (
+      <main className="page-shell not-found-page" aria-live="polite">
+        <p className="brand">TackBar</p>
+        <h1>Loading Session…</h1>
+      </main>
+    )
+  }
+
+  if (status === 'not-found') {
     return (
       <main className="page-shell not-found-page">
         <p className="brand">TackBar</p>
         <h1>Session not found</h1>
-        <p>This frontend scaffold currently uses local mock Sessions only.</p>
         <Link className="primary-link" to="/sessions">View recent sessions</Link>
       </main>
     )
   }
 
-  return <SessionViewer key={session.session_id} session={session} />
+  if (status === 'error' || !session) {
+    return (
+      <main className="page-shell not-found-page" role="alert">
+        <p className="brand">TackBar</p>
+        <h1>Unable to load Session.</h1>
+        <Link className="primary-link" to="/sessions">View recent sessions</Link>
+      </main>
+    )
+  }
+
+  return <SessionViewer key={session.id} session={session} />
 }
