@@ -247,10 +247,14 @@ state such as Activity selection, Analysis Window, filtered samples,
 the normalized samples it receives.
 
 Do not duplicate the same interaction or metric calculation in both layers.
-Moving existing tested presentation logic between frontend and backend
-requires an explicit, demonstrated product, correctness or performance reason.
+Moving existing tested presentation logic between frontend and backend requires an explicit, demonstrated product, correctness or performance reason.
 
 This allows later migration from JSON/filesystem storage to other persistence mechanisms without redesigning the UI.
+
+Rendering optimizations such as visual sampling or downsampling must remain
+presentation-only. Analytical calculations over an Analysis Window must use
+the complete valid normalized sample set for that window unless a future
+requirement explicitly defines a different analytical method.
 
 ---
 
