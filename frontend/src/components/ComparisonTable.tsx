@@ -32,16 +32,44 @@ const rows: SummaryRow[] = [
     format: (metrics) => formatAverageSog(metrics.avgSogKnots),
   },
   {
+    label: 'Max SOG',
+    format: (metrics) => formatNullable(metrics.maxSogKnots, 2, ' kt'),
+  },
+  {
     label: 'Dominant COG',
     format: (metrics) => formatNullable(metrics.dominantCogDegrees, 0, '°'),
   },
   {
-    label: 'Avg HEEL',
-    format: (metrics) => formatNullable(metrics.avgHeelDegrees, 1, '°'),
+    label: 'Avg HEEL +',
+    format: (metrics) => formatNullable(
+      metrics.avgPositiveHeelDegrees,
+      1,
+      '°',
+    ),
   },
   {
-    label: 'Avg TRIM',
-    format: (metrics) => formatNullable(metrics.avgTrimDegrees, 1, '°'),
+    label: 'Avg HEEL −',
+    format: (metrics) => formatNullable(
+      metrics.avgNegativeHeelDegrees,
+      1,
+      '°',
+    ),
+  },
+  {
+    label: 'Avg TRIM +',
+    format: (metrics) => formatNullable(
+      metrics.avgPositiveTrimDegrees,
+      1,
+      '°',
+    ),
+  },
+  {
+    label: 'Avg TRIM −',
+    format: (metrics) => formatNullable(
+      metrics.avgNegativeTrimDegrees,
+      1,
+      '°',
+    ),
   },
 ]
 

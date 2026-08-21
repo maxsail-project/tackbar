@@ -9,9 +9,12 @@ export interface SummaryMetrics {
   distanceMeters: number
   distanceNm: number
   avgSogKnots: number | null
+  maxSogKnots: number | null
   dominantCogDegrees: number | null
-  avgHeelDegrees: number | null
-  avgTrimDegrees: number | null
+  avgPositiveHeelDegrees: number | null
+  avgNegativeHeelDegrees: number | null
+  avgPositiveTrimDegrees: number | null
+  avgNegativeTrimDegrees: number | null
 }
 
 function isFiniteNumber(value: number | null): value is number {
@@ -32,10 +35,15 @@ function cogBinCenter(cog: number) {
 
 export function calculateSummaryMetrics(samples: TrackSample[]): SummaryMetrics {
   let distanceMeters = 0
-  let heelTotal = 0
-  let heelCount = 0
-  let trimTotal = 0
-  let trimCount = 0
+  let maxSogKnots: number | null = null
+  let positiveHeelTotal = 0
+  let positiveHeelCount = 0
+  let negativeHeelTotal = 0
+  let negativeHeelCount = 0
+  let positiveTrimTotal = 0
+  let positiveTrimCount = 0
+  let negativeTrimTotal = 0
+  let negativeTrimCount = 0
   const cogBinCounts = Array<number>(COG_BIN_COUNT).fill(0)
 
   samples.forEach((sample, index) => {
@@ -43,18 +51,31 @@ export function calculateSummaryMetrics(samples: TrackSample[]): SummaryMetrics 
       distanceMeters += sample.dist
     }
 
+    if (
+      isFiniteNumber(sample.sog)
+      && (maxSogKnots === null || sample.sog > maxSogKnots)
+    ) {
+      maxSogKnots = sample.sog
+    }
+
     if (isFiniteNumber(sample.cog)) {
       cogBinCounts[cogBinCenter(sample.cog) / COG_BIN_SIZE_DEGREES] += 1
     }
 
-    if (isFiniteNumber(sample.heel)) {
-      heelTotal += sample.heel
-      heelCount += 1
+    if (isFiniteNumber(sample.heel) && sample.heel > 0) {
+      positiveHeelTotal += sample.heel
+      positiveHeelCount += 1
+    } else if (isFiniteNumber(sample.heel) && sample.heel < 0) {
+      negativeHeelTotal += sample.heel
+      negativeHeelCount += 1
     }
 
-    if (isFiniteNumber(sample.trim)) {
-      trimTotal += sample.trim
-      trimCount += 1
+    if (isFiniteNumber(sample.trim) && sample.trim > 0) {
+      positiveTrimTotal += sample.trim
+      positiveTrimCount += 1
+    } else if (isFiniteNumber(sample.trim) && sample.trim < 0) {
+      negativeTrimTotal += sample.trim
+      negativeTrimCount += 1
     }
   })
 
@@ -84,8 +105,19 @@ export function calculateSummaryMetrics(samples: TrackSample[]): SummaryMetrics 
     distanceMeters,
     distanceNm,
     avgSogKnots,
+    maxSogKnots,
     dominantCogDegrees,
-    avgHeelDegrees: heelCount > 0 ? heelTotal / heelCount : null,
-    avgTrimDegrees: trimCount > 0 ? trimTotal / trimCount : null,
+    avgPositiveHeelDegrees: positiveHeelCount > 0
+      ? positiveHeelTotal / positiveHeelCount
+      : null,
+    avgNegativeHeelDegrees: negativeHeelCount > 0
+      ? negativeHeelTotal / negativeHeelCount
+      : null,
+    avgPositiveTrimDegrees: positiveTrimCount > 0
+      ? positiveTrimTotal / positiveTrimCount
+      : null,
+    avgNegativeTrimDegrees: negativeTrimCount > 0
+      ? negativeTrimTotal / negativeTrimCount
+      : null,
   }
 }

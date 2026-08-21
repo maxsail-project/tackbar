@@ -48,6 +48,31 @@ describe('summary metrics', () => {
 
     expect(metrics.distanceMeters).toBe(1_852)
     expect(metrics.avgSogKnots).toBeCloseTo(1)
+    expect(metrics.maxSogKnots).toBe(40)
+  })
+
+  it('calculates Max SOG from finite canonical samples', () => {
+    const metrics = calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { sog: null }),
+      sample('2031-06-15T10:00:01Z', { sog: Number.NaN }),
+      sample('2031-06-15T10:00:02Z', { sog: 4.2 }),
+      sample('2031-06-15T10:00:03Z', { sog: 5.1 }),
+      sample('2031-06-15T10:00:04Z', { sog: 4.8 }),
+      sample('2031-06-15T10:00:05Z', { sog: Number.POSITIVE_INFINITY }),
+    ])
+
+    expect(metrics.maxSogKnots).toBe(5.1)
+  })
+
+  it('treats zero as valid Max SOG and returns null without valid values', () => {
+    expect(calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { sog: 0 }),
+    ]).maxSogKnots).toBe(0)
+
+    expect(calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { sog: null }),
+      sample('2031-06-15T10:00:01Z', { sog: Number.NEGATIVE_INFINITY }),
+    ]).maxSogKnots).toBeNull()
   })
 
   it('returns unavailable Avg SOG without a positive elapsed interval', () => {
@@ -103,29 +128,102 @@ describe('summary metrics', () => {
     expect(tied.dominantCogDegrees).toBe(10)
   })
 
-  it('averages signed HEEL and TRIM while ignoring missing/non-finite values', () => {
+  it('averages positive and negative HEEL independently', () => {
     const metrics = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z', { heel: -6, trim: 3 }),
-      sample('2031-06-15T10:00:01Z', { heel: 2, trim: -1 }),
-      sample('2031-06-15T10:00:02Z', { heel: null, trim: Number.NaN }),
+      sample('2031-06-15T10:00:00Z', { heel: -6 }),
+      sample('2031-06-15T10:00:01Z', { heel: 2 }),
+      sample('2031-06-15T10:00:02Z', { heel: 4 }),
+      sample('2031-06-15T10:00:03Z', { heel: -10 }),
+      sample('2031-06-15T10:00:04Z', { heel: 0 }),
+      sample('2031-06-15T10:00:05Z', { heel: null }),
     ])
 
-    expect(metrics.avgHeelDegrees).toBe(-2)
-    expect(metrics.avgTrimDegrees).toBe(1)
+    expect(metrics.avgPositiveHeelDegrees).toBe(3)
+    expect(metrics.avgNegativeHeelDegrees).toBe(-8)
   })
 
-  it('returns unavailable averages and COG when no valid values exist', () => {
+  it('keeps absent HEEL sign groups independently unavailable', () => {
+    const positiveOnly = calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { heel: 2 }),
+      sample('2031-06-15T10:00:01Z', { heel: 4 }),
+    ])
+    const negativeOnly = calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { heel: -6 }),
+      sample('2031-06-15T10:00:01Z', { heel: -10 }),
+    ])
+
+    expect(positiveOnly.avgPositiveHeelDegrees).toBe(3)
+    expect(positiveOnly.avgNegativeHeelDegrees).toBeNull()
+    expect(negativeOnly.avgPositiveHeelDegrees).toBeNull()
+    expect(negativeOnly.avgNegativeHeelDegrees).toBe(-8)
+  })
+
+  it('averages positive and negative TRIM independently', () => {
+    const metrics = calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { trim: 3 }),
+      sample('2031-06-15T10:00:01Z', { trim: -1 }),
+      sample('2031-06-15T10:00:02Z', { trim: 5 }),
+      sample('2031-06-15T10:00:03Z', { trim: -3 }),
+      sample('2031-06-15T10:00:04Z', { trim: 0 }),
+      sample('2031-06-15T10:00:05Z', { trim: null }),
+    ])
+
+    expect(metrics.avgPositiveTrimDegrees).toBe(4)
+    expect(metrics.avgNegativeTrimDegrees).toBe(-2)
+  })
+
+  it('keeps absent TRIM sign groups independently unavailable', () => {
+    const positiveOnly = calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { trim: 3 }),
+      sample('2031-06-15T10:00:01Z', { trim: 5 }),
+    ])
+    const negativeOnly = calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { trim: -1 }),
+      sample('2031-06-15T10:00:01Z', { trim: -3 }),
+    ])
+
+    expect(positiveOnly.avgPositiveTrimDegrees).toBe(4)
+    expect(positiveOnly.avgNegativeTrimDegrees).toBeNull()
+    expect(negativeOnly.avgPositiveTrimDegrees).toBeNull()
+    expect(negativeOnly.avgNegativeTrimDegrees).toBe(-2)
+  })
+
+  it('excludes zero from HEEL and TRIM sign groups', () => {
+    const metrics = calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z', { heel: 0, trim: 0 }),
+    ])
+
+    expect(metrics.avgPositiveHeelDegrees).toBeNull()
+    expect(metrics.avgNegativeHeelDegrees).toBeNull()
+    expect(metrics.avgPositiveTrimDegrees).toBeNull()
+    expect(metrics.avgNegativeTrimDegrees).toBeNull()
+  })
+
+  it('ignores missing and non-finite HEEL and TRIM values', () => {
     const metrics = calculateSummaryMetrics([
       sample('2031-06-15T10:00:00Z'),
       sample('2031-06-15T10:00:01Z', {
-        cog: Number.NaN,
         heel: Number.POSITIVE_INFINITY,
-        trim: null,
+        trim: Number.NEGATIVE_INFINITY,
+      }),
+      sample('2031-06-15T10:00:02Z', {
+        heel: Number.NaN,
+        trim: Number.NaN,
       }),
     ])
 
+    expect(metrics.avgPositiveHeelDegrees).toBeNull()
+    expect(metrics.avgNegativeHeelDegrees).toBeNull()
+    expect(metrics.avgPositiveTrimDegrees).toBeNull()
+    expect(metrics.avgNegativeTrimDegrees).toBeNull()
+  })
+
+  it('returns unavailable COG without valid values', () => {
+    const metrics = calculateSummaryMetrics([
+      sample('2031-06-15T10:00:00Z'),
+      sample('2031-06-15T10:00:01Z', { cog: Number.NaN }),
+    ])
+
     expect(metrics.dominantCogDegrees).toBeNull()
-    expect(metrics.avgHeelDegrees).toBeNull()
-    expect(metrics.avgTrimDegrees).toBeNull()
   })
 })
