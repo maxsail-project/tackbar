@@ -4,7 +4,8 @@ import { interpolatePosition, nearestSample, type TrackPosition } from './replay
 
 export interface ReplayPresentation {
   position: TrackPosition | null
-  metricValue: number | null
+  sog: number | null
+  cog: number | null
 }
 
 export function isEnabledReplayMetric(
@@ -16,19 +17,25 @@ export function isEnabledReplayMetric(
 export function resolveReplayPresentation(
   samples: ActivityTrack['samples'],
   playbackTime: number,
-  metric: EnabledReplayMetric,
 ): ReplayPresentation {
   if (samples.length === 0) {
-    return { position: null, metricValue: null }
+    return { position: null, sog: null, cog: null }
   }
 
   const sample = nearestSample(samples, playbackTime)
-  const value = metric === 'SOG' ? sample.sog : sample.cog
 
   return {
     position: interpolatePosition(samples, playbackTime),
-    metricValue: value !== null && Number.isFinite(value) ? value : null,
+    sog: sample.sog !== null && Number.isFinite(sample.sog) ? sample.sog : null,
+    cog: sample.cog !== null && Number.isFinite(sample.cog) ? sample.cog : null,
   }
+}
+
+export function selectedReplayMetricValue(
+  presentation: ReplayPresentation,
+  metric: EnabledReplayMetric,
+) {
+  return metric === 'SOG' ? presentation.sog : presentation.cog
 }
 
 export function formatMetricValue(

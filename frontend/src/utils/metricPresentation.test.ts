@@ -5,6 +5,7 @@ import {
   formatAverageSog,
   formatMetricValue,
   resolveReplayPresentation,
+  selectedReplayMetricValue,
 } from './metricPresentation'
 import { timestampToMilliseconds } from './replay'
 
@@ -20,26 +21,28 @@ const windowEnd = timestampToMilliseconds(samples[3].utc)
 const windowSamples = filterSamplesByAnalysisWindow(samples, windowStart, windowEnd)
 
 describe('selected replay metric presentation', () => {
-  it('resolves SOG and its knot presentation from the nearest window sample', () => {
+  it('resolves SOG and COG from the same nearest window sample', () => {
     const result = resolveReplayPresentation(
       windowSamples,
       windowStart + 8_000,
-      'SOG',
     )
 
-    expect(result.metricValue).toBe(8)
-    expect(formatMetricValue('SOG', result.metricValue)).toBe('8.0 kt')
+    expect(result.sog).toBe(8)
+    expect(result.cog).toBe(120)
+    expect(formatMetricValue('SOG', result.sog)).toBe('8.0 kt')
+    expect(formatMetricValue('COG', result.cog)).toBe('120.0°')
   })
 
-  it('resolves COG and its degree presentation from the nearest window sample', () => {
-    const result = resolveReplayPresentation(
-      windowSamples,
-      windowStart + 8_000,
-      'COG',
-    )
+  it('preserves nullable SOG and COG independently', () => {
+    const nullableSamples: TrackSample[] = [
+      { ...samples[1], sog: null, cog: 242 },
+      { ...samples[2], sog: 5.5, cog: null },
+    ]
 
-    expect(result.metricValue).toBe(120)
-    expect(formatMetricValue('COG', result.metricValue)).toBe('120.0°')
+    expect(resolveReplayPresentation(nullableSamples, windowStart))
+      .toMatchObject({ sog: null, cog: 242 })
+    expect(resolveReplayPresentation(nullableSamples, windowStart + 10_000))
+      .toMatchObject({ sog: 5.5, cog: null })
   })
 
   it('resolves primary and comparison independently at one shared playbackTime', () => {
@@ -49,22 +52,24 @@ describe('selected replay metric presentation', () => {
     ]
     const sharedPlaybackTime = windowStart + 10_000
 
-    expect(resolveReplayPresentation(windowSamples, sharedPlaybackTime, 'SOG'))
-      .toMatchObject({ metricValue: 8 })
-    expect(resolveReplayPresentation(comparisonSamples, sharedPlaybackTime, 'SOG'))
-      .toMatchObject({ metricValue: 7 })
-    expect(resolveReplayPresentation(windowSamples, sharedPlaybackTime, 'COG'))
-      .toMatchObject({ metricValue: 120 })
-    expect(resolveReplayPresentation(comparisonSamples, sharedPlaybackTime, 'COG'))
-      .toMatchObject({ metricValue: 220 })
+    expect(resolveReplayPresentation(windowSamples, sharedPlaybackTime))
+      .toMatchObject({ sog: 8, cog: 120 })
+    expect(resolveReplayPresentation(comparisonSamples, sharedPlaybackTime))
+      .toMatchObject({ sog: 7, cog: 220 })
   })
 
   it('uses exact Analysis Window boundary samples and ignores outside neighbors', () => {
-    const atStart = resolveReplayPresentation(windowSamples, windowStart, 'SOG')
-    const atEnd = resolveReplayPresentation(windowSamples, windowEnd, 'SOG')
+    const atStart = resolveReplayPresentation(windowSamples, windowStart)
+    const atEnd = resolveReplayPresentation(windowSamples, windowEnd)
 
-    expect(atStart).toEqual({ position: { lat: 10, lon: 20 }, metricValue: 4 })
-    expect(atEnd).toEqual({ position: { lat: 14, lon: 28 }, metricValue: 6 })
+    expect(atStart).toEqual({ position: { lat: 10, lon: 20 }, sog: 4, cog: 100 })
+    expect(atEnd).toEqual({ position: { lat: 14, lon: 28 }, sog: 6, cog: 140 })
+  })
+
+  it('keeps presentation-only position interpolation unchanged', () => {
+    const result = resolveReplayPresentation(windowSamples, windowStart + 5_000)
+
+    expect(result.position).toEqual({ lat: 11, lon: 22 })
   })
 
   it('does not use samples outside a window when its boundaries fall between samples', () => {
@@ -75,10 +80,20 @@ describe('selected replay metric presentation', () => {
     )
 
     expect(narrowSamples).toEqual([samples[2]])
-    expect(resolveReplayPresentation(narrowSamples, windowStart + 1_000, 'SOG'))
-      .toEqual({ position: { lat: 12, lon: 24 }, metricValue: 8 })
-    expect(resolveReplayPresentation(narrowSamples, windowEnd - 1_000, 'COG'))
-      .toEqual({ position: { lat: 12, lon: 24 }, metricValue: 120 })
+    expect(resolveReplayPresentation(narrowSamples, windowStart + 1_000))
+      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120 })
+    expect(resolveReplayPresentation(narrowSamples, windowEnd - 1_000))
+      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120 })
+  })
+
+  it('derives the selected ReplayControls metric from resolved telemetry', () => {
+    const presentation = resolveReplayPresentation(
+      windowSamples,
+      windowStart + 8_000,
+    )
+
+    expect(selectedReplayMetricValue(presentation, 'SOG')).toBe(8)
+    expect(selectedReplayMetricValue(presentation, 'COG')).toBe(120)
   })
 
   it('uses kt for Avg SOG and preserves unavailable presentation', () => {

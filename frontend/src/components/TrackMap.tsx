@@ -7,7 +7,6 @@ import Map, {
 } from 'react-map-gl/maplibre'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { MAP_STYLE_URL } from '../config/map'
-import type { EnabledReplayMetric } from '../types/session'
 import type { TrackSample } from '../types/track'
 import { formatMetricValue } from '../utils/metricPresentation'
 import { formatGpsTime, type TrackPosition } from '../utils/replay'
@@ -20,9 +19,10 @@ interface TrackMapProps {
   comparisonBoatPosition?: TrackPosition | null
   hasComparison?: boolean
   playbackTime: number
-  selectedMetric: EnabledReplayMetric
-  primaryCurrentMetric: number | null
-  comparisonCurrentMetric?: number | null
+  primarySog: number | null
+  primaryCog: number | null
+  comparisonSog?: number | null
+  comparisonCog?: number | null
 }
 
 const PRIMARY_TRACK_PAINT = {
@@ -54,9 +54,10 @@ export default function TrackMap({
   comparisonBoatPosition = null,
   hasComparison = false,
   playbackTime,
-  selectedMetric,
-  primaryCurrentMetric,
-  comparisonCurrentMetric = null,
+  primarySog,
+  primaryCog,
+  comparisonSog = null,
+  comparisonCog = null,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
   const primaryGeometry = useMemo(
@@ -176,15 +177,24 @@ export default function TrackMap({
           </Marker>
         )}
       </Map>
-      <div className="map-status" aria-label="Current replay values">
-        <span>GPS time</span>
-        <strong>{formatGpsTime(playbackTime)}</strong>
-        <span className="map-status__metric">
-          {selectedMetric} · P {formatMetricValue(selectedMetric, primaryCurrentMetric)}
+      <div
+        className="map-status"
+        aria-label="Current replay GPS time and SOG/COG telemetry"
+      >
+        <div className="map-status__time">
+          <span>GPS time</span>
+          <strong>{formatGpsTime(playbackTime)}</strong>
+        </div>
+        <div className="map-status__telemetry">
+          <span className="map-status__telemetry-row">
+            P · SOG {formatMetricValue('SOG', primarySog)} · COG {formatMetricValue('COG', primaryCog)}
+          </span>
           {hasComparison && (
-            <> · C {formatMetricValue(selectedMetric, comparisonCurrentMetric)}</>
+            <span className="map-status__telemetry-row">
+              C · SOG {formatMetricValue('SOG', comparisonSog)} · COG {formatMetricValue('COG', comparisonCog)}
+            </span>
           )}
-        </span>
+        </div>
       </div>
     </section>
   )

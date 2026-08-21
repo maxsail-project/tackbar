@@ -288,9 +288,7 @@ input:focus-visible {
   left: 12px;
   z-index: 3;
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
   padding: 10px 12px;
   border: 1px solid rgb(255 255 255 / 30%);
@@ -312,10 +310,23 @@ input:focus-visible {
   font-size: 1rem;
 }
 
-.map-status__metric {
+.map-status__time {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.map-status__telemetry {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.map-status__telemetry-row {
   overflow: hidden;
   color: #aee1e7;
-  text-align: right;
+  text-transform: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

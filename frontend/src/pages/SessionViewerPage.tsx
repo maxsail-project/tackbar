@@ -30,7 +30,10 @@ import {
   timestampToMilliseconds,
   type PlaybackSpeed,
 } from '../utils/replay'
-import { resolveReplayPresentation } from '../utils/metricPresentation'
+import {
+  resolveReplayPresentation,
+  selectedReplayMetricValue,
+} from '../utils/metricPresentation'
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
 import { formatActivityIdentity } from '../utils/activityLabel'
 import { formatSessionRange } from '../utils/sessionPresentation'
@@ -191,17 +194,19 @@ function SessionViewer({ session }: { session: SessionDetail }) {
     () => resolveReplayPresentation(
       primaryWindowSamples,
       playbackTime,
-      selectedMetric,
     ),
-    [playbackTime, primaryWindowSamples, selectedMetric],
+    [playbackTime, primaryWindowSamples],
   )
   const comparisonReplayPresentation = useMemo(
     () => resolveReplayPresentation(
       comparisonWindowSamples,
       playbackTime,
-      selectedMetric,
     ),
-    [comparisonWindowSamples, playbackTime, selectedMetric],
+    [comparisonWindowSamples, playbackTime],
+  )
+  const primaryCurrentMetric = selectedReplayMetricValue(
+    primaryReplayPresentation,
+    selectedMetric,
   )
 
   useEffect(() => {
@@ -407,9 +412,10 @@ function SessionViewer({ session }: { session: SessionDetail }) {
           comparisonBoatPosition={comparisonReplayPresentation.position}
           hasComparison={comparisonTrack !== null}
           playbackTime={playbackTime}
-          selectedMetric={selectedMetric}
-          primaryCurrentMetric={primaryReplayPresentation.metricValue}
-          comparisonCurrentMetric={comparisonReplayPresentation.metricValue}
+          primarySog={primaryReplayPresentation.sog}
+          primaryCog={primaryReplayPresentation.cog}
+          comparisonSog={comparisonReplayPresentation.sog}
+          comparisonCog={comparisonReplayPresentation.cog}
         />
       ) : (
         <section className="track-unavailable" aria-live="polite">
@@ -435,7 +441,7 @@ function SessionViewer({ session }: { session: SessionDetail }) {
           replayStart={windowStart}
           replayEnd={windowEnd}
           selectedMetric={selectedMetric}
-          currentMetric={primaryReplayPresentation.metricValue}
+          currentMetric={primaryCurrentMetric}
           isPlaying={isPlaying}
           speed={speed}
           onTogglePlayback={togglePlayback}
