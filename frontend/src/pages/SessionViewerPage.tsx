@@ -424,6 +424,11 @@ function SessionViewer({ session }: { session: SessionDetail }) {
         </section>
       )}
 
+      <AnalysisWindow
+        availableRange={availableRange}
+        analysisWindow={analysisWindow}
+        onWindowChange={changeAnalysisWindow}
+      />
       {canReplay && windowStart !== null && windowEnd !== null && (
         <ReplayControls
           playbackTime={playbackTime}
@@ -439,11 +444,6 @@ function SessionViewer({ session }: { session: SessionDetail }) {
           onSpeedChange={setSpeed}
         />
       )}
-      <AnalysisWindow
-        availableRange={availableRange}
-        analysisWindow={analysisWindow}
-        onWindowChange={changeAnalysisWindow}
-      />
       <ComparisonTable
         primaryLabel={formatActivityIdentity(primaryActivity)}
         primaryMetrics={primarySummaryMetrics}

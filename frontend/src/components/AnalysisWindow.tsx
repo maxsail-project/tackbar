@@ -75,17 +75,6 @@ export default function AnalysisWindow({
         </span>
       </div>
 
-      <div className="analysis-window__values" aria-live="polite">
-        <span>
-          Start
-          <strong>{formatGpsTime(analysisWindow.start)} <small>UTC</small></strong>
-        </span>
-        <span>
-          End
-          <strong>{formatGpsTime(analysisWindow.end)} <small>UTC</small></strong>
-        </span>
-      </div>
-
       <div className="analysis-window__stage">
         <div className="analysis-window__available-track" aria-hidden="true" />
         <div
@@ -120,13 +109,9 @@ export default function AnalysisWindow({
         />
       </div>
 
-      <div className="analysis-window__range" aria-hidden="true">
-        <span>{formatGpsTime(availableRange.start)}</span>
-        <span>{formatGpsTime(availableRange.end)}</span>
-      </div>
-      <div className="analysis-window__legend" aria-hidden="true">
-        <span className="analysis-window__legend-start">Start</span>
-        <span className="analysis-window__legend-end">End</span>
+      <div className="analysis-window__selected-times" aria-live="polite">
+        <span>{formatGpsTime(analysisWindow.start)} UTC</span>
+        <span>{formatGpsTime(analysisWindow.end)} UTC</span>
       </div>
     </section>
   )
