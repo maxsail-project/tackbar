@@ -74,18 +74,23 @@ TackBar is not intended to reproduce MaxSail Analytics.
 The current core domain model is:
 
 ```text
-Participant
-    ↓
-Activity
-    ↓
+Sailor
+   ↓
+Activity ← optional Boat
+   ↓
 Session
 ```
 
-The current `Participant` representation is transitional and may contain both
-person and default boat metadata. Domain evolution should preserve a clear
-separation between the person-level Sailor identity and the Boat used for a
-specific Activity. Email may remain an external ingestion identity without
-becoming the permanent identity of every future domain concept.
+### Sailor
+
+A Sailor is the person-level concept and has a stable internal TackBar
+identity. Normalized email remains the external identity used by current email
+ingestion. A Sailor may have an optional default Boat for automatic ingestion.
+
+### Boat
+
+A Boat is a separate sailing context with a stable identity and name, sailing
+class and sail number when those values are known.
 
 For the Session Viewer:
 
@@ -105,6 +110,10 @@ Map + comparison table + metric chart + replay
 
 An Activity represents one track received by TackBar.
 
+An Activity requires a Sailor and may reference the Boat used for that sailing
+when known. Historical Activity Boat context is preserved. Boat is not inferred
+from filename, email subject, device name or source-specific metadata.
+
 An Activity may represent:
 
 - a complete sailing outing;
@@ -121,7 +130,7 @@ Activity != race
 Activity != training segment
 ```
 
-A Participant may have multiple Activities:
+A Sailor may have multiple Activities:
 
 - on the same day;
 - in the same Session;
@@ -137,7 +146,7 @@ A Session is not assumed to represent:
 
 - exactly one race;
 - exactly one training block;
-- exactly one Activity per Participant.
+- exactly one Activity per Sailor.
 
 ### Analysis Window
 
@@ -298,7 +307,15 @@ These choices are PoC defaults, not permanent architectural commitments.
 
 The map is the primary visual element of the Session Viewer.
 
+The map provides track and boat-position context together with shared GPS time
+and fixed instantaneous SOG, COG and HEEL telemetry. This telemetry is
+independent from the selected analytical chart metric. TRIM is not currently
+map telemetry.
+
 Replay is a core PoC requirement.
+
+Replay is a temporal control only: play/pause, the shared `playbackTime`, its
+scrubber and playback speed. It must not duplicate the selected chart metric.
 
 The replay model must use one virtual GPS clock:
 
@@ -449,24 +466,32 @@ Do not introduce additional canonical fields without an explicit requirement.
 
 Current Session Viewer comparison is deliberately basic.
 
-Initial summary concepts are:
+The delivered Summary contains:
 
 - Distance;
-- Average SOG;
+- Avg SOG;
+- Max SOG;
 - Dominant COG;
-- Average HEEL;
-- Average TRIM.
+- Avg HEEL +;
+- Avg HEEL −;
+- Avg TRIM +;
+- Avg TRIM −.
 
 Currently delivered graphical selectable metrics are:
 
 - SOG;
 - COG;
-
-HEEL and TRIM remain basic metric candidates for later Viewer work when their
-normalized values are available. Missing values must remain unavailable rather
-than invented.
+- HEEL;
+- TRIM.
 
 The same selected metric is shown for both Activities.
+
+COG remains circular data. HEEL and TRIM are signed linear sensor values:
+missing values are not invented, and no Port/Starboard or bow-up/bow-down
+interpretation is currently defined.
+
+All calculations use the complete valid normalized sample population inside
+the Analysis Window. Any later visual sampling must remain presentation-only.
 
 Do not implement advanced MaxSail Analytics features unless explicitly requested.
 

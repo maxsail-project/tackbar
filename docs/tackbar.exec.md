@@ -18,7 +18,7 @@ C:\maxsail-project\tackbar\backend\test-data
 
 Contienen únicamente:
 
-- participantes ficticios;
+- Sailors ficticios;
 - emails `example.com`;
 - barcos y números de vela ficticios;
 - Activities y Sessions de prueba;
@@ -39,7 +39,8 @@ Estructura:
 
 ```text
 C:\private\tackbar-data\
-├── participants.json
+├── sailors.json
+├── boats.json
 ├── activities.json
 ├── sessions.json
 ├── ingestion_history.json
@@ -205,7 +206,7 @@ Local: http://localhost:5173/
 Abrir en el navegador:
 
 ```text
-http://localhost:5173
+http://localhost:5173/sessions
 ```
 
 Mantener esta terminal abierta.
@@ -240,7 +241,7 @@ npm.cmd run dev
 Navegador:
 
 ```text
-http://localhost:5173
+http://localhost:5173/sessions
 ```
 
 ---
@@ -274,19 +275,10 @@ npm.cmd run dev
 
 ---
 
-# 8. Estado actual de la integración frontend/backend
+# 8. Integración frontend/backend
 
-Actualmente el Session Viewer todavía utiliza fixtures públicos de TEST incluidos en el frontend.
-
-Por tanto:
-
-```text
-TACKBAR_DATA_DIR
-```
-
-controla el almacenamiento utilizado por el backend, pero **todavía no cambia los datos que muestra el Session Viewer**.
-
-La integración prevista será:
+El Session Viewer consume Sessions y tracks persistidos mediante la API de solo
+lectura del backend:
 
 ```text
 Frontend
@@ -298,7 +290,10 @@ TACKBAR_DATA_DIR
 TEST o datos privados
 ```
 
-La API read-only y la integración frontend/backend corresponden a una etapa posterior.
+`TACKBAR_DATA_DIR` selecciona exclusivamente la raíz de persistencia del
+backend. El frontend utiliza la misma API y lógica en TEST y con datos privados;
+no contiene un fallback runtime de fixtures de Session/track ni conoce rutas de
+archivos JSON o CSV.GZ.
 
 ---
 
@@ -351,13 +346,13 @@ cd C:\maxsail-project\tackbar\backend
 Ejecutar:
 
 ```powershell
-pytest tests
+python -m pytest tests
 ```
 
-Última referencia después de implementar la separación TEST / datos privados:
+Última referencia después de completar v0.4.0:
 
 ```text
-81 passed
+116 passed
 ```
 
 ---
@@ -394,14 +389,18 @@ Después de levantar TackBar comprobar:
 ```text
 Session Viewer
 
+✓ Recent Sessions desde FastAPI
 ✓ Primary Activity
 ✓ Compare Activity
 ✓ dos tracks en el mapa
+✓ telemetría fija GPS / SOG / COG / HEEL
 ✓ Analysis Window
 ✓ Replay
 ✓ velocidades x1 / x2 / x5 / x10
 ✓ gráfico SOG
 ✓ gráfico COG
+✓ gráfico HEEL
+✓ gráfico TRIM
 ✓ Summary Metrics
 ```
 
@@ -441,7 +440,8 @@ GitHub público
 
 C:\private\tackbar-data
 │
-├── participantes reales
+├── Sailors reales
+├── Boats reales
 ├── Activities reales
 ├── Sessions reales
 ├── originales
@@ -452,7 +452,7 @@ C:\private\tackbar-data
 
 Regla:
 
-> Los datos reales de participantes y navegación nunca se almacenan en el repositorio público.
+> Los datos reales de Sailors, Boats y navegación nunca se almacenan en el repositorio público.
 
 El repositorio puede contener un dataset TEST completo siempre que sea ficticio, sanitizado e intencionadamente publicable.
 
@@ -474,9 +474,9 @@ aceptación explícita
 active
 ```
 
-Solo los participantes activos estarán autorizados a generar nuevas Activities mediante ingestión.
+Solo los Sailors activos estarán autorizados a generar nuevas Activities mediante ingestión.
 
-La identidad externa inicial del participante seguirá siendo su email normalizado:
+La identidad externa inicial del Sailor seguirá siendo su email normalizado:
 
 ```text
 strip().lower()
@@ -512,7 +512,7 @@ npm.cmd run dev
 ## Navegador
 
 ```text
-http://localhost:5173
+http://localhost:5173/sessions
 ```
 
 That's it.

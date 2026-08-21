@@ -71,22 +71,23 @@ Delivered baseline:
 
 ---
 
-## PoC 4 — Collaborative sailing debrief
+## PoC 4 — Collaborative sailing debrief (delivered in v0.4.0)
 
 Goal: validate TackBar as a real post-sailing visual debriefing tool connected
 to Sessions and Activities actually persisted by the backend.
 
-Planned scope:
+Delivered baseline:
 
-* Resolve the Sailor/Boat domain direction before freezing the API contract
-* Separate person-level Sailor identity from Boat context
-* Expose recent Sessions, Session detail, Activities and canonical normalized tracks through a narrow read-only FastAPI boundary
-* Replace frontend Session/track fixtures with backend-provided data
-* Preserve the validated one/two-Activity Viewer, shared Analysis Window, map, replay, metrics and charts
-* Review remaining basic Viewer charts incrementally; HEEL/TRIM time series are candidates when data is available, not mandatory v0.4 exit criteria
-* Perform a focused mobile/tablet UX review after runtime integration
-* Use the ephemeral Analysis Window to isolate relevant sailing intervals manually
-* Validate the complete persisted Session → API → Viewer → debrief workflow
+* Person-level Sailor identity separated from Boat context
+* Activity associated with its required Sailor and optional Boat
+* Read-only FastAPI endpoints for recent Sessions, Session detail and complete canonical Activity tracks
+* Frontend connected to persisted Sessions/tracks with no runtime Session/track fixture fallback
+* Primary Activity plus optional Comparison Activity
+* Shared GPS/UTC Analysis Window and synchronized Replay
+* Fixed map GPS/SOG/COG/HEEL telemetry
+* Refined Summary with Distance, Avg/Max SOG, Dominant COG and signed HEEL/TRIM averages
+* SOG/COG/HEEL/TRIM time-series charts
+* Focused mobile/tablet UX review and public TEST end-to-end validation
 
 Collaborative discussion occurs between sailors looking at the phone/tablet
 together. Chat, comments, messaging and real-time multi-user collaboration are
@@ -97,7 +98,7 @@ semantic segments remain important future work, but do not block v0.4.
 
 ---
 
-## MVP — Real sailing pilot
+## MVP — Real sailing pilot (next milestone: v0.5.0)
 
 Goal: validate TackBar with real sailors, coaches and sailing sessions.
 
@@ -293,23 +294,24 @@ Baseline entregada:
 
 ---
 
-## PoC 4 — Debriefing colaborativo de vela
+## PoC 4 — Debriefing colaborativo de vela (entregado en v0.4.0)
 
 Objetivo: validar TackBar como herramienta real de debriefing visual posterior
 a la navegación, conectada con Sessions y Activities realmente persistidas por
 el backend.
 
-Alcance previsto:
+Baseline entregada:
 
-* Resolver la dirección de dominio Sailor/Boat antes de congelar el contrato API
-* Separar la identidad personal Sailor del contexto Boat
-* Exponer Sessions recientes, detalle de Session, Activities y tracks normalizados canónicos mediante una API FastAPI estrecha y de solo lectura
-* Sustituir los fixtures frontend de Sessions/tracks por datos proporcionados por el backend
-* Preservar el Viewer validado de una/dos Activities, Analysis Window compartida, mapa, replay, métricas y gráficos
-* Revisar incrementalmente los gráficos básicos restantes del Viewer; las series temporales HEEL/TRIM son candidatas cuando existan datos, no criterios obligatorios de salida de v0.4
-* Realizar una revisión UX enfocada a móvil/tablet después de la integración runtime
-* Utilizar la Analysis Window efímera para aislar manualmente intervalos relevantes
-* Validar el flujo completo Session persistida → API → Viewer → debriefing
+* Identidad personal Sailor separada del contexto Boat
+* Activity asociada a su Sailor requerido y Boat opcional
+* Endpoints FastAPI de solo lectura para Sessions recientes, detalle de Session y tracks canónicos completos de Activity
+* Frontend conectado a Sessions/tracks persistidos sin fallback runtime de fixtures de Session/track
+* Activity principal y Activity de comparación opcional
+* Analysis Window GPS/UTC compartida y Replay sincronizado
+* Telemetría fija GPS/SOG/COG/HEEL en el mapa
+* Summary refinado con distancia, SOG medio/máximo, COG dominante y promedios HEEL/TRIM por signo
+* Gráficos temporales SOG/COG/HEEL/TRIM
+* Revisión UX enfocada a móvil/tablet y validación end-to-end con TEST público
 
 La discusión colaborativa ocurre entre los regatistas reunidos alrededor del
 móvil/tablet. No requiere chat, comentarios, mensajería ni colaboración
@@ -321,7 +323,7 @@ bloquea v0.4.
 
 ---
 
-## MVP — Piloto con regatistas reales
+## MVP — Piloto con regatistas reales (siguiente hito: v0.5.0)
 
 Objetivo: validar TackBar con regatistas, entrenadores y sesiones de navegación reales.
 

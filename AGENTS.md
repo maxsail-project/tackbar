@@ -44,7 +44,7 @@ Do not silently invent an interpretation when instructions conflict.
 
 The current product-validation flow is:
 
-`track sharing → ingestion → Activity → Session → mobile Session Viewer → one/two-boat comparison → shared GPS time window → replay → basic visual metrics`
+`track sharing → ingestion → Sailor → Activity + optional Boat → Session → mobile Session Viewer → one/two-boat comparison → shared GPS time window → replay → basic visual metrics`
 
 The Session Viewer model is:
 
@@ -53,13 +53,20 @@ The Session Viewer model is:
 Important current constraints:
 
 - An Activity is one track received by TackBar and may be complete or partial.
-- A Participant may have multiple Activities in the same Session.
+- Sailor is the person-level runtime identity and Boat is a separate sailing
+  context.
+- An Activity requires a Sailor and may reference a Boat.
+- A Sailor may have multiple Activities in the same Session.
 - Do not automatically merge or split Activities.
 - Compare at most two Activities in the current PoC.
 - Compared Activities use the same GPS/UTC Analysis Window.
-- Compared Activities use the same selected metric.
+- Compared Activities use the same selected analytical/chart metric: SOG, COG,
+  HEEL or TRIM.
 - Replay uses one shared GPS clock (`playbackTime`) for both Activities.
 - Replay speeds are x1, x2, x5, and x10.
+- Replay is a temporal control only. The map independently presents fixed
+  instantaneous GPS time, SOG, COG and HEEL telemetry; TRIM is not map
+  telemetry.
 
 Do not implement future roadmap items unless explicitly requested.
 

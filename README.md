@@ -34,19 +34,20 @@ The debrief starts when the sailing stops.
 
 ## Current proof of concept
 
-The first TackBar proof of concept focuses on a deliberately simple workflow:
+The current TackBar proof of concept supports a deliberately simple workflow:
 
 1. A sailor records a sailing activity.
 2. The activity track is exported from the device platform.
 3. The sailor sends the track as an email attachment.
 4. TackBar receives and processes the attachment.
-5. The sender email identifies the sailor.
+5. The normalized sender email resolves the internal Sailor identity.
 6. Date, time and GPS proximity are used to determine which sailing session the activity belongs to.
-7. Tracks from multiple sailors are grouped automatically.
-8. The v0.3.x Session Viewer demonstrates collaborative visual review using
-   public demo Sessions and tracks.
-9. v0.4 connects the Viewer to Sessions and tracks actually persisted by the
-   backend.
+7. The Activity records its Sailor and optional Boat context and is grouped
+   automatically into a Session.
+8. FastAPI exposes persisted Sessions and canonical Activity tracks through a
+   read-only API.
+9. The v0.4.0 mobile Session Viewer opens that persisted data for one/two-boat
+   comparison and collaborative debriefing.
 
 Initial testing is being performed using **Vakaros activity exports**.
 
@@ -60,20 +61,16 @@ Example:
 
 ---
 
-## Activity identification
+## Sailor, Boat and Activity identity
 
-For the initial PoC, the sender email address is used to identify the participant.
+For current email ingestion, the normalized sender email resolves a Sailor.
+The Sailor has a stable internal TackBar identity; email remains an external
+ingestion identity.
 
-The current `Participant` representation is transitional. The domain model is
-now evolving towards:
-
-`Email → Sailor → Boat → Activity`
-
-This keeps person identity, boat information and Activity data separated.
-
-A Sailor may be associated with multiple Boats over time, while each Activity
-can identify the Boat used for that sailing when known. The exact migration
-from the current `Participant` model is part of the v0.4 domain work.
+Boat is a separate domain entity. A Sailor may have an optional default Boat
+for new ingestion, while each Activity records the Sailor and the Boat used
+when that context is known. Activity remains the stable identity of one
+received track.
 
 ---
 
@@ -126,7 +123,7 @@ TackBar is intended to remain device-independent.
 
 The current architecture is intentionally simple:
 
-`Email → Activity Ingestion → Track Parser → Activity → Session Matcher → TackBar`
+`Email/provider → ingestion → parsing/normalization → Sailor → Activity + optional Boat → Session matching → persistence → FastAPI read API → Session Viewer`
 
 Current technology and persistence:
 
@@ -136,11 +133,12 @@ Current technology and persistence:
 * **Activity ingestion:** Gmail API adapter with provider-independent downstream processing
 * **Target experience:** mobile-first web application that also works naturally on tablets
 
-The current v0.3.x Viewer has validated one/two-Activity comparison, a shared
-GPS/UTC Analysis Window, map, replay, summary metrics and SOG/COG charts using
-public demo fixtures. The v0.4 work will connect that Viewer to Sessions,
-Activities and normalized tracks actually persisted by the backend through a
-read-only API. SQLite is not a prerequisite for this PoC evolution.
+v0.4.0 connects the Viewer to Sessions, Activities and canonical tracks
+actually persisted by the backend. It provides one/two-Activity comparison, a
+shared GPS/UTC Analysis Window, fixed map telemetry, synchronized replay, the
+refined Summary, and SOG/COG/HEEL/TRIM charts. Public sanitized TEST data
+validates the same runtime/API path without becoming a frontend fixture
+fallback. SQLite is not a prerequisite for this PoC.
 
 The ingestion layer is intended to remain independent from the analytics layer.
 
@@ -185,13 +183,17 @@ The focus is instead on:
 
 **Early-stage proof of concept.**
 
-The immediate v0.4 goal is to validate the complete runtime workflow:
+`v0.4.0 — Collaborative Sailing Debrief PoC` has delivered the complete
+runtime workflow:
 
 `multiple sailors → track ingestion → automatic Session detection → persisted Session → backend API → collaborative visual debrief`
 
 The debrief is collaborative because sailors inspect and discuss the Session
 together around a phone or tablet; it does not require built-in chat or
 messaging.
+
+The next product stage is `v0.5.0 — Real Sailing Pilot`. It is not yet
+delivered.
 
 The project is not currently affiliated with or endorsed by Garmin, Vakaros or any other device manufacturer.
 
@@ -241,19 +243,20 @@ El debriefing empieza cuando termina la navegación.
 
 ## Prueba de concepto actual
 
-La primera prueba de concepto de TackBar se centra deliberadamente en un flujo muy sencillo:
+La prueba de concepto actual de TackBar soporta deliberadamente un flujo muy sencillo:
 
 1. Un regatista registra una actividad de navegación.
 2. El track se exporta desde la plataforma del dispositivo.
 3. El regatista envía el track como archivo adjunto por correo electrónico.
 4. TackBar recibe y procesa el adjunto.
-5. La dirección de correo remitente identifica al regatista.
+5. El email remitente normalizado resuelve la identidad interna Sailor.
 6. La fecha, la hora y la proximidad GPS permiten determinar a qué sesión pertenece la actividad.
-7. Los tracks de varios regatistas se agrupan automáticamente.
-8. El Session Viewer v0.3.x demuestra la revisión visual colaborativa mediante
-   Sessions y tracks públicos de demostración.
-9. v0.4 conecta el Viewer con Sessions y tracks realmente persistidos por el
-   backend.
+7. La Activity registra su Sailor y el contexto Boat opcional y se agrupa
+   automáticamente en una Session.
+8. FastAPI expone Sessions persistidas y tracks canónicos mediante una API de
+   solo lectura.
+9. El Session Viewer mobile-first de v0.4.0 abre esos datos persistidos para la
+   comparación de uno/dos barcos y el debriefing colaborativo.
 
 Las primeras pruebas se están realizando utilizando **exportaciones de actividades Vakaros**.
 
@@ -267,22 +270,16 @@ Ejemplo:
 
 ---
 
-## Identificación de la actividad
+## Identidad de Sailor, Boat y Activity
 
-Para la PoC inicial, la dirección de correo del remitente se utiliza para identificar al participante.
+En la ingesta actual por email, el remitente normalizado resuelve un Sailor. El
+Sailor tiene una identidad interna estable de TackBar; el email sigue siendo
+una identidad externa de ingesta.
 
-La representación actual de `Participant` es transitoria. El modelo de dominio
-evoluciona ahora hacia:
-
-`Email → Sailor → Boat → Activity`
-
-Esto permite mantener separadas la identidad de la persona, la información del
-barco y los datos de cada Activity.
-
-Un Sailor podrá estar asociado a varios Boats a lo largo del tiempo, mientras
-que cada Activity podrá identificar el Boat utilizado en esa navegación cuando
-se conozca. La migración exacta desde el modelo `Participant` actual forma parte
-del trabajo de dominio de v0.4.
+Boat es una entidad de dominio separada. Un Sailor puede tener un Boat por
+defecto opcional para nuevas ingestas y cada Activity registra el Sailor y el
+Boat utilizado cuando se conoce ese contexto. Activity mantiene la identidad
+estable de un track recibido.
 
 ---
 
@@ -335,7 +332,7 @@ TackBar pretende ser independiente del dispositivo utilizado.
 
 La arquitectura actual se mantiene deliberadamente sencilla:
 
-`Email → Ingesta de Activity → Parser de track → Activity → Session Matcher → TackBar`
+`Email/proveedor → ingesta → parsing/normalización → Sailor → Activity + Boat opcional → matching de Session → persistencia → API FastAPI de lectura → Session Viewer`
 
 Tecnología y persistencia actuales:
 
@@ -345,12 +342,12 @@ Tecnología y persistencia actuales:
 * **Ingesta de Activity:** adaptador Gmail API con procesamiento posterior independiente del proveedor
 * **Experiencia objetivo:** aplicación web mobile-first que también funciona de forma natural en tablet
 
-El Viewer v0.3.x ya ha validado la comparación de una/dos Activities, una
-Analysis Window GPS/UTC compartida, mapa, replay, métricas resumen y gráficos
-SOG/COG mediante fixtures públicos de demostración. El trabajo de v0.4
-conectará ese Viewer con Sessions, Activities y tracks normalizados realmente
-persistidos por el backend mediante una API de solo lectura. SQLite no es un
-requisito previo para esta evolución de la PoC.
+v0.4.0 conecta el Viewer con Sessions, Activities y tracks canónicos realmente
+persistidos por el backend. Incluye comparación de una/dos Activities, Analysis
+Window GPS/UTC compartida, telemetría fija en el mapa, replay sincronizado,
+Summary refinado y gráficos SOG/COG/HEEL/TRIM. Los datos TEST públicos y
+sanitizados validan la misma ruta runtime/API sin actuar como fallback de
+fixtures frontend. SQLite no es un requisito previo para esta PoC.
 
 La capa de ingestión permanecerá separada de la capa analítica.
 
@@ -395,13 +392,17 @@ El foco pasa a estar en:
 
 **Prueba de concepto en fase inicial.**
 
-El objetivo inmediato de v0.4 es validar el flujo runtime completo:
+`v0.4.0 — PoC de debriefing colaborativo de vela` ha entregado el flujo
+runtime completo:
 
 `varios regatistas → ingesta de tracks → detección automática de Session → Session persistida → API backend → debriefing visual colaborativo`
 
 El debriefing es colaborativo porque los regatistas inspeccionan y comentan la
 Session juntos alrededor de un móvil o tablet; no requiere chat ni mensajería
 integrados.
+
+La siguiente etapa de producto es `v0.5.0 — Piloto con regatistas reales`. Aún
+no está entregada.
 
 Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni ningún otro fabricante de dispositivos.
 

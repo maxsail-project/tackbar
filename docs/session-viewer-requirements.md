@@ -19,6 +19,33 @@ Analysis Window, comparison, replay and circular-angle behavior.
 
 ---
 
+## Delivered v0.4 override and delta
+
+The following delivered v0.4 behavior supersedes current-facing v0.3 wording
+without rewriting the historical v0.3.x baseline below:
+
+- The persisted and API domain uses `Sailor`, separate `Boat`, and `Activity`.
+  `Participant` is no longer an active runtime entity; it remains only in
+  legacy migration and historical terminology.
+- The selectable time-series metrics are SOG, COG, HEEL and TRIM. The v0.3.x
+  HEEL/TRIM deferral remains a historical v0.3 statement only.
+- The map presents shared GPS time and fixed instantaneous SOG, COG and HEEL
+  telemetry. Historical selected-metric map wording no longer governs v0.4,
+  and TRIM is not map telemetry.
+- Replay is temporal-only: play/pause, scrubber, current `playbackTime`, and
+  x1/x2/x5/x10 speed. It does not duplicate the selected chart metric.
+- The delivered Summary rows are Distance, Avg SOG, Max SOG, Dominant COG,
+  Avg HEEL +, Avg HEEL −, Avg TRIM + and Avg TRIM −.
+- The frontend consumes persisted Sessions and canonical Activity tracks
+  through the read-only FastAPI API; it has no runtime Session/track fixture
+  fallback or direct storage access.
+
+All Activities selected for comparison still share one absolute GPS/UTC
+Analysis Window, one selected chart metric and one `playbackTime`. Existing
+circular COG semantics remain unchanged.
+
+---
+
 ## 1. Product need
 
 After sailing, each sailor shares one or more tracks with TackBar. TackBar ingests them as Activities and groups compatible Activities into a Session.
@@ -743,8 +770,8 @@ Frontend must not read `activities.json`, `sessions.json` or CSV.GZ files direct
 Frontend must consume a backend API.
 
 This boundary was not delivered in v0.3.x: the Viewer was validated with
-public frontend fixtures and the read API was deferred. It becomes current
-implementation work under the v0.4 requirements.
+public frontend fixtures and the read API was deferred. It was delivered in
+v0.4 under the current v0.4 requirements.
 
 ### AR-03
 
@@ -772,8 +799,8 @@ Storage implementation must remain hidden behind backend code so JSON/filesystem
 ### AR-05
 
 Viewer endpoints were intended to be read-only for the v0.3 PoC. They were not
-delivered in v0.3.x; v0.4 preserves the read-only constraint when introducing
-the API.
+delivered in v0.3.x; v0.4 delivered them while preserving the read-only
+constraint.
 
 ### AR-06
 
@@ -883,21 +910,21 @@ Future versions may help identify or discard:
 
 No such automatic behavior is required now.
 
-### FC-05 — Active v0.4 Sailor/Boat domain evolution
+### FC-05 — Delivered v0.4 Sailor/Boat domain evolution
 
-The delivered implementation uses `Participant` as a transitional concept and
-stores person and boat/default metadata together. TackBar must not assume:
+The v0.3.x implementation used `Participant` as a transitional concept and
+stored person and boat/default metadata together. TackBar did not assume:
 
 ```text
 Participant == Boat
 email == Boat
 ```
 
-Separating the person-level `Sailor` concept from `Boat` and associating the
-relevant context with each Activity is an active v0.4 domain-evolution topic.
-The exact Participant migration, Sailor identity, Boat persistence and
-Activity relationship are intentionally deferred to the focused analysis
-required by `docs/v0.4-collaborative-debrief-requirements.md`.
+v0.4 completed that evolution. `Sailor` now has a stable internal identity,
+`Boat` is separate, and each Activity requires a Sailor and may reference a
+Boat. `Participant` remains only as legacy migration/history terminology. The
+delivered details are governed by
+`docs/v0.4-collaborative-debrief-requirements.md`.
 
 ### FC-06 — Session Timeline and Replay interaction
 
@@ -1145,9 +1172,9 @@ frontend demonstration.
 
 PA-01 through PA-07 are preserved as governing requirements for the v0.5 Real
 Sailing Pilot / pilot-access chapter. They are not v0.4 requirements or v0.4
-exit criteria. The current implementation may continue its existing
-Participant behavior during v0.4 unless a separate focused requirement changes
-it.
+exit criteria. Their historical `Participant` access terminology must be
+reconciled with the delivered Sailor runtime model in the focused v0.5 design;
+it does not reinstate Participant as a v0.4 runtime entity.
 
 v0.4 does not require public registration, authentication, an authorization
 platform, invite-management UI or privacy-acceptance workflow. Private runtime
