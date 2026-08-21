@@ -6,6 +6,7 @@ export interface ReplayPresentation {
   position: TrackPosition | null
   sog: number | null
   cog: number | null
+  heel: number | null
 }
 
 export function isEnabledReplayMetric(
@@ -19,7 +20,7 @@ export function resolveReplayPresentation(
   playbackTime: number,
 ): ReplayPresentation {
   if (samples.length === 0) {
-    return { position: null, sog: null, cog: null }
+    return { position: null, sog: null, cog: null, heel: null }
   }
 
   const sample = nearestSample(samples, playbackTime)
@@ -28,6 +29,9 @@ export function resolveReplayPresentation(
     position: interpolatePosition(samples, playbackTime),
     sog: sample.sog !== null && Number.isFinite(sample.sog) ? sample.sog : null,
     cog: sample.cog !== null && Number.isFinite(sample.cog) ? sample.cog : null,
+    heel: sample.heel !== null && Number.isFinite(sample.heel)
+      ? sample.heel
+      : null,
   }
 }
 
@@ -54,6 +58,10 @@ export function formatReplayMetric(
   value: number | null,
 ): string {
   return `${metric} ${formatMetricValue(metric, value)}`
+}
+
+export function formatHeelValue(value: number | null): string {
+  return value === null ? '—' : `${value.toFixed(1)}°`
 }
 
 export function formatAverageSog(value: number | null): string {

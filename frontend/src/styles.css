@@ -323,12 +323,10 @@ input:focus-visible {
   min-width: 0;
 }
 
-.map-status__telemetry-row {
-  overflow: hidden;
+.map-status .map-status__telemetry-row {
   color: #aee1e7;
+  line-height: 1.35;
   text-transform: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .boat-marker {

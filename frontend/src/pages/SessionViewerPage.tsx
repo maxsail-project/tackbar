@@ -414,8 +414,10 @@ function SessionViewer({ session }: { session: SessionDetail }) {
           playbackTime={playbackTime}
           primarySog={primaryReplayPresentation.sog}
           primaryCog={primaryReplayPresentation.cog}
+          primaryHeel={primaryReplayPresentation.heel}
           comparisonSog={comparisonReplayPresentation.sog}
           comparisonCog={comparisonReplayPresentation.cog}
+          comparisonHeel={comparisonReplayPresentation.heel}
         />
       ) : (
         <section className="track-unavailable" aria-live="polite">

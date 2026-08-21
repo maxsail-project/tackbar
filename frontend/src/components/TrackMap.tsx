@@ -8,7 +8,10 @@ import Map, {
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { MAP_STYLE_URL } from '../config/map'
 import type { TrackSample } from '../types/track'
-import { formatMetricValue } from '../utils/metricPresentation'
+import {
+  formatHeelValue,
+  formatMetricValue,
+} from '../utils/metricPresentation'
 import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import { buildTrackGeometry, combineTrackBounds } from '../utils/trackGeometry'
 
@@ -21,8 +24,10 @@ interface TrackMapProps {
   playbackTime: number
   primarySog: number | null
   primaryCog: number | null
+  primaryHeel: number | null
   comparisonSog?: number | null
   comparisonCog?: number | null
+  comparisonHeel?: number | null
 }
 
 const PRIMARY_TRACK_PAINT = {
@@ -56,8 +61,10 @@ export default function TrackMap({
   playbackTime,
   primarySog,
   primaryCog,
+  primaryHeel,
   comparisonSog = null,
   comparisonCog = null,
+  comparisonHeel = null,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
   const primaryGeometry = useMemo(
@@ -179,7 +186,7 @@ export default function TrackMap({
       </Map>
       <div
         className="map-status"
-        aria-label="Current replay GPS time and SOG/COG telemetry"
+        aria-label="Current replay GPS time and SOG/COG/HEEL telemetry"
       >
         <div className="map-status__time">
           <span>GPS time</span>
@@ -187,11 +194,15 @@ export default function TrackMap({
         </div>
         <div className="map-status__telemetry">
           <span className="map-status__telemetry-row">
-            P · SOG {formatMetricValue('SOG', primarySog)} · COG {formatMetricValue('COG', primaryCog)}
+            P · SOG {formatMetricValue('SOG', primarySog)} · COG{' '}
+            {formatMetricValue('COG', primaryCog)} · HEEL{' '}
+            {formatHeelValue(primaryHeel)}
           </span>
           {hasComparison && (
             <span className="map-status__telemetry-row">
-              C · SOG {formatMetricValue('SOG', comparisonSog)} · COG {formatMetricValue('COG', comparisonCog)}
+              C · SOG {formatMetricValue('SOG', comparisonSog)} · COG{' '}
+              {formatMetricValue('COG', comparisonCog)} · HEEL{' '}
+              {formatHeelValue(comparisonHeel)}
             </span>
           )}
         </div>

@@ -3,6 +3,7 @@ import type { TrackSample } from '../types/track'
 import { filterSamplesByAnalysisWindow } from './analysisWindow'
 import {
   formatAverageSog,
+  formatHeelValue,
   formatMetricValue,
   resolveReplayPresentation,
   selectedReplayMetricValue,
@@ -11,8 +12,8 @@ import { timestampToMilliseconds } from './replay'
 
 const samples: TrackSample[] = [
   { utc: '2031-06-15T13:02:50Z', lat: 0, lon: 0, dist: 0, sog: 99, cog: 1, hdg: null, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 1, sog: 4, cog: 100, hdg: null, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:10Z', lat: 12, lon: 24, dist: 1, sog: 8, cog: 120, hdg: null, heel: null, trim: null },
+  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 1, sog: 4, cog: 100, hdg: null, heel: 7.2, trim: null },
+  { utc: '2031-06-15T13:03:10Z', lat: 12, lon: 24, dist: 1, sog: 8, cog: 120, hdg: null, heel: -6.3, trim: null },
   { utc: '2031-06-15T13:03:20Z', lat: 14, lon: 28, dist: 1, sog: 6, cog: 140, hdg: null, heel: null, trim: null },
   { utc: '2031-06-15T13:03:30Z', lat: 50, lon: 60, dist: 1, sog: 88, cog: 359, hdg: null, heel: null, trim: null },
 ]
@@ -21,7 +22,7 @@ const windowEnd = timestampToMilliseconds(samples[3].utc)
 const windowSamples = filterSamplesByAnalysisWindow(samples, windowStart, windowEnd)
 
 describe('selected replay metric presentation', () => {
-  it('resolves SOG and COG from the same nearest window sample', () => {
+  it('resolves SOG, COG, and HEEL from the same nearest window sample', () => {
     const result = resolveReplayPresentation(
       windowSamples,
       windowStart + 8_000,
@@ -29,8 +30,20 @@ describe('selected replay metric presentation', () => {
 
     expect(result.sog).toBe(8)
     expect(result.cog).toBe(120)
+    expect(result.heel).toBe(-6.3)
     expect(formatMetricValue('SOG', result.sog)).toBe('8.0 kt')
     expect(formatMetricValue('COG', result.cog)).toBe('120.0°')
+  })
+
+  it('preserves positive, negative, and unavailable HEEL presentation', () => {
+    expect(resolveReplayPresentation(windowSamples, windowStart).heel).toBe(7.2)
+    expect(resolveReplayPresentation(windowSamples, windowStart + 10_000).heel)
+      .toBe(-6.3)
+    expect(resolveReplayPresentation(windowSamples, windowEnd).heel).toBeNull()
+
+    expect(formatHeelValue(7.2)).toBe('7.2°')
+    expect(formatHeelValue(-7.2)).toBe('-7.2°')
+    expect(formatHeelValue(null)).toBe('—')
   })
 
   it('preserves nullable SOG and COG independently', () => {
@@ -62,8 +75,18 @@ describe('selected replay metric presentation', () => {
     const atStart = resolveReplayPresentation(windowSamples, windowStart)
     const atEnd = resolveReplayPresentation(windowSamples, windowEnd)
 
-    expect(atStart).toEqual({ position: { lat: 10, lon: 20 }, sog: 4, cog: 100 })
-    expect(atEnd).toEqual({ position: { lat: 14, lon: 28 }, sog: 6, cog: 140 })
+    expect(atStart).toEqual({
+      position: { lat: 10, lon: 20 },
+      sog: 4,
+      cog: 100,
+      heel: 7.2,
+    })
+    expect(atEnd).toEqual({
+      position: { lat: 14, lon: 28 },
+      sog: 6,
+      cog: 140,
+      heel: null,
+    })
   })
 
   it('keeps presentation-only position interpolation unchanged', () => {
@@ -81,9 +104,9 @@ describe('selected replay metric presentation', () => {
 
     expect(narrowSamples).toEqual([samples[2]])
     expect(resolveReplayPresentation(narrowSamples, windowStart + 1_000))
-      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120 })
+      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3 })
     expect(resolveReplayPresentation(narrowSamples, windowEnd - 1_000))
-      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120 })
+      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3 })
   })
 
   it('derives the selected ReplayControls metric from resolved telemetry', () => {
