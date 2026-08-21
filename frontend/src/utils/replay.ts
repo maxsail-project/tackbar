@@ -1,6 +1,8 @@
 import type { TrackSample } from '../types/track'
 
-export type PlaybackSpeed = 1 | 2 | 5 | 10
+export const PLAYBACK_SPEEDS = [1, 2, 5, 10] as const
+
+export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number]
 
 export interface SurroundingSamples {
   before: TrackSample

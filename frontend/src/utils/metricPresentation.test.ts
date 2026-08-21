@@ -6,7 +6,6 @@ import {
   formatHeelValue,
   formatMetricValue,
   resolveReplayPresentation,
-  selectedReplayMetricValue,
 } from './metricPresentation'
 import { timestampToMilliseconds } from './replay'
 
@@ -21,7 +20,7 @@ const windowStart = timestampToMilliseconds(samples[1].utc)
 const windowEnd = timestampToMilliseconds(samples[3].utc)
 const windowSamples = filterSamplesByAnalysisWindow(samples, windowStart, windowEnd)
 
-describe('selected replay metric presentation', () => {
+describe('replay presentation', () => {
   it('resolves SOG, COG, and HEEL from the same nearest window sample', () => {
     const result = resolveReplayPresentation(
       windowSamples,
@@ -107,16 +106,6 @@ describe('selected replay metric presentation', () => {
       .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3 })
     expect(resolveReplayPresentation(narrowSamples, windowEnd - 1_000))
       .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3 })
-  })
-
-  it('derives the selected ReplayControls metric from resolved telemetry', () => {
-    const presentation = resolveReplayPresentation(
-      windowSamples,
-      windowStart + 8_000,
-    )
-
-    expect(selectedReplayMetricValue(presentation, 'SOG')).toBe(8)
-    expect(selectedReplayMetricValue(presentation, 'COG')).toBe(120)
   })
 
   it('uses kt for Avg SOG and preserves unavailable presentation', () => {

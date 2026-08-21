@@ -4,8 +4,10 @@ import {
   advancePlaybackTime,
   clampPlaybackTime,
   findSurroundingSamples,
+  formatGpsTime,
   interpolatePosition,
   nearestSample,
+  PLAYBACK_SPEEDS,
   timestampToMilliseconds,
 } from './replay'
 
@@ -18,6 +20,10 @@ const samples: TrackSample[] = [
 const end = timestampToMilliseconds(samples[2].utc)
 
 describe('playback clock', () => {
+  it('keeps the four supported playback speeds', () => {
+    expect(PLAYBACK_SPEEDS).toEqual([1, 2, 5, 10])
+  })
+
   it.each([
     [1, 1_000],
     [2, 2_000],
@@ -34,6 +40,10 @@ describe('playback clock', () => {
 
   it('clamps advancement at the Activity end', () => {
     expect(advancePlaybackTime(end - 500, 1_000, 1, start, end)).toBe(end)
+  })
+
+  it('formats playbackTime as GPS HH:MM:SS', () => {
+    expect(formatGpsTime(start)).toBe('13:03:00')
   })
 })
 

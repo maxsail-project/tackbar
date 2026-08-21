@@ -369,26 +369,38 @@ input:focus-visible {
 
 .replay-time {
   color: #17323a;
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
 }
 
-.replay-readout {
-  display: grid;
-  justify-items: end;
+.replay-section {
+  padding-top: 14px;
+  padding-bottom: 16px;
 }
 
-.replay-readout span {
-  margin-top: 3px;
-  color: #52717a;
-  font-size: 0.76rem;
-  font-weight: 750;
+.replay-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.replay-scrub-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.replay-scrub {
+  min-width: 0;
 }
 
 .replay-slider {
   width: 100%;
   min-height: 44px;
-  margin: 12px 0 0;
+  margin: 0;
   accent-color: #ed7658;
   cursor: pointer;
   touch-action: pan-x;
@@ -397,17 +409,17 @@ input:focus-visible {
 .replay-range {
   display: flex;
   justify-content: space-between;
-  margin: -3px 0 12px;
+  margin: -5px 0 0;
   color: #6b7f85;
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
 }
 
-.replay-actions {
+.replay-speed-row {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  gap: 10px;
+  margin-top: 5px;
 }
 
 .play-button,
@@ -428,6 +440,7 @@ input:focus-visible {
 }
 
 .speed-options {
+  grid-column: 2;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;

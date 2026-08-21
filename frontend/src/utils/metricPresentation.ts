@@ -35,13 +35,6 @@ export function resolveReplayPresentation(
   }
 }
 
-export function selectedReplayMetricValue(
-  presentation: ReplayPresentation,
-  metric: EnabledReplayMetric,
-) {
-  return metric === 'SOG' ? presentation.sog : presentation.cog
-}
-
 export function formatMetricValue(
   metric: EnabledReplayMetric,
   value: number | null,
@@ -51,13 +44,6 @@ export function formatMetricValue(
   }
 
   return metric === 'SOG' ? `${value.toFixed(1)} kt` : `${value.toFixed(1)}°`
-}
-
-export function formatReplayMetric(
-  metric: EnabledReplayMetric,
-  value: number | null,
-): string {
-  return `${metric} ${formatMetricValue(metric, value)}`
 }
 
 export function formatHeelValue(value: number | null): string {

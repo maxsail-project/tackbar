@@ -32,7 +32,6 @@ import {
 } from '../utils/replay'
 import {
   resolveReplayPresentation,
-  selectedReplayMetricValue,
 } from '../utils/metricPresentation'
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
 import { formatActivityIdentity } from '../utils/activityLabel'
@@ -204,11 +203,6 @@ function SessionViewer({ session }: { session: SessionDetail }) {
     ),
     [comparisonWindowSamples, playbackTime],
   )
-  const primaryCurrentMetric = selectedReplayMetricValue(
-    primaryReplayPresentation,
-    selectedMetric,
-  )
-
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
@@ -442,8 +436,6 @@ function SessionViewer({ session }: { session: SessionDetail }) {
           playbackTime={playbackTime}
           replayStart={windowStart}
           replayEnd={windowEnd}
-          selectedMetric={selectedMetric}
-          currentMetric={primaryCurrentMetric}
           isPlaying={isPlaying}
           speed={speed}
           onTogglePlayback={togglePlayback}
