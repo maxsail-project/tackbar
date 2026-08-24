@@ -19,10 +19,17 @@ For work related to Sessions, Activities, tracks, comparison, metrics, replay, o
 
 `docs/session-viewer-requirements.md`
 
-For v0.4 work related to Sailor, Boat, the Session Viewer API,
-frontend/backend integration, or collaborative debriefing, also read:
+For work that depends on the delivered v0.4 Sailor/Boat model, Session Viewer API, frontend/backend integration, or collaborative debriefing baseline, also read:
 
 `docs/v0.4-collaborative-debrief-requirements.md`
+
+For v0.5 Real Sailing Pilot work related to consent, pilot access, admin operations, Gmail ingestion operation, shared Session visibility, capability URLs, Session expiration, retention behavior, or pilot administration, also read:
+
+`docs/v0.5-real-sailing-pilot-requirements.md`
+
+For any v0.5 task involving product behavior, privacy, consent, access, retention, Gmail operation, admin workflows, hosting constraints, or deferred scope, also read:
+
+`docs/v0.5-decisions.md`
 
 Treat these documents as repository constraints, not optional background.
 
@@ -38,37 +45,42 @@ Interpret repository instructions in this order:
 4. explicit task prompt
 5. existing implementation and tests
 
+An explicit task may select or narrow work within the applicable requirements, but it does not override higher-priority repository instructions. If the requested outcome requires changing those requirements, report the conflict and request an explicit documentation change before implementing it.
+
 Do not silently invent an interpretation when instructions conflict.
+
+Historical requirement documents may contain deferred or future ideas. Those references do not automatically make an item part of the current release scope. Current release requirements govern implementation scope.
 
 ## Current PoC focus
 
-The current product-validation flow is:
+The delivered v0.4 product flow is:
 
 `track sharing → ingestion → Sailor → Activity + optional Boat → Session → mobile Session Viewer → one/two-boat comparison → shared GPS time window → replay → basic visual metrics`
 
-The Session Viewer model is:
+The v0.5 Real Sailing Pilot extends that baseline with controlled real-user operation:
 
-`Session → primary Activity → optional comparison Activity → shared Analysis Window → map / table / metric chart / replay`
+`invite / consent → Sailor → email track → admin-triggered ingestion → Activity → existing Session matching → ACTIVE-only shared visibility → capability URL → collaborative debrief`
 
 Important current constraints:
 
 - An Activity is one track received by TackBar and may be complete or partial.
-- Sailor is the person-level runtime identity and Boat is a separate sailing
-  context.
+- Sailor is the person-level runtime identity and Boat is a separate sailing context.
 - An Activity requires a Sailor and may reference a Boat.
 - A Sailor may have multiple Activities in the same Session.
 - Do not automatically merge or split Activities.
+- Existing Session matching remains the v0.4 baseline unless explicitly changed by a future requirement.
 - Compare at most two Activities in the current PoC.
 - Compared Activities use the same GPS/UTC Analysis Window.
-- Compared Activities use the same selected analytical/chart metric: SOG, COG,
-  HEEL or TRIM.
+- Compared Activities use the same selected analytical/chart metric: SOG, COG, HEEL or TRIM.
 - Replay uses one shared GPS clock (`playbackTime`) for both Activities.
 - Replay speeds are x1, x2, x5, and x10.
-- Replay is a temporal control only. The map independently presents fixed
-  instantaneous GPS time, SOG, COG and HEEL telemetry; TRIM is not map
-  telemetry.
+- Replay is a temporal control only. The map independently presents fixed instantaneous GPS time, SOG, COG and HEEL telemetry; TRIM is not map telemetry.
+- Consent controls shared visibility, not technical Activity ingestion or Session matching.
+- Shared Session responses must enforce ACTIVE-only visibility in the backend.
+- v0.5 Session access uses a capability URL and does not require Sailor login.
+- Human-operated admin workflows are acceptable for the v0.5 PoC where explicitly allowed by the v0.5 requirements.
 
-Do not implement future roadmap items unless explicitly requested.
+Do not implement future roadmap or backlog items unless explicitly requested.
 
 ## Development approach
 
@@ -80,6 +92,7 @@ Do not implement future roadmap items unless explicitly requested.
 - Keep external providers such as Gmail, Vakaros, and future Garmin integrations as adapters.
 - Reuse validated sailing-domain knowledge from MaxSail when useful, but do not inherit MaxSail's Streamlit architecture or reproduce MaxSail Analytics by default.
 - Do not invent domain concepts, fields, or semantics.
+- Preserve already validated v0.4 behavior unless the current requirement explicitly changes it.
 
 ## Technology direction
 
@@ -128,7 +141,7 @@ Do not derive HDG from COG unless explicitly required.
 
 Use real sailing files as fixtures when possible.
 
-Add or update focused tests when changing domain behavior, including parsing, normalization, persistence, deduplication, Session matching, time filtering, angular calculations, replay utilities, or API contracts.
+Add or update focused tests when changing domain behavior, including parsing, normalization, persistence, deduplication, Session matching, consent visibility, capability access, expiration, time filtering, angular calculations, replay utilities, or API contracts.
 
 Run the relevant checks after implementation.
 
@@ -162,6 +175,51 @@ Implementation and documentation are separate tasks.
 
 When completing implementation work, summarize relevant changes in the task result so they can be reviewed and documented later if appropriate.
 
+### Documentation responsibilities
+
+Use documents for distinct purposes:
+
+- `ROADMAP.md`: high-level product milestones and release direction.
+- `docs/*-requirements.md`: requirements and acceptance criteria for a specific delivered/current product chapter.
+- `docs/*-decisions.md`: closed product/architecture decision rationale when preserving that rationale is useful.
+- `docs/product-backlog.md`: canonical inventory of future work that is valid but not committed to the current release.
+- `CHANGELOG.md`: delivered release changes.
+
+Historical requirements may retain deferred ideas for context, but `docs/product-backlog.md` is the canonical place to track future work across releases.
+
+Do not autonomously move, add, prioritize, or assign future work to a release merely because it appears in an older requirements document. If a task discovers a future item that should be tracked, report it and update the backlog only when documentation changes are explicitly requested.
+
+## Backlog maintenance
+
+`docs/product-backlog.md` is the canonical inventory of unfinished future work.
+
+It must contain pending work only. Delivered items should be removed rather
+than retained as historical records; delivered history belongs in code,
+tests, requirements, CHANGELOG and release notes where applicable.
+
+Agents MAY update the backlog only when documentation changes are explicitly requested and one of the following applies:
+
+- an explicitly requested implementation introduces a clear future follow-up;
+- an implementation completes an existing backlog item;
+- a documentation/release sanity-check task includes backlog reconciliation.
+
+When explicitly requested, backlog maintenance should normally happen during
+the final review or sanity check of an increment, not opportunistically during
+unrelated coding work.
+
+When reconciling the backlog, agents should:
+
+- remove items that are now delivered;
+- add concrete future work discovered during implementation;
+- merge duplicates;
+- update items whose context or scope changed;
+- preserve links to source requirements when useful;
+- avoid inventing priority, release assignment or product commitments that
+  have not been decided.
+
+If it is unclear whether something is a valid backlog item, report it instead
+of adding it automatically.
+
 ## Git and release safety
 
 Do not commit or push unless explicitly requested.
@@ -169,6 +227,8 @@ Do not commit or push unless explicitly requested.
 Do not create tags, releases, or version bumps unless explicitly requested.
 
 The human developer controls staging, commits, pushes, tags, and releases.
+
+Never stage broad repository changes with `git add .`, `git add -A`, or equivalent broad staging. Use exact intended paths when staging is explicitly authorized.
 
 ## Scope discipline
 
