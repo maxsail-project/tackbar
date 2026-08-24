@@ -3,12 +3,20 @@
     "id": "30000000-0000-4000-8000-000000000001",
     "email": "sailor-a@example.com",
     "name": "Sailor A",
-    "default_boat_id": "40000000-0000-4000-8000-000000000001"
+    "default_boat_id": "40000000-0000-4000-8000-000000000001",
+    "consent_status": "ACTIVE",
+    "consent_request_sent_at": null,
+    "consent_granted_at": "2031-06-01T12:00:00+00:00",
+    "consent_revoked_at": null
   },
   {
     "id": "30000000-0000-4000-8000-000000000002",
     "email": "sailor-b@example.com",
     "name": "Sailor B",
-    "default_boat_id": "40000000-0000-4000-8000-000000000002"
+    "default_boat_id": "40000000-0000-4000-8000-000000000002",
+    "consent_status": "ACTIVE",
+    "consent_request_sent_at": null,
+    "consent_granted_at": "2031-06-01T12:00:00+00:00",
+    "consent_revoked_at": null
   }
 ]

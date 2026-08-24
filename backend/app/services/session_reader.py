@@ -10,6 +10,10 @@ from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
+from app.services.shared_activity_visibility import (
+    SharedActivityVisibilityError,
+    shareable_sailor,
+)
 
 
 class SessionDataIntegrityError(Exception):
@@ -35,8 +39,9 @@ class SessionReader:
             return []
         state = self._load_state()
         details = [
-            self._compose_session(session, *state)
+            detail
             for session in sessions
+            if (detail := self._compose_session(session, *state)) is not None
         ]
         return [
             SessionSummaryResponse(
@@ -77,7 +82,7 @@ class SessionReader:
         activities_by_id: dict[str, StoredActivity],
         sailors_by_id: dict[str, Sailor],
         boats_by_id: dict[str, Boat],
-    ) -> SessionDetailResponse:
+    ) -> SessionDetailResponse | None:
         activities = []
         for activity_id in session.activity_ids:
             activity = activities_by_id.get(activity_id)
@@ -86,11 +91,12 @@ class SessionReader:
                     f"Session references unknown Activity: {activity_id}"
                 )
 
-            sailor = sailors_by_id.get(activity.sailor_id)
-            if sailor is None:
+            try:
+                sailor = shareable_sailor(activity, sailors_by_id)
+            except SharedActivityVisibilityError as error:
                 raise SessionDataIntegrityError(
                     f"Activity references unknown Sailor: {activity.id}"
-                )
+                ) from error
 
             boat = None
             if activity.boat_id is not None:
@@ -99,6 +105,9 @@ class SessionReader:
                     raise SessionDataIntegrityError(
                         f"Activity references unknown Boat: {activity.id}"
                     )
+
+            if sailor is None:
+                continue
 
             activities.append(
                 ActivityContextResponse(
@@ -128,7 +137,7 @@ class SessionReader:
             )
 
         if not activities:
-            raise SessionDataIntegrityError("Session contains no Activities")
+            return None
 
         return SessionDetailResponse(
             id=session.id,

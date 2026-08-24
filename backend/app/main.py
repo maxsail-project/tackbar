@@ -79,6 +79,7 @@ def _session_reader() -> SessionReader:
 def _activity_track_reader() -> ActivityTrackReader:
     return ActivityTrackReader(
         ActivityRepository(),
+        SailorRepository(),
         TrackStorage(),
     )
 

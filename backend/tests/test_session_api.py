@@ -76,12 +76,14 @@ def _runtime_root(temporary_directory: Path) -> Path:
                 "email": "sailor-a@example.com",
                 "name": "Sailor A",
                 "default_boat_id": BOAT_B,
+                "consent_status": "ACTIVE",
             },
             {
                 "id": SAILOR_B,
                 "email": "sailor-b@example.com",
                 "name": None,
                 "default_boat_id": None,
+                "consent_status": "ACTIVE",
             },
         ],
     )
@@ -203,6 +205,16 @@ def _use_runtime(
     return root
 
 
+def _set_consent_status(root: Path, sailor_id: str, status: str) -> None:
+    sailors = json.loads(
+        (root / "sailors.json").read_text(encoding="utf-8")
+    )
+    next(sailor for sailor in sailors if sailor["id"] == sailor_id)[
+        "consent_status"
+    ] = status
+    _write_json(root / "sailors.json", sailors)
+
+
 def test_session_list_returns_derived_summaries_newest_first(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,
@@ -295,6 +307,85 @@ def test_session_detail_preserves_activity_order_and_resolves_context(
     assert "boat_id" not in activities[1]
 
 
+def test_mixed_session_exposes_only_active_activity_and_visible_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    _set_consent_status(root, SAILOR_A, "PENDING")
+
+    list_response = _get("/api/sessions")
+    detail_response = _get(f"/api/sessions/{SESSION_OLD}")
+
+    old_summary = next(
+        session for session in list_response.json if session["id"] == SESSION_OLD
+    )
+    assert old_summary == {
+        "id": SESSION_OLD,
+        "start_time": "2031-06-15T09:00:00Z",
+        "end_time": "2031-06-15T10:00:00Z",
+        "activity_count": 1,
+    }
+    assert detail_response.status_code == 200
+    assert [
+        activity["id"] for activity in detail_response.json["activities"]
+    ] == [ACTIVITY_B]
+    assert ACTIVITY_A not in json.dumps(detail_response.json)
+
+
+@pytest.mark.parametrize("hidden_status", ["PENDING", "REVOKED"])
+def test_session_with_no_active_activities_is_unavailable_and_unlisted(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    hidden_status: str,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    _set_consent_status(root, SAILOR_A, hidden_status)
+
+    list_response = _get("/api/sessions")
+    detail_response = _get(f"/api/sessions/{SESSION_NEW}")
+
+    assert SESSION_NEW not in {
+        session["id"] for session in list_response.json
+    }
+    assert detail_response.status_code == 404
+    assert detail_response.json == {"detail": "Session not found"}
+    sessions = json.loads(
+        (root / "sessions.json").read_text(encoding="utf-8")
+    )
+    assert next(session for session in sessions if session["id"] == SESSION_NEW)[
+        "activity_ids"
+    ] == [ACTIVITY_C]
+
+
+def test_consent_changes_visibility_without_changing_session_membership(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    session_path = root / "sessions.json"
+    membership_before = session_path.read_bytes()
+    _set_consent_status(root, SAILOR_B, "PENDING")
+
+    pending_response = _get(f"/api/sessions/{SESSION_OLD}")
+    _set_consent_status(root, SAILOR_B, "ACTIVE")
+    active_response = _get(f"/api/sessions/{SESSION_OLD}")
+    _set_consent_status(root, SAILOR_A, "REVOKED")
+    revoked_response = _get(f"/api/sessions/{SESSION_OLD}")
+
+    assert [activity["id"] for activity in pending_response.json["activities"]] == [
+        ACTIVITY_A
+    ]
+    assert [activity["id"] for activity in active_response.json["activities"]] == [
+        ACTIVITY_B,
+        ACTIVITY_A,
+    ]
+    assert [activity["id"] for activity in revoked_response.json["activities"]] == [
+        ACTIVITY_B
+    ]
+    assert session_path.read_bytes() == membership_before
+
+
 def test_unknown_session_returns_404(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,
@@ -343,6 +434,30 @@ def test_broken_persisted_references_return_generic_500(
         "detail": "Persisted Session data is inconsistent"
     }
     assert missing_value not in json.dumps(response.json)
+
+
+def test_hidden_activity_with_missing_boat_returns_generic_500(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    missing_boat_id = "49999999-9999-4999-8999-999999999999"
+    _set_consent_status(root, SAILOR_A, "PENDING")
+    activities = json.loads(
+        (root / "activities.json").read_text(encoding="utf-8")
+    )
+    next(activity for activity in activities if activity["id"] == ACTIVITY_A)[
+        "boat_id"
+    ] = missing_boat_id
+    _write_json(root / "activities.json", activities)
+
+    response = _get(f"/api/sessions/{SESSION_OLD}")
+
+    assert response.status_code == 500
+    assert response.json == {
+        "detail": "Persisted Session data is inconsistent"
+    }
+    assert missing_boat_id not in json.dumps(response.json)
 
 
 def test_session_api_requests_do_not_modify_persistence(

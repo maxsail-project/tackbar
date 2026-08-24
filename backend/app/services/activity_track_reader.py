@@ -2,6 +2,11 @@ import pandas as pd
 
 from app.api_models import ActivityTrackResponse, TrackSampleResponse
 from app.repositories.activities import ActivityRepository
+from app.repositories.sailors import SailorRepository
+from app.services.shared_activity_visibility import (
+    SharedActivityVisibilityError,
+    shareable_sailor,
+)
 from app.storage.track_storage import TrackStorage
 
 
@@ -13,13 +18,26 @@ class ActivityTrackReader:
     def __init__(
         self,
         activities: ActivityRepository,
+        sailors: SailorRepository,
         storage: TrackStorage,
     ) -> None:
         self.activities = activities
+        self.sailors = sailors
         self.storage = storage
 
     def get_track(self, activity_id: str) -> ActivityTrackResponse | None:
-        if self.activities.get_by_id(activity_id) is None:
+        activity = self.activities.get_by_id(activity_id)
+        if activity is None:
+            return None
+
+        try:
+            sailor = shareable_sailor(
+                activity,
+                {sailor.id: sailor for sailor in self.sailors.all()},
+            )
+        except SharedActivityVisibilityError as error:
+            raise ActivityTrackDataIntegrityError from error
+        if sailor is None:
             return None
 
         try:

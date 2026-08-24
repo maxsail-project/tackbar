@@ -13,6 +13,7 @@ from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
 
 ACTIVITY_ID = "10000000-0000-4000-8000-000000000001"
 OTHER_ACTIVITY_ID = "10000000-0000-4000-8000-000000000002"
+SAILOR_ID = "30000000-0000-4000-8000-000000000001"
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ class ApiResponse:
 def _activity_record() -> dict[str, object]:
     return {
         "id": ACTIVITY_ID,
-        "sailor_id": "30000000-0000-4000-8000-000000000001",
+        "sailor_id": SAILOR_ID,
         "boat_id": None,
         "source": "vakaros",
         "device_name": "demo-device",
@@ -103,7 +104,27 @@ def _runtime_root(temporary_directory: Path) -> Path:
     root = temporary_directory / "track-api-runtime"
     (root / "tracks").mkdir(parents=True)
     _write_json(root / "activities.json", [_activity_record()])
+    _write_json(
+        root / "sailors.json",
+        [
+            {
+                "id": SAILOR_ID,
+                "email": "sailor-a@example.com",
+                "name": "Sailor A",
+                "default_boat_id": None,
+                "consent_status": "ACTIVE",
+            }
+        ],
+    )
     return root
+
+
+def _set_consent_status(root: Path, status: str) -> None:
+    sailors = json.loads(
+        (root / "sailors.json").read_text(encoding="utf-8")
+    )
+    sailors[0]["consent_status"] = status
+    _write_json(root / "sailors.json", sailors)
 
 
 def _write_track(root: Path, track: pd.DataFrame) -> Path:
@@ -233,6 +254,37 @@ def test_unknown_activity_returns_404_before_track_loading(
 
     assert response.status_code == 404
     assert response.json == {"detail": "Activity not found"}
+
+
+@pytest.mark.parametrize("hidden_status", ["PENDING", "REVOKED"])
+def test_non_active_activity_returns_404_before_track_loading(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    hidden_status: str,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    _set_consent_status(root, hidden_status)
+
+    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+
+    assert response.status_code == 404
+    assert response.json == {"detail": "Activity not found"}
+
+
+def test_activity_referencing_missing_sailor_returns_generic_500(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    _write_json(root / "sailors.json", [])
+    _write_track(root, _track_frame())
+
+    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+
+    assert response.status_code == 500
+    assert response.json == {
+        "detail": "Persisted Activity track data is inconsistent"
+    }
 
 
 def test_known_activity_with_missing_track_returns_generic_500(
