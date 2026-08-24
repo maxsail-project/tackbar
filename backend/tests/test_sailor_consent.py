@@ -228,3 +228,16 @@ def test_invalid_consent_transition_is_rejected_clearly(
         service.revoke_consent(SAILOR_ID, source="invalid")
 
     assert len(events.all()) == event_count
+
+
+def test_invalid_event_is_rejected_before_sailor_state_changes(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    service, sailors, events = _service(temporary_json_file)
+    before = sailors.get_by_id(SAILOR_ID)
+
+    with pytest.raises(ValueError, match="source must not be empty"):
+        service.confirm_consent(SAILOR_ID, source="  ")
+
+    assert sailors.get_by_id(SAILOR_ID) == before
+    assert events.all() == []

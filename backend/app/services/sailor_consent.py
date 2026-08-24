@@ -154,6 +154,7 @@ class SailorConsentService:
         sailor: Sailor,
         event: ConsentEvent,
     ) -> Sailor:
+        self.events.validate(event)
         self.sailors.replace(sailor)
         self.events.append(event)
         return sailor

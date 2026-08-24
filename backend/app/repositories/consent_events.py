@@ -21,18 +21,22 @@ class ConsentEventRepository:
             raise ValueError("Consent event storage must contain a JSON list")
         events = [_deserialize_event(item) for item in data]
         for event in events:
-            _validate_event(event)
+            self.validate(event)
         return events
 
     def for_sailor(self, sailor_id: str) -> list[ConsentEvent]:
         return [event for event in self.all() if event.sailor_id == sailor_id]
 
     def append(self, event: ConsentEvent) -> ConsentEvent:
-        _validate_event(event)
+        self.validate(event)
         events = self.all()
         events.append(event)
         self._save(events)
         return event
+
+    @staticmethod
+    def validate(event: ConsentEvent) -> None:
+        _validate_event(event)
 
     def _save(self, events: list[ConsentEvent]) -> None:
         records = []
