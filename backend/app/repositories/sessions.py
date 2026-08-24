@@ -45,8 +45,8 @@ class SessionRepository:
             else:
                 record["created_at"] = _parse_datetime(record["created_at"])
                 record["expires_at"] = _parse_datetime(record["expires_at"])
-            if record["expires_at"] != record["created_at"] + timedelta(days=60):
-                raise ValueError("Session expiry must be exactly 60 days after creation")
+            if record["expires_at"] <= record["created_at"]:
+                raise ValueError("Session expiry must be after creation")
             sessions.append(Session(**record))
         if migrated:
             self._save(sessions)

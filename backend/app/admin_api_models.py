@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 
 
 ConsentOperationalGroup = Literal[
@@ -44,3 +44,7 @@ class AdminSessionResponse(BaseModel):
     capability_state: CapabilityState
     capability_token: str | None
     capability_path: str | None
+
+
+class AdminSessionRenewRequest(BaseModel):
+    days: StrictInt = 30

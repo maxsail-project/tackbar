@@ -1,6 +1,7 @@
 import asyncio
 import json
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -92,7 +93,7 @@ def _session(
     activity_ids: list[str],
     token: str | None,
     revoked: bool = False,
-    created_at: str = "2099-01-01T00:00:00+00:00",
+    created_at: str = "2026-01-01T00:00:00+00:00",
     expires_at: str = "2099-03-02T00:00:00+00:00",
 ) -> dict[str, object]:
     return {
@@ -138,11 +139,15 @@ def _request(
     path: str,
     admin_key: str | None = ADMIN_KEY,
     query_string: str = "",
+    json_body: object | None = None,
 ) -> ApiResponse:
     messages: list[dict[str, object]] = []
+    body = b"" if json_body is None else json.dumps(json_body).encode("utf-8")
     headers = [] if admin_key is None else [
         (b"x-tackbar-admin-key", admin_key.encode("utf-8"))
     ]
+    if json_body is not None:
+        headers.append((b"content-type", b"application/json"))
 
     async def request() -> None:
         received = False
@@ -150,7 +155,7 @@ def _request(
             nonlocal received
             if not received:
                 received = True
-                return {"type": "http.request", "body": b"", "more_body": False}
+                return {"type": "http.request", "body": body, "more_body": False}
             return {"type": "http.disconnect"}
         async def send(message: dict[str, object]) -> None:
             messages.append(message)
@@ -192,7 +197,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 9
+    assert len(admin_router.routes) == 10
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -273,7 +278,7 @@ def test_admin_sessions_include_internal_counts_lifetime_and_all_states(monkeypa
 
     assert sessions[SESSION_ACTIVE] == {
         "id": SESSION_ACTIVE,
-        "created_at": "2099-01-01T00:00:00Z",
+        "created_at": "2026-01-01T00:00:00Z",
         "expires_at": "2099-03-02T00:00:00Z",
         "total_activity_count": 3,
         "visible_activity_count": 1,
@@ -341,6 +346,102 @@ def test_expired_session_is_inspectable_but_cannot_regenerate(monkeypatch: pytes
     assert inspected.json["capability_state"] == "expired"
     assert inspected.json["total_activity_count"] == 2
     assert regenerated.status_code == 409
+
+
+def test_session_renewal_resets_lifetime_from_now_and_preserves_capability_state(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    before = datetime.now(timezone.utc)
+    active = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/renew")
+    expired = _request(
+        "POST",
+        f"/api/admin/sessions/{SESSION_EXPIRED}/renew",
+        json_body={"days": 60},
+    )
+    revoked = _request("POST", f"/api/admin/sessions/{SESSION_REVOKED}/renew")
+    never = _request("POST", f"/api/admin/sessions/{SESSION_NEVER}/renew")
+    after = datetime.now(timezone.utc)
+
+    assert active.status_code == expired.status_code == revoked.status_code == never.status_code == 200
+    assert datetime.fromisoformat(active.json["expires_at"].replace("Z", "+00:00")) >= before + timedelta(days=30)
+    assert datetime.fromisoformat(active.json["expires_at"].replace("Z", "+00:00")) <= after + timedelta(days=30)
+    assert datetime.fromisoformat(expired.json["expires_at"].replace("Z", "+00:00")) >= before + timedelta(days=60)
+    assert datetime.fromisoformat(expired.json["expires_at"].replace("Z", "+00:00")) <= after + timedelta(days=60)
+    assert active.json["created_at"] == "2026-01-01T00:00:00Z"
+    assert active.json["capability_token"] == ACTIVE_TOKEN
+    assert expired.json["capability_token"] == EXPIRED_TOKEN
+    assert revoked.json["capability_state"] == "revoked"
+    assert never.json["capability_state"] == "never_generated"
+    assert _request("GET", f"/api/shared/sessions/{EXPIRED_TOKEN}", admin_key=None).status_code == 200
+
+
+def test_session_renewal_validation_auth_and_explicit_regeneration(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    minimum = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/renew", json_body={"days": 1})
+    maximum = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/renew", json_body={"days": 365})
+    invalid_zero = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/renew", json_body={"days": 0})
+    invalid_large = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/renew", json_body={"days": 366})
+    invalid_bodies = [
+        _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/renew", json_body={"days": value})
+        for value in (True, 30.0, "30")
+    ]
+    missing = _request("POST", "/api/admin/sessions/unknown/renew")
+    capability_only = _request(
+        "POST",
+        f"/api/admin/sessions/{SESSION_ACTIVE}/renew",
+        admin_key=ACTIVE_TOKEN,
+    )
+    renewed_revoked = _request("POST", f"/api/admin/sessions/{SESSION_REVOKED}/renew")
+    regenerated = _request("POST", f"/api/admin/sessions/{SESSION_REVOKED}/capability/regenerate")
+
+    assert minimum.status_code == maximum.status_code == 200
+    assert invalid_zero.status_code == invalid_large.status_code == 409
+    assert all(response.status_code == 422 for response in invalid_bodies)
+    assert missing.status_code == 404
+    assert capability_only.status_code == 401
+    assert renewed_revoked.json["capability_state"] == "revoked"
+    assert regenerated.status_code == 200
+    assert regenerated.json["capability_state"] == "active"
+
+
+def test_session_renewal_preserves_active_only_visibility(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    never = next(item for item in sessions if item["id"] == SESSION_NEVER)
+    never["capability_token"] = REVOKED_TOKEN
+    _write_json(root / "sessions.json", sessions)
+
+    before = _request("GET", f"/api/admin/sessions/{SESSION_NEVER}")
+    renewed = _request("POST", f"/api/admin/sessions/{SESSION_NEVER}/renew")
+    unavailable = _request(
+        "GET",
+        f"/api/shared/sessions/{REVOKED_TOKEN}",
+        admin_key=None,
+    )
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    pending = next(item for item in sailors if item["id"] == PENDING_NEEDS)
+    pending["consent_status"] = "ACTIVE"
+    pending["consent_granted_at"] = "2026-08-24T12:00:00+00:00"
+    _write_json(root / "sailors.json", sailors)
+    available = _request(
+        "GET",
+        f"/api/shared/sessions/{REVOKED_TOKEN}",
+        admin_key=None,
+    )
+
+    assert renewed.status_code == 200
+    assert renewed.json["total_activity_count"] == before.json["total_activity_count"]
+    assert renewed.json["visible_activity_count"] == before.json["visible_activity_count"] == 0
+    assert unavailable.status_code == 404
+    assert available.status_code == 200
 
 
 def test_capability_revoke_edge_cases_are_idempotent_and_explicit(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

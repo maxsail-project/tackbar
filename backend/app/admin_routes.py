@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.admin_api_models import (
     AdminSailorDetailResponse,
     AdminSailorResponse,
+    AdminSessionRenewRequest,
     AdminSessionResponse,
 )
 from app.admin_auth import require_admin_key
@@ -21,6 +22,10 @@ from app.services.session_capabilities import (
     SessionCapabilityIntegrityError,
     SessionCapabilityOperationError,
     SessionCapabilityService,
+)
+from app.services.session_lifetime import (
+    SessionLifetimeOperationError,
+    SessionLifetimeService,
 )
 
 
@@ -101,6 +106,34 @@ def list_sessions() -> list[AdminSessionResponse]:
 
 @router.get("/sessions/{session_id}", response_model=AdminSessionResponse)
 def get_session(session_id: str) -> AdminSessionResponse:
+    return _get_admin_session(session_id)
+
+
+@router.post(
+    "/sessions/{session_id}/renew",
+    response_model=AdminSessionResponse,
+)
+def renew_session(
+    session_id: str,
+    request: AdminSessionRenewRequest | None = None,
+) -> AdminSessionResponse:
+    sessions = SessionRepository()
+    try:
+        if sessions.get_by_id(session_id) is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        SessionLifetimeService(sessions).renew_session(
+            session_id,
+            days=request.days if request is not None else 30,
+        )
+    except HTTPException:
+        raise
+    except SessionLifetimeOperationError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Session renewal rejected",
+        ) from error
+    except ValueError as error:
+        raise _admin_integrity_error() from error
     return _get_admin_session(session_id)
 
 
