@@ -1,4 +1,4 @@
-import type { SessionDetail, SessionListItem } from '../types/session'
+import type { SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 
 export class TackBarApiError extends Error {
@@ -61,21 +61,21 @@ async function requestJson<T>(
   }
 }
 
-export function getSessions(signal?: AbortSignal) {
-  return requestJson<SessionListItem[]>('/api/sessions', signal)
-}
-
-export function getSession(sessionId: string, signal?: AbortSignal) {
+export function getSharedSession(token: string, signal?: AbortSignal) {
   return requestJson<SessionDetail>(
-    `/api/sessions/${encodeURIComponent(sessionId)}`,
+    `/api/shared/sessions/${encodeURIComponent(token)}`,
     signal,
     () => new SessionNotFoundError(),
   )
 }
 
-export function getActivityTrack(activityId: string, signal?: AbortSignal) {
+export function getSharedActivityTrack(
+  token: string,
+  activityId: string,
+  signal?: AbortSignal,
+) {
   return requestJson<ActivityTrack>(
-    `/api/activities/${encodeURIComponent(activityId)}/track`,
+    `/api/shared/sessions/${encodeURIComponent(token)}/activities/${encodeURIComponent(activityId)}/track`,
     signal,
     () => new ActivityTrackNotFoundError(),
   )

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import {
   ActivityTrackNotFoundError,
-  getActivityTrack,
-  getSession,
+  getSharedActivityTrack,
+  getSharedSession,
   SessionNotFoundError,
 } from '../api/tackbarApi'
 import ActivitySelector from '../components/ActivitySelector'
@@ -46,6 +46,7 @@ interface TrackLoadState {
 }
 
 function useActivityTrack(
+  token: string,
   activityId: string | null,
   cache: Map<string, ActivityTrack>,
 ): TrackLoadState {
@@ -71,7 +72,7 @@ function useActivityTrack(
     let isCurrent = true
     setState({ activityId, status: 'loading', track: null })
 
-    getActivityTrack(activityId, controller.signal).then((track) => {
+    getSharedActivityTrack(token, activityId, controller.signal).then((track) => {
       if (!isCurrent) return
       if (track.activity_id !== activityId) {
         setState({ activityId, status: 'error', track: null })
@@ -92,7 +93,7 @@ function useActivityTrack(
       isCurrent = false
       controller.abort()
     }
-  }, [activityId, cache])
+  }, [activityId, cache, token])
 
   return state
 }
@@ -105,7 +106,7 @@ function activityTrackRange(track: ActivityTrack | null) {
   )
 }
 
-function SessionViewer({ session }: { session: SessionDetail }) {
+function SessionViewer({ token, session }: { token: string, session: SessionDetail }) {
   const [primaryActivityId, setPrimaryActivityId] = useState(
     session.activities[0]?.id ?? '',
   )
@@ -124,8 +125,8 @@ function SessionViewer({ session }: { session: SessionDetail }) {
   const comparisonOptions = session.activities.filter(
     (activity) => activity.id !== primaryActivityId,
   )
-  const primaryTrackState = useActivityTrack(primaryActivityId || null, trackCache)
-  const comparisonTrackState = useActivityTrack(comparisonActivityId, trackCache)
+  const primaryTrackState = useActivityTrack(token, primaryActivityId || null, trackCache)
+  const comparisonTrackState = useActivityTrack(token, comparisonActivityId, trackCache)
   const primaryTrack = primaryTrackState.activityId === primaryActivityId
     && primaryTrackState.status === 'ready'
     ? primaryTrackState.track
@@ -361,7 +362,6 @@ function SessionViewer({ session }: { session: SessionDetail }) {
     <main className="page-shell viewer-page">
       <header className="app-header viewer-header">
         <div>
-          <Link className="back-link" to="/sessions">← Sessions</Link>
           <p className="brand">TackBar</p>
           <h1>{formatSessionRange(session.start_time, session.end_time)}</h1>
         </div>
@@ -475,7 +475,7 @@ function SessionViewer({ session }: { session: SessionDetail }) {
 }
 
 export default function SessionViewerPage() {
-  const { sessionId } = useParams()
+  const { token } = useParams()
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
 
@@ -486,7 +486,7 @@ export default function SessionViewerPage() {
     setSession(null)
     setStatus('loading')
 
-    if (!sessionId) {
+    if (!token) {
       setStatus('not-found')
       return () => {
         isCurrent = false
@@ -494,7 +494,7 @@ export default function SessionViewerPage() {
       }
     }
 
-    getSession(sessionId, controller.signal).then((loadedSession) => {
+    getSharedSession(token, controller.signal).then((loadedSession) => {
       if (!isCurrent) return
       setSession(loadedSession)
       setStatus('ready')
@@ -507,7 +507,7 @@ export default function SessionViewerPage() {
       isCurrent = false
       controller.abort()
     }
-  }, [sessionId])
+  }, [token])
 
   if (status === 'loading') {
     return (
@@ -519,13 +519,7 @@ export default function SessionViewerPage() {
   }
 
   if (status === 'not-found') {
-    return (
-      <main className="page-shell not-found-page">
-        <p className="brand">TackBar</p>
-        <h1>Session not found</h1>
-        <Link className="primary-link" to="/sessions">View recent sessions</Link>
-      </main>
-    )
+    return <SharedSessionUnavailable />
   }
 
   if (status === 'error' || !session) {
@@ -533,10 +527,20 @@ export default function SessionViewerPage() {
       <main className="page-shell not-found-page" role="alert">
         <p className="brand">TackBar</p>
         <h1>Unable to load Session.</h1>
-        <Link className="primary-link" to="/sessions">View recent sessions</Link>
+        <p>Please try the shared link again later.</p>
       </main>
     )
   }
 
-  return <SessionViewer key={session.id} session={session} />
+  return <SessionViewer key={token} token={token!} session={session} />
+}
+
+export function SharedSessionUnavailable() {
+  return (
+    <main className="page-shell not-found-page">
+      <p className="brand">TackBar</p>
+      <h1>Session not found</h1>
+      <p>This shared link is unavailable.</p>
+    </main>
+  )
 }

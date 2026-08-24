@@ -113,3 +113,7 @@ class StoredActivity:
 class Session:
     id: str
     activity_ids: list[str]
+    created_at: datetime
+    expires_at: datetime
+    capability_token: str | None = None
+    capability_revoked: bool = False

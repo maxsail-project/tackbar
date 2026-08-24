@@ -100,7 +100,16 @@ def test_first_activity_creates_session_with_only_persisted_ids(
     assert result.status == "created"
     assert str(UUID(result.session.id)) == result.session.id
     assert result.session.activity_ids == ["activity-a"]
-    assert set(persisted) == {"id", "activity_ids"}
+    assert set(persisted) == {
+        "id",
+        "activity_ids",
+        "created_at",
+        "expires_at",
+        "capability_token",
+        "capability_revoked",
+    }
+    assert persisted["capability_token"] is None
+    assert persisted["capability_revoked"] is False
 
 
 def test_overlapping_activity_matches_existing_session(

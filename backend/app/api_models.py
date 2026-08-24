@@ -42,6 +42,12 @@ class SessionDetailResponse(BaseModel):
     activities: list[ActivityContextResponse]
 
 
+class SharedSessionDetailResponse(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    activities: list[ActivityContextResponse]
+
+
 class TrackSampleResponse(BaseModel):
     utc: str
     lat: float

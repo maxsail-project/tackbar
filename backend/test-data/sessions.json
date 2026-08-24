@@ -4,6 +4,10 @@
     "activity_ids": [
       "10000000-0000-4000-8000-000000000001",
       "10000000-0000-4000-8000-000000000002"
-    ]
+    ],
+    "created_at": "2026-08-24T12:00:00+00:00",
+    "expires_at": "2026-10-23T12:00:00+00:00",
+    "capability_token": "DEMO_f4kV3x9Nq7Lm2Pz8Rw6Ty1Bc5Hs0UaGj",
+    "capability_revoked": false
   }
 ]

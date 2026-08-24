@@ -3,21 +3,23 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from app.main import app
+from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
 from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
 
-
-SESSION_OLD = "20000000-0000-4000-8000-000000000001"
-SESSION_NEW = "20000000-0000-4000-8000-000000000002"
+SESSION_ID = "20000000-0000-4000-8000-000000000001"
+OTHER_SESSION_ID = "20000000-0000-4000-8000-000000000002"
 ACTIVITY_A = "10000000-0000-4000-8000-000000000001"
 ACTIVITY_B = "10000000-0000-4000-8000-000000000002"
-ACTIVITY_C = "10000000-0000-4000-8000-000000000003"
+ACTIVITY_OTHER = "10000000-0000-4000-8000-000000000003"
 SAILOR_A = "30000000-0000-4000-8000-000000000001"
 SAILOR_B = "30000000-0000-4000-8000-000000000002"
-BOAT_A = "40000000-0000-4000-8000-000000000001"
-BOAT_B = "40000000-0000-4000-8000-000000000002"
+BOAT_ID = "40000000-0000-4000-8000-000000000001"
+TOKEN = "shared-session-capability-token-000000000000000001"
+OTHER_TOKEN = "shared-session-capability-token-000000000000000002"
 
 
 @dataclass(frozen=True)
@@ -26,459 +28,172 @@ class ApiResponse:
     json: object
 
 
-def _activity(
-    activity_id: str,
-    sailor_id: str,
-    boat_id: str | None,
-    start_time: str,
-    end_time: str,
-) -> dict[str, object]:
-    return {
-        "id": activity_id,
-        "sailor_id": sailor_id,
-        "boat_id": boat_id,
-        "source": "vakaros",
-        "device_name": f"device-{activity_id[-1]}",
-        "original_filename": f"activity-{activity_id[-1]}.csv.gz",
-        "start_time": start_time,
-        "end_time": end_time,
-        "start_lat": 0.1,
-        "start_lon": -30.1,
-        "end_lat": 0.2,
-        "end_lon": -30.2,
-        "center_lat": 0.15,
-        "center_lon": -30.15,
-        "min_lat": 0.1,
-        "max_lat": 0.2,
-        "min_lon": -30.2,
-        "max_lon": -30.1,
-        "sample_count": 20,
-        "attachment_sha256": activity_id[-1] * 64,
-        "track_file": f"tracks/{activity_id}.csv.gz",
-    }
-
-
 def _write_json(path: Path, records: object) -> None:
-    path.write_text(
-        json.dumps(records, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    path.write_text(json.dumps(records, indent=2) + "\n", encoding="utf-8")
+
+
+def _activity(activity_id: str, sailor_id: str, start: str, end: str, boat_id: str | None = None) -> dict[str, object]:
+    return {"id": activity_id, "sailor_id": sailor_id, "boat_id": boat_id, "source": "vakaros", "device_name": "demo", "original_filename": "demo.csv.gz", "start_time": start, "end_time": end, "start_lat": 0.1, "start_lon": -30.1, "end_lat": 0.2, "end_lon": -30.2, "center_lat": 0.15, "center_lon": -30.15, "min_lat": 0.1, "max_lat": 0.2, "min_lon": -30.2, "max_lon": -30.1, "sample_count": 2, "attachment_sha256": activity_id[-1] * 64, "track_file": f"tracks/{activity_id}.csv.gz"}
 
 
 def _runtime_root(temporary_directory: Path) -> Path:
-    root = temporary_directory / "api-runtime"
-    root.mkdir()
-    _write_json(
-        root / "sailors.json",
-        [
-            {
-                "id": SAILOR_A,
-                "email": "sailor-a@example.com",
-                "name": "Sailor A",
-                "default_boat_id": BOAT_B,
-                "consent_status": "ACTIVE",
-            },
-            {
-                "id": SAILOR_B,
-                "email": "sailor-b@example.com",
-                "name": None,
-                "default_boat_id": None,
-                "consent_status": "ACTIVE",
-            },
-        ],
-    )
-    _write_json(
-        root / "boats.json",
-        [
-            {
-                "id": BOAT_A,
-                "name": "Demo Boat A",
-                "sailing_class": "Snipe",
-                "sail_number": "DEMO-1001",
-            },
-            {
-                "id": BOAT_B,
-                "name": "Default Boat B",
-                "sailing_class": "Snipe",
-                "sail_number": "DEMO-1002",
-            },
-        ],
-    )
-    _write_json(
-        root / "activities.json",
-        [
-            _activity(
-                ACTIVITY_A,
-                SAILOR_A,
-                BOAT_A,
-                "2031-06-15T08:00:00+00:00",
-                "2031-06-15T11:00:00+00:00",
-            ),
-            _activity(
-                ACTIVITY_B,
-                SAILOR_B,
-                None,
-                "2031-06-15T09:00:00+00:00",
-                "2031-06-15T10:00:00+00:00",
-            ),
-            _activity(
-                ACTIVITY_C,
-                SAILOR_A,
-                BOAT_A,
-                "2031-06-16T08:00:00+00:00",
-                "2031-06-16T09:00:00+00:00",
-            ),
-        ],
-    )
-    _write_json(
-        root / "sessions.json",
-        [
-            {"id": SESSION_OLD, "activity_ids": [ACTIVITY_B, ACTIVITY_A]},
-            {"id": SESSION_NEW, "activity_ids": [ACTIVITY_C]},
-        ],
-    )
+    root = temporary_directory / "shared-api"
+    (root / "tracks").mkdir(parents=True)
+    _write_json(root / "sailors.json", [
+        {"id": SAILOR_A, "email": "active@example.com", "name": "Active", "default_boat_id": None, "consent_status": "ACTIVE"},
+        {"id": SAILOR_B, "email": "pending@example.com", "name": "Pending", "default_boat_id": None, "consent_status": "PENDING"},
+    ])
+    _write_json(root / "boats.json", [{"id": BOAT_ID, "name": "Demo", "sailing_class": None, "sail_number": None}])
+    _write_json(root / "activities.json", [
+        _activity(ACTIVITY_A, SAILOR_A, "2031-06-01T08:00:00+00:00", "2031-06-01T10:00:00+00:00", BOAT_ID),
+        _activity(ACTIVITY_B, SAILOR_B, "2031-06-01T07:00:00+00:00", "2031-06-01T11:00:00+00:00"),
+        _activity(ACTIVITY_OTHER, SAILOR_A, "2031-06-02T08:00:00+00:00", "2031-06-02T09:00:00+00:00"),
+    ])
+    _write_json(root / "sessions.json", [
+        {"id": SESSION_ID, "activity_ids": [ACTIVITY_B, ACTIVITY_A], "created_at": "2031-06-01T00:00:00+00:00", "expires_at": "2031-07-31T00:00:00+00:00", "capability_token": TOKEN, "capability_revoked": False},
+        {"id": OTHER_SESSION_ID, "activity_ids": [ACTIVITY_OTHER], "created_at": "2031-06-01T00:00:00+00:00", "expires_at": "2031-07-31T00:00:00+00:00", "capability_token": OTHER_TOKEN, "capability_revoked": False},
+    ])
+    track = pd.DataFrame([
+        {"activity_id": ACTIVITY_A, "utc": "2031-06-01T08:00:00Z", "lat": 0.1, "lon": -30.1, "cog": 1.0, "sog": 4.0, "dist": 0.0, "hdg": None, "heel": None, "trim": None},
+        {"activity_id": ACTIVITY_A, "utc": "2031-06-01T08:00:01Z", "lat": 0.2, "lon": -30.2, "cog": 2.0, "sog": 4.1, "dist": 1.0, "hdg": None, "heel": None, "trim": None},
+    ], columns=CANONICAL_TRACK_COLUMNS)
+    track.to_csv(root / "tracks" / f"{ACTIVITY_A}.csv.gz", index=False, compression={"method": "gzip", "mtime": 0})
     return root
 
 
 def _get(path: str) -> ApiResponse:
     messages: list[dict[str, object]] = []
-
     async def request() -> None:
-        request_received = False
-
+        sent = False
         async def receive() -> dict[str, object]:
-            nonlocal request_received
-            if not request_received:
-                request_received = True
-                return {
-                    "type": "http.request",
-                    "body": b"",
-                    "more_body": False,
-                }
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": b"", "more_body": False}
             return {"type": "http.disconnect"}
-
         async def send(message: dict[str, object]) -> None:
             messages.append(message)
-
-        await app(
-            {
-                "type": "http",
-                "asgi": {"version": "3.0"},
-                "http_version": "1.1",
-                "method": "GET",
-                "scheme": "http",
-                "path": path,
-                "raw_path": path.encode("ascii"),
-                "query_string": b"",
-                "headers": [],
-                "client": ("test", 123),
-                "server": ("test", 80),
-                "root_path": "",
-            },
-            receive,
-            send,
-        )
-
+        await app({"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "GET", "scheme": "http", "path": path, "raw_path": path.encode("ascii"), "query_string": b"", "headers": [], "client": ("test", 1), "server": ("test", 80), "root_path": ""}, receive, send)
     asyncio.run(request())
-    start = next(
-        message
-        for message in messages
-        if message["type"] == "http.response.start"
-    )
-    body = b"".join(
-        message.get("body", b"")
-        for message in messages
-        if message["type"] == "http.response.body"
-    )
-    return ApiResponse(
-        status_code=int(start["status"]),
-        json=json.loads(body),
-    )
+    start = next(message for message in messages if message["type"] == "http.response.start")
+    body = b"".join(message.get("body", b"") for message in messages if message["type"] == "http.response.body")
+    return ApiResponse(int(start["status"]), json.loads(body))
 
 
-def _use_runtime(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> Path:
+def _use_runtime(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> Path:
     root = _runtime_root(temporary_directory)
     monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(root))
     return root
 
 
-def _set_consent_status(root: Path, sailor_id: str, status: str) -> None:
-    sailors = json.loads(
-        (root / "sailors.json").read_text(encoding="utf-8")
-    )
-    next(sailor for sailor in sailors if sailor["id"] == sailor_id)[
-        "consent_status"
-    ] = status
+def _set_status(root: Path, sailor_id: str, status: str) -> None:
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    next(item for item in sailors if item["id"] == sailor_id)["consent_status"] = status
     _write_json(root / "sailors.json", sailors)
 
 
-def test_session_list_returns_derived_summaries_newest_first(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> None:
+def test_capability_session_exposes_active_subset_without_internal_id(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
     _use_runtime(monkeypatch, temporary_directory)
-
-    response = _get("/api/sessions")
-
+    response = _get(f"/api/shared/sessions/{TOKEN}")
     assert response.status_code == 200
-    assert [session["id"] for session in response.json] == [
-        SESSION_NEW,
-        SESSION_OLD,
-    ]
-    assert response.json[0] == {
-        "id": SESSION_NEW,
-        "start_time": "2031-06-16T08:00:00Z",
-        "end_time": "2031-06-16T09:00:00Z",
-        "activity_count": 1,
-    }
-    assert response.json[1] == {
-        "id": SESSION_OLD,
-        "start_time": "2031-06-15T08:00:00Z",
-        "end_time": "2031-06-15T11:00:00Z",
-        "activity_count": 2,
-    }
+    assert set(response.json) == {"start_time", "end_time", "activities"}
+    assert response.json["start_time"] == "2031-06-01T08:00:00Z"
+    assert response.json["end_time"] == "2031-06-01T10:00:00Z"
+    assert [item["id"] for item in response.json["activities"]] == [ACTIVITY_A]
+    assert SESSION_ID not in json.dumps(response.json)
+    assert ACTIVITY_B not in json.dumps(response.json)
 
 
-def test_empty_session_persistence_returns_empty_list(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> None:
+def test_visibility_changes_on_next_capability_read_without_membership_change(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
-    _write_json(root / "sessions.json", [])
-
-    response = _get("/api/sessions")
-
-    assert response.status_code == 200
-    assert response.json == []
-
-
-def test_session_detail_preserves_activity_order_and_resolves_context(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> None:
-    _use_runtime(monkeypatch, temporary_directory)
-
-    response = _get(f"/api/sessions/{SESSION_OLD}")
-
-    assert response.status_code == 200
-    assert set(response.json) == {"id", "start_time", "end_time", "activities"}
-    assert response.json["start_time"] == "2031-06-15T08:00:00Z"
-    assert response.json["end_time"] == "2031-06-15T11:00:00Z"
-    activities = response.json["activities"]
-    assert [activity["id"] for activity in activities] == [
-        ACTIVITY_B,
-        ACTIVITY_A,
-    ]
-    assert set(activities[0]) == {
-        "id",
-        "source",
-        "device_name",
-        "original_filename",
-        "start_time",
-        "end_time",
-        "sample_count",
-        "sailor",
-        "boat",
-    }
-    assert activities[0]["sailor"] == {
-        "id": SAILOR_B,
-        "name": None,
-        "email": "sailor-b@example.com",
-    }
-    assert activities[0]["boat"] is None
-    assert activities[1]["sailor"] == {
-        "id": SAILOR_A,
-        "name": "Sailor A",
-        "email": "sailor-a@example.com",
-    }
-    assert activities[1]["boat"] == {
-        "id": BOAT_A,
-        "name": "Demo Boat A",
-        "sailing_class": "Snipe",
-        "sail_number": "DEMO-1001",
-    }
-    assert "default_boat_id" not in activities[1]["sailor"]
-    assert "attachment_sha256" not in activities[1]
-    assert "track_file" not in activities[1]
-    assert "sailor_id" not in activities[1]
-    assert "boat_id" not in activities[1]
+    before = (root / "sessions.json").read_bytes()
+    _set_status(root, SAILOR_B, "ACTIVE")
+    active = _get(f"/api/shared/sessions/{TOKEN}")
+    _set_status(root, SAILOR_A, "REVOKED")
+    revoked = _get(f"/api/shared/sessions/{TOKEN}")
+    assert [item["id"] for item in active.json["activities"]] == [ACTIVITY_B, ACTIVITY_A]
+    assert [item["id"] for item in revoked.json["activities"]] == [ACTIVITY_B]
+    assert (root / "sessions.json").read_bytes() == before
 
 
-def test_mixed_session_exposes_only_active_activity_and_visible_summary(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> None:
+def test_visibility_recovers_with_same_non_revoked_token(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
-    _set_consent_status(root, SAILOR_A, "PENDING")
+    _set_status(root, SAILOR_A, "REVOKED")
+    unavailable = _get(f"/api/shared/sessions/{TOKEN}")
+    _set_status(root, SAILOR_A, "ACTIVE")
+    recovered = _get(f"/api/shared/sessions/{TOKEN}")
 
-    list_response = _get("/api/sessions")
-    detail_response = _get(f"/api/sessions/{SESSION_OLD}")
-
-    old_summary = next(
-        session for session in list_response.json if session["id"] == SESSION_OLD
-    )
-    assert old_summary == {
-        "id": SESSION_OLD,
-        "start_time": "2031-06-15T09:00:00Z",
-        "end_time": "2031-06-15T10:00:00Z",
-        "activity_count": 1,
-    }
-    assert detail_response.status_code == 200
-    assert [
-        activity["id"] for activity in detail_response.json["activities"]
-    ] == [ACTIVITY_B]
-    assert ACTIVITY_A not in json.dumps(detail_response.json)
+    assert unavailable.status_code == 404
+    assert recovered.status_code == 200
+    assert [item["id"] for item in recovered.json["activities"]] == [ACTIVITY_A]
+    persisted = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    assert persisted[0]["capability_token"] == TOKEN
+    assert persisted[0]["capability_revoked"] is False
 
 
-@pytest.mark.parametrize("hidden_status", ["PENDING", "REVOKED"])
-def test_session_with_no_active_activities_is_unavailable_and_unlisted(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-    hidden_status: str,
-) -> None:
+@pytest.mark.parametrize("token", ["unknown-token", TOKEN])
+def test_unavailable_or_zero_visible_capability_is_same_404(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path, token: str) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
-    _set_consent_status(root, SAILOR_A, hidden_status)
-
-    list_response = _get("/api/sessions")
-    detail_response = _get(f"/api/sessions/{SESSION_NEW}")
-
-    assert SESSION_NEW not in {
-        session["id"] for session in list_response.json
-    }
-    assert detail_response.status_code == 404
-    assert detail_response.json == {"detail": "Session not found"}
-    sessions = json.loads(
-        (root / "sessions.json").read_text(encoding="utf-8")
-    )
-    assert next(session for session in sessions if session["id"] == SESSION_NEW)[
-        "activity_ids"
-    ] == [ACTIVITY_C]
-
-
-def test_consent_changes_visibility_without_changing_session_membership(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> None:
-    root = _use_runtime(monkeypatch, temporary_directory)
-    session_path = root / "sessions.json"
-    membership_before = session_path.read_bytes()
-    _set_consent_status(root, SAILOR_B, "PENDING")
-
-    pending_response = _get(f"/api/sessions/{SESSION_OLD}")
-    _set_consent_status(root, SAILOR_B, "ACTIVE")
-    active_response = _get(f"/api/sessions/{SESSION_OLD}")
-    _set_consent_status(root, SAILOR_A, "REVOKED")
-    revoked_response = _get(f"/api/sessions/{SESSION_OLD}")
-
-    assert [activity["id"] for activity in pending_response.json["activities"]] == [
-        ACTIVITY_A
-    ]
-    assert [activity["id"] for activity in active_response.json["activities"]] == [
-        ACTIVITY_B,
-        ACTIVITY_A,
-    ]
-    assert [activity["id"] for activity in revoked_response.json["activities"]] == [
-        ACTIVITY_B
-    ]
-    assert session_path.read_bytes() == membership_before
-
-
-def test_unknown_session_returns_404(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> None:
-    _use_runtime(monkeypatch, temporary_directory)
-
-    response = _get("/api/sessions/unknown-session")
-
+    if token == TOKEN:
+        _set_status(root, SAILOR_A, "REVOKED")
+    response = _get(f"/api/shared/sessions/{token}")
     assert response.status_code == 404
     assert response.json == {"detail": "Session not found"}
+    persisted = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    assert persisted[0]["capability_token"] == TOKEN
 
 
-@pytest.mark.parametrize(
-    ("broken_reference", "missing_value"),
-    [
-        ("activity", "missing-activity"),
-        ("sailor", "39999999-9999-4999-8999-999999999999"),
-        ("boat", "49999999-9999-4999-8999-999999999999"),
-    ],
-)
-def test_broken_persisted_references_return_generic_500(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-    broken_reference: str,
-    missing_value: str,
-) -> None:
+@pytest.mark.parametrize("state", ["expired", "revoked"])
+def test_expired_or_revoked_capability_is_unavailable_without_deletion(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path, state: str) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
-    if broken_reference == "activity":
-        sessions = json.loads(
-            (root / "sessions.json").read_text(encoding="utf-8")
-        )
-        sessions[0]["activity_ids"] = [missing_value]
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    if state == "expired":
+        sessions[0]["created_at"] = "2019-11-02T00:00:00+00:00"
+        sessions[0]["expires_at"] = "2020-01-01T00:00:00+00:00"
+    else:
+        sessions[0]["capability_token"] = None
+        sessions[0]["capability_revoked"] = True
+    _write_json(root / "sessions.json", sessions)
+
+    response = _get(f"/api/shared/sessions/{TOKEN}")
+
+    assert response.status_code == 404
+    persisted = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    assert persisted[0]["activity_ids"] == [ACTIVITY_B, ACTIVITY_A]
+    assert len(json.loads((root / "activities.json").read_text(encoding="utf-8"))) == 3
+
+
+def test_capability_track_is_scoped_to_visible_member(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    visible = _get(f"/api/shared/sessions/{TOKEN}/activities/{ACTIVITY_A}/track")
+    hidden = _get(f"/api/shared/sessions/{TOKEN}/activities/{ACTIVITY_B}/track")
+    other = _get(f"/api/shared/sessions/{TOKEN}/activities/{ACTIVITY_OTHER}/track")
+    assert visible.status_code == 200
+    assert visible.json["activity_id"] == ACTIVITY_A
+    assert hidden.status_code == other.status_code == 404
+    assert hidden.json == other.json == {"detail": "Activity not found"}
+
+
+def test_old_public_routes_do_not_bypass_capability(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    assert _get("/api/sessions").status_code == 404
+    assert _get(f"/api/sessions/{SESSION_ID}").status_code == 404
+    assert _get(f"/api/activities/{ACTIVITY_A}/track").status_code == 404
+
+
+@pytest.mark.parametrize("broken", ["activity", "sailor", "boat"])
+def test_capability_integrity_errors_are_generic(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path, broken: str) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    missing = "missing-private-reference"
+    if broken == "activity":
+        sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+        sessions[0]["activity_ids"] = [missing]
         _write_json(root / "sessions.json", sessions)
     else:
-        activities = json.loads(
-            (root / "activities.json").read_text(encoding="utf-8")
-        )
-        field_name = f"{broken_reference}_id"
-        activities[0][field_name] = missing_value
+        activities = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+        activities[0][f"{broken}_id"] = missing
         _write_json(root / "activities.json", activities)
-
-    response = _get(f"/api/sessions/{SESSION_OLD}")
-
+    response = _get(f"/api/shared/sessions/{TOKEN}")
     assert response.status_code == 500
-    assert response.json == {
-        "detail": "Persisted Session data is inconsistent"
-    }
-    assert missing_value not in json.dumps(response.json)
-
-
-def test_hidden_activity_with_missing_boat_returns_generic_500(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> None:
-    root = _use_runtime(monkeypatch, temporary_directory)
-    missing_boat_id = "49999999-9999-4999-8999-999999999999"
-    _set_consent_status(root, SAILOR_A, "PENDING")
-    activities = json.loads(
-        (root / "activities.json").read_text(encoding="utf-8")
-    )
-    next(activity for activity in activities if activity["id"] == ACTIVITY_A)[
-        "boat_id"
-    ] = missing_boat_id
-    _write_json(root / "activities.json", activities)
-
-    response = _get(f"/api/sessions/{SESSION_OLD}")
-
-    assert response.status_code == 500
-    assert response.json == {
-        "detail": "Persisted Session data is inconsistent"
-    }
-    assert missing_boat_id not in json.dumps(response.json)
-
-
-def test_session_api_requests_do_not_modify_persistence(
-    monkeypatch: pytest.MonkeyPatch,
-    temporary_directory: Path,
-) -> None:
-    root = _use_runtime(monkeypatch, temporary_directory)
-    before = {
-        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
-        for path in root.iterdir()
-        if path.is_file()
-    }
-
-    list_response = _get("/api/sessions")
-    detail_response = _get(f"/api/sessions/{SESSION_OLD}")
-
-    after = {
-        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
-        for path in root.iterdir()
-        if path.is_file()
-    }
-    assert list_response.status_code == 200
-    assert detail_response.status_code == 200
-    assert after == before
+    assert response.json == {"detail": "Persisted Session data is inconsistent"}
+    assert missing not in json.dumps(response.json)

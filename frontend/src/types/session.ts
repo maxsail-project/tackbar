@@ -37,7 +37,6 @@ export interface SessionListItem {
 }
 
 export interface SessionDetail {
-  id: string
   start_time: string
   end_time: string
   activities: SessionActivity[]

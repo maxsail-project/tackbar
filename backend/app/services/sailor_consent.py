@@ -4,7 +4,10 @@ from datetime import datetime, timezone
 from app.config import CURRENT_CONSENT_AGREEMENT_VERSION
 from app.models import ConsentEvent, ConsentEventType, ConsentStatus, Sailor
 from app.repositories.consent_events import ConsentEventRepository
+from app.repositories.activities import ActivityRepository
 from app.repositories.sailors import SailorRepository
+from app.repositories.sessions import SessionRepository
+from app.services.session_capabilities import SessionCapabilityService
 
 
 class SailorConsentService:
@@ -13,10 +16,16 @@ class SailorConsentService:
         sailors: SailorRepository,
         events: ConsentEventRepository,
         agreement_version: str = CURRENT_CONSENT_AGREEMENT_VERSION,
+        session_capabilities: SessionCapabilityService | None = None,
     ) -> None:
         self.sailors = sailors
         self.events = events
         self.agreement_version = agreement_version
+        self.session_capabilities = session_capabilities or SessionCapabilityService(
+            SessionRepository(sailors.path.with_name("sessions.json")),
+            ActivityRepository(sailors.path.with_name("activities.json")),
+            sailors,
+        )
 
     def mark_consent_requested(
         self,
@@ -51,7 +60,7 @@ class SailorConsentService:
             consent_granted_at=occurred_at,
             consent_revoked_at=None,
         )
-        return self._persist_transition(
+        confirmed = self._persist_transition(
             updated,
             ConsentEvent(
                 event_type=ConsentEventType.CONSENT_GRANTED,
@@ -61,6 +70,8 @@ class SailorConsentService:
                 agreement_version=self.agreement_version,
             ),
         )
+        self.session_capabilities.ensure_for_sailor(sailor_id)
+        return confirmed
 
     def revoke_consent(
         self,

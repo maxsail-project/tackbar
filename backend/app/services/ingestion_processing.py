@@ -11,6 +11,7 @@ from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
 from app.services.sailor_consent import SailorConsentService
+from app.services.session_capabilities import SessionCapabilityService
 from app.storage.track_storage import TrackStorage
 
 
@@ -85,6 +86,13 @@ def process_provider_email(
         activities,
         sessions,
     )
+    SessionCapabilityService(sessions, activities, sailors).ensure_for_session(
+        session_match.session.id
+    )
+    refreshed_session = sessions.get_by_id(session_match.session.id)
+    if refreshed_session is None:
+        raise ValueError("Matched Session disappeared from persistence")
+    session_match.session = refreshed_session
     history.record_processed(provider, provider_message_id, stored_activity.id)
 
     return IngestionProcessingResult(

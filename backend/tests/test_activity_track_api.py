@@ -14,6 +14,8 @@ from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
 ACTIVITY_ID = "10000000-0000-4000-8000-000000000001"
 OTHER_ACTIVITY_ID = "10000000-0000-4000-8000-000000000002"
 SAILOR_ID = "30000000-0000-4000-8000-000000000001"
+SESSION_ID = "20000000-0000-4000-8000-000000000001"
+CAPABILITY_TOKEN = "capability-token-for-track-api-tests-000000000001"
 
 
 @dataclass(frozen=True)
@@ -116,6 +118,20 @@ def _runtime_root(temporary_directory: Path) -> Path:
             }
         ],
     )
+    _write_json(root / "boats.json", [])
+    _write_json(
+        root / "sessions.json",
+        [
+            {
+                "id": SESSION_ID,
+                "activity_ids": [ACTIVITY_ID],
+                "created_at": "2031-06-01T00:00:00+00:00",
+                "expires_at": "2031-07-31T00:00:00+00:00",
+                "capability_token": CAPABILITY_TOKEN,
+                "capability_revoked": False,
+            }
+        ],
+    )
     return root
 
 
@@ -194,6 +210,13 @@ def _get(path: str) -> ApiResponse:
     )
 
 
+def _track_path(activity_id: str) -> str:
+    return (
+        f"/api/shared/sessions/{CAPABILITY_TOKEN}/activities/"
+        f"{activity_id}/track"
+    )
+
+
 def _use_runtime(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,
@@ -210,7 +233,7 @@ def test_valid_complete_track_returns_exact_contract_and_null_sensors(
     root = _use_runtime(monkeypatch, temporary_directory)
     _write_track(root, _track_frame())
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     assert response.status_code == 200
     assert set(response.json) == {"activity_id", "samples"}
@@ -250,7 +273,7 @@ def test_unknown_activity_returns_404_before_track_loading(
 ) -> None:
     _use_runtime(monkeypatch, temporary_directory)
 
-    response = _get(f"/api/activities/{OTHER_ACTIVITY_ID}/track")
+    response = _get(_track_path(OTHER_ACTIVITY_ID))
 
     assert response.status_code == 404
     assert response.json == {"detail": "Activity not found"}
@@ -265,7 +288,7 @@ def test_non_active_activity_returns_404_before_track_loading(
     root = _use_runtime(monkeypatch, temporary_directory)
     _set_consent_status(root, hidden_status)
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     assert response.status_code == 404
     assert response.json == {"detail": "Activity not found"}
@@ -279,7 +302,7 @@ def test_activity_referencing_missing_sailor_returns_generic_500(
     _write_json(root / "sailors.json", [])
     _write_track(root, _track_frame())
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     assert response.status_code == 500
     assert response.json == {
@@ -293,7 +316,7 @@ def test_known_activity_with_missing_track_returns_generic_500(
 ) -> None:
     _use_runtime(monkeypatch, temporary_directory)
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     assert response.status_code == 500
     assert response.json == {
@@ -310,7 +333,7 @@ def test_track_with_wrong_activity_id_returns_generic_500(
     track.loc[1, "activity_id"] = OTHER_ACTIVITY_ID
     _write_track(root, track)
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     assert response.status_code == 500
     assert response.json == {
@@ -333,7 +356,7 @@ def test_track_columns_must_exactly_match_canonical_schema(
         track["unexpected"] = 1
     _write_track(root, track)
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     assert response.status_code == 500
     assert response.json == {
@@ -363,7 +386,7 @@ def test_malformed_required_canonical_data_returns_generic_500(
     track.loc[1, field_name] = invalid_value
     _write_track(root, track)
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     assert response.status_code == 500
     assert response.json == {
@@ -380,7 +403,7 @@ def test_non_finite_optional_sensor_data_returns_generic_500(
     track.loc[1, "sog"] = float("inf")
     _write_track(root, track)
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     assert response.status_code == 500
     assert response.json == {
@@ -401,7 +424,7 @@ def test_track_get_does_not_modify_activity_or_track(
         "track": (track_path.read_bytes(), track_path.stat().st_mtime_ns),
     }
 
-    response = _get(f"/api/activities/{ACTIVITY_ID}/track")
+    response = _get(_track_path(ACTIVITY_ID))
 
     after = {
         "activity": (activity_path.read_bytes(), activity_path.stat().st_mtime_ns),

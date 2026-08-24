@@ -1,5 +1,6 @@
 import gzip
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable
 
@@ -138,6 +139,33 @@ def test_provider_and_message_id_deduplicate_ingestion(
     )
     assert archived_original.read_bytes() == email.attachment_bytes
     assert second is None
+
+
+def test_active_sailor_ingestion_creates_stable_session_capability(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    sailor = sailors.get_by_id(SAILOR_ID)
+    assert sailor is not None
+    sailors.replace(replace(sailor, consent_status=ConsentStatus.ACTIVE))
+
+    result = process_provider_email(
+        "gmail",
+        _email(FIXTURE_PATH.read_bytes()),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    persisted = sessions.get_by_id(result.session_match.session.id)
+    assert persisted is not None
+    assert persisted.capability_token is not None
+    assert result.session_match.session.capability_token == persisted.capability_token
     assert len(history.records()) == 1
 
 

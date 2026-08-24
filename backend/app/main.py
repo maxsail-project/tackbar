@@ -2,8 +2,7 @@ from fastapi import FastAPI, HTTPException
 
 from app.api_models import (
     ActivityTrackResponse,
-    SessionDetailResponse,
-    SessionSummaryResponse,
+    SharedSessionDetailResponse,
 )
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
@@ -17,6 +16,11 @@ from app.services.session_reader import (
     SessionDataIntegrityError,
     SessionReader,
 )
+from app.services.session_capabilities import (
+    SessionCapabilityIntegrityError,
+    SessionCapabilityService,
+)
+from app.services.shared_session_reader import SharedSessionReader
 from app.storage.track_storage import TrackStorage
 
 
@@ -31,19 +35,18 @@ def health() -> dict[str, str]:
     }
 
 
-@app.get("/api/sessions", response_model=list[SessionSummaryResponse])
-def list_sessions() -> list[SessionSummaryResponse]:
+@app.get(
+    "/api/shared/sessions/{token}",
+    response_model=SharedSessionDetailResponse,
+)
+def get_shared_session(token: str) -> SharedSessionDetailResponse:
     try:
-        return _session_reader().list_sessions()
-    except SessionDataIntegrityError as error:
-        raise _integrity_error() from error
-
-
-@app.get("/api/sessions/{session_id}", response_model=SessionDetailResponse)
-def get_session(session_id: str) -> SessionDetailResponse:
-    try:
-        session = _session_reader().get_session(session_id)
-    except SessionDataIntegrityError as error:
+        session = _shared_session_reader().get_session(token)
+    except (
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
         raise _integrity_error() from error
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -51,13 +54,18 @@ def get_session(session_id: str) -> SessionDetailResponse:
 
 
 @app.get(
-    "/api/activities/{activity_id}/track",
+    "/api/shared/sessions/{token}/activities/{activity_id}/track",
     response_model=ActivityTrackResponse,
 )
-def get_activity_track(activity_id: str) -> ActivityTrackResponse:
+def get_shared_activity_track(token: str, activity_id: str) -> ActivityTrackResponse:
     try:
-        track = _activity_track_reader().get_track(activity_id)
-    except ActivityTrackDataIntegrityError as error:
+        track = _shared_session_reader().get_track(token, activity_id)
+    except (
+        ActivityTrackDataIntegrityError,
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
         raise HTTPException(
             status_code=500,
             detail="Persisted Activity track data is inconsistent",
@@ -81,6 +89,17 @@ def _activity_track_reader() -> ActivityTrackReader:
         ActivityRepository(),
         SailorRepository(),
         TrackStorage(),
+    )
+
+
+def _shared_session_reader() -> SharedSessionReader:
+    sessions = SessionRepository()
+    activities = ActivityRepository()
+    sailors = SailorRepository()
+    return SharedSessionReader(
+        SessionCapabilityService(sessions, activities, sailors),
+        SessionReader(sessions, activities, sailors, BoatRepository()),
+        ActivityTrackReader(activities, sailors, TrackStorage()),
     )
 
 
