@@ -1,10 +1,11 @@
 import json
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
 from app.identity import normalize_email, require_uuid
-from app.models import Sailor
+from app.models import ConsentStatus, Sailor
 from app.runtime_paths import runtime_paths
 
 
@@ -19,7 +20,7 @@ class SailorRepository:
         data = json.loads(self.path.read_text(encoding="utf-8"))
         if not isinstance(data, list):
             raise ValueError("Sailor storage must contain a JSON list")
-        sailors = [Sailor(**item) for item in data]
+        sailors = [_deserialize_sailor(item) for item in data]
         _validate_sailors(sailors)
         return sailors
 
@@ -59,12 +60,21 @@ class SailorRepository:
         self._save(sailors)
         return sailor, True
 
+    def replace(self, sailor: Sailor) -> Sailor:
+        sailors = self.all()
+        for index, existing in enumerate(sailors):
+            if existing.id == sailor.id:
+                sailors[index] = sailor
+                self._save(sailors)
+                return sailor
+        raise ValueError(f"Sailor not found: {sailor.id}")
+
     def _save(self, sailors: list[Sailor]) -> None:
         _validate_sailors(sailors)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(
             json.dumps(
-                [asdict(sailor) for sailor in sailors],
+                [_serialize_sailor(sailor) for sailor in sailors],
                 indent=2,
                 ensure_ascii=False,
             )
@@ -92,3 +102,45 @@ def _validate_sailors(sailors: list[Sailor]) -> None:
                 f"Duplicate normalized Sailor email: {normalized_email}"
             )
         seen_emails.add(normalized_email)
+
+
+def _deserialize_sailor(item: dict[str, object]) -> Sailor:
+    return Sailor(
+        id=str(item["id"]),
+        email=str(item["email"]),
+        name=item.get("name"),
+        default_boat_id=item.get("default_boat_id"),
+        consent_status=ConsentStatus(
+            item.get("consent_status", ConsentStatus.PENDING)
+        ),
+        consent_request_sent_at=_parse_optional_datetime(
+            item.get("consent_request_sent_at")
+        ),
+        consent_granted_at=_parse_optional_datetime(
+            item.get("consent_granted_at")
+        ),
+        consent_revoked_at=_parse_optional_datetime(
+            item.get("consent_revoked_at")
+        ),
+    )
+
+
+def _serialize_sailor(sailor: Sailor) -> dict[str, object]:
+    record = asdict(sailor)
+    record["consent_status"] = sailor.consent_status.value
+    for field_name in (
+        "consent_request_sent_at",
+        "consent_granted_at",
+        "consent_revoked_at",
+    ):
+        value = getattr(sailor, field_name)
+        record[field_name] = value.isoformat() if value is not None else None
+    return record
+
+
+def _parse_optional_datetime(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("Persisted Sailor consent timestamp must be a string")
+    return datetime.fromisoformat(value)

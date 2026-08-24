@@ -86,6 +86,10 @@ def test_unknown_email_creates_uuid_sailor_with_null_metadata(
         "email": "new.sailor@example.com",
         "name": None,
         "default_boat_id": None,
+        "consent_status": "PENDING",
+        "consent_request_sent_at": None,
+        "consent_granted_at": None,
+        "consent_revoked_at": None,
     }
 
 

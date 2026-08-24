@@ -1,6 +1,21 @@
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import Any
+
+
+class ConsentStatus(str, Enum):
+    PENDING = "PENDING"
+    ACTIVE = "ACTIVE"
+    REVOKED = "REVOKED"
+
+
+class ConsentEventType(str, Enum):
+    CONSENT_REQUESTED = "consent_requested"
+    CONSENT_GRANTED = "consent_granted"
+    CONSENT_DECLINED = "consent_declined"
+    CONSENT_REVOKED = "consent_revoked"
+    CONSENT_CYCLE_STARTED = "consent_cycle_started"
 
 
 @dataclass
@@ -46,6 +61,19 @@ class Sailor:
     email: str
     name: str | None
     default_boat_id: str | None
+    consent_status: ConsentStatus = ConsentStatus.PENDING
+    consent_request_sent_at: datetime | None = None
+    consent_granted_at: datetime | None = None
+    consent_revoked_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ConsentEvent:
+    event_type: ConsentEventType
+    timestamp: datetime
+    source: str
+    sailor_id: str
+    agreement_version: str | None = None
 
 
 @dataclass

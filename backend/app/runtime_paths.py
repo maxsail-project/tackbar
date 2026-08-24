@@ -18,6 +18,7 @@ class RuntimePaths:
     activities: Path
     sessions: Path
     ingestion_history: Path
+    consent_events: Path
     originals: Path
     tracks: Path
 
@@ -49,6 +50,7 @@ def runtime_paths(data_root: str | Path | None = None) -> RuntimePaths:
         activities=root / "activities.json",
         sessions=root / "sessions.json",
         ingestion_history=root / "ingestion_history.json",
+        consent_events=root / "consent_events.json",
         originals=root / "originals",
         tracks=root / "tracks",
     )

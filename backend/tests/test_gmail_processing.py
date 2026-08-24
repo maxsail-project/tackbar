@@ -5,7 +5,7 @@ from typing import Callable
 
 import pytest
 
-from app.models import InboundEmail
+from app.models import ConsentStatus, InboundEmail
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.sailors import SailorRepository
@@ -360,11 +360,48 @@ def test_unknown_sailor_is_created_and_full_flow_continues(
     assert result is not None
     assert result.sailor_created is True
     assert result.sailor.email == "unknown@example.com"
+    assert result.sailor.consent_status == ConsentStatus.PENDING
     assert result.activity.sailor_id == result.sailor.id
     assert result.activity.boat_id is None
     assert result.session_match.status == "created"
     assert result.activity.id in result.session_match.session.activity_ids
     assert history.is_processed("gmail", "gmail-message-1")
+
+
+def test_revoked_sailor_reenters_pending_and_ingestion_still_matches_session(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    records = [{**SAILORS[0], "consent_status": "REVOKED"}]
+    sailors.path.write_text(
+        json.dumps(records, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    result = process_provider_email(
+        "gmail",
+        _email(FIXTURE_PATH.read_bytes()),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    assert result.sailor.consent_status == ConsentStatus.PENDING
+    assert result.sailor.consent_request_sent_at is None
+    assert result.activity.sailor_id == SAILOR_ID
+    assert result.session_match.status == "created"
+    assert result.activity.id in result.session_match.session.activity_ids
+    consent_records = json.loads(
+        sailors.path.with_name("consent_events.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert consent_records[-1]["event_type"] == "consent_cycle_started"
 
 
 def test_known_sailor_without_default_boat_creates_activity_with_unknown_boat(

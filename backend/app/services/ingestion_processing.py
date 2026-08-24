@@ -1,14 +1,16 @@
 from dataclasses import dataclass
 
-from app.models import InboundEmail, Sailor, StoredActivity
+from app.models import ConsentStatus, InboundEmail, Sailor, StoredActivity
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
+from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.activity_tracks import persist_activity_track
 from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
+from app.services.sailor_consent import SailorConsentService
 from app.storage.track_storage import TrackStorage
 
 
@@ -30,6 +32,7 @@ def process_provider_email(
     sessions: SessionRepository,
     history: IngestionHistory,
     track_storage: TrackStorage | None = None,
+    consent_events: ConsentEventRepository | None = None,
 ) -> IngestionProcessingResult | None:
     provider_message_id = email.provider_message_id
     if not provider_message_id:
@@ -42,6 +45,17 @@ def process_provider_email(
     sailor, sailor_created = sailors.find_or_create_by_email(
         ingestion.sender_email
     )
+    if sailor.consent_status == ConsentStatus.REVOKED:
+        event_repository = consent_events or ConsentEventRepository(
+            sailors.path.with_name("consent_events.json")
+        )
+        sailor = SailorConsentService(
+            sailors,
+            event_repository,
+        ).start_new_consent_cycle(
+            sailor.id,
+            source=f"{provider}_valid_track",
+        )
 
     boat_id = sailor.default_boat_id
     if boat_id is not None and boats.get_by_id(boat_id) is None:

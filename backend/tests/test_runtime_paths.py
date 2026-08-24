@@ -8,6 +8,7 @@ import pytest
 from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
+from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.runtime_paths import (
@@ -67,6 +68,7 @@ def test_default_repositories_share_the_configured_root(
     assert ActivityRepository().path == paths.activities
     assert SessionRepository().path == paths.sessions
     assert IngestionHistory().path == paths.ingestion_history
+    assert ConsentEventRepository().path == paths.consent_events
     assert TrackStorage().data_root == paths.root
 
 
