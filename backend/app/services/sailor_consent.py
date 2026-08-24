@@ -10,6 +10,10 @@ from app.repositories.sessions import SessionRepository
 from app.services.session_capabilities import SessionCapabilityService
 
 
+class ConsentTransitionError(ValueError):
+    pass
+
+
 class SailorConsentService:
     def __init__(
         self,
@@ -138,7 +142,7 @@ class SailorConsentService:
         if sailor is None:
             raise ValueError(f"Sailor not found: {sailor_id}")
         if sailor.consent_status != expected:
-            raise ValueError(
+            raise ConsentTransitionError(
                 f"Cannot transition Sailor {sailor_id} from "
                 f"{sailor.consent_status.value}; expected {expected.value}"
             )
@@ -154,7 +158,7 @@ class SailorConsentService:
             raise ValueError(f"Sailor not found: {sailor_id}")
         if sailor.consent_status not in expected:
             expected_names = " or ".join(status.value for status in expected)
-            raise ValueError(
+            raise ConsentTransitionError(
                 f"Cannot transition Sailor {sailor_id} from "
                 f"{sailor.consent_status.value}; expected {expected_names}"
             )
@@ -166,6 +170,7 @@ class SailorConsentService:
         event: ConsentEvent,
     ) -> Sailor:
         self.events.validate(event)
+        self.events.all()
         self.sailors.replace(sailor)
         self.events.append(event)
         return sailor

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 
+from app.admin_routes import router as admin_router
 from app.api_models import (
     ActivityTrackResponse,
     SharedSessionDetailResponse,
@@ -25,6 +26,7 @@ from app.storage.track_storage import TrackStorage
 
 
 app = FastAPI(title="TackBar API", version="0.1.0")
+app.include_router(admin_router)
 
 
 @app.get("/health")

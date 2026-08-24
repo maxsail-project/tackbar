@@ -13,6 +13,10 @@ class SessionCapabilityIntegrityError(Exception):
     pass
 
 
+class SessionCapabilityOperationError(ValueError):
+    pass
+
+
 class SessionCapabilityService:
     def __init__(
         self,
@@ -54,7 +58,13 @@ class SessionCapabilityService:
     def regenerate_capability(self, session_id: str) -> Session:
         session = self._require_session(session_id)
         if self._is_expired(session):
-            raise ValueError("Cannot regenerate capability for expired Session")
+            raise SessionCapabilityOperationError(
+                "Cannot regenerate capability for expired Session"
+            )
+        if not self._has_active_activity(session):
+            raise SessionCapabilityOperationError(
+                "Cannot regenerate capability without ACTIVE Activities"
+            )
         return self._replace_token(session)
 
     def revoke_capability(self, session_id: str) -> Session:
