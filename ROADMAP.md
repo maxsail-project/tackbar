@@ -1,447 +1,261 @@
-# TackBar Initial Roadmap
+# TackBar Roadmap
 
-TackBar development will evolve incrementally, validating each step with real sailing activities before adding more complexity.
+TackBar evolves incrementally by validating each product step with real sailing activities before adding more complexity.
 
-The roadmap is intentionally simple and focused on the core product hypothesis:
+The roadmap is intentionally high-level. Detailed release requirements and future backlog are maintained separately.
 
 ## Core product hypothesis
 
-multiple sailors → share tracks → automatic session detection → collaborative debriefing
+`multiple sailors → share tracks → automatic Session detection → collaborative debriefing`
 
 ---
 
-## PoC 1 — Email track ingestion
+## Delivered milestones
 
-Goal: prove that TackBar can automatically receive and process sailing tracks sent by email.
+### v0.1.0 — Email Track Ingestion PoC
 
-Planned scope:
+Goal: prove that TackBar can receive and process sailing tracks sent by email.
 
-* Receive sailing tracks as email attachments
-* Support Vakaros `CSV.GZ` exports
-* Identify the participant using the sender email address
-* Extract and validate the attachment
-* Parse track data
-* Store original file metadata
-* Extract device name from the exported filename when available
-* Normalize activity data into an internal TackBar activity model
+Delivered direction:
 
-Initial flow:
+- email attachment ingestion;
+- Vakaros CSV/CSV.GZ support;
+- sender-email identity;
+- parsing and normalization;
+- original/track persistence;
+- provider-independent downstream processing.
 
-`Vakaros Connect → Export CSV/GZIP → Email → TackBar`
+### v0.2.0 — Automatic Session Detection
 
----
+Goal: automatically associate compatible sailing Activities with the same Session.
 
-## PoC 2 — Automatic session detection
+Delivered direction:
 
-Goal: automatically identify tracks that belong to the same sailing session.
+- temporal compatibility;
+- geographic proximity;
+- automatic Session creation;
+- automatic Activity-to-Session association.
 
-Planned scope:
+Current Session-matching behavior is an established baseline and is not redefined by later Viewer or pilot-access work unless explicitly required.
 
-* Detect activity start and end time
-* Determine geographic location from GPS data
-* Compare temporal overlap between activities
-* Compare geographic proximity between tracks
-* Automatically create a new session when necessary
-* Automatically associate compatible activities with an existing session
-* Allow manual correction when automatic matching is uncertain
-
-Initial matching signals:
-
-* date
-* start/end time
-* temporal overlap
-* GPS proximity
-* track location
-
----
-
-## PoC 3 — Multi-track viewer (delivered in v0.3.x)
+### v0.3.x — Multi-Track Viewer
 
 Goal: visualize and compare one or two Activities from the same Session.
 
 Delivered baseline:
 
-* Primary Activity and optional Comparison Activity
-* Two distinguishable tracks on the same map
-* Shared GPS/UTC Analysis Window and `playbackTime`
-* Synchronized replay at x1, x2, x5 and x10
-* Basic summary metrics and SOG/COG time-series charts
-* Mobile-first interface with responsive tablet behavior
-* Public sanitized demo fixtures for Viewer validation
+- primary Activity and optional comparison Activity;
+- shared GPS/UTC Analysis Window;
+- synchronized replay;
+- basic summary metrics;
+- SOG/COG Viewer foundation;
+- mobile-first responsive experience.
 
----
+Detailed semantics: `docs/session-viewer-requirements.md`.
 
-## PoC 4 — Collaborative sailing debrief (delivered in v0.4.0)
+### v0.4.0 — Collaborative Sailing Debrief PoC
 
-Goal: validate TackBar as a real post-sailing visual debriefing tool connected
-to Sessions and Activities actually persisted by the backend.
+Goal: connect persisted TackBar Sessions and Activities to the mobile-first Session Viewer for real collaborative debriefing around a phone or tablet.
 
 Delivered baseline:
 
-* Person-level Sailor identity separated from Boat context
-* Activity associated with its required Sailor and optional Boat
-* Read-only FastAPI endpoints for recent Sessions, Session detail and complete canonical Activity tracks
-* Frontend connected to persisted Sessions/tracks with no runtime Session/track fixture fallback
-* Primary Activity plus optional Comparison Activity
-* Shared GPS/UTC Analysis Window and synchronized Replay
-* Fixed map GPS/SOG/COG/HEEL telemetry
-* Refined Summary with Distance, Avg/Max SOG, Dominant COG and signed HEEL/TRIM averages
-* SOG/COG/HEEL/TRIM time-series charts
-* Focused mobile/tablet UX review and public TEST end-to-end validation
+- Sailor identity separated from Boat context;
+- persisted Activity + optional Boat context;
+- read-only FastAPI Session/track APIs;
+- frontend connected to persisted backend data;
+- one/two-Activity comparison;
+- shared Analysis Window and Replay;
+- fixed map GPS/SOG/COG/HEEL telemetry;
+- refined Summary;
+- SOG/COG/HEEL/TRIM charts;
+- focused mobile/tablet validation.
 
-Collaborative discussion occurs between sailors looking at the phone/tablet
-together. Chat, comments, messaging and real-time multi-user collaboration are
-not required.
-
-Persisted or automatically detected starts, legs, races, maneuvers and other
-semantic segments remain important future work, but do not block v0.4.
+Detailed requirements: `docs/v0.4-collaborative-debrief-requirements.md`.
 
 ---
 
-## MVP — Real sailing pilot (next milestone: v0.5.0)
+## Current milestone — v0.5.0 Real Sailing Pilot
 
-Goal: validate TackBar with real sailors, coaches and sailing sessions.
+Goal: validate TackBar with a small controlled group of real sailors using the complete ingestion → Session → shared debrief workflow while introducing the minimum consent, access and administration required for a real pilot.
 
-Expected scope:
+Current release direction:
 
-* Multiple sailors
-* Multiple boats
-* Automatic activity ingestion
-* Reliable session matching
-* Shared debriefing sessions
-* Mobile-first phone/tablet user experience
-* Basic Sailor and Boat management
-* Invite-only participant activation and pilot-access enforcement
-* Explicit privacy/data-use acceptance
-* Improved sailing analytics
-* Feedback from real sailors and coaches
+- PENDING / ACTIVE / REVOKED Sailor consent state;
+- backend-enforced ACTIVE-only shared visibility;
+- human-operated consent confirmation for the PoC;
+- Gmail remains the pilot track-sharing provider;
+- mailbox ingestion triggered manually from protected Admin;
+- ingestion records sufficient for diagnosis and idempotent reprocessing;
+- minimal protected `/admin` operations;
+- Session capability URLs distinct from internal Session IDs;
+- Session capability regeneration/revocation;
+- fixed PoC Session expiration at 60 days;
+- preservation of the delivered v0.4 Viewer and Session-matching semantics.
 
----
+v0.5.0 does not require automatic Gmail polling, automatic consent-reply interpretation, automatic outbound email, Sailor login, QR sharing, Personal TackBar, new advanced sailing analytics, or infrastructure redesign.
 
-## Future integrations
+Detailed requirements: `docs/v0.5-real-sailing-pilot-requirements.md`.
 
-Current Vakaros `.csv` and `.csv.gz` ingestion remains the governing implementation. The remaining Vakaros formats are a non-priority backlog and do not block v0.4 collaborative debrief work.
-
-### Backlog — Complete Vakaros multi-format ingestion
-
-Future Vakaros ingestion should evaluate two content formats:
-
-* Vakaros CSV
-* Vakaros VKX
-
-across the relevant container forms:
-
-* uncompressed;
-* GZIP;
-* ZIP.
-
-Expected combinations to evaluate include:
-
-* `.csv`
-* `.csv.gz`
-* `.vkx`
-* `.vkx.gz`
-* `.zip` containing CSV and/or VKX
-
-The intended provider-independent flow is:
-
-```text
-attachment
-→ detect/decode container
-→ identify contained format
-→ CSV or VKX parser
-→ common TackBar normalization
-→ normalized Activity
-```
-
-CSV and VKX parsers must converge on the same provider-independent TackBar normalized model. Container format must not affect Activity or Session semantics.
-
-ZIP behavior when multiple valid sailing files are present must be decided explicitly before implementation; this roadmap does not define that policy.
-
-VKX may expose richer Vakaros information than CSV, such as timer, start-line or device-specific data. That information must be evaluated separately before extending the canonical normalized track schema. Vakaros-specific fields must not be added merely because VKX contains them.
-
-Logical deduplication across equivalent CSV, CSV.GZ, VKX or ZIP representations must also be evaluated explicitly later. No cross-format deduplication rule is defined by this backlog.
-
-### Next file-based ingestion chapter — GPX
-
-GPX is the next intended file-based ingestion chapter. Its primary purpose is to validate that TackBar parsing and normalization are genuinely independent from Vakaros. GPX should ultimately produce the same normalized TackBar Activity and track model. Implementation details remain deferred.
-
-### Later integration chapter — Garmin Connect
-
-Garmin Connect is a separate integration chapter after the file-format/parser foundation has been validated. The target direction is an official Garmin Connect or Activity API cloud-to-cloud flow, not scraping or private APIs.
-
-Garmin changes the acquisition mechanism, but downstream Activity, Session and analytics semantics must remain provider-independent. No Garmin API dependency or implementation requirement is introduced by this roadmap item.
-
-The intended progression is:
-
-```text
-Current Vakaros CSV/CSV.GZ
-→ backlog: VKX + GZIP/ZIP combinations
-→ GPX ingestion
-→ Garmin Connect integration
-```
-
-The deferred Vakaros backlog does not need to be completed before GPX begins.
-
-Other potential later sources and integrations remain FIT, direct Vakaros integration, Intervals.icu, Strava, and other sailing devices and activity platforms.
-
-TackBar is intended to remain device-independent.
+Closed decision rationale: `docs/v0.5-decisions.md`.
 
 ---
 
-## Future sailing analytics
+## After v0.5.0
 
-Potential future analysis capabilities include:
+Future work is intentionally not assigned to a release until product validation justifies it.
 
-* Speed comparison
-* Heading comparison
-* Course over ground analysis
-* True heading analysis
-* Heel and trim analysis
-* Wind-oriented visualization
-* Start analysis
-* Sailing leg detection
-* Tactical event identification
-* Distance gained/lost between boats
-* Automatic detection of relevant debriefing moments
+The canonical future-work inventory is:
+
+`docs/product-backlog.md`
+
+That backlog includes product, ingestion, analytics, privacy/retention, operational and deployment work discovered in current and historical requirements.
+
+The roadmap should remain high-level rather than duplicating detailed backlog items.
 
 ---
 
 ## Releases
 
-Development milestones will be published as GitHub Releases.
+Development milestones are published as GitHub Releases.
 
-Initial release sequence:
+Current sequence:
 
-* `v0.1.0` — Email Track Ingestion PoC
-* `v0.2.0` — Automatic Session Detection
-* `v0.3.0` — Multi-Track Viewer
-* `v0.4.0` — Collaborative Sailing Debrief PoC
-* `v0.5.0` — Real Sailing Pilot
+- `v0.1.0` — Email Track Ingestion PoC
+- `v0.2.0` — Automatic Session Detection
+- `v0.3.0` — Multi-Track Viewer
+- `v0.4.0` — Collaborative Sailing Debrief PoC
+- `v0.5.0` — Real Sailing Pilot
 
-Release scope may evolve as the project is validated.
+Future release scope will be defined from validated product needs and the canonical backlog.
 
 ---
 
 # Versión en español
 
-El desarrollo de TackBar evolucionará de forma incremental, validando cada paso con actividades reales de navegación antes de incorporar más complejidad.
+TackBar evoluciona de forma incremental, validando cada etapa del producto con actividades reales de navegación antes de incorporar más complejidad.
 
-El roadmap se mantiene deliberadamente simple y centrado en la hipótesis principal del producto:
+El roadmap se mantiene deliberadamente a alto nivel. Los requisitos detallados de cada release y el backlog futuro se mantienen en documentos separados.
 
-**varios regatistas → comparten tracks → detección automática de sesión → debriefing colaborativo**
+## Hipótesis principal del producto
 
----
-
-## PoC 1 — Ingesta de tracks por email
-
-Objetivo: demostrar que TackBar puede recibir y procesar automáticamente tracks de navegación enviados por correo electrónico.
-
-Alcance previsto:
-
-* Recibir tracks de navegación como adjuntos de correo
-* Soportar exportaciones Vakaros `CSV.GZ`
-* Identificar al participante mediante la dirección de correo remitente
-* Extraer y validar el adjunto
-* Parsear los datos del track
-* Conservar metadata del archivo original
-* Obtener el nombre del dispositivo desde el nombre de archivo cuando esté disponible
-* Normalizar los datos en el modelo interno de actividad de TackBar
-
-Flujo inicial:
-
-`Vakaros Connect → Exportar CSV/GZIP → Email → TackBar`
+`varios regatistas → comparten tracks → detección automática de Session → debriefing colaborativo`
 
 ---
 
-## PoC 2 — Detección automática de sesiones
+## Hitos entregados
 
-Objetivo: identificar automáticamente tracks que pertenecen a una misma sesión de navegación.
+### v0.1.0 — PoC de ingesta de tracks por email
 
-Alcance previsto:
+Objetivo: demostrar que TackBar puede recibir y procesar tracks de navegación enviados por correo electrónico.
 
-* Detectar hora de inicio y finalización de la actividad
-* Determinar la localización geográfica mediante los datos GPS
-* Comparar el solapamiento temporal entre actividades
-* Comparar la proximidad geográfica entre tracks
-* Crear automáticamente una nueva sesión cuando sea necesario
-* Asociar automáticamente actividades compatibles con una sesión existente
-* Permitir correcciones manuales cuando el matching automático sea incierto
+Dirección entregada:
 
-Señales iniciales utilizadas para el matching:
+- ingesta de adjuntos por email;
+- soporte Vakaros CSV/CSV.GZ;
+- identidad mediante email remitente;
+- parsing y normalización;
+- persistencia de originales y tracks;
+- procesamiento posterior independiente del proveedor.
 
-* fecha
-* hora de inicio/finalización
-* solapamiento temporal
-* proximidad GPS
-* localización del track
+### v0.2.0 — Detección automática de Sessions
 
----
+Objetivo: asociar automáticamente Activities compatibles con la misma Session.
 
-## PoC 3 — Visor multi-track (entregado en v0.3.x)
+Dirección entregada:
+
+- compatibilidad temporal;
+- proximidad geográfica;
+- creación automática de Session;
+- asociación automática Activity-to-Session.
+
+El comportamiento actual de Session matching es una baseline establecida y no se redefine por trabajos posteriores de Viewer o control de acceso salvo requisito explícito.
+
+### v0.3.x — Visor multi-track
 
 Objetivo: visualizar y comparar una o dos Activities de la misma Session.
 
 Baseline entregada:
 
-* Activity principal y Activity de comparación opcional
-* Dos tracks diferenciables en el mismo mapa
-* Analysis Window GPS/UTC y `playbackTime` compartidos
-* Replay sincronizado a x1, x2, x5 y x10
-* Métricas resumen básicas y gráficos temporales SOG/COG
-* Interfaz mobile-first con comportamiento responsive en tablet
-* Fixtures públicos sanitizados para validar el Viewer
+- Activity principal y Activity de comparación opcional;
+- Analysis Window GPS/UTC compartida;
+- Replay sincronizado;
+- métricas resumen básicas;
+- base del Viewer SOG/COG;
+- experiencia responsive mobile-first.
 
----
+Semántica detallada: `docs/session-viewer-requirements.md`.
 
-## PoC 4 — Debriefing colaborativo de vela (entregado en v0.4.0)
+### v0.4.0 — PoC de debriefing colaborativo de vela
 
-Objetivo: validar TackBar como herramienta real de debriefing visual posterior
-a la navegación, conectada con Sessions y Activities realmente persistidas por
-el backend.
+Objetivo: conectar Sessions y Activities persistidas por TackBar con el Session Viewer mobile-first para realizar debriefing colaborativo real alrededor de un móvil o tablet.
 
 Baseline entregada:
 
-* Identidad personal Sailor separada del contexto Boat
-* Activity asociada a su Sailor requerido y Boat opcional
-* Endpoints FastAPI de solo lectura para Sessions recientes, detalle de Session y tracks canónicos completos de Activity
-* Frontend conectado a Sessions/tracks persistidos sin fallback runtime de fixtures de Session/track
-* Activity principal y Activity de comparación opcional
-* Analysis Window GPS/UTC compartida y Replay sincronizado
-* Telemetría fija GPS/SOG/COG/HEEL en el mapa
-* Summary refinado con distancia, SOG medio/máximo, COG dominante y promedios HEEL/TRIM por signo
-* Gráficos temporales SOG/COG/HEEL/TRIM
-* Revisión UX enfocada a móvil/tablet y validación end-to-end con TEST público
+- identidad Sailor separada del contexto Boat;
+- Activity persistida con contexto Boat opcional;
+- APIs FastAPI de lectura de Session/track;
+- frontend conectado a datos persistidos del backend;
+- comparación de una/dos Activities;
+- Analysis Window y Replay compartidos;
+- telemetría fija GPS/SOG/COG/HEEL en el mapa;
+- Summary refinado;
+- gráficos SOG/COG/HEEL/TRIM;
+- validación enfocada en móvil/tablet.
 
-La discusión colaborativa ocurre entre los regatistas reunidos alrededor del
-móvil/tablet. No requiere chat, comentarios, mensajería ni colaboración
-multiusuario en tiempo real.
-
-La persistencia o detección automática de salidas, tramos, regatas, maniobras u
-otros segmentos semánticos sigue siendo trabajo futuro importante, pero no
-bloquea v0.4.
+Requisitos detallados: `docs/v0.4-collaborative-debrief-requirements.md`.
 
 ---
 
-## MVP — Piloto con regatistas reales (siguiente hito: v0.5.0)
+## Hito actual — v0.5.0 Piloto con regatistas reales
 
-Objetivo: validar TackBar con regatistas, entrenadores y sesiones de navegación reales.
+Objetivo: validar TackBar con un pequeño grupo controlado de regatistas reales usando el flujo completo ingesta → Session → debriefing compartido e incorporando el mínimo consentimiento, acceso y administración necesario para un piloto real.
 
-Alcance esperado:
+Dirección de la release:
 
-* Varios regatistas
-* Varios barcos
-* Ingesta automática de actividades
-* Detección fiable de sesiones
-* Sesiones de debriefing compartidas
-* Experiencia mobile-first en móvil/tablet
-* Gestión básica de Sailors y Boats
-* Activación por invitación y control de acceso al piloto
-* Aceptación explícita del uso/privacidad de datos
-* Mejora de la analítica de navegación
-* Feedback de regatistas y entrenadores reales
+- estado de consentimiento PENDING / ACTIVE / REVOKED;
+- visibilidad compartida ACTIVE-only aplicada en backend;
+- confirmación humana del consentimiento para la PoC;
+- Gmail continúa como proveedor de intercambio de tracks del piloto;
+- ingesta del buzón lanzada manualmente desde Admin protegido;
+- registros de ingesta suficientes para diagnóstico y reproceso idempotente;
+- operaciones mínimas en `/admin`;
+- capability URLs de Session separadas del Session ID interno;
+- regeneración/revocación de capability URL;
+- expiración fija de Session a 60 días para la PoC;
+- preservación de las semánticas entregadas de Viewer y Session matching de v0.4.
 
----
+v0.5.0 no requiere polling automático de Gmail, interpretación automática de respuestas de consentimiento, email saliente automático, login de Sailor, QR, Personal TackBar, nueva analítica avanzada ni rediseño de infraestructura.
 
-## Integraciones futuras
+Requisitos detallados: `docs/v0.5-real-sailing-pilot-requirements.md`.
 
-La ingesta Vakaros `.csv` y `.csv.gz` actualmente soportada continúa siendo la implementación vigente. Los formatos Vakaros restantes quedan como backlog no prioritario y no bloquean el trabajo de debriefing colaborativo v0.4.
-
-### Backlog — Completar la ingesta Vakaros multiformato
-
-La futura ingesta Vakaros deberá evaluar dos formatos de contenido:
-
-* Vakaros CSV
-* Vakaros VKX
-
-con las formas de contenedor relevantes:
-
-* sin compresión;
-* GZIP;
-* ZIP.
-
-Las combinaciones que se deberán evaluar incluyen:
-
-* `.csv`
-* `.csv.gz`
-* `.vkx`
-* `.vkx.gz`
-* `.zip` que contenga CSV y/o VKX
-
-El flujo independiente del proveedor previsto es:
-
-```text
-adjunto
-→ detectar/decodificar contenedor
-→ identificar formato contenido
-→ parser CSV o VKX
-→ normalización común de TackBar
-→ Actividad normalizada
-```
-
-Los parsers CSV y VKX deben converger en el mismo modelo normalizado de TackBar, independiente del proveedor. El formato del contenedor no debe afectar a la semántica de Activity ni de Session.
-
-El comportamiento de los ZIP que contengan varios archivos de navegación válidos deberá decidirse explícitamente antes de implementarlo; este roadmap no define todavía esa política.
-
-VKX puede exponer información Vakaros más rica que CSV, como datos del temporizador, de la línea de salida o específicos del dispositivo. Esa información deberá evaluarse por separado antes de ampliar el esquema canónico del track normalizado. No deben añadirse campos específicos de Vakaros únicamente porque VKX los contenga.
-
-La deduplicación lógica entre representaciones equivalentes CSV, CSV.GZ, VKX o ZIP también deberá evaluarse explícitamente más adelante. Este backlog no define ninguna regla de deduplicación entre formatos.
-
-### Siguiente capítulo de ingesta por archivo — GPX
-
-GPX es el siguiente capítulo previsto de ingesta basada en archivos. Su objetivo principal es validar que el parsing y la normalización de TackBar son realmente independientes de Vakaros. GPX deberá producir finalmente el mismo modelo normalizado de Activity y track de TackBar. Los detalles de implementación quedan aplazados.
-
-### Capítulo posterior de integración — Garmin Connect
-
-Garmin Connect será un capítulo de integración separado después de validar la base de parsers y formatos de archivo. La dirección objetivo es un flujo cloud-to-cloud mediante la API oficial de Garmin Connect o Activity API, no scraping ni APIs privadas.
-
-Garmin cambia el mecanismo de adquisición, pero la semántica posterior de Activity, Session y analítica debe seguir siendo independiente del proveedor. Este elemento del roadmap no introduce dependencias ni requisitos de implementación para la API de Garmin.
-
-La progresión prevista es:
-
-```text
-Vakaros CSV/CSV.GZ actual
-→ backlog: VKX + combinaciones GZIP/ZIP
-→ ingesta GPX
-→ integración Garmin Connect
-```
-
-No es necesario completar el backlog Vakaros aplazado antes de comenzar GPX.
-
-Otras posibles fuentes e integraciones posteriores siguen siendo FIT, la integración directa con Vakaros, Intervals.icu, Strava y otros dispositivos y plataformas de actividad.
-
-TackBar pretende mantenerse independiente del dispositivo utilizado.
+Razonamiento de decisiones cerradas: `docs/v0.5-decisions.md`.
 
 ---
 
-## Analítica de vela futura
+## Después de v0.5.0
 
-Posibles capacidades futuras:
+El trabajo futuro no se asigna a una release hasta que la validación del producto lo justifique.
 
-* Comparación de velocidad
-* Comparación de rumbo
-* Análisis de course over ground
-* Análisis de heading verdadero
-* Análisis de escora y trimado
-* Visualización orientada al viento
-* Análisis de salidas
-* Detección de tramos de navegación
-* Identificación de eventos tácticos
-* Distancia ganada/perdida entre barcos
-* Detección automática de momentos relevantes para el debriefing
+El inventario canónico de trabajo futuro es:
+
+`docs/product-backlog.md`
+
+Ese backlog reúne trabajo de producto, ingesta, analítica, privacidad/retención, operación y despliegue identificado tanto en requisitos actuales como históricos.
+
+El roadmap debe mantenerse a alto nivel y evitar duplicar el detalle del backlog.
 
 ---
 
 ## Releases
 
-Los principales hitos de desarrollo se publicarán mediante GitHub Releases.
+Los hitos principales se publican como GitHub Releases.
 
-Secuencia inicial:
+Secuencia actual:
 
-* `v0.1.0` — PoC de ingesta de tracks por email
-* `v0.2.0` — Detección automática de sesiones
-* `v0.3.0` — Visor multi-track
-* `v0.4.0` — PoC de debriefing colaborativo
-* `v0.5.0` — Piloto con regatistas reales
+- `v0.1.0` — PoC de ingesta de tracks por email
+- `v0.2.0` — Detección automática de Sessions
+- `v0.3.0` — Visor multi-track
+- `v0.4.0` — PoC de debriefing colaborativo
+- `v0.5.0` — Piloto con regatistas reales
 
-El alcance de cada release podrá evolucionar a medida que se valide el proyecto.
+El alcance de futuras releases se definirá a partir de necesidades de producto validadas y del backlog canónico.
