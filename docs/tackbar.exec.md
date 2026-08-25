@@ -1,41 +1,19 @@
-# TackBar — Local Development Guide
+# TackBar — Guía de ejecución local v0.5
 
-Guía rápida para levantar TackBar localmente y seleccionar entre los datos públicos de TEST y los datos privados del piloto.
+Guía operativa para levantar TackBar en Windows/PowerShell, elegir datos TEST o privados y operar el piloto mediante `/admin`.
 
----
+## 1. Datos TEST y privados
 
-## 1. Estructura de datos
+`TACKBAR_DATA_DIR` selecciona la raíz de persistencia del backend.
 
-TackBar separa completamente los datos públicos de prueba de los datos reales del piloto.
+- Variable sin definir: dataset público y sanitizado en `C:\maxsail-project\tackbar\backend\test-data`.
+- Variable definida: raíz privada indicada por el operador.
 
-### TEST — público
-
-Los datos de prueba están dentro del repositorio:
-
-```text
-C:\maxsail-project\tackbar\backend\test-data
+```powershell
+$env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
 ```
 
-Contienen únicamente:
-
-- Sailors ficticios;
-- emails `example.com`;
-- barcos y números de vela ficticios;
-- Activities y Sessions de prueba;
-- tracks sanitizados;
-- metadatos de ingestión ficticios.
-
-Estos datos pueden estar versionados en GitHub.
-
-### PROD / piloto — privado
-
-Los datos reales están fuera del repositorio:
-
-```text
-C:\private\tackbar-data
-```
-
-Estructura:
+Una raíz privada v0.5 puede contener:
 
 ```text
 C:\private\tackbar-data\
@@ -44,475 +22,238 @@ C:\private\tackbar-data\
 ├── activities.json
 ├── sessions.json
 ├── ingestion_history.json
+├── consent_events.json
 ├── originals\
 └── tracks\
 ```
 
-Estos datos **NUNCA deben añadirse al repositorio Git**.
+Los archivos aparecen cuando el flujo correspondiente los necesita. Los datos reales, originales, tracks, emails y secretos deben permanecer fuera del repositorio público. Las variables `$env:` afectan sólo a la terminal PowerShell actual.
 
----
+## 2. Configuración Admin
 
-## 2. Selección del dataset
-
-La selección se realiza mediante la variable de entorno:
-
-```text
-TACKBAR_DATA_DIR
-```
-
-### TEST
-
-Si `TACKBAR_DATA_DIR` **no está definida**, TackBar utiliza:
-
-```text
-backend/test-data
-```
-
-### Datos privados
-
-Si está definida:
+Configure la credencial única de administración de la PoC en el backend:
 
 ```powershell
-$env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
+$env:TACKBAR_ADMIN_KEY = "change-me-local-only"
 ```
 
-TackBar utiliza ese directorio como raíz de persistencia.
+Use otro secreto en operación real y no lo añada a Git, URLs, documentación o logs. El frontend lo envía exclusivamente mediante `X-TackBar-Admin-Key`. Si la variable está ausente, vacía o contiene sólo espacios, la API Admin queda deshabilitada (`503`).
 
-La variable se establece únicamente para la terminal PowerShell actual.
+La UI conserva la clave únicamente en memoria React: no usa Local Storage, Session Storage, cookies ni IndexedDB. Refrescar el navegador exige introducirla de nuevo.
 
-Al cerrar la terminal desaparece.
-
----
-
-# 3. Levantar el backend con TEST
-
-Abrir una terminal PowerShell en VS Code.
-
-Ir al backend:
+## 3. Backend con TEST
 
 ```powershell
 cd C:\maxsail-project\tackbar\backend
-```
-
-Eliminar cualquier configuración privada que pudiera existir en esa terminal:
-
-```powershell
 Remove-Item Env:TACKBAR_DATA_DIR -ErrorAction SilentlyContinue
-```
-
-Arrancar FastAPI:
-
-```powershell
+$env:TACKBAR_ADMIN_KEY = "change-me-local-only"
 python -m uvicorn app.main:app --reload
 ```
 
-Debe aparecer algo parecido a:
+Backend: `http://127.0.0.1:8000`
 
-```text
-Uvicorn running on http://127.0.0.1:8000
-Application startup complete.
+Health: `http://127.0.0.1:8000/health` (debe devolver `status: ok`).
+
+Para comprobar deliberadamente Admin deshabilitado, elimine `TACKBAR_ADMIN_KEY` y reinicie el backend:
+
+```powershell
+Remove-Item Env:TACKBAR_ADMIN_KEY -ErrorAction SilentlyContinue
 ```
 
-El backend queda disponible en:
-
-```text
-http://127.0.0.1:8000
-```
-
-Health check:
-
-```text
-http://127.0.0.1:8000/health
-```
-
-Mantener esta terminal abierta.
-
----
-
-# 4. Levantar el backend con datos privados
-
-Abrir una terminal PowerShell.
+## 4. Backend con datos privados
 
 ```powershell
 cd C:\maxsail-project\tackbar\backend
-```
-
-Configurar el directorio privado:
-
-```powershell
 $env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
-```
-
-Comprobar la variable:
-
-```powershell
-$env:TACKBAR_DATA_DIR
-```
-
-Debe devolver:
-
-```text
-C:\private\tackbar-data
-```
-
-Arrancar FastAPI:
-
-```powershell
+$env:TACKBAR_ADMIN_KEY = "change-me-local-only"
 python -m uvicorn app.main:app --reload
 ```
 
-En esta configuración el backend trabaja con los datos reales privados del piloto.
+Compruebe la selección con `$env:TACKBAR_DATA_DIR`. La carpeta elegida contiene datos privados del piloto, debe estar fuera de `C:\maxsail-project\tackbar` y nunca debe añadirse a Git.
 
----
+## 5. Frontend
 
-# 5. Levantar el frontend
-
-Abrir una **segunda terminal** en VS Code.
-
-Ir al frontend:
+En una segunda terminal:
 
 ```powershell
 cd C:\maxsail-project\tackbar\frontend
 ```
 
-Node.js no siempre está disponible automáticamente en el `PATH`.
-
-Configurar Node para la terminal actual:
+Si Node.js no está en `PATH`, configure la instalación local actual:
 
 ```powershell
 $nodeDir = "C:\Users\mmannise\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.19.0-win-x64"
 $env:Path = "$nodeDir;$env:Path"
 ```
-
-Opcionalmente comprobar:
 
 ```powershell
 node --version
 npm.cmd --version
-```
-
-Arrancar Vite:
-
-```powershell
 npm.cmd run dev
 ```
 
-Debe aparecer algo similar a:
+Vite sirve normalmente en `http://localhost:5173` y envía `/api` mediante proxy a `http://127.0.0.1:8000`.
+
+Entradas actuales:
 
 ```text
-Local: http://localhost:5173/
+Admin:          http://localhost:5173/admin
+Shared Viewer:  http://localhost:5173/s/<capability-token>
 ```
 
-Abrir en el navegador:
+No existe un índice público de Sessions. Las rutas desconocidas muestran “Shared link required”.
+
+## 6. Operación Admin
+
+1. Abra `http://localhost:5173/admin`.
+2. Introduzca el valor configurado como `TACKBAR_ADMIN_KEY`.
+3. Utilice las pestañas **Sailors** y **Sessions**.
+
+### Sailors y consentimiento
+
+La lista distingue:
+
+- **Pending · request needed**;
+- **Pending · awaiting response**;
+- **Active**;
+- **Revoked**.
+
+Las acciones semánticas disponibles son **Mark request sent**, **Confirm consent**, **Record decline** y **Record withdrawal**. Admin no edita directamente `consent_status`, timestamps, source o versión del acuerdo. Al confirmar, el backend registra automáticamente la versión vigente. El detalle muestra el historial estructurado con evento, fecha, origen y versión cuando existe.
+
+El consentimiento gobierna la visibilidad compartida, no la ingestión técnica ni el Session matching. Una Activity puede ingerirse y pertenecer internamente a una Session aunque su Sailor no esté ACTIVE; sólo las Activities de Sailors ACTIVE se comparten.
+
+### Sessions
+
+Admin muestra el ID interno, `created_at`, `expires_at`, **Internal tracks**, **Shareable now** y el estado de capability.
+
+- **Internal tracks**: membresía técnica completa de la Session.
+- **Shareable now**: Activities cuyo Sailor está actualmente ACTIVE.
+
+Los valores no tienen por qué coincidir.
+
+## 7. Capability y acceso compartido
+
+El `session_id` es interno y no autoriza acceso público. La autorización compartida usa:
 
 ```text
-http://localhost:5173/sessions
+/s/<capability_token>
 ```
 
-Mantener esta terminal abierta.
+Poseer una capability válida basta para abrir la Session en v0.5, pero el backend expone únicamente Activities de Sailors ACTIVE.
 
----
+Estados:
 
-# 6. Configuración habitual de desarrollo
+- **Active**: link utilizable; Admin ofrece Copy/Open.
+- **Expired**: alcanzó `expires_at`; no da acceso.
+- **Revoked**: deshabilitado explícitamente.
+- **Never generated**: no existe token.
 
-Para trabajar normalmente con el dataset público TEST:
+**Regenerate capability** crea un token/link nuevo y el anterior deja de funcionar. **Revoke capability** deshabilita el acceso sin borrar Session ni Activities. Admin usa el `capability_path` del backend, nunca el Session ID.
 
-## Terminal 1 — Backend
+### Renovación
+
+Admin renueva por 30 días de forma predeterminada o por un valor entre 1 y 365:
+
+```text
+expires_at = hora UTC actual + X días
+```
+
+No suma días a la expiración anterior. `created_at`, membresía y token permanecen sin cambios; tampoco elimina una revocación ni rota automáticamente el token.
+
+Una Session expirada con token no revocado puede volver a funcionar con el mismo link tras renovarse si tiene contenido compartible. Una capability explícitamente revocada permanece revocada.
+
+## 8. Shared Session Viewer
+
+Flujo actual:
+
+```text
+Admin obtiene/copia una capability activa
+→ abre o comparte /s/<token>
+→ Session Viewer
+```
+
+No hay “Recent Sessions” público. Compruebe Primary Activity, Compare Activity opcional, uno/dos tracks, telemetría GPS/SOG/COG/HEEL, Analysis Window, Replay x1/x2/x5/x10, gráficos SOG/COG/HEEL/TRIM y Summary Metrics.
+
+## 9. Gmail e ingestión
+
+La UI Admin todavía **no** incluye Review mailbox now, historial/errores de ingestión ni reprocess. Esas funciones corresponden a incrementos posteriores de v0.5.
+
+El script existente sigue disponible como fallback operativo/diagnóstico y exige almacenamiento privado fuera del repositorio:
 
 ```powershell
 cd C:\maxsail-project\tackbar\backend
-
-Remove-Item Env:TACKBAR_DATA_DIR -ErrorAction SilentlyContinue
-
-python -m uvicorn app.main:app --reload
-```
-
-## Terminal 2 — Frontend
-
-```powershell
-cd C:\maxsail-project\tackbar\frontend
-
-$nodeDir = "C:\Users\mmannise\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.19.0-win-x64"
-$env:Path = "$nodeDir;$env:Path"
-
-npm.cmd run dev
-```
-
-Navegador:
-
-```text
-http://localhost:5173/sessions
-```
-
----
-
-# 7. Trabajar con datos privados
-
-Para utilizar los datos reales del piloto solo cambia la configuración del backend.
-
-## Terminal 1 — Backend
-
-```powershell
-cd C:\maxsail-project\tackbar\backend
-
 $env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
-
-python -m uvicorn app.main:app --reload
-```
-
-## Terminal 2 — Frontend
-
-Se levanta exactamente igual que con TEST:
-
-```powershell
-cd C:\maxsail-project\tackbar\frontend
-
-$nodeDir = "C:\Users\mmannise\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.19.0-win-x64"
-$env:Path = "$nodeDir;$env:Path"
-
-npm.cmd run dev
-```
-
----
-
-# 8. Integración frontend/backend
-
-El Session Viewer consume Sessions y tracks persistidos mediante la API de solo
-lectura del backend:
-
-```text
-Frontend
-   ↓
-FastAPI read API
-   ↓
-TACKBAR_DATA_DIR
-   ↓
-TEST o datos privados
-```
-
-`TACKBAR_DATA_DIR` selecciona exclusivamente la raíz de persistencia del
-backend. El frontend utiliza la misma API y lógica en TEST y con datos privados;
-no contiene un fallback runtime de fixtures de Session/track ni conoce rutas de
-archivos JSON o CSV.GZ.
-
----
-
-# 9. Ingestión Gmail real
-
-La ingestión de correo real debe utilizar siempre almacenamiento privado.
-
-Configurar:
-
-```powershell
-$env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
-```
-
-Ir al backend:
-
-```powershell
-cd C:\maxsail-project\tackbar\backend
-```
-
-Procesar Gmail:
-
-```powershell
 python scripts/check_gmail.py
 ```
 
-La ingestión Gmail requiere explícitamente `TACKBAR_DATA_DIR` y rechaza rutas situadas dentro del repositorio.
-
-Esto evita que datos reales puedan terminar accidentalmente en:
-
-```text
-backend/test-data
-```
-
-Si es necesario regenerar el índice de tracks:
+No es todavía el flujo final de Admin. Para reconstruir el índice de tracks existente:
 
 ```powershell
 python scripts/build_tracks_index.py
 ```
 
----
-
-# 10. Tests backend
-
-Desde:
+## 10. Tests
 
 ```powershell
 cd C:\maxsail-project\tackbar\backend
-```
-
-Ejecutar:
-
-```powershell
 python -m pytest tests
 ```
 
-Última referencia después de completar v0.4.0:
-
-```text
-116 passed
-```
-
----
-
-# 11. Tests frontend
-
-Desde:
-
 ```powershell
 cd C:\maxsail-project\tackbar\frontend
-```
-
-Configurar Node:
-
-```powershell
-$nodeDir = "C:\Users\mmannise\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.19.0-win-x64"
-$env:Path = "$nodeDir;$env:Path"
-```
-
-Ejecutar:
-
-```powershell
 npm.cmd test
 npm.cmd run typecheck
 npm.cmd run build
 ```
 
----
+Los conteos exactos evolucionan; todas las comprobaciones deben terminar correctamente.
 
-# 12. Smoke test manual
+## 11. Smoke test manual v0.5
 
-Después de levantar TackBar comprobar:
+- **Backend:** `/health` devuelve `status: ok`.
+- **Admin auth:** clave incorrecta rechazada; correcta aceptada; refresh exige reentrada.
+- **Sailors:** cuatro grupos, detalle/historial y refetch tras acción semántica.
+- **Sessions:** Internal tracks, Shareable now, expiración y capability state visibles; cero compartibles sigue siendo inspeccionable.
+- **Capability:** Copy/Open activo; Regenerate invalida el link anterior y habilita el nuevo; Revoke invalida el link sin borrar datos.
+- **Renewal:** renovar 30 días produce expiración aproximadamente 30 días desde ahora; el token activo no rota y una capability revocada sigue revocada.
+- **Viewer:** `/s/<token-válido>` carga mapa, selección, Analysis Window, replay, charts y Summary; sólo expone Activities ACTIVE.
+- **Seguridad:** la clave no aparece en Local/Session Storage; requests Admin incluyen `X-TackBar-Admin-Key`; requests shared no lo incluyen.
 
-```text
-Session Viewer
+## 12. Parar TackBar
 
-✓ Recent Sessions desde FastAPI
-✓ Primary Activity
-✓ Compare Activity
-✓ dos tracks en el mapa
-✓ telemetría fija GPS / SOG / COG / HEEL
-✓ Analysis Window
-✓ Replay
-✓ velocidades x1 / x2 / x5 / x10
-✓ gráfico SOG
-✓ gráfico COG
-✓ gráfico HEEL
-✓ gráfico TRIM
-✓ Summary Metrics
-```
+Pulse `Ctrl + C` en las terminales de backend y frontend.
 
----
-
-# 13. Parar TackBar
-
-En la terminal del backend:
+## 13. Privacidad
 
 ```text
-Ctrl + C
-```
-
-En la terminal del frontend:
-
-```text
-Ctrl + C
-```
-
----
-
-# 14. Regla de privacidad
-
-La separación fundamental de TackBar es:
-
-```text
-GitHub público
-│
-├── código
-├── documentación
-├── tests
-└── backend/test-data
-        ↓
-     datos fake /
-     sanitizados
-
+Repositorio público
+├── código, documentación y tests
+└── backend/test-data (fake/sanitizado)
 
 C:\private\tackbar-data
-│
-├── Sailors reales
-├── Boats reales
-├── Activities reales
-├── Sessions reales
+├── Sailors/consentimiento, Activities y Sessions reales
 ├── originales
 └── tracks
-        ↓
-     PRIVADO
 ```
 
-Regla:
+> Los datos reales de Sailors, Boats, correo y navegación, y los secretos Admin, nunca se almacenan en el repositorio público.
 
-> Los datos reales de Sailors, Boats y navegación nunca se almacenan en el repositorio público.
+## 14. Chuleta de 30 segundos
 
-El repositorio puede contener un dataset TEST completo siempre que sea ficticio, sanitizado e intencionadamente publicable.
-
----
-
-# 15. Piloto TackBar
-
-El piloto será cerrado y por invitación.
-
-Modelo previsto:
-
-```text
-invited
-   ↓
-aviso de privacidad
-   ↓
-aceptación explícita
-   ↓
-active
-```
-
-Solo los Sailors activos estarán autorizados a generar nuevas Activities mediante ingestión.
-
-La identidad externa inicial del Sailor seguirá siendo su email normalizado:
-
-```text
-strip().lower()
-```
-
-El registro/invitación y control de acceso se implementarán en una etapa posterior.
-
----
-
-# 16. Chuleta de 30 segundos
-
-Si solo quieres volver a levantar TackBar con TEST después de un tiempo:
-
-## Terminal 1
+Terminal 1:
 
 ```powershell
 cd C:\maxsail-project\tackbar\backend
 Remove-Item Env:TACKBAR_DATA_DIR -ErrorAction SilentlyContinue
+$env:TACKBAR_ADMIN_KEY = "change-me-local-only"
 python -m uvicorn app.main:app --reload
 ```
 
-## Terminal 2
+Terminal 2:
 
 ```powershell
 cd C:\maxsail-project\tackbar\frontend
-
-$nodeDir = "C:\Users\mmannise\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.19.0-win-x64"
-$env:Path = "$nodeDir;$env:Path"
-
 npm.cmd run dev
 ```
 
-## Navegador
-
-```text
-http://localhost:5173/sessions
-```
-
-That's it.
+Navegador: `http://localhost:5173/admin`. Desde Admin copie o abra `/s/<token>` para validar el Viewer compartido.
