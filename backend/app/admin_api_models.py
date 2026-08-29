@@ -64,3 +64,11 @@ class AdminIngestionResponse(BaseModel):
     activity_id: str | None
     session_id: str | None
     original_available: bool
+
+
+class AdminMailboxReviewResponse(BaseModel):
+    discovered_candidates: int
+    processed: int
+    skipped_already_processed: int
+    known_failed: int
+    failed: int

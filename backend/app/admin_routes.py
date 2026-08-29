@@ -9,6 +9,7 @@ from app.admin_api_models import (
     AdminSessionRenewRequest,
     AdminSessionResponse,
     AdminIngestionResponse,
+    AdminMailboxReviewResponse,
 )
 from app.admin_auth import require_admin_key
 from app.repositories.activities import ActivityRepository
@@ -33,6 +34,7 @@ from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_processing import reprocess_ingestion
 from app.repositories.boats import BoatRepository
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
+from app.services.mailbox_review import MailboxReviewError, review_mailbox_now
 
 
 router = APIRouter(
@@ -131,6 +133,16 @@ def list_ingestions() -> list[AdminIngestionResponse]:
         return sorted((_ingestion_response(record) for record in records), key=lambda item: item.last_attempt_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     except ValueError as error:
         raise _admin_integrity_error() from error
+
+
+@router.post("/ingestions/review-mailbox", response_model=AdminMailboxReviewResponse)
+def review_mailbox() -> AdminMailboxReviewResponse:
+    try:
+        return AdminMailboxReviewResponse(**review_mailbox_now().__dict__)
+    except ValueError as error:
+        raise HTTPException(status_code=503, detail="Mailbox review unavailable") from error
+    except MailboxReviewError as error:
+        raise HTTPException(status_code=503, detail="Mailbox review unavailable") from error
 
 
 @router.get("/ingestions/{ingestion_id}", response_model=AdminIngestionResponse)

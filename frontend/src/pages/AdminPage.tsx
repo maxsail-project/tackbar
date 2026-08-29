@@ -13,6 +13,7 @@ import {
   revokeConsent,
   startNewConsentCycle,
   reprocessIngestion,
+  reviewMailbox,
 } from '../api/adminApi'
 import type { AdminIngestion, AdminSailor, AdminSailorDetail, AdminSession, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 
@@ -66,6 +67,7 @@ export default function AdminPage() {
   const [sailors, setSailors] = useState<AdminSailor[]>([])
   const [sessions, setSessions] = useState<AdminSession[]>([])
   const [ingestions, setIngestions] = useState<AdminIngestion[]>([])
+  const [reviewSummary, setReviewSummary] = useState<string | null>(null)
   const [selectedSailor, setSelectedSailor] = useState<AdminSailorDetail | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,6 +118,11 @@ export default function AdminPage() {
     setBusy(true); setError(null)
     try { const updated = await reprocessIngestion(adminKey, id); setIngestions((current) => current.map((item) => item.id === id ? updated : item)); setIngestions(await listAdminIngestions(adminKey)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
+  const mailboxAction = async () => {
+    if (!adminKey) return
+    setBusy(true); setError(null); setReviewSummary(null)
+    try { const result = await reviewMailbox(adminKey); setReviewSummary(`Mailbox review complete: ${result.processed} processed · ${result.skipped_already_processed} skipped · ${result.known_failed} known failed · ${result.failed} failed`); setIngestions(await listAdminIngestions(adminKey)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+  }
   if (!adminKey) return <AdminAccessForm onEnter={enter} error={error} busy={busy} />
 
   return <main className="admin-page">
@@ -133,7 +140,7 @@ export default function AdminPage() {
       </article>)}
     </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><div className="admin-list">
       {sessions.map((session) => <SessionCard key={session.id} session={session} busy={busy} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
-    </div></section> : <section className="admin-content"><h1>Ingestions</h1><div className="admin-list">{ingestions.map((item) => <IngestionCard key={item.id} ingestion={item} busy={busy} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} />)}</div></section>}
+    </div></section> : <section className="admin-content"><h1>Ingestions</h1><button disabled={busy} onClick={() => void mailboxAction()}>Review mailbox now</button>{reviewSummary && <p className="admin-meta">{reviewSummary}</p>}<div className="admin-list">{ingestions.map((item) => <IngestionCard key={item.id} ingestion={item} busy={busy} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} />)}</div></section>}
   </main>
 }
 

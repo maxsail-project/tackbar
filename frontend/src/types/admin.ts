@@ -45,3 +45,4 @@ export interface AdminIngestion {
   attempts: number; last_attempt_at: string | null; last_error: string | null
   activity_id: string | null; session_id: string | null; original_available: boolean
 }
+export interface AdminMailboxReview { discovered_candidates: number; processed: number; skipped_already_processed: number; known_failed: number; failed: number }

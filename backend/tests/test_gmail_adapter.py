@@ -60,8 +60,8 @@ def test_get_candidate_emails_from_gmail_response() -> None:
     assert emails[0].provider_message_id == "message-1"
     messages.list.assert_called_once_with(
         userId="me",
-        q="is:unread has:attachment",
-        maxResults=10,
+        q="has:attachment",
+        maxResults=100,
     )
 
 

@@ -49,6 +49,8 @@ def process_provider_email(
             return None
         digest = sha256(email.attachment_bytes).hexdigest() if email.attachment_bytes is not None else None
         record = history.create(provider, email.provider_message_id, email.sender_email, email.attachment_filename, digest)
+        record["received_at"] = email.received_at.isoformat() if email.received_at else None
+        history.replace(record)
         if email.attachment_bytes is not None and email.attachment_filename:
             original_storage = IngestionOriginalStorage(activities.path.parent)
             record["original_file"] = original_storage.preserve(record["id"], email.attachment_filename, email.attachment_bytes)

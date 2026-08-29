@@ -208,7 +208,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 14
+    assert len(admin_router.routes) == 15
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 

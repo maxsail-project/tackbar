@@ -182,6 +182,16 @@ Activity ID, Session ID y disponibilidad del original. Los registros `failed`
 permanecen visibles y pueden reprocesarse cuando el original preservado está
 disponible.
 
+**Review mailbox now** requiere `TACKBAR_DATA_DIR` privado, la clave Admin y
+credenciales/token OAuth de Gmail preparados previamente con alcance
+`gmail.readonly`. No abre OAuth interactivo desde el navegador ni modifica el
+estado de Gmail.
+
+La acción descubre mensajes con adjuntos (incluidos mensajes ya leídos), usa
+paginación y muestra un resumen con candidatos `processed`, `skipped`, `known
+failed` y `failed`. Los registros `known failed` no se reintentan
+automáticamente; use **Reprocess** explícitamente.
+
 **Reprocess** trabaja sobre el registro conocido y su original preservado:
 
 ```text
@@ -198,11 +208,8 @@ original de Activity pueden coexistir; ambos viven bajo la raíz privada de
 datos y la API Admin nunca expone rutas locales ni bytes crudos. La exclusión
 de escritor es por proceso, por lo que no cubre varias instancias del backend.
 
-La UI Admin todavía **no** incluye **Review mailbox now**. Esa operación,
-incluida la discovery de Gmail, polling y reintentos automáticos, pertenece al
-siguiente incremento. Hasta entonces `scripts/check_gmail.py` sigue siendo el
-mecanismo diagnóstico/fallback para descubrir mensajes y usa el mismo límite de
-ingestión provider-independent.
+`scripts/check_gmail.py` sigue siendo el mecanismo diagnóstico/fallback y usa el
+mismo servicio compartido. No hay polling ni reintentos automáticos.
 
 El script existente sigue disponible como fallback operativo/diagnóstico y exige almacenamiento privado fuera del repositorio:
 

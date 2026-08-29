@@ -1,4 +1,4 @@
-import type { AdminIngestion, AdminSailor, AdminSailorDetail, AdminSession } from '../types/admin'
+import type { AdminIngestion, AdminMailboxReview, AdminSailor, AdminSailorDetail, AdminSession } from '../types/admin'
 
 export class AdminApiError extends Error {
   readonly status: number | null
@@ -60,3 +60,4 @@ export const renewSession = (key: string, id: string, days: number) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/renew`, key, 'POST', { days })
 export const listAdminIngestions = (key: string) => adminRequest<AdminIngestion[]>('/api/admin/ingestions', key)
 export const reprocessIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/reprocess`, key, 'POST')
+export const reviewMailbox = (key: string) => adminRequest<AdminMailboxReview>('/api/admin/ingestions/review-mailbox', key, 'POST')
