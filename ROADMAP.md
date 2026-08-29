@@ -76,6 +76,9 @@ Detailed requirements: `docs/v0.4-collaborative-debrief-requirements.md`.
 
 ## Current milestone — v0.5.0 Real Sailing Pilot
 
+Implementation is complete and validated for a controlled pilot; manual
+real-Gmail/operator validation remains the final operational step.
+
 Goal: validate TackBar with a small controlled group of real sailors using the complete ingestion → Session → shared debrief workflow while introducing the minimum consent, access and administration required for a real pilot.
 
 Current release direction:

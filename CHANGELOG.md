@@ -2,6 +2,14 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.5.0 — Ready for controlled pilot
+
+The Real Sailing Pilot flow is implemented and validated: consent-aware
+visibility, protected Admin operations, capability-based Session access,
+60-day Session expiry, ingestion records/reprocessing, and Admin-triggered
+Gmail mailbox review. This marks pilot readiness, not completion of a real
+pilot run.
+
 ---
 
 ## v0.4.0 — Collaborative Sailing Debrief
