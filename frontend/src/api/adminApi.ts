@@ -48,6 +48,8 @@ export const confirmConsent = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/consent/confirm`, key, 'POST')
 export const revokeConsent = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/consent/revoke`, key, 'POST')
+export const startNewConsentCycle = (key: string, id: string) =>
+  adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/consent/new-cycle`, key, 'POST')
 export const listAdminSessions = (key: string) =>
   adminRequest<AdminSession[]>('/api/admin/sessions', key)
 export const regenerateCapability = (key: string, id: string) =>

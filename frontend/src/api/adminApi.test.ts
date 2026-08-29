@@ -4,6 +4,7 @@ import {
   listAdminSailors,
   regenerateCapability,
   renewSession,
+  startNewConsentCycle,
 } from './adminApi'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -42,5 +43,19 @@ describe('Admin API client', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/sessions/session%2Fid/renew')
     expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ method: 'POST', body: '{"days":30}' }))
     expect(fetchMock.mock.calls[1][0]).toContain('/capability/regenerate')
+  })
+
+  it('starts a new consent cycle through the semantic Admin endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'sailor/id' }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await startNewConsentCycle('key', 'sailor/id')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/admin/sailors/sailor%2Fid/consent/new-cycle',
+      expect.objectContaining({ method: 'POST' }),
+    )
   })
 })

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminSailorDetail, AdminSession } from '../types/admin'
-import { AdminAccessForm, capabilityLabels, consentLabels, SailorDetail, SessionCard } from './AdminPage'
+import { AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, SailorDetail, SessionCard } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : 'PENDING',
@@ -43,7 +43,7 @@ describe('minimal Admin UI', () => {
   })
 
   it('renders state-appropriate consent actions and chronological event data', () => {
-    const callbacks = { busy: false, onRequested: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined }
+    const callbacks = { busy: false, onRequested: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined }
     const needs = renderToStaticMarkup(<SailorDetail sailor={sailor('pending_needs_request')} {...callbacks} />)
     const waiting = renderToStaticMarkup(<SailorDetail sailor={sailor('pending_awaiting_response')} {...callbacks} />)
     const active = renderToStaticMarkup(<SailorDetail sailor={sailor('active')} {...callbacks} />)
@@ -54,9 +54,23 @@ describe('minimal Admin UI', () => {
     expect(waiting).toContain('Record decline')
     expect(active).toContain('Record withdrawal')
     expect(revoked).not.toContain('Confirm consent')
+    expect(revoked).not.toContain('Activate')
+    expect(revoked).toContain('Start new consent cycle')
+    expect(needs).not.toContain('Start new consent cycle')
+    expect(waiting).not.toContain('Start new consent cycle')
+    expect(active).not.toContain('Start new consent cycle')
     expect(waiting).toContain('consent requested')
     expect(waiting).toContain('admin')
     expect(waiting).toContain('v1')
+  })
+
+  it('cancels or confirms a new consent cycle without bypassing confirmation', () => {
+    const action = vi.fn()
+
+    confirmNewConsentCycle(() => false, action)
+    expect(action).not.toHaveBeenCalled()
+    confirmNewConsentCycle(() => true, action)
+    expect(action).toHaveBeenCalledOnce()
   })
 
   it('shows counts, active link actions and renewal-from-now wording', () => {

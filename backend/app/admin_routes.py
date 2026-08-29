@@ -96,6 +96,20 @@ def revoke_consent(sailor_id: str) -> AdminSailorDetailResponse:
     )
 
 
+@router.post(
+    "/sailors/{sailor_id}/consent/new-cycle",
+    response_model=AdminSailorDetailResponse,
+)
+def start_new_consent_cycle(sailor_id: str) -> AdminSailorDetailResponse:
+    return _perform_consent_action(
+        sailor_id,
+        lambda service: service.start_new_consent_cycle(
+            sailor_id,
+            source="admin_started_new_consent_cycle",
+        ),
+    )
+
+
 @router.get("/sessions", response_model=list[AdminSessionResponse])
 def list_sessions() -> list[AdminSessionResponse]:
     try:

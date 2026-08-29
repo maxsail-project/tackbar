@@ -21,10 +21,12 @@ REVOKED = "30000000-0000-4000-8000-000000000004"
 ACTIVITY_ACTIVE = "10000000-0000-4000-8000-000000000001"
 ACTIVITY_PENDING = "10000000-0000-4000-8000-000000000002"
 ACTIVITY_REVOKED = "10000000-0000-4000-8000-000000000003"
+ACTIVITY_REVOKED_ONLY = "10000000-0000-4000-8000-000000000004"
 SESSION_ACTIVE = "session-active"
 SESSION_NEVER = "session-never"
 SESSION_REVOKED = "session-revoked"
 SESSION_EXPIRED = "session-expired"
+SESSION_REVOKED_SAILOR = "session-revoked-sailor"
 ACTIVE_TOKEN = "admin-api-active-capability-token-000000000000001"
 REVOKED_TOKEN = "admin-api-revoked-capability-token-0000000000001"
 EXPIRED_TOKEN = "admin-api-expired-capability-token-0000000000001"
@@ -52,9 +54,12 @@ def _sailor(
         "name": email.split("@")[0],
         "default_boat_id": None,
         "consent_status": status,
-        "consent_request_sent_at": request_sent_at,
+        "consent_request_sent_at": request_sent_at or (
+            "2026-08-01T12:00:00+00:00" if status == "REVOKED" else None
+        ),
         "consent_granted_at": (
-            "2026-08-02T12:00:00+00:00" if status == "ACTIVE" else None
+            "2026-08-02T12:00:00+00:00"
+            if status in ("ACTIVE", "REVOKED") else None
         ),
         "consent_revoked_at": (
             "2026-08-03T12:00:00+00:00" if status == "REVOKED" else None
@@ -120,16 +125,19 @@ def _runtime_root(temporary_directory: Path) -> Path:
         _activity(ACTIVITY_ACTIVE, ACTIVE),
         _activity(ACTIVITY_PENDING, PENDING_NEEDS),
         _activity(ACTIVITY_REVOKED, REVOKED),
+        _activity(ACTIVITY_REVOKED_ONLY, REVOKED),
     ])
     _write_json(root / "sessions.json", [
         _session(SESSION_ACTIVE, [ACTIVITY_PENDING, ACTIVITY_ACTIVE, ACTIVITY_REVOKED], ACTIVE_TOKEN),
         _session(SESSION_NEVER, [ACTIVITY_PENDING], None),
         _session(SESSION_REVOKED, [ACTIVITY_ACTIVE], None, revoked=True),
         _session(SESSION_EXPIRED, [ACTIVITY_ACTIVE, ACTIVITY_PENDING], EXPIRED_TOKEN, created_at="2020-01-01T00:00:00+00:00", expires_at="2020-03-01T00:00:00+00:00"),
+        _session(SESSION_REVOKED_SAILOR, [ACTIVITY_REVOKED_ONLY], None),
     ])
     _write_json(root / "consent_events.json", [
         {"event_type": "consent_requested", "timestamp": "2026-08-01T12:00:00+00:00", "source": "admin_marked_consent_requested", "sailor_id": PENDING_WAITING, "agreement_version": None},
         {"event_type": "consent_granted", "timestamp": "2026-08-02T12:00:00+00:00", "source": "admin_confirmed_email", "sailor_id": ACTIVE, "agreement_version": CURRENT_CONSENT_AGREEMENT_VERSION},
+        {"event_type": "consent_revoked", "timestamp": "2026-08-03T12:00:00+00:00", "source": "admin_recorded_withdrawal", "sailor_id": REVOKED, "agreement_version": None},
     ])
     return root
 
@@ -197,7 +205,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 10
+    assert len(admin_router.routes) == 11
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -269,6 +277,55 @@ def test_invalid_transition_and_unknown_sailor_are_client_errors(monkeypatch: py
 
     assert conflict.status_code == 409
     assert missing.status_code == missing_action.status_code == 404
+
+
+def test_admin_starts_new_consent_cycle_without_restoring_shared_visibility(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    before_session = _request("GET", f"/api/admin/sessions/{SESSION_ACTIVE}")
+    before_private = _request("GET", f"/api/admin/sessions/{SESSION_REVOKED_SAILOR}")
+    response = _request("POST", f"/api/admin/sailors/{REVOKED}/consent/new-cycle")
+    after_session = _request("GET", f"/api/admin/sessions/{SESSION_ACTIVE}")
+    after_private = _request("GET", f"/api/admin/sessions/{SESSION_REVOKED_SAILOR}")
+
+    assert response.status_code == 200
+    assert response.json["consent_status"] == "PENDING"
+    assert response.json["operational_group"] == "pending_needs_request"
+    assert response.json["consent_request_sent_at"] is None
+    assert response.json["consent_granted_at"] is None
+    assert response.json["consent_revoked_at"] is None
+    assert [event["event_type"] for event in response.json["consent_events"]] == [
+        "consent_revoked",
+        "consent_cycle_started",
+    ]
+    assert response.json["consent_events"][-1]["source"] == "admin_started_new_consent_cycle"
+    assert after_session.json["visible_activity_count"] == before_session.json["visible_activity_count"]
+    assert after_session.json["capability_token"] == before_session.json["capability_token"]
+    assert before_private.json["capability_state"] == after_private.json["capability_state"] == "never_generated"
+    assert after_private.json["visible_activity_count"] == 0
+    assert after_private.json["capability_token"] is None
+
+
+def test_new_consent_cycle_rejects_invalid_states_unknown_and_unauthorized(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+
+    active = _request("POST", f"/api/admin/sailors/{ACTIVE}/consent/new-cycle")
+    pending = _request("POST", f"/api/admin/sailors/{PENDING_NEEDS}/consent/new-cycle")
+    missing = _request("POST", "/api/admin/sailors/unknown/consent/new-cycle")
+    unauthorized = _request(
+        "POST",
+        f"/api/admin/sailors/{REVOKED}/consent/new-cycle",
+        admin_key=None,
+    )
+
+    assert active.status_code == pending.status_code == 409
+    assert missing.status_code == 404
+    assert unauthorized.status_code == 401
 
 
 def test_admin_sessions_include_internal_counts_lifetime_and_all_states(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

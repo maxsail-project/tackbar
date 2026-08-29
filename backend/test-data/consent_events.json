@@ -1,0 +1,30 @@
+[
+  {
+    "event_type": "consent_revoked",
+    "timestamp": "2026-08-29T01:38:47.346485+00:00",
+    "source": "admin_recorded_withdrawal",
+    "sailor_id": "30000000-0000-4000-8000-000000000001",
+    "agreement_version": null
+  },
+  {
+    "event_type": "consent_cycle_started",
+    "timestamp": "2026-08-29T01:47:45.874523+00:00",
+    "source": "admin_started_new_consent_cycle",
+    "sailor_id": "30000000-0000-4000-8000-000000000001",
+    "agreement_version": null
+  },
+  {
+    "event_type": "consent_requested",
+    "timestamp": "2026-08-29T01:47:53.091224+00:00",
+    "source": "admin_marked_consent_requested",
+    "sailor_id": "30000000-0000-4000-8000-000000000001",
+    "agreement_version": null
+  },
+  {
+    "event_type": "consent_granted",
+    "timestamp": "2026-08-29T01:47:55.450296+00:00",
+    "source": "admin_confirmed_email",
+    "sailor_id": "30000000-0000-4000-8000-000000000001",
+    "agreement_version": "v0.5.0"
+  }
+]

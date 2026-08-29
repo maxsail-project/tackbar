@@ -10,6 +10,7 @@ import {
   renewSession,
   revokeCapability,
   revokeConsent,
+  startNewConsentCycle,
 } from '../api/adminApi'
 import type { AdminSailor, AdminSailorDetail, AdminSession, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 
@@ -23,6 +24,13 @@ export const consentLabels: Record<ConsentOperationalGroup, string> = {
 }
 export const capabilityLabels: Record<CapabilityState, string> = {
   active: 'Active', expired: 'Expired', revoked: 'Revoked', never_generated: 'Never generated',
+}
+
+export function confirmNewConsentCycle(
+  confirm: (message: string) => boolean,
+  action: () => void,
+) {
+  if (confirm('Start a new consent cycle for this Sailor? They will return to Pending and will need consent again.')) action()
 }
 
 function localDate(value: string | null) {
@@ -113,7 +121,7 @@ export default function AdminPage() {
         <div className="admin-card__heading"><div><h2>{sailor.name || sailor.email}</h2>{sailor.name && <p>{sailor.email}</p>}</div><span className={`state-badge state-${sailor.operational_group}`}>{consentLabels[sailor.operational_group]}</span></div>
         <p className="admin-meta">{sailor.operational_group === 'active' ? 'Consent granted' : sailor.operational_group === 'revoked' ? 'Consent revoked' : 'Consent request'}: {localDate(sailor.operational_group === 'active' ? sailor.consent_granted_at : sailor.operational_group === 'revoked' ? sailor.consent_revoked_at : sailor.consent_request_sent_at)}</p>
         <button disabled={busy} onClick={async () => { if (!adminKey) return; setBusy(true); try { setSelectedSailor(await getAdminSailor(adminKey, sailor.id)) } catch (cause) { handleError(cause) } finally { setBusy(false) } }}>View details</button>
-        {selectedSailor?.id === sailor.id && <SailorDetail sailor={selectedSailor} busy={busy} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} />}
+        {selectedSailor?.id === sailor.id && <SailorDetail sailor={selectedSailor} busy={busy} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} />}
       </article>)}
     </div></section> : <section className="admin-content"><h1>Sessions</h1><div className="admin-list">
       {sessions.map((session) => <SessionCard key={session.id} session={session} busy={busy} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
@@ -121,9 +129,9 @@ export default function AdminPage() {
   </main>
 }
 
-export function SailorDetail({ sailor, busy, onRequested, onConfirm, onRevoke }: { sailor: AdminSailorDetail, busy: boolean, onRequested: () => void, onConfirm: () => void, onRevoke: () => void }) {
+export function SailorDetail({ sailor, busy, onRequested, onConfirm, onRevoke, onNewCycle }: { sailor: AdminSailorDetail, busy: boolean, onRequested: () => void, onConfirm: () => void, onRevoke: () => void, onNewCycle: () => void }) {
   return <div className="admin-detail"><dl><div><dt>Granted</dt><dd>{localDate(sailor.consent_granted_at)}</dd></div><div><dt>Revoked</dt><dd>{localDate(sailor.consent_revoked_at)}</dd></div></dl>
-    <div className="admin-actions">{sailor.operational_group === 'pending_needs_request' && <button disabled={busy} onClick={onRequested}>Mark request sent</button>}{sailor.operational_group === 'pending_awaiting_response' && <><button disabled={busy} onClick={onConfirm}>Confirm consent</button><button disabled={busy} className="danger" onClick={onRevoke}>Record decline</button></>}{sailor.operational_group === 'active' && <button disabled={busy} className="danger" onClick={onRevoke}>Record withdrawal</button>}</div>
+    <div className="admin-actions">{sailor.operational_group === 'pending_needs_request' && <button disabled={busy} onClick={onRequested}>Mark request sent</button>}{sailor.operational_group === 'pending_awaiting_response' && <><button disabled={busy} onClick={onConfirm}>Confirm consent</button><button disabled={busy} className="danger" onClick={onRevoke}>Record decline</button></>}{sailor.operational_group === 'active' && <button disabled={busy} className="danger" onClick={onRevoke}>Record withdrawal</button>}{sailor.operational_group === 'revoked' && <button disabled={busy} onClick={onNewCycle}>Start new consent cycle</button>}</div>
     <h3>Consent history</h3>{sailor.consent_events.length === 0 ? <p>No consent events recorded.</p> : <ol className="event-list">{sailor.consent_events.map((event, index) => <li key={`${event.timestamp}-${index}`}><strong>{event.event_type.replaceAll('_', ' ')}</strong><span>{localDate(event.timestamp)} · {event.source}{event.agreement_version ? ` · ${event.agreement_version}` : ''}</span></li>)}</ol>}
   </div>
 }

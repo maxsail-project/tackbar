@@ -118,7 +118,7 @@ La lista distingue:
 - **Active**;
 - **Revoked**.
 
-Las acciones semánticas disponibles son **Mark request sent**, **Confirm consent**, **Record decline** y **Record withdrawal**. Admin no edita directamente `consent_status`, timestamps, source o versión del acuerdo. Al confirmar, el backend registra automáticamente la versión vigente. El detalle muestra el historial estructurado con evento, fecha, origen y versión cuando existe.
+Las acciones semánticas disponibles son **Mark request sent**, **Confirm consent**, **Record decline**, **Record withdrawal** y, para un Sailor REVOKED, **Start new consent cycle**. Esta última inicia `REVOKED → PENDING · request needed`; no restaura consentimiento ACTIVE y el Sailor debe solicitar y confirmar consentimiento otra vez. Admin no edita directamente `consent_status`, timestamps, source o versión del acuerdo. Al confirmar, el backend registra automáticamente la versión vigente. El detalle muestra el historial estructurado con evento, fecha, origen y versión cuando existe.
 
 El consentimiento gobierna la visibilidad compartida, no la ingestión técnica ni el Session matching. Una Activity puede ingerirse y pertenecer internamente a una Session aunque su Sailor no esté ACTIVE; sólo las Activities de Sailors ACTIVE se comparten.
 

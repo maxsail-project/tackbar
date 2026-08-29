@@ -5,8 +5,8 @@
     "name": "Sailor A",
     "default_boat_id": "40000000-0000-4000-8000-000000000001",
     "consent_status": "ACTIVE",
-    "consent_request_sent_at": null,
-    "consent_granted_at": "2031-06-01T12:00:00+00:00",
+    "consent_request_sent_at": "2026-08-29T01:47:53.091224+00:00",
+    "consent_granted_at": "2026-08-29T01:47:55.450296+00:00",
     "consent_revoked_at": null
   },
   {
