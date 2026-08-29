@@ -784,7 +784,7 @@ input:focus-visible {
 }
 .admin-header span { color: #b9dbe1; font-size: .78rem; }
 .admin-header button { border: 1px solid rgb(255 255 255 / 35%); border-radius: 10px; color: #fff; background: transparent; }
-.admin-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 10px 16px; background: #fff; }
+.admin-tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 10px 16px; background: #fff; }
 .admin-tabs button { border: 0; border-bottom: 3px solid transparent; background: transparent; font-weight: 800; }
 .admin-tabs button.is-active { border-color: #168097; color: #126f81; }
 .admin-content { width: min(100%, 920px); margin: 0 auto; padding: 22px 16px 44px; }

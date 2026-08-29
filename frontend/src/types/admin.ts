@@ -38,3 +38,10 @@ export interface AdminSession {
   capability_token: string | null
   capability_path: string | null
 }
+
+export interface AdminIngestion {
+  id: string; provider: string; provider_message_id: string; sender_email: string | null
+  received_at: string | null; attachment_name: string | null; status: 'processed' | 'failed'
+  attempts: number; last_attempt_at: string | null; last_error: string | null
+  activity_id: string | null; session_id: string | null; original_available: boolean
+}

@@ -5,6 +5,8 @@ import {
   regenerateCapability,
   renewSession,
   startNewConsentCycle,
+  listAdminIngestions,
+  reprocessIngestion,
 } from './adminApi'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -57,5 +59,15 @@ describe('Admin API client', () => {
       '/api/admin/sailors/sailor%2Fid/consent/new-cycle',
       expect.objectContaining({ method: 'POST' }),
     )
+  })
+
+  it('lists and reprocesses known ingestions with the Admin header', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response('[]', { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+    await listAdminIngestions('key')
+    await reprocessIngestion('key', 'ingestion/id')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/ingestions')
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/ingestions/ingestion%2Fid/reprocess')
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'POST' }))
   })
 })

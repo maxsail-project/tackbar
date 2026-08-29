@@ -48,3 +48,19 @@ class AdminSessionResponse(BaseModel):
 
 class AdminSessionRenewRequest(BaseModel):
     days: StrictInt = 30
+
+
+class AdminIngestionResponse(BaseModel):
+    id: str
+    provider: str
+    provider_message_id: str
+    sender_email: str | None
+    received_at: datetime | None
+    attachment_name: str | None
+    status: Literal["processed", "failed"]
+    attempts: int
+    last_attempt_at: datetime | None
+    last_error: str | None
+    activity_id: str | None
+    session_id: str | None
+    original_available: bool

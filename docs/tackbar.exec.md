@@ -176,7 +176,33 @@ No hay “Recent Sessions” público. Compruebe Primary Activity, Compare Activ
 
 ## 9. Gmail e ingestión
 
-La UI Admin todavía **no** incluye Review mailbox now, historial/errores de ingestión ni reprocess. Esas funciones corresponden a incrementos posteriores de v0.5.
+Admin incluye la pestaña **Ingestions** para inspeccionar cada intento operativo:
+attachment, sender/provider, status, attempts, last attempt, last error,
+Activity ID, Session ID y disponibilidad del original. Los registros `failed`
+permanecen visibles y pueden reprocesarse cuando el original preservado está
+disponible.
+
+**Reprocess** trabaja sobre el registro conocido y su original preservado:
+
+```text
+ingestion conocida
+→ original preservado
+→ validación SHA-256
+→ mismo ingestion record
+→ deduplicación de Activity existente
+→ matching de Session existente
+```
+
+No contacta Gmail ni crea un registro nuevo. El original de ingestión y el
+original de Activity pueden coexistir; ambos viven bajo la raíz privada de
+datos y la API Admin nunca expone rutas locales ni bytes crudos. La exclusión
+de escritor es por proceso, por lo que no cubre varias instancias del backend.
+
+La UI Admin todavía **no** incluye **Review mailbox now**. Esa operación,
+incluida la discovery de Gmail, polling y reintentos automáticos, pertenece al
+siguiente incremento. Hasta entonces `scripts/check_gmail.py` sigue siendo el
+mecanismo diagnóstico/fallback para descubrir mensajes y usa el mismo límite de
+ingestión provider-independent.
 
 El script existente sigue disponible como fallback operativo/diagnóstico y exige almacenamiento privado fuera del repositorio:
 

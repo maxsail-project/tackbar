@@ -5,16 +5,18 @@ import {
   getAdminSailor,
   listAdminSailors,
   listAdminSessions,
+  listAdminIngestions,
   markConsentRequested,
   regenerateCapability,
   renewSession,
   revokeCapability,
   revokeConsent,
   startNewConsentCycle,
+  reprocessIngestion,
 } from '../api/adminApi'
-import type { AdminSailor, AdminSailorDetail, AdminSession, CapabilityState, ConsentOperationalGroup } from '../types/admin'
+import type { AdminIngestion, AdminSailor, AdminSailorDetail, AdminSession, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 
-type Section = 'sailors' | 'sessions'
+type Section = 'sailors' | 'sessions' | 'ingestions'
 
 export const consentLabels: Record<ConsentOperationalGroup, string> = {
   pending_needs_request: 'Pending · request needed',
@@ -63,6 +65,7 @@ export default function AdminPage() {
   const [section, setSection] = useState<Section>('sailors')
   const [sailors, setSailors] = useState<AdminSailor[]>([])
   const [sessions, setSessions] = useState<AdminSession[]>([])
+  const [ingestions, setIngestions] = useState<AdminIngestion[]>([])
   const [selectedSailor, setSelectedSailor] = useState<AdminSailorDetail | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,8 +80,8 @@ export default function AdminPage() {
     }
   }
   const loadAll = async (key: string) => {
-    const [nextSailors, nextSessions] = await Promise.all([listAdminSailors(key), listAdminSessions(key)])
-    setSailors(nextSailors); setSessions(nextSessions)
+    const [nextSailors, nextSessions, nextIngestions] = await Promise.all([listAdminSailors(key), listAdminSessions(key), listAdminIngestions(key)])
+    setSailors(nextSailors); setSessions(nextSessions); setIngestions(nextIngestions)
   }
   const enter = async (key: string) => {
     setBusy(true); setError(null)
@@ -108,12 +111,17 @@ export default function AdminPage() {
       setSessions(await listAdminSessions(adminKey))
     } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
+  const ingestionAction = async (id: string) => {
+    if (!adminKey) return
+    setBusy(true); setError(null)
+    try { const updated = await reprocessIngestion(adminKey, id); setIngestions((current) => current.map((item) => item.id === id ? updated : item)); setIngestions(await listAdminIngestions(adminKey)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+  }
   if (!adminKey) return <AdminAccessForm onEnter={enter} error={error} busy={busy} />
 
   return <main className="admin-page">
     <header className="admin-header"><div><p className="brand">TackBar</p><span>Admin · Real Sailing Pilot</span></div><button onClick={refresh} disabled={busy}>Refresh</button></header>
     <nav className="admin-tabs" aria-label="Admin sections">
-      {(['sailors', 'sessions'] as Section[]).map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => setSection(item)}>{item === 'sailors' ? 'Sailors' : 'Sessions'}</button>)}
+      {(['sailors', 'sessions', 'ingestions'] as Section[]).map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => setSection(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
     </nav>
     {error && <p className="admin-error admin-feedback" role="alert">{error}</p>}
     {section === 'sailors' ? <section className="admin-content"><h1>Sailors</h1><div className="admin-list">
@@ -123,10 +131,14 @@ export default function AdminPage() {
         <button disabled={busy} onClick={async () => { if (!adminKey) return; setBusy(true); try { setSelectedSailor(await getAdminSailor(adminKey, sailor.id)) } catch (cause) { handleError(cause) } finally { setBusy(false) } }}>View details</button>
         {selectedSailor?.id === sailor.id && <SailorDetail sailor={selectedSailor} busy={busy} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} />}
       </article>)}
-    </div></section> : <section className="admin-content"><h1>Sessions</h1><div className="admin-list">
+    </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><div className="admin-list">
       {sessions.map((session) => <SessionCard key={session.id} session={session} busy={busy} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
-    </div></section>}
+    </div></section> : <section className="admin-content"><h1>Ingestions</h1><div className="admin-list">{ingestions.map((item) => <IngestionCard key={item.id} ingestion={item} busy={busy} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} />)}</div></section>}
   </main>
+}
+
+export function IngestionCard({ ingestion, busy, onReprocess }: { ingestion: AdminIngestion, busy: boolean, onReprocess: () => void }) {
+  return <article className="admin-card"><div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.sender_email || 'Unknown sender'} · {ingestion.provider}</p></div><span className={`state-badge state-${ingestion.status}`}>{ingestion.status === 'processed' ? 'Processed' : 'Failed'}</span></div><p className="admin-meta">Attempts: {ingestion.attempts} · Last attempt: {localDate(ingestion.last_attempt_at)}</p>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}<p className="admin-meta">Activity: {ingestion.activity_id || '—'}<br />Session: {ingestion.session_id || '—'}<br />Original: {ingestion.original_available ? 'Available' : 'Unavailable'}</p>{ingestion.original_available && <button disabled={busy} onClick={onReprocess}>Reprocess</button>}</article>
 }
 
 export function SailorDetail({ sailor, busy, onRequested, onConfirm, onRevoke, onNewCycle }: { sailor: AdminSailorDetail, busy: boolean, onRequested: () => void, onConfirm: () => void, onRevoke: () => void, onNewCycle: () => void }) {

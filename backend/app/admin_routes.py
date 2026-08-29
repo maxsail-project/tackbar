@@ -1,4 +1,5 @@
 from typing import Callable
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -7,6 +8,7 @@ from app.admin_api_models import (
     AdminSailorResponse,
     AdminSessionRenewRequest,
     AdminSessionResponse,
+    AdminIngestionResponse,
 )
 from app.admin_auth import require_admin_key
 from app.repositories.activities import ActivityRepository
@@ -27,6 +29,10 @@ from app.services.session_lifetime import (
     SessionLifetimeOperationError,
     SessionLifetimeService,
 )
+from app.services.ingestion_history import IngestionHistory
+from app.services.ingestion_processing import reprocess_ingestion
+from app.repositories.boats import BoatRepository
+from app.storage.ingestion_original_storage import IngestionOriginalStorage
 
 
 router = APIRouter(
@@ -116,6 +122,35 @@ def list_sessions() -> list[AdminSessionResponse]:
         return _admin_reader().list_sessions()
     except (ValueError, AdminDataIntegrityError) as error:
         raise _admin_integrity_error() from error
+
+
+@router.get("/ingestions", response_model=list[AdminIngestionResponse])
+def list_ingestions() -> list[AdminIngestionResponse]:
+    try:
+        records = IngestionHistory().records()
+        return sorted((_ingestion_response(record) for record in records), key=lambda item: item.last_attempt_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    except ValueError as error:
+        raise _admin_integrity_error() from error
+
+
+@router.get("/ingestions/{ingestion_id}", response_model=AdminIngestionResponse)
+def get_ingestion(ingestion_id: str) -> AdminIngestionResponse:
+    try: record = IngestionHistory().get(ingestion_id)
+    except ValueError as error: raise _admin_integrity_error() from error
+    if record is None: raise HTTPException(status_code=404, detail="Ingestion not found")
+    return _ingestion_response(record)
+
+
+@router.post("/ingestions/{ingestion_id}/reprocess", response_model=AdminIngestionResponse)
+def reprocess_admin_ingestion(ingestion_id: str) -> AdminIngestionResponse:
+    history = IngestionHistory()
+    if history.get(ingestion_id) is None: raise HTTPException(status_code=404, detail="Ingestion not found")
+    try:
+        record = reprocess_ingestion(ingestion_id, SailorRepository(), BoatRepository(), ActivityRepository(), SessionRepository(), history)
+    except (FileNotFoundError, ValueError) as error:
+        record = history.get(ingestion_id)
+        if record is None: raise _admin_integrity_error() from error
+    return _ingestion_response(record)
 
 
 @router.get("/sessions/{session_id}", response_model=AdminSessionResponse)
@@ -260,3 +295,11 @@ def _repositories() -> tuple[
 
 def _admin_integrity_error() -> HTTPException:
     return HTTPException(status_code=500, detail="Persisted Admin data is inconsistent")
+
+
+def _ingestion_response(record: dict) -> AdminIngestionResponse:
+    available = False
+    if record["original_file"]:
+        try: IngestionOriginalStorage().read(record["original_file"]); available = True
+        except (FileNotFoundError, ValueError): pass
+    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, original_available=available)

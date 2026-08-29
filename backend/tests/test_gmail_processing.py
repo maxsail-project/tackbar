@@ -17,6 +17,7 @@ from app.services.ingestion_history import (
 )
 from app.services.ingestion_processing import (
     process_provider_email,
+    reprocess_ingestion,
 )
 
 
@@ -69,10 +70,15 @@ def test_legacy_tmp_history_is_copied_without_deletion(
 
     history = IngestionHistory(new_path, legacy_path=legacy_path)
 
-    assert history.records() == legacy_records
+    migrated = history.records()
+    assert migrated[0]["provider_message_id"] == "legacy-message"
+    assert migrated[0]["status"] == "processed"
+    assert migrated[0]["activity_id"] == "activity-1"
+    assert migrated[0]["session_id"] is None
+    assert migrated[0]["last_attempt_at"] == legacy_records[0]["processed_at"]
     assert new_path.exists()
     assert legacy_path.exists()
-    assert IngestionHistory(new_path).records() == legacy_records
+    assert IngestionHistory(new_path).records() == migrated
 
     new_path.unlink()
 
@@ -365,7 +371,12 @@ def test_processed_history_stores_provider_and_activity_id(
     assert record["provider_message_id"] == "gmail-message-1"
     assert record["activity_id"] == result.activity.id
     assert record["status"] == "processed"
-    assert record["processed_at"].endswith("+00:00")
+    assert record["last_attempt_at"].endswith("+00:00")
+    assert record["attempts"] == 1
+    assert record["session_id"] == result.session_match.session.id
+    assert record["last_error"] is None
+    assert record["attachment_sha256"] == result.activity.attachment_sha256
+    assert (activities.path.parent / record["original_file"]).read_bytes() == FIXTURE_PATH.read_bytes()
 
 
 def test_unknown_sailor_is_created_and_full_flow_continues(
@@ -487,7 +498,7 @@ def test_missing_default_boat_fails_before_activity_creation(
         )
 
     assert activities.all() == []
-    assert history.records() == []
+    assert history.records()[0]["status"] == "failed"
 
 
 def test_ingestion_is_recorded_only_after_complete_flow_succeeds(
@@ -518,7 +529,8 @@ def test_ingestion_is_recorded_only_after_complete_flow_succeeds(
         )
 
     assert sailors.find_by_email("new@example.com") is not None
-    assert history.records() == []
+    assert history.records()[0]["status"] == "failed"
+    assert history.records()[0]["last_error"] == "Unexpected ingestion processing error"
 
 
 def test_failed_attachment_is_not_processed(
@@ -539,6 +551,52 @@ def test_failed_attachment_is_not_processed(
             history,
         )
 
-    assert history.records() == []
+    record = history.records()[0]
+    assert record["status"] == "failed"
+    assert record["attempts"] == 1
+    assert record["last_error"]
+    assert (activities.path.parent / record["original_file"]).read_bytes() == b"not a gzip file"
     assert activities.all() == []
     assert sessions.all() == []
+
+
+def test_reprocess_uses_preserved_original_and_is_idempotent(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
+    first = process_provider_email("gmail", _email(FIXTURE_PATH.read_bytes()), sailors, boats, activities, sessions, history)
+    assert first is not None
+    record = history.records()[0]
+
+    updated = reprocess_ingestion(record["id"], sailors, boats, activities, sessions, history)
+
+    assert updated["status"] == "processed"
+    assert updated["attempts"] == 2
+    assert updated["activity_id"] == first.activity.id
+    assert updated["session_id"] == first.session_match.session.id
+    assert len(activities.all()) == 1
+    assert len(sessions.all()) == 1
+
+
+def test_reprocess_failure_increments_attempts_and_sha_mismatch_fails_safely(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
+    with pytest.raises(ValueError):
+        process_provider_email("gmail", _email(b"bad gzip"), sailors, boats, activities, sessions, history)
+    record = history.records()[0]
+
+    repeated = reprocess_ingestion(record["id"], sailors, boats, activities, sessions, history)
+    assert repeated["status"] == "failed"
+    assert repeated["attempts"] == 2
+    original = activities.path.parent / repeated["original_file"]
+    original.write_bytes(b"tampered")
+    mismatched = reprocess_ingestion(record["id"], sailors, boats, activities, sessions, history)
+    assert mismatched["status"] == "failed"
+    assert mismatched["attempts"] == 3
+    assert "SHA-256 mismatch" in mismatched["last_error"]
+    original.unlink()
+    missing = reprocess_ingestion(record["id"], sailors, boats, activities, sessions, history)
+    assert missing["status"] == "failed"
+    assert missing["attempts"] == 4
+    assert "unavailable" in missing["last_error"]

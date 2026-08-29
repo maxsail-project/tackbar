@@ -2,6 +2,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,8 @@ from app.admin_routes import router as admin_router
 from app.config import CURRENT_CONSENT_AGREEMENT_VERSION
 from app.main import app
 from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
+from app.services.ingestion_history import IngestionHistory
+from app.storage.ingestion_original_storage import IngestionOriginalStorage
 
 
 ADMIN_KEY = "test-admin-key-never-use-in-production"
@@ -205,7 +208,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 11
+    assert len(admin_router.routes) == 14
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -539,6 +542,36 @@ def test_unknown_session_and_corrupt_internal_membership_are_not_silently_hidden
     assert corrupt.status_code == 500
     assert corrupt.json == {"detail": "Persisted Admin data is inconsistent"}
     assert "missing-private-activity" not in json.dumps(corrupt.json)
+
+
+def test_admin_ingestion_inspection_and_reprocess_are_protected_and_path_safe(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory(root / "ingestion_history.json")
+    content = b"invalid preserved track"
+    record = history.create("gmail", "message-1", "sailor@example.test", "track.csv.gz", sha256(content).hexdigest())
+    record["original_file"] = IngestionOriginalStorage(root).preserve(record["id"], "track.csv.gz", content)
+    history.replace(record)
+
+    listing = _request("GET", "/api/admin/ingestions")
+    detail = _request("GET", f"/api/admin/ingestions/{record['id']}")
+    reprocessed = _request("POST", f"/api/admin/ingestions/{record['id']}/reprocess")
+    unauthorized = _request("GET", "/api/admin/ingestions", admin_key=None)
+    missing = _request("GET", "/api/admin/ingestions/unknown")
+
+    assert listing.status_code == detail.status_code == reprocessed.status_code == 200
+    assert unauthorized.status_code == 401
+    assert missing.status_code == 404
+    assert listing.json[0]["original_available"] is True
+    assert "original_file" not in listing.json[0]
+    assert "attachment_sha256" not in listing.json[0]
+    assert str(root) not in json.dumps(listing.json)
+    assert reprocessed.json["status"] == "failed"
+    assert reprocessed.json["attempts"] == 1
+    assert reprocessed.json["last_error"]
+    assert "/api/admin/mailbox" not in app.openapi()["paths"]
 
 
 def test_orphan_or_malformed_consent_events_are_generic_integrity_errors(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
