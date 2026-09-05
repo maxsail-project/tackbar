@@ -65,6 +65,22 @@ def test_get_candidate_emails_from_gmail_response() -> None:
     )
 
 
+def test_multiple_gmail_messages_are_independent_candidates() -> None:
+    service = MagicMock()
+    messages = service.users.return_value.messages.return_value
+    messages.list.return_value.execute.return_value = {
+        "messages": [{"id": "message-a"}, {"id": "message-b"}]
+    }
+    def message(message_id: str) -> dict:
+        return {"id": message_id, "payload": {"headers": [
+            {"name": "From", "value": "same@example.com"},
+            {"name": "Subject", "value": "vakaros.csv"},
+        ], "parts": [{"filename": "track.csv", "body": {"data": "dHJhY2s="}}]}}
+    messages.get.return_value.execute.side_effect = [message("message-a"), message("message-b")]
+    candidates = GmailAdapter(service=service).get_candidate_emails()
+    assert [item.provider_message_id for item in candidates] == ["message-a", "message-b"]
+
+
 def test_get_candidate_uncompressed_csv_from_gmail_response() -> None:
     csv_bytes = gzip.decompress(FIXTURE_PATH.read_bytes())
     encoded_attachment = base64.urlsafe_b64encode(csv_bytes).decode("ascii")

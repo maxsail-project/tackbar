@@ -76,8 +76,6 @@ class GmailAdapter:
             if not page_token:
                 break
 
-        if len(emails) > 1:
-            raise ValueError("Gmail message contains multiple supported attachments")
         return emails
 
     def _extract_emails(
@@ -136,6 +134,8 @@ class GmailAdapter:
                 )
             )
 
+        if len(emails) > 1:
+            raise ValueError("Gmail message contains multiple supported attachments")
         return emails
 
 
