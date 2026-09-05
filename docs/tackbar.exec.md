@@ -43,6 +43,22 @@ La UI conserva la clave únicamente en memoria React: no usa Local Storage, Sess
 
 ## 3. Backend con TEST
 
+## Inicio rápido del piloto local
+
+En la Terminal 1 configure una raíz privada y la clave Admin, y ejecute:
+
+```powershell
+$env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
+$env:TACKBAR_ADMIN_KEY = "change-me-local-only"
+.\scripts\start-local-backend.ps1
+```
+
+En la Terminal 2 ejecute `.\scripts\start-local-frontend.ps1`. Como
+pre-flight opcional, use `.\scripts\check-local-pilot.ps1`; no contacta Gmail
+ni inicia ingestión. El envío/selección del track, **Review mailbox now** y las
+acciones de consentimiento, capability, renovación y Viewer siguen siendo
+pasos manuales del operador.
+
 ```powershell
 cd C:\maxsail-project\tackbar\backend
 Remove-Item Env:TACKBAR_DATA_DIR -ErrorAction SilentlyContinue
