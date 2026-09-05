@@ -53,7 +53,7 @@ def test_default_history_path_is_persistent_data() -> None:
     )
 
 
-def test_legacy_tmp_history_is_copied_without_deletion(
+def test_legacy_records_are_migrated_in_place(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     legacy_records = [
@@ -65,10 +65,8 @@ def test_legacy_tmp_history_is_copied_without_deletion(
             "activity_id": "activity-1",
         }
     ]
-    legacy_path = temporary_json_file("legacy-history", legacy_records)
-    new_path = legacy_path.with_name(f"new-{legacy_path.name}")
-
-    history = IngestionHistory(new_path, legacy_path=legacy_path)
+    history_path = temporary_json_file("legacy-history", legacy_records)
+    history = IngestionHistory(history_path)
 
     migrated = history.records()
     assert migrated[0]["provider_message_id"] == "legacy-message"
@@ -76,11 +74,19 @@ def test_legacy_tmp_history_is_copied_without_deletion(
     assert migrated[0]["activity_id"] == "activity-1"
     assert migrated[0]["session_id"] is None
     assert migrated[0]["last_attempt_at"] == legacy_records[0]["processed_at"]
-    assert new_path.exists()
-    assert legacy_path.exists()
-    assert IngestionHistory(new_path).records() == migrated
+    assert history_path.exists()
+    assert IngestionHistory(history_path).records() == migrated
 
-    new_path.unlink()
+
+def test_missing_runtime_history_does_not_import_other_path(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    unrelated = temporary_json_file("legacy-history", [{"provider": "gmail"}])
+    runtime_path = unrelated.with_name("private-runtime") / "ingestion_history.json"
+    history = IngestionHistory(runtime_path)
+    assert history.records() == []
+    assert not runtime_path.exists()
+    assert unrelated.exists()
 
 
 def _email(
