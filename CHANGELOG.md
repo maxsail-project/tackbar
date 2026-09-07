@@ -2,13 +2,81 @@
 
 All notable changes to TackBar will be documented in this file.
 
-## v0.5.0 — Ready for controlled pilot
+## v0.5.0 — Real Sailing Pilot
 
-The Real Sailing Pilot flow is implemented and validated: consent-aware
-visibility, protected Admin operations, capability-based Session access,
-60-day Session expiry, ingestion records/reprocessing, and Admin-triggered
-Gmail mailbox review. This marks pilot readiness, not completion of a real
-pilot run.
+### English
+
+TackBar v0.5.0 extends the collaborative debrief baseline with the operational capabilities required to run a controlled pilot with real sailors, real Gmail track submissions, explicit consent and capability-based shared Session access.
+
+### Added
+
+* Consent-aware Sailor lifecycle with `PENDING`, `ACTIVE` and `REVOKED` states plus structured consent-event history.
+* Administrative consent operations for marking a consent request as sent, confirming consent after explicit email acceptance, recording withdrawal/decline and starting a new consent cycle.
+* Protected `/admin` operational interface using a dedicated TackBar Admin credential kept separate from shared Session access.
+* Admin views for Sailors, Sessions and ingestion records.
+* Capability-based shared Session access using non-guessable tokens independent from internal Session IDs.
+* ACTIVE-only shared Activity visibility enforced by the backend.
+* Session lifetime management with `created_at`, initial 60-day `expires_at`, explicit renewal, capability regeneration and capability revocation.
+* Persistent ingestion records containing Gmail/provider metadata, attachment identity, processing status, attempt information, safe error context and resulting Activity/Session references.
+* Preservation of original received attachments under the private TackBar runtime data root.
+* Idempotent reprocessing of known ingestions from preserved originals without requiring Gmail access.
+* Admin-triggered Gmail mailbox review reusing the provider-independent ingestion pipeline.
+* Gmail mailbox pagination and support for processing multiple independent Vakaros track messages during one review.
+* Ingestion history isolated from legacy development/runtime paths so a clean private runtime remains clean until real ingestion occurs.
+* Admin ingestion presentation showing the Gmail `received_at` timestamp separately from processing `last_attempt_at`.
+* Admin ingestion ordering by email reception time, newest first, so reprocessing an old track does not make it appear as a newly received message.
+* Local pilot startup and preflight tooling for backend, frontend, runtime configuration and Gmail readiness.
+
+### Design
+
+* Consent controls shared visibility, not technical ingestion or Session matching: valid Activities may be ingested and associated with Sessions while their Sailor is `PENDING` or `REVOKED`.
+* Only Activities whose Sailor is currently `ACTIVE` are exposed through shared Session APIs.
+* `REVOKED` is not permanent exclusion: a new participation cycle returns the Sailor to `PENDING` until consent is explicitly confirmed again.
+* The v0.5 consent flow remains deliberately human-operated: the administrator sends the invitation/request through Gmail, reviews the explicit reply and confirms consent in TackBar Admin.
+* Gmail `unread` state is not used as TackBar processing state; ingestion identity and processing history are maintained internally.
+* Gmail remains an adapter and does not define downstream Activity, Session or Viewer semantics.
+* Shared Session authorization is based on possession of a high-entropy capability URL; Sailor login is not required for the PoC.
+* Session expiration governs shared access only. Activities, tracks and technical Session membership remain persisted after expiration.
+* Renewal replaces `expires_at` using the current UTC time plus the selected duration and does not implicitly regenerate, un-revoke or create a capability.
+* Admin operations use backend services/repositories rather than direct frontend access to JSON persistence.
+* Private pilot data remains outside the repository through `TACKBAR_DATA_DIR`.
+* Existing v0.4 Activity identity, deduplication, Session matching, Viewer behavior, Analysis Window, replay and metrics remain unchanged.
+
+### Validated
+
+The Real Sailing Pilot workflow was validated end-to-end using real Gmail messages and real TackBar runtime persistence:
+
+`Gmail track → Admin mailbox review → Ingestion → Activity → Session → Sailor PENDING → consent request → explicit acceptance → Admin confirmation → Sailor ACTIVE → capability URL → shared Session Viewer`
+
+Validation confirmed:
+
+* multiple valid Gmail/Vakaros track messages can be discovered and processed in one mailbox review;
+* Gmail read/unread state does not affect whether an unprocessed track is ingested;
+* processed messages are tracked by TackBar independently from Gmail state;
+* invalid sailing files are retained and reported as failed ingestions without creating invalid Activities;
+* preserved originals are available for diagnosis and reprocessing;
+* reprocessing remains idempotent with respect to Activity and Session creation;
+* real ingestions create Activities and resolve Sessions through the existing Session-matching implementation;
+* newly discovered Sailors remain non-shareable until explicit consent is confirmed;
+* confirming consent immediately enables the Sailor's existing matched Activities for shared visibility;
+* shared Session access exposes only Activities belonging to `ACTIVE` Sailors;
+* Session capability access works through the public `/s/:token` route;
+* the persisted Session Viewer remains compatible with the consent-filtered shared API flow;
+* local Gmail OAuth recovery and non-interactive mailbox operation were validated;
+* backend regression suite passes 181 tests;
+* frontend regression suite passes 107 tests, together with typecheck and production build;
+* backend `compileall` and `git diff --check` pass.
+
+### Next
+
+The next stage will focus on **Pilot Deployment & Communication**:
+
+* deploy the TackBar pilot runtime on an EU-hosted VPS;
+* expose the frontend and FastAPI backend through a public domain with HTTPS;
+* keep private runtime data and secrets outside the repository;
+* validate backup and restore for pilot data;
+* prepare simple operational and communication material for real pilot participants;
+* keep v0.5 product behavior stable while gathering feedback from real usage.
 
 ---
 
@@ -62,6 +130,84 @@ Validation confirmed:
 ### Next
 
 `v0.5.0` will focus on the Real Sailing Pilot: validating TackBar with real sailors and sailing sessions, including the operational access/privacy workflow and further product feedback before expanding analytics or integrations.
+
+---
+
+## v0.5.0 — Piloto real de vela
+
+### Español
+
+TackBar v0.5.0 amplía la baseline de debriefing colaborativo con las capacidades operativas necesarias para ejecutar un piloto controlado con regatistas reales, envío real de tracks mediante Gmail, consentimiento explícito y acceso compartido a Sessions mediante capability URL.
+
+### Añadido
+
+* Ciclo de consentimiento de Sailor con estados `PENDING`, `ACTIVE` y `REVOKED`, junto con historial estructurado de eventos de consentimiento.
+* Operaciones administrativas para marcar una solicitud de consentimiento como enviada, confirmar consentimiento después de una aceptación explícita por email, registrar retirada/rechazo e iniciar un nuevo ciclo de consentimiento.
+* Interfaz operativa `/admin` protegida mediante una credencial Admin específica de TackBar y separada del acceso compartido a Sessions.
+* Vistas Admin para Sailors, Sessions y registros de ingesta.
+* Acceso compartido a Sessions mediante capability tokens no adivinables e independientes de los Session IDs internos.
+* Visibilidad compartida exclusivamente para Activities de Sailors `ACTIVE`, aplicada en backend.
+* Gestión de vigencia de Session mediante `created_at`, `expires_at` inicial de 60 días, renovación explícita, regeneración y revocación de capability.
+* Registros persistentes de ingesta con metadata de Gmail/proveedor, identidad del adjunto, estado de proceso, intentos, contexto seguro de error y referencias a Activity/Session resultantes.
+* Conservación del adjunto original recibido dentro del runtime privado de TackBar.
+* Reproceso idempotente de ingestas conocidas a partir del original preservado, sin depender de Gmail.
+* Revisión manual del buzón Gmail desde Admin reutilizando el pipeline de ingesta independiente del proveedor.
+* Paginación del buzón Gmail y soporte para procesar múltiples mensajes Vakaros independientes en una misma revisión.
+* Aislamiento del historial de ingesta respecto a rutas legacy/de desarrollo, de forma que un runtime privado limpio permanece limpio hasta que se produzca una ingesta real.
+* Presentación en Admin de la fecha `received_at` del correo Gmail separada de `last_attempt_at`.
+* Orden de las ingestas por fecha de recepción del correo, de más reciente a más antiguo, evitando que un reproceso convierta visualmente un correo antiguo en uno reciente.
+* Herramientas locales de arranque y preflight para backend, frontend, configuración del runtime y preparación de Gmail.
+
+### Diseño
+
+* El consentimiento controla la visibilidad compartida, no la ingesta técnica ni el Session matching: una Activity válida puede procesarse y asociarse a una Session aunque su Sailor esté `PENDING` o `REVOKED`.
+* Sólo las Activities cuyo Sailor está actualmente `ACTIVE` se exponen mediante las APIs compartidas.
+* `REVOKED` no implica exclusión permanente: un nuevo ciclo de participación devuelve al Sailor a `PENDING` hasta que el consentimiento vuelva a confirmarse explícitamente.
+* El flujo de consentimiento de v0.5 se mantiene deliberadamente asistido por administrador: el Admin envía la solicitud por Gmail, revisa la respuesta explícita y confirma el consentimiento en TackBar.
+* El estado `unread` de Gmail no se utiliza como estado de procesamiento TackBar; la identidad y el historial de ingesta se mantienen internamente.
+* Gmail sigue siendo un adapter y no define las semánticas downstream de Activity, Session o Viewer.
+* La autorización de una Session compartida se basa en la posesión de una capability URL de alta entropía; la PoC no requiere login de Sailor.
+* La expiración de una Session gobierna únicamente el acceso compartido. Activities, tracks y membresía técnica de la Session permanecen persistidos después de la expiración.
+* La renovación sustituye `expires_at` usando la hora UTC actual más la duración seleccionada y no regenera, desrevoca ni crea implícitamente una capability.
+* Las operaciones Admin utilizan servicios/repositorios backend y no acceso directo del frontend a la persistencia JSON.
+* Los datos privados del piloto permanecen fuera del repositorio mediante `TACKBAR_DATA_DIR`.
+* Se mantienen sin cambios las semánticas de identidad de Activity, deduplicación, Session matching, Viewer, Analysis Window, replay y métricas validadas en v0.4.
+
+### Validado
+
+El flujo del Real Sailing Pilot fue validado end-to-end utilizando mensajes Gmail reales y persistencia runtime real de TackBar:
+
+`Track Gmail → revisión de buzón Admin → Ingestion → Activity → Session → Sailor PENDING → solicitud de consentimiento → aceptación explícita → confirmación Admin → Sailor ACTIVE → capability URL → Shared Session Viewer`
+
+La validación confirmó:
+
+* múltiples mensajes Gmail/Vakaros válidos pueden descubrirse y procesarse en una misma revisión del buzón;
+* el estado leído/no leído de Gmail no afecta a la ingesta de un track todavía no procesado;
+* los mensajes procesados son controlados por TackBar de forma independiente al estado de Gmail;
+* archivos de navegación inválidos se preservan y registran como ingestas fallidas sin crear Activities inválidas;
+* los originales preservados quedan disponibles para diagnóstico y reproceso;
+* el reproceso mantiene la idempotencia respecto a la creación de Activities y Sessions;
+* las ingestas reales crean Activities y resuelven Sessions usando el Session matching existente;
+* los nuevos Sailors permanecen fuera de la visibilidad compartida hasta que se confirma explícitamente el consentimiento;
+* confirmar el consentimiento hace inmediatamente compartibles las Activities existentes y ya asociadas a Sessions;
+* el acceso compartido sólo expone Activities pertenecientes a Sailors `ACTIVE`;
+* el acceso mediante capability funciona a través de la ruta pública `/s/:token`;
+* el Session Viewer persistido continúa funcionando sobre el flujo de API compartida filtrado por consentimiento;
+* se validó la recuperación de OAuth Gmail y la posterior operación no interactiva del buzón;
+* la suite de regresión backend supera 181 tests;
+* la suite de regresión frontend supera 107 tests, junto con typecheck y build de producción;
+* `compileall` del backend y `git diff --check` finalizan correctamente.
+
+### Siguiente
+
+La siguiente etapa se centrará en **Pilot Deployment & Communication**:
+
+* desplegar el runtime del piloto TackBar en un VPS alojado en la UE;
+* publicar frontend y backend FastAPI mediante dominio público y HTTPS;
+* mantener los datos privados y secretos del runtime fuera del repositorio;
+* validar backup y restore de los datos del piloto;
+* preparar material operativo y de comunicación sencillo para los participantes reales;
+* mantener estable el comportamiento de producto de v0.5 mientras se obtiene feedback de uso real.
 
 ---
 
