@@ -90,6 +90,9 @@ class AdminIngestionResponse(BaseModel):
     activity_id: str | None
     session_id: str | None
     original_available: bool
+    activity_start_time: datetime | None
+    activity_end_time: datetime | None
+    activity_sample_count: int | None
 
 
 class AdminMailboxReviewResponse(BaseModel):

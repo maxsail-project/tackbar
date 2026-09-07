@@ -65,5 +65,6 @@ export interface AdminIngestion {
   received_at: string | null; attachment_name: string | null; status: 'processed' | 'failed'
   attempts: number; last_attempt_at: string | null; last_error: string | null
   activity_id: string | null; session_id: string | null; original_available: boolean
+  activity_start_time: string | null; activity_end_time: string | null; activity_sample_count: number | null
 }
 export interface AdminMailboxReview { discovered_candidates: number; processed: number; skipped_already_processed: number; known_failed: number; failed: number }

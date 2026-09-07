@@ -133,7 +133,7 @@ def list_ingestions() -> list[AdminIngestionResponse]:
         def sort_key(item: AdminIngestionResponse) -> tuple[bool, datetime]:
             return (item.received_at is not None, item.received_at or item.last_attempt_at or datetime.min.replace(tzinfo=timezone.utc))
         return sorted((_ingestion_response(record) for record in records), key=sort_key, reverse=True)
-    except ValueError as error:
+    except (ValueError, AdminDataIntegrityError) as error:
         raise _admin_integrity_error() from error
 
 
@@ -152,7 +152,10 @@ def get_ingestion(ingestion_id: str) -> AdminIngestionResponse:
     try: record = IngestionHistory().get(ingestion_id)
     except ValueError as error: raise _admin_integrity_error() from error
     if record is None: raise HTTPException(status_code=404, detail="Ingestion not found")
-    return _ingestion_response(record)
+    try:
+        return _ingestion_response(record)
+    except AdminDataIntegrityError as error:
+        raise _admin_integrity_error() from error
 
 
 @router.post("/ingestions/{ingestion_id}/reprocess", response_model=AdminIngestionResponse)
@@ -316,4 +319,9 @@ def _ingestion_response(record: dict) -> AdminIngestionResponse:
     if record["original_file"]:
         try: IngestionOriginalStorage().read(record["original_file"]); available = True
         except (FileNotFoundError, ValueError): pass
-    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, original_available=available)
+    activity = None
+    if record["activity_id"] is not None:
+        activity = ActivityRepository().get_by_id(record["activity_id"])
+        if activity is None:
+            raise AdminDataIntegrityError("Ingestion references unknown Activity")
+    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)

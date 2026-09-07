@@ -569,6 +569,9 @@ def test_admin_ingestion_inspection_and_reprocess_are_protected_and_path_safe(
     assert unauthorized.status_code == 401
     assert missing.status_code == 404
     assert listing.json[0]["original_available"] is True
+    assert listing.json[0]["activity_start_time"] is None
+    assert listing.json[0]["activity_end_time"] is None
+    assert listing.json[0]["activity_sample_count"] is None
     assert "original_file" not in listing.json[0]
     assert "attachment_sha256" not in listing.json[0]
     assert str(root) not in json.dumps(listing.json)

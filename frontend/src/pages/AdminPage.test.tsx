@@ -105,7 +105,7 @@ describe('minimal Admin UI', () => {
   })
 
   it('renders operational ingestion success and failure cards', () => {
-    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, original_available: true }
+    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
     const failed = renderToStaticMarkup(<IngestionCard ingestion={base} busy={false} onReprocess={() => undefined} />)
     const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-1', session_id: 'session-1' }} busy={false} onReprocess={() => undefined} />)
     expect(failed).toContain('Failed'); expect(failed).toContain('Invalid attachment'); expect(failed).toContain('Received:'); expect(failed).toContain('Received:</strong> —'); expect(failed).toContain('Attempts:</strong> 2'); expect(failed).toContain('Last attempt:'); expect(failed).toContain('Reprocess')
