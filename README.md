@@ -195,6 +195,9 @@ messaging.
 The next product stage is `v0.5.0 — Real Sailing Pilot`. It is not yet
 delivered.
 
+Pilot participation and consent conditions:
+[docs/pilot-participation-consent.md](docs/pilot-participation-consent.md)
+
 The project is not currently affiliated with or endorsed by Garmin, Vakaros or any other device manufacturer.
 
 ---
@@ -403,6 +406,9 @@ integrados.
 
 La siguiente etapa de producto es `v0.5.0 — Piloto con regatistas reales`. Aún
 no está entregada.
+
+Condiciones de participación y consentimiento del piloto:
+[docs/pilot-participation-consent.md](docs/pilot-participation-consent.md)
 
 Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni ningún otro fabricante de dispositivos.
 
