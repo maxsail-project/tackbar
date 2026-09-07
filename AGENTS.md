@@ -33,6 +33,12 @@ For any v0.5 task involving product behavior, privacy, consent, access, retentio
 
 Treat these documents as repository constraints, not optional background.
 
+For v0.5.1 Pilot Fix & Usability work related to Admin operational context,
+pilot fixes, Session/Sailor usability, or other explicitly defined v0.5.1
+increments, also read:
+
+`docs/v0.5.1-pilot-fix-and-usability-requirements.md`
+
 If instructions conflict, stop and report the conflict before implementing.
 
 ## Instruction hierarchy
