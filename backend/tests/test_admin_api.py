@@ -574,6 +574,21 @@ def test_admin_ingestion_inspection_and_reprocess_are_protected_and_path_safe(
     assert "/api/admin/mailbox" not in app.openapi()["paths"]
 
 
+def test_admin_ingestions_are_ordered_by_received_at_before_attempt_time(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory()
+    old = history.create("gmail", "old", "a@example.test", "old.csv", None)
+    old["received_at"] = "2026-08-28T10:00:00+00:00"; old["last_attempt_at"] = "2026-08-28T15:00:00+00:00"; history.replace(old)
+    new = history.create("gmail", "new", "a@example.test", "new.csv", None)
+    new["received_at"] = "2026-08-28T12:00:00+00:00"; new["last_attempt_at"] = "2026-08-28T12:01:00+00:00"; history.replace(new)
+    missing = history.create("gmail", "missing", "a@example.test", "missing.csv", None)
+    missing["last_attempt_at"] = "2026-08-28T16:00:00+00:00"; history.replace(missing)
+    response = _request("GET", "/api/admin/ingestions")
+    assert [item["provider_message_id"] for item in response.json] == ["new", "old", "missing"]
+
+
 def test_orphan_or_malformed_consent_events_are_generic_integrity_errors(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
     events_path = root / "consent_events.json"

@@ -136,6 +136,22 @@ This is separate from immediate ACTIVE-only shared visibility enforcement.
 
 # Ingestion & email operations
 
+## Admin ingestion classification and filtering
+
+**Status:** Future
+**Release:** Unassigned
+
+Consider a useful operational layer that remains separate from technical
+ingestion status (`processed` / `failed`): an administrative disposition such
+as `active` / `discarded`, with semantic **Discard** and **Restore** actions.
+Discarded records would remain retained and known to ingestion deduplication;
+discarding would not delete or roll back Activities, Sessions, originals,
+consent, capabilities or Gmail state. Future Admin filters could combine
+status (All / Processed / Failed) and disposition (All / Active / Discarded).
+
+This is deferred because it is operationally useful but not needed to validate
+the current Real Sailing Pilot workflow.
+
 ## Automatic Gmail polling
 
 **Status:** Future  

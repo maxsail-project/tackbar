@@ -130,7 +130,9 @@ def list_sessions() -> list[AdminSessionResponse]:
 def list_ingestions() -> list[AdminIngestionResponse]:
     try:
         records = IngestionHistory().records()
-        return sorted((_ingestion_response(record) for record in records), key=lambda item: item.last_attempt_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        def sort_key(item: AdminIngestionResponse) -> tuple[bool, datetime]:
+            return (item.received_at is not None, item.received_at or item.last_attempt_at or datetime.min.replace(tzinfo=timezone.utc))
+        return sorted((_ingestion_response(record) for record in records), key=sort_key, reverse=True)
     except ValueError as error:
         raise _admin_integrity_error() from error
 
