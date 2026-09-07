@@ -7,11 +7,13 @@ const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetai
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : 'PENDING',
   consent_request_sent_at: '2026-08-20T10:00:00Z', consent_granted_at: null, consent_revoked_at: null,
   operational_group: group, consent_events: [{ event_type: 'consent_requested', timestamp: '2026-08-20T10:00:00Z', source: 'admin', agreement_version: 'v1' }],
+  activity_count: 0, session_count: 0, last_sailing_start: null, last_sailing_end: null, sessions: [],
 })
 const session = (state: AdminSession['capability_state']): AdminSession => ({
   id: 'session-123', created_at: '2026-08-01T10:00:00Z', expires_at: '2026-09-30T10:00:00Z',
   total_activity_count: 3, visible_activity_count: 1, capability_state: state,
   capability_token: state === 'active' ? 'token' : null, capability_path: state === 'active' ? '/s/token' : null,
+  sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', active_sailors: [{ id: 'sailor-1', label: 'Test Sailor' }], consent_active_count: 1, consent_pending_count: 0, consent_revoked_count: 0,
 })
 
 afterEach(() => vi.unstubAllGlobals())

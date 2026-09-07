@@ -22,6 +22,10 @@ class AdminSailorResponse(BaseModel):
     consent_granted_at: datetime | None
     consent_revoked_at: datetime | None
     operational_group: ConsentOperationalGroup
+    activity_count: int
+    session_count: int
+    last_sailing_start: datetime | None
+    last_sailing_end: datetime | None
 
 
 class AdminConsentEventResponse(BaseModel):
@@ -33,6 +37,17 @@ class AdminConsentEventResponse(BaseModel):
 
 class AdminSailorDetailResponse(AdminSailorResponse):
     consent_events: list[AdminConsentEventResponse]
+    sessions: list["AdminSailorSessionResponse"]
+
+
+class AdminSailorSessionResponse(BaseModel):
+    session_id: str
+    sailing_start: datetime | None
+    sailing_end: datetime | None
+    sailor_activity_count: int
+    expires_at: datetime
+    capability_state: CapabilityState
+    capability_path: str | None
 
 
 class AdminSessionResponse(BaseModel):
@@ -44,6 +59,17 @@ class AdminSessionResponse(BaseModel):
     capability_state: CapabilityState
     capability_token: str | None
     capability_path: str | None
+    sailing_start: datetime | None
+    sailing_end: datetime | None
+    active_sailors: list["AdminSessionSailor"]
+    consent_active_count: int
+    consent_pending_count: int
+    consent_revoked_count: int
+
+
+class AdminSessionSailor(BaseModel):
+    id: str
+    label: str
 
 
 class AdminSessionRenewRequest(BaseModel):

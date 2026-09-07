@@ -15,6 +15,10 @@ export interface AdminSailor {
   consent_granted_at: string | null
   consent_revoked_at: string | null
   operational_group: ConsentOperationalGroup
+  activity_count: number
+  session_count: number
+  last_sailing_start: string | null
+  last_sailing_end: string | null
 }
 
 export interface AdminConsentEvent {
@@ -26,6 +30,17 @@ export interface AdminConsentEvent {
 
 export interface AdminSailorDetail extends AdminSailor {
   consent_events: AdminConsentEvent[]
+  sessions: AdminSailorSession[]
+}
+
+export interface AdminSailorSession {
+  session_id: string
+  sailing_start: string | null
+  sailing_end: string | null
+  sailor_activity_count: number
+  expires_at: string
+  capability_state: CapabilityState
+  capability_path: string | null
 }
 
 export interface AdminSession {
@@ -37,6 +52,12 @@ export interface AdminSession {
   capability_state: CapabilityState
   capability_token: string | null
   capability_path: string | null
+  sailing_start: string | null
+  sailing_end: string | null
+  active_sailors: { id: string; label: string }[]
+  consent_active_count: number
+  consent_pending_count: number
+  consent_revoked_count: number
 }
 
 export interface AdminIngestion {

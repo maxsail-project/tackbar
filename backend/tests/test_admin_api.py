@@ -336,7 +336,7 @@ def test_admin_sessions_include_internal_counts_lifetime_and_all_states(monkeypa
     response = _request("GET", "/api/admin/sessions")
     sessions = {item["id"]: item for item in response.json}
 
-    assert sessions[SESSION_ACTIVE] == {
+    assert {key: sessions[SESSION_ACTIVE][key] for key in ("id", "created_at", "expires_at", "total_activity_count", "visible_activity_count", "capability_state", "capability_token", "capability_path")} == {
         "id": SESSION_ACTIVE,
         "created_at": "2026-01-01T00:00:00Z",
         "expires_at": "2099-03-02T00:00:00Z",
@@ -346,6 +346,10 @@ def test_admin_sessions_include_internal_counts_lifetime_and_all_states(monkeypa
         "capability_token": ACTIVE_TOKEN,
         "capability_path": f"/s/{ACTIVE_TOKEN}",
     }
+    assert sessions[SESSION_ACTIVE]["sailing_start"] == "2026-08-10T09:00:00Z"
+    assert sessions[SESSION_ACTIVE]["sailing_end"] == "2026-08-10T10:00:00Z"
+    assert sessions[SESSION_ACTIVE]["active_sailors"]
+    assert sessions[SESSION_ACTIVE]["consent_active_count"] == 1
     assert sessions[SESSION_NEVER]["capability_state"] == "never_generated"
     assert sessions[SESSION_NEVER]["visible_activity_count"] == 0
     assert sessions[SESSION_NEVER]["capability_token"] is None
