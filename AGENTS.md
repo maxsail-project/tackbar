@@ -41,6 +41,14 @@ increments, also read:
 
 If instructions conflict, stop and report the conflict before implementing.
 
+For v0.6 Personal TackBar & Pilot Operations work related to personal Sailor access, Admin operational maintenance, multi-provider email ingestion, visual brand consolidation, licensing, or other explicitly defined v0.6 increments, also read:
+
+`docs/v0.6-personal-tackbar-pilot-operations-requirements.md`
+
+For any v0.6 task involving product behavior, personal access, pilot operations, ingestion boundaries, branding, licensing, or deferred scope, also read:
+
+`docs/v0.6-decisions.md`
+
 ## Instruction hierarchy
 
 Interpret repository instructions in this order:
