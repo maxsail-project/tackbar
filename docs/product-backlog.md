@@ -6,7 +6,7 @@ This document contains pending work only.
 
 Delivered items are removed from this backlog. Historical delivery information belongs in the implementation, tests, release requirements, `CHANGELOG.md` and GitHub Releases where applicable.
 
-Being listed here does not imply commitment to a specific release.
+Being listed here does not imply commitment to a specific release unless a release is explicitly assigned.
 
 ---
 
@@ -39,20 +39,33 @@ If it is unclear whether something belongs in the backlog, report it for review 
 ## Personal TackBar / My Activities
 
 **Status:** Near-term  
-**Release:** Unassigned
+**Release:** v0.6.0
 
-Provide a stable personal space for an ACTIVE Sailor containing their Activity history.
+Provide a stable read-only personal space for an ACTIVE Sailor containing their Activity history.
 
-Expected direction:
+Direction:
 
-- stable personal access URL;
+- personal capability URL without Sailor login;
 - list personal Activities;
-- new Activities appear automatically;
-- Activity may link to its associated shared Session while that Session is active;
-- when the associated Session has expired, show `Session expired`;
-- personal Activity history does not expire merely because the shared Session reaches its 60-day lifetime.
+- link to the associated shared Session while available;
+- show expired/unavailable Session state when appropriate;
+- personal Activity history remains available independently from shared Session lifetime.
 
-Exact personal-access security/capability semantics remain to be decided.
+---
+
+## Visual brand consolidation
+
+**Status:** Near-term  
+**Release:** v0.6.0
+
+Establish a coherent TackBar visual identity across the application and public website.
+
+Direction:
+
+- official TackBar logo system;
+- explicit core color palette;
+- consistent brand use in new Personal TackBar UI and existing public-facing surfaces;
+- preserve the current mobile-first product usability.
 
 ---
 
@@ -130,7 +143,7 @@ Topics to resolve include:
 - restore/backups;
 - participant data-right requests.
 
-This is separate from immediate ACTIVE-only shared visibility enforcement.
+This is separate from immediate ACTIVE-only shared visibility enforcement and from administrative ingestion discard/restore.
 
 ---
 
@@ -138,31 +151,76 @@ This is separate from immediate ACTIVE-only shared visibility enforcement.
 
 ## Admin ingestion classification and filtering
 
-**Status:** Future
-**Release:** Unassigned
+**Status:** Near-term  
+**Release:** v0.6.0
 
-Consider a useful operational layer that remains separate from technical
-ingestion status (`processed` / `failed`): an administrative disposition such
-as `active` / `discarded`, with semantic **Discard** and **Restore** actions.
-Discarded records would remain retained and known to ingestion deduplication;
-discarding would not delete or roll back Activities, Sessions, originals,
-consent, capabilities or Gmail state. Future Admin filters could combine
-status (All / Processed / Failed) and disposition (All / Active / Discarded).
+Add an administrative disposition separate from technical ingestion status (`processed` / `failed`).
 
-This is deferred because it is operationally useful but not needed to validate
-the current Real Sailing Pilot workflow.
+Direction:
 
-## Automatic Gmail polling
+- `active` / `discarded`;
+- semantic **Discard** and **Restore** actions;
+- discarded records remain retained and known to deduplication;
+- filtering by technical status and administrative disposition.
+
+Discarding does not physically delete or roll back Activities, Sessions, originals, consent or capabilities.
+
+---
+
+## Multi-provider email ingestion
+
+**Status:** Near-term  
+**Release:** v0.6.0
+
+Keep Gmail supported and add the TackBar mailbox hosted at OVHcloud.
+
+Both providers must remain adapters over the same provider-independent ingestion pipeline.
+
+The concrete OVHcloud mailbox access mechanism should be selected after validating the actual mailbox service.
+
+---
+
+## Canonical track fingerprint
+
+**Status:** Planned  
+**Release:** v0.7.0
+
+Define logical duplicate detection after TackBar track normalization as part of
+the multi-format ingestion work, while retaining the existing raw attachment
+SHA-256 for exact-file deduplication.
+
+The fingerprint/hash contract must be designed together with the canonical
+multi-format track representation rather than frozen around the current
+single-format baseline.
+
+Direction:
+
+- supported GPX/VKX/FIT inputs converge on one canonical normalized track model;
+- define the minimum canonical fields used for logical duplicate identity;
+- SOG and COG are expected to be part of the minimum navigation baseline;
+- v0.7 must define how SOG and COG are obtained during normalization when a
+  source format does not provide them directly;
+- HEEL and TRIM remain optional when the source does not provide them;
+- do not invent missing sensor values;
+- do not derive HDG from COG;
+- freeze deterministic serialization/versioning only after the v0.7
+  normalization contract is understood and regression-tested;
+- preserve Sailor-scoped duplicate identity.
+
+---
+
+## Automatic mailbox polling
 
 **Status:** Future  
 **Release:** Unassigned
 
 Run mailbox ingestion automatically without administrator interaction.
 
-Current v0.5 baseline remains manual Admin-triggered mailbox review.
+The current pilot baseline remains manual Admin-triggered mailbox review.
 
 When implemented, consider:
 
+- multiple providers;
 - configurable polling interval;
 - pagination / candidate discovery;
 - execution locking;
@@ -181,58 +239,72 @@ Automate selected outgoing TackBar emails.
 Potential initial cases:
 
 - consent/invitation request;
-- processed Activity / Session link.
+- processed Activity / Session link;
+- Personal TackBar access link.
 
-Exact Gmail scopes, threading and sending mechanism must be decided before
-implementation.
+Exact provider scopes, threading and sending mechanism must be decided before implementation.
 
 ---
 
-## Email provider evolution
+## Additional email providers
 
 **Status:** Future  
 **Release:** Unassigned
 
-Evaluate alternatives to the Gmail-specific PoC adapter while preserving the
-provider-independent ingestion boundary.
+Evaluate additional provider adapters after the Gmail + OVHcloud baseline when real operation justifies them.
 
-Possible future directions include another provider API or IMAP-based adapters.
+Provider-specific acquisition must preserve the common ingestion boundary.
 
 ---
 
 # Activity sources & formats
 
-## Vakaros additional formats
+## GPX ingestion
+
+**Status:** Planned  
+**Release:** v0.7.0
+
+Add GPX as the first new file format in the multi-format ingestion release.
+
+GPX must converge on the same provider-independent TackBar Activity and normalized track model.
+
+---
+
+## VKX ingestion
+
+**Status:** Planned  
+**Release:** v0.7.0
+
+Add VKX after GPX has been integrated and validated.
+
+VKX must converge on the same canonical TackBar track model without automatically expanding analytics scope.
+
+---
+
+## FIT ingestion
+
+**Status:** Planned  
+**Release:** v0.7.0
+
+Add FIT after VKX has been integrated and validated.
+
+FIT file support remains separate from future Garmin Connect integration.
+
+---
+
+## Additional containers
 
 **Status:** Future  
 **Release:** Unassigned  
-**Origin:** existing roadmap / ingestion discussions
+**Origin:** existing ingestion discussions
 
-Evaluate additional Vakaros representations and containers:
+Evaluate additional containers around supported formats, including:
 
-- VKX;
 - VKX.GZ;
 - ZIP;
 - ZIP containing one or more supported sailing files.
 
-Questions to resolve include:
-
-- multiple valid files inside one ZIP;
-- richer VKX-specific information;
-- canonical normalized fields;
-- logical deduplication across equivalent formats.
-
----
-
-## GPX ingestion
-
-**Status:** Future  
-**Release:** Unassigned
-
-Add GPX as an additional file-based source.
-
-GPX must converge on the same provider-independent TackBar Activity and
-normalized track model.
+Archive safety, deterministic extraction and interaction with deduplication must be defined when promoted.
 
 ---
 
@@ -245,10 +317,9 @@ Evaluate official Garmin Connect / Activity API integration.
 
 Target direction:
 
-`Garmin → cloud integration → TackBar Activity → existing Session flow`
+`Garmin → cloud integration → TackBar normalized track → Activity → existing Session flow`
 
-Garmin-specific acquisition must not redefine downstream Activity, Session or
-Viewer semantics.
+Garmin-specific acquisition must not redefine downstream Activity, Session or Viewer semantics.
 
 ---
 
@@ -259,13 +330,29 @@ Viewer semantics.
 
 Potential sources include:
 
-- FIT;
 - direct Vakaros integration;
 - Intervals.icu;
 - Strava;
 - other sailing devices/platforms.
 
 Add concrete entries when one becomes an actual product candidate.
+
+---
+
+# Session operations
+
+## Session maintenance usability
+
+**Status:** Near-term  
+**Release:** v0.6.0
+
+Improve routine Admin maintenance of existing Session lifetime and capability operations without changing Session semantics.
+
+Direction:
+
+- clearer active/expired operational status;
+- preserve renew, capability copy, regeneration and revocation;
+- preserve existing Session matching and shared-access rules.
 
 ---
 
@@ -285,8 +372,7 @@ Introduce sailing-start analysis when product validation justifies it.
 **Status:** Future  
 **Release:** Unassigned
 
-Identify relevant sailing legs or intervals without redefining Activity as a
-race or leg.
+Identify relevant sailing legs or intervals without redefining Activity as a race or leg.
 
 ---
 
@@ -317,25 +403,11 @@ Detailed sailing semantics must be defined before implementation.
 
 Detect moments that may deserve attention during post-sailing debrief.
 
-This must evolve from validated sailing-domain rules rather than speculative
-feature depth.
+This must evolve from validated sailing-domain rules rather than speculative feature depth.
 
 ---
 
 # Platform & operations
-
-## EU VPS deployment
-
-**Status:** Near-term infrastructure  
-**Release:** Unassigned
-
-Deploy TackBar runtime and private pilot data on an EU-hosted VPS.
-
-Runtime personal data, tracks, originals, metadata, relevant logs and backups
-should remain within the selected EU hosting perimeter, subject to explicitly
-accepted PoC exceptions.
-
----
 
 ## Production packaging
 
@@ -349,7 +421,6 @@ Likely areas:
 - Docker;
 - Docker Compose;
 - reverse proxy;
-- HTTPS;
 - persistent volume/data directory;
 - runtime secrets.
 
@@ -362,7 +433,7 @@ Do not introduce infrastructure complexity beyond demonstrated PoC needs.
 **Status:** Future  
 **Release:** Unassigned
 
-Configure public domain and HTTPS for the deployed TackBar pilot.
+Configure or maintain public domain and HTTPS for the deployed TackBar pilot as operational needs require.
 
 ---
 
@@ -397,8 +468,7 @@ Add lightweight availability and health monitoring appropriate for the PoC.
 **Status:** Future  
 **Release:** Unassigned
 
-Introduce automated build/test/deployment workflows when deployment maturity
-justifies them.
+Introduce automated build/test/deployment workflows when deployment maturity justifies them.
 
 Keep Git/release control consistent with repository safety rules.
 
@@ -431,10 +501,22 @@ Do not migrate to a database solely because the number of Activities grows.
 **Status:** Conditional  
 **Release:** Unassigned
 
-Evaluate SQLite or another persistence model only when current JSON/filesystem
-storage demonstrates requirements that justify database behavior.
+Evaluate SQLite or another persistence model only when current JSON/filesystem storage demonstrates requirements that justify database behavior.
 
 This is not currently a committed migration.
+
+---
+
+# Project governance & licensing
+
+## MPL 2.0 transition
+
+**Status:** Near-term  
+**Release:** v0.6.0
+
+Transition TackBar's own public source code from MIT to MPL-2.0.
+
+The transition covers the TackBar application and public website, preserves applicable third-party notices and does not rewrite historical MIT releases.
 
 ---
 
@@ -447,8 +529,7 @@ This is not currently a committed migration.
 
 The current shared Session lifetime is a PoC rule.
 
-Future product models may differentiate availability/history duration between
-plans, clubs or other usage models.
+Future product models may differentiate availability/history duration between plans, clubs or other usage models.
 
 No pricing or plan structure is currently defined.
 
