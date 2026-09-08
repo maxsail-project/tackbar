@@ -2,6 +2,70 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.5.1 — Pilot Fix & Usability
+
+### English
+
+TackBar v0.5.1 is a small Pilot Fix & Usability release focused on improving the Admin experience when operating real sailing data, while preserving the validated v0.5.0 Real Sailing Pilot behavior.
+
+### Improved
+
+* Admin Sessions now expose real sailing intervals derived from Activity timestamps, ACTIVE Sailors represented in the Session and consent coverage by unique Sailor.
+* Admin Sailors now expose Activity count, unique Session count, most recent sailing context and Session participation history.
+* Admin Ingestions now expose the associated Activity sailing interval and sample count, clearly separating email reception time from actual track time.
+* Existing Activity counts, capability state, expiration and operational Admin context remain available alongside the new derived information.
+
+### Design
+
+* All new Admin information is derived from existing persisted Sailor, Activity and Session data.
+* No new domain persistence concepts were introduced for these summaries.
+* Existing Activity identity, deduplication, Session matching, Session membership, consent lifecycle, ACTIVE-only shared visibility, capability authorization, Session expiration/renewal, Gmail ingestion, reprocessing, persistence, Session Viewer, Analysis Window, replay and metrics remain unchanged.
+
+### Validated
+
+Validation confirmed:
+
+* backend regression suite passes 181 tests;
+* frontend regression suite passes 107 tests;
+* TypeScript typecheck passes;
+* production build passes;
+* backend `compileall` passes;
+* `git diff --check` passes.
+
+---
+
+## v0.5.1 — Correcciones y usabilidad del piloto
+
+### Español
+
+TackBar v0.5.1 es una release menor de correcciones y usabilidad del piloto centrada en mejorar la experiencia Admin al operar datos reales de navegación, manteniendo intacto el comportamiento validado de v0.5.0 Real Sailing Pilot.
+
+### Mejorado
+
+* Admin Sessions muestra ahora el intervalo real de navegación derivado de las Activities, los Sailors `ACTIVE` representados en la Session y la cobertura de consentimiento por Sailor único.
+* Admin Sailors muestra ahora el número de Activities, el número de Sessions únicas, el contexto de navegación más reciente y el historial de participación en Sessions.
+* Admin Ingestions muestra ahora el intervalo de navegación de la Activity asociada y su número de muestras, diferenciando claramente la recepción del correo del tiempo real del track.
+* Los conteos existentes de Activities, el estado de capability, la expiración y el resto del contexto operativo Admin se mantienen junto con la nueva información derivada.
+
+### Diseño
+
+* Toda la nueva información Admin se deriva de los datos ya persistidos de Sailor, Activity y Session.
+* No se introdujeron nuevos conceptos de persistencia de dominio para estos resúmenes.
+* Se mantienen sin cambios la identidad de Activity, deduplicación, Session matching, membresía de Session, ciclo de consentimiento, visibilidad compartida exclusiva para `ACTIVE`, autorización mediante capability, expiración/renovación de Session, ingesta Gmail, reproceso, persistencia, Session Viewer, Analysis Window, replay y métricas.
+
+### Validado
+
+La validación confirmó:
+
+* la suite de regresión backend supera 181 tests;
+* la suite de regresión frontend supera 107 tests;
+* el typecheck de TypeScript finaliza correctamente;
+* el build de producción finaliza correctamente;
+* `compileall` del backend finaliza correctamente;
+* `git diff --check` finaliza correctamente.
+
+---
+
 ## v0.5.0 — Real Sailing Pilot
 
 ### English
@@ -80,59 +144,6 @@ The next stage will focus on **Pilot Deployment & Communication**:
 
 ---
 
-## v0.4.0 — Collaborative Sailing Debrief
-
-### English
-
-TackBar v0.4.0 connects the mobile-first Session Viewer to Sessions, Activities and canonical tracks actually persisted by the backend, completing the first end-to-end proof of concept for collaborative post-sailing debriefing.
-
-### Added
-
-* Separate `Sailor` and `Boat` runtime domain concepts, with each Activity linked to its Sailor and optionally to the Boat used for that sailing.
-* Read-only FastAPI endpoints for recent Sessions, Session detail and complete canonical Activity tracks.
-* Frontend Session and track loading through the backend API, removing runtime Session/track fixture dependencies.
-* Fixed map replay telemetry showing shared GPS time plus instantaneous SOG, COG and HEEL for the selected Activities.
-* Refined Analysis Window summary with Distance, Avg SOG, Max SOG, Dominant COG, signed Avg HEEL and signed Avg TRIM.
-* HEEL and TRIM time-series charts alongside the existing SOG and COG charts.
-* Horizontal `0°` reference for signed HEEL and TRIM charts.
-* Compact temporal Replay controls with shared scrubber and selectable x1, x2, x5 and x10 playback speeds.
-
-### Design
-
-* The frontend consumes backend APIs only and remains isolated from JSON persistence, canonical track files and `TACKBAR_DATA_DIR`.
-* Sailor identity is separated from Boat context; email remains an external ingestion identity rather than the permanent domain identifier.
-* Primary and Comparison Activities continue to share one absolute GPS/UTC Analysis Window and one synchronized `playbackTime`.
-* The map provides fixed instantaneous navigation context while the metric selector independently controls the analytical time-series chart.
-* Replay is intentionally limited to temporal navigation: play/pause, shared GPS time, scrubber and playback speed.
-* HEEL and TRIM preserve the sign of canonical sensor values without assigning unvalidated port/starboard or bow-up/bow-down semantics.
-* Rendering optimizations remain presentation-only; metrics use the complete valid normalized sample population inside the current Analysis Window.
-* Collaborative debriefing means sailors reviewing and discussing the same Session Viewer together around a phone or tablet; built-in chat or real-time multi-user collaboration is not required.
-
-### Validated
-
-The complete persisted-data workflow was validated using the public sanitized TEST Session:
-
-`Session persistence → FastAPI → Recent Sessions → Session Viewer → Primary / Comparison → Analysis Window → Map → Replay → Summary → SOG / COG / HEEL / TRIM`
-
-Validation confirmed:
-
-* complete canonical tracks are retrieved through the backend API;
-* one or two Activities can be compared over their shared GPS/UTC interval;
-* map positions and telemetry remain synchronized through one `playbackTime`;
-* Analysis Window changes propagate consistently to map tracks, replay, summary metrics and charts;
-* SOG, COG, HEEL and TRIM charts work with one or two Activities;
-* circular COG presentation remains protected across the `0°/360°` boundary;
-* missing sensor values remain unavailable rather than being invented;
-* mobile phone and larger/tablet layouts support the complete debrief workflow;
-* backend regression suite passes 116 tests;
-* frontend regression suite passes 88 tests, together with typecheck and production build.
-
-### Next
-
-`v0.5.0` will focus on the Real Sailing Pilot: validating TackBar with real sailors and sailing sessions, including the operational access/privacy workflow and further product feedback before expanding analytics or integrations.
-
----
-
 ## v0.5.0 — Piloto real de vela
 
 ### Español
@@ -208,6 +219,59 @@ La siguiente etapa se centrará en **Pilot Deployment & Communication**:
 * validar backup y restore de los datos del piloto;
 * preparar material operativo y de comunicación sencillo para los participantes reales;
 * mantener estable el comportamiento de producto de v0.5 mientras se obtiene feedback de uso real.
+
+---
+
+## v0.4.0 — Collaborative Sailing Debrief
+
+### English
+
+TackBar v0.4.0 connects the mobile-first Session Viewer to Sessions, Activities and canonical tracks actually persisted by the backend, completing the first end-to-end proof of concept for collaborative post-sailing debriefing.
+
+### Added
+
+* Separate `Sailor` and `Boat` runtime domain concepts, with each Activity linked to its Sailor and optionally to the Boat used for that sailing.
+* Read-only FastAPI endpoints for recent Sessions, Session detail and complete canonical Activity tracks.
+* Frontend Session and track loading through the backend API, removing runtime Session/track fixture dependencies.
+* Fixed map replay telemetry showing shared GPS time plus instantaneous SOG, COG and HEEL for the selected Activities.
+* Refined Analysis Window summary with Distance, Avg SOG, Max SOG, Dominant COG, signed Avg HEEL and signed Avg TRIM.
+* HEEL and TRIM time-series charts alongside the existing SOG and COG charts.
+* Horizontal `0°` reference for signed HEEL and TRIM charts.
+* Compact temporal Replay controls with shared scrubber and selectable x1, x2, x5 and x10 playback speeds.
+
+### Design
+
+* The frontend consumes backend APIs only and remains isolated from JSON persistence, canonical track files and `TACKBAR_DATA_DIR`.
+* Sailor identity is separated from Boat context; email remains an external ingestion identity rather than the permanent domain identifier.
+* Primary and Comparison Activities continue to share one absolute GPS/UTC Analysis Window and one synchronized `playbackTime`.
+* The map provides fixed instantaneous navigation context while the metric selector independently controls the analytical time-series chart.
+* Replay is intentionally limited to temporal navigation: play/pause, shared GPS time, scrubber and playback speed.
+* HEEL and TRIM preserve the sign of canonical sensor values without assigning unvalidated port/starboard or bow-up/bow-down semantics.
+* Rendering optimizations remain presentation-only; metrics use the complete valid normalized sample population inside the current Analysis Window.
+* Collaborative debriefing means sailors reviewing and discussing the same Session Viewer together around a phone or tablet; built-in chat or real-time multi-user collaboration is not required.
+
+### Validated
+
+The complete persisted-data workflow was validated using the public sanitized TEST Session:
+
+`Session persistence → FastAPI → Recent Sessions → Session Viewer → Primary / Comparison → Analysis Window → Map → Replay → Summary → SOG / COG / HEEL / TRIM`
+
+Validation confirmed:
+
+* complete canonical tracks are retrieved through the backend API;
+* one or two Activities can be compared over their shared GPS/UTC interval;
+* map positions and telemetry remain synchronized through one `playbackTime`;
+* Analysis Window changes propagate consistently to map tracks, replay, summary metrics and charts;
+* SOG, COG, HEEL and TRIM charts work with one or two Activities;
+* circular COG presentation remains protected across the `0°/360°` boundary;
+* missing sensor values remain unavailable rather than being invented;
+* mobile phone and larger/tablet layouts support the complete debrief workflow;
+* backend regression suite passes 116 tests;
+* frontend regression suite passes 88 tests, together with typecheck and production build.
+
+### Next
+
+`v0.5.0` will focus on the Real Sailing Pilot: validating TackBar with real sailors and sailing sessions, including the operational access/privacy workflow and further product feedback before expanding analytics or integrations.
 
 ---
 
