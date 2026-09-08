@@ -228,6 +228,11 @@ of adding it automatically.
 
 ## Git and release safety
 
+For production deployment, release upgrade, rollback, or server operational
+work, read:
+
+`docs/production-runbook.md`
+
 Do not commit or push unless explicitly requested.
 
 Do not create tags, releases, or version bumps unless explicitly requested.
