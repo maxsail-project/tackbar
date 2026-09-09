@@ -32,32 +32,21 @@ The debrief starts when the sailing stops.
 
 ---
 
-## Current proof of concept
+## Current pilot workflow
 
-The current TackBar proof of concept supports a deliberately simple workflow:
+`Sail → share Vakaros activity → email ingestion → Sailor → Activity → Session → capability URL → shared Session Viewer → collaborative debrief`
 
-1. A sailor records a sailing activity.
-2. The activity track is exported from the device platform.
-3. The sailor sends the track as an email attachment.
-4. TackBar receives and processes the attachment.
-5. The normalized sender email resolves the internal Sailor identity.
-6. Date, time and GPS proximity are used to determine which sailing session the activity belongs to.
-7. The Activity records its Sailor and optional Boat context and is grouped
-   automatically into a Session.
-8. FastAPI exposes persisted Sessions and canonical Activity tracks through a
-   read-only API.
-9. The v0.4.0 mobile Session Viewer opens that persisted data for one/two-boat
-   comparison and collaborative debriefing.
+The current pilot accepts **Vakaros CSV and CSV.GZ** exports through Gmail.
+Admin triggers mailbox review, manages consent and shares Session links.
+The normalized sender email resolves the Sailor; each received track becomes
+an Activity with optional Boat context and is automatically matched to a Session.
 
-Initial testing is being performed using **Vakaros activity exports**.
+Consent controls shared visibility, not technical ingestion or Session matching.
+Only Activities of currently `ACTIVE` Sailors appear in shared Sessions.
+Access uses a valid Session capability URL, without a general Sailor login.
 
-For the first PoC, the preferred format is:
-
-`CSV + GZIP`
-
-Example:
-
-`Vakaros Connect → Export CSV/GZIP → Email → TackBar → Session`
+GPX, VKX and FIT are planned formats, not current support. OVHcloud ingestion
+is part of the v0.6 direction and is not yet operational in this baseline.
 
 ---
 
@@ -105,15 +94,7 @@ The current Vakaros CSV export provides data such as:
 * heel;
 * trim.
 
-Additional formats and data sources may be supported progressively, including:
-
-* VKX;
-* FIT;
-* GPX;
-* Garmin Connect;
-* Intervals.icu;
-* Strava;
-* other sailing devices and activity platforms.
+Planned format support is described in the roadmap section below.
 
 TackBar is intended to remain device-independent.
 
@@ -133,7 +114,7 @@ Current technology and persistence:
 * **Activity ingestion:** Gmail API adapter with provider-independent downstream processing
 * **Target experience:** mobile-first web application that also works naturally on tablets
 
-v0.4.0 connects the Viewer to Sessions, Activities and canonical tracks
+The current pilot connects the Viewer to Sessions, Activities and canonical tracks
 actually persisted by the backend. It provides one/two-Activity comparison, a
 shared GPS/UTC Analysis Window, fixed map telemetry, synchronized replay, the
 refined Summary, and SOG/COG/HEEL/TRIM charts. Public sanitized TEST data
@@ -181,32 +162,69 @@ The focus is instead on:
 
 ## Project status
 
-**Early-stage proof of concept.**
+**Controlled real-sailing pilot, with v0.6.0 as the current productization increment.**
 
-`v0.4.0 — Collaborative Sailing Debrief PoC` has delivered the complete
-runtime workflow:
+**v0.5.0 — Real Sailing Pilot** is delivered and validated end-to-end with real
+Gmail messages, runtime persistence, explicit consent and capability-based
+shared Session access. **v0.5.1 — Pilot Fix & Usability** is delivered, adding
+clearer sailing and participation context to Admin.
 
-`multiple sailors → track ingestion → automatic Session detection → persisted Session → backend API → collaborative visual debrief`
+The delivered baseline includes Sailor / optional Boat context, automatic
+Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
+Window, synchronized replay and SOG/COG/HEEL/TRIM analysis.
 
 The debrief is collaborative because sailors inspect and discuss the Session
 together around a phone or tablet; it does not require built-in chat or
 messaging.
 
-The next product stage is `v0.5.0 — Real Sailing Pilot`. It is not yet
-delivered.
-
-Pilot participation and consent conditions:
-[docs/pilot-participation-consent.md](docs/pilot-participation-consent.md)
+See the [CHANGELOG](CHANGELOG.md) for delivered changes and the
+[pilot participation and consent conditions](docs/pilot-participation-consent.md).
 
 The project is not currently affiliated with or endorsed by Garmin, Vakaros or any other device manufacturer.
+
+## Next direction
+
+### v0.6.0 — Personal TackBar & Pilot Operations
+
+Current development direction; the following functionality is planned, not yet
+part of the delivered pilot baseline:
+
+- Personal TackBar / My Activities: durable, read-only access to a Sailor's own
+  Activity history while consent is `ACTIVE` and a personal capability is valid;
+- pilot/Admin operational improvements;
+- Gmail + OVHcloud acquisition through provider-independent ingestion;
+- application visual consolidation using `tackbar-web` as the current brand reference.
+
+The MPL-2.0 licensing transition is already applied in the current repository.
+This does not mean the whole v0.6.0 release is delivered.
+
+See the [v0.6 requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md).
+
+### v0.7.0 — Multi-Format Track Ingestion
+
+Planned: preserve CSV/CSV.GZ and add **GPX → VKX → FIT**, validating each in
+that order. All formats will converge on one canonical TackBar normalized
+track, with deterministic, Sailor-scoped post-normalization logical duplicate
+resolution. The fingerprint contract remains to be finalized using representative
+multi-format data.
+
+See the [v0.7 requirements](docs/v0.7-multi-format-track-ingestion-requirements.md)
+and [ROADMAP](ROADMAP.md) for further context.
+
+## Public website
+
+[tackbar.eu](https://tackbar.eu) is the public TackBar website. The application
+and its source code are developed in [this GitHub repository](https://github.com/maxsail-project/tackbar),
+separately from the marketing website in [tackbar-web](https://github.com/maxsail-project/tackbar-web).
 
 ---
 
 ## Open source
 
-TackBar is being developed as an open-source project.
+TackBar source code is released under the [Mozilla Public License 2.0 (MPL-2.0)](LICENSE).
 
-Licensing, contribution guidelines and the public roadmap will evolve as the project matures.
+Open-source code does not make participant information, emails, GPS tracks or
+private pilot/runtime data open data.
 
 ---
 
@@ -244,32 +262,23 @@ El debriefing empieza cuando termina la navegación.
 
 ---
 
-## Prueba de concepto actual
+## Flujo actual del piloto
 
-La prueba de concepto actual de TackBar soporta deliberadamente un flujo muy sencillo:
+`Navegar → compartir actividad Vakaros → ingesta por email → Sailor → Activity → Session → capability URL → Session Viewer compartido → debriefing colaborativo`
 
-1. Un regatista registra una actividad de navegación.
-2. El track se exporta desde la plataforma del dispositivo.
-3. El regatista envía el track como archivo adjunto por correo electrónico.
-4. TackBar recibe y procesa el adjunto.
-5. El email remitente normalizado resuelve la identidad interna Sailor.
-6. La fecha, la hora y la proximidad GPS permiten determinar a qué sesión pertenece la actividad.
-7. La Activity registra su Sailor y el contexto Boat opcional y se agrupa
-   automáticamente en una Session.
-8. FastAPI expone Sessions persistidas y tracks canónicos mediante una API de
-   solo lectura.
-9. El Session Viewer mobile-first de v0.4.0 abre esos datos persistidos para la
-   comparación de uno/dos barcos y el debriefing colaborativo.
+El piloto actual admite exportaciones **Vakaros CSV y CSV.GZ** mediante Gmail.
+Admin inicia la revisión del buzón, gestiona el consentimiento y comparte los
+enlaces de Session. El email remitente normalizado resuelve el Sailor; cada
+track recibido se convierte en una Activity con contexto Boat opcional y se
+asocia automáticamente a una Session.
 
-Las primeras pruebas se están realizando utilizando **exportaciones de actividades Vakaros**.
+El consentimiento controla la visibilidad compartida, no la ingesta técnica ni
+el Session matching. Sólo las Activities de Sailors actualmente `ACTIVE`
+aparecen en Sessions compartidas. El acceso utiliza una capability URL de
+Session válida, sin un sistema general de login de Sailor.
 
-Para la primera PoC, el formato preferido es:
-
-`CSV + GZIP`
-
-Ejemplo:
-
-`Vakaros Connect → Exportar CSV/GZIP → Email → TackBar → Sesión`
+GPX, VKX y FIT son formatos previstos, no soporte actual. La ingesta OVHcloud
+forma parte de la dirección v0.6 y aún no está operativa en esta baseline.
 
 ---
 
@@ -317,15 +326,7 @@ La exportación CSV actual de Vakaros proporciona información como:
 * escora;
 * trimado.
 
-Progresivamente podrán incorporarse otros formatos y fuentes:
-
-* VKX;
-* FIT;
-* GPX;
-* Garmin Connect;
-* Intervals.icu;
-* Strava;
-* otros dispositivos y plataformas de actividad.
+El soporte previsto de formatos se describe en la sección de roadmap más abajo.
 
 TackBar pretende ser independiente del dispositivo utilizado.
 
@@ -345,7 +346,7 @@ Tecnología y persistencia actuales:
 * **Ingesta de Activity:** adaptador Gmail API con procesamiento posterior independiente del proveedor
 * **Experiencia objetivo:** aplicación web mobile-first que también funciona de forma natural en tablet
 
-v0.4.0 conecta el Viewer con Sessions, Activities y tracks canónicos realmente
+El piloto actual conecta el Viewer con Sessions, Activities y tracks canónicos realmente
 persistidos por el backend. Incluye comparación de una/dos Activities, Analysis
 Window GPS/UTC compartida, telemetría fija en el mapa, replay sincronizado,
 Summary refinado y gráficos SOG/COG/HEEL/TRIM. Los datos TEST públicos y
@@ -393,32 +394,70 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Prueba de concepto en fase inicial.**
+**Piloto controlado con navegaciones reales, con v0.6.0 como incremento actual de consolidación del producto.**
 
-`v0.4.0 — PoC de debriefing colaborativo de vela` ha entregado el flujo
-runtime completo:
+**v0.5.0 — Real Sailing Pilot** está entregado y validado de extremo a extremo
+con mensajes Gmail reales, persistencia runtime, consentimiento explícito y
+acceso compartido a Sessions mediante capability URL. **v0.5.1 — Pilot Fix &
+Usability** está entregado y aporta un contexto más claro de navegación y
+participación en Admin.
 
-`varios regatistas → ingesta de tracks → detección automática de Session → Session persistida → API backend → debriefing visual colaborativo`
+La baseline entregada incluye Sailor / contexto Boat opcional, Session matching
+automático, comparación de una/dos Activities, Analysis Window GPS/UTC
+compartida, replay sincronizado y análisis SOG/COG/HEEL/TRIM.
 
 El debriefing es colaborativo porque los regatistas inspeccionan y comentan la
 Session juntos alrededor de un móvil o tablet; no requiere chat ni mensajería
 integrados.
 
-La siguiente etapa de producto es `v0.5.0 — Piloto con regatistas reales`. Aún
-no está entregada.
-
-Condiciones de participación y consentimiento del piloto:
-[docs/pilot-participation-consent.md](docs/pilot-participation-consent.md)
+Consulta el [CHANGELOG](CHANGELOG.md) para los cambios entregados y las
+[condiciones de participación y consentimiento](docs/pilot-participation-consent.md).
 
 Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni ningún otro fabricante de dispositivos.
+
+## Próxima dirección
+
+### v0.6.0 — Personal TackBar & Pilot Operations
+
+Dirección actual de desarrollo; las siguientes funcionalidades están previstas
+y aún no forman parte de la baseline entregada del piloto:
+
+- Personal TackBar / My Activities: acceso duradero y de solo lectura al historial
+  de Activities del Sailor mientras su consentimiento sea `ACTIVE` y su capability personal sea válida;
+- mejoras operativas del piloto y de Admin;
+- adquisición mediante Gmail + OVHcloud con ingesta independiente del proveedor;
+- consolidación visual de la aplicación usando `tackbar-web` como referencia de marca actual.
+
+La transición de licencia a MPL-2.0 ya está aplicada en el repositorio actual.
+Esto no significa que toda la release v0.6.0 esté entregada.
+
+Consulta los [requisitos v0.6](docs/v0.6-personal-tackbar-pilot-operations-requirements.md).
+
+### v0.7.0 — Multi-Format Track Ingestion
+
+Previsto: conservar CSV/CSV.GZ y añadir **GPX → VKX → FIT**, validando cada
+formato en ese orden. Todos convergerán en un único track normalizado canónico
+de TackBar, con resolución determinista de duplicados lógicos por Sailor tras
+la normalización. El contrato de fingerprint queda pendiente de cerrar con
+datos representativos de varios formatos.
+
+Consulta los [requisitos v0.7](docs/v0.7-multi-format-track-ingestion-requirements.md)
+y el [ROADMAP](ROADMAP.md) para más contexto.
+
+## Web pública
+
+[tackbar.eu](https://tackbar.eu) es la web pública de TackBar. La aplicación y
+su código fuente se desarrollan en [este repositorio GitHub](https://github.com/maxsail-project/tackbar),
+por separado de la web de presentación en [tackbar-web](https://github.com/maxsail-project/tackbar-web).
 
 ---
 
 ## Open source
 
-TackBar se desarrolla como proyecto open-source.
+El código fuente de TackBar se publica bajo la [Mozilla Public License 2.0 (MPL-2.0)](LICENSE).
 
-La licencia, las guías de contribución y el roadmap público evolucionarán a medida que madure el proyecto.
+El código abierto no convierte la información de participantes, emails, tracks
+GPS ni datos privados del piloto/runtime en datos abiertos.
 
 ---
 
@@ -436,7 +475,7 @@ My professional background naturally leads me to approach sailing from an analyt
 
 The goal is not only to analyze an individual track, but to make the post-sailing debriefing easier and more collaborative: collect tracks from several sailors, automatically identify which activities belong to the same session, compare them and discuss what happened.
 
-TackBar is an open-source project and is currently in an early proof-of-concept stage.
+TackBar is an open-source project and is currently running a controlled real-sailing pilot.
 
 Contributions, ideas, testing and feedback from sailors, coaches and developers are very welcome.
 
@@ -456,7 +495,7 @@ Por deformación profesional, suelo llevar también la navegación al terreno an
 
 El objetivo ya no es únicamente analizar un track individual, sino facilitar un debriefing posterior a la navegación más sencillo y colaborativo: recoger tracks de varios regatistas, identificar automáticamente qué actividades pertenecen a la misma sesión, compararlas y discutir qué ocurrió.
 
-TackBar es un proyecto open-source y actualmente se encuentra en fase inicial de prueba de concepto.
+TackBar es un proyecto open-source y actualmente está en fase de piloto controlado con navegaciones reales.
 
 Cualquier colaboración, idea, prueba o feedback por parte de regatistas, entrenadores y desarrolladores será muy bienvenido.
 
