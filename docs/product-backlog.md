@@ -36,20 +36,28 @@ If it is unclear whether something belongs in the backlog, report it for review 
 
 # Product & collaborative debrief
 
-## Personal TackBar / My Activities
+## Personal TackBar / My Sessions
 
 **Status:** Near-term  
 **Release:** v0.6.0
 
-Provide a stable read-only personal space for an ACTIVE Sailor containing their Activity history.
+Provide an ACTIVE Sailor with a stable read-only entry point to Sessions they
+participated in, using a valid personal capability without login. Membership is
+derived through their Activities, not a new persisted relation. Open available
+Sessions in the existing collaborative Viewer; unavailable Sessions remain
+history without bypassing shared capability or lifetime rules.
 
-Direction:
+---
 
-- personal capability URL without Sailor login;
-- list personal Activities;
-- link to the associated shared Session while available;
-- show expired/unavailable Session state when appropriate;
-- personal Activity history remains available independently from shared Session lifetime.
+## Individual personal Activity history/access
+
+**Status:** Future
+
+**Release:** Unassigned
+
+Consider My Activities and personal single-Activity viewing if future pilot
+evidence justifies them. This is not committed v0.6 scope or assigned to v0.7.
+Any access independent from shared Session lifetime needs a separate decision.
 
 ---
 

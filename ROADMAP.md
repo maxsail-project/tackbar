@@ -103,9 +103,9 @@ The next incremental productization step after the validated real-sailing pilot.
 This is current release direction, not a declaration that all v0.6 functionality
 has been delivered.
 
-- Personal TackBar / My Activities with stable personal capability access for
+- Personal TackBar / My Sessions with stable personal capability access for
   ACTIVE Sailors;
-- personal Activity history independent from shared Session expiration;
+- personal Session participation history derived through the Sailor's Activities;
 - Admin ingestion `Discard` / `Restore` and practical Session maintenance;
 - Gmail and the TackBar OVHcloud mailbox behind one provider-independent
   ingestion boundary;
@@ -116,11 +116,11 @@ has been delivered.
 
 Personal access follows:
 
-`My Activities → own Activity remains accessible while Sailor == ACTIVE and the personal capability is valid`
+`ACTIVE Sailor → personal capability URL → My TackBar → Sessions I participated in → open collaborative Session while available`
 
-A shared Session is an additional collaborative view only while its shared
-capability is usable. Shared Session expiration does not remove personal
-Activity access. This direction does not define a second, unrelated Viewer product.
+Unavailable Sessions remain history but cannot be opened. The existing Session
+Viewer, shared authorization and Admin renewal rules remain unchanged.
+Individual personal Activity access is not committed v0.6 scope.
 
 References: [requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md)
 and [decisions](docs/v0.6-decisions.md).
@@ -278,9 +278,9 @@ El siguiente paso incremental de consolidación del producto tras el piloto real
 validado. Es la dirección actual de la release, no una declaración de que toda
 la funcionalidad v0.6 esté entregada.
 
-- Personal TackBar / My Activities con acceso mediante capability personal estable
+- Personal TackBar / My Sessions con acceso mediante capability personal estable
   para Sailors ACTIVE;
-- historial personal de Activities independiente de la expiración de la Session compartida;
+- historial de participación en Sessions derivado de las Activities del Sailor;
 - `Discard` / `Restore` de ingestas en Admin y mantenimiento práctico de Sessions;
 - Gmail y el buzón TackBar en OVHcloud detrás de una ingesta independiente del proveedor;
 - consolidación incremental de la marca de la aplicación usando TackBar Web como
@@ -290,12 +290,12 @@ la funcionalidad v0.6 esté entregada.
 
 El acceso personal sigue este criterio:
 
-`My Activities → la Activity propia sigue accesible mientras Sailor == ACTIVE y la capability personal sea válida`
+`Sailor ACTIVE → capability URL personal → My TackBar → Sessions en las que participé → abrir Session colaborativa mientras esté disponible`
 
-La Session compartida es una vista colaborativa adicional sólo mientras su
-capability compartida sea utilizable. La expiración de la Session compartida no
-elimina el acceso personal a la Activity. Esta dirección no define un segundo
-producto Viewer independiente.
+Las Sessions no disponibles permanecen en el historial, pero no se pueden abrir.
+Se conservan el Session Viewer existente, la autorización compartida y las reglas
+de renovación Admin. El acceso personal a Activities individuales no forma parte
+del alcance comprometido de v0.6.
 
 Referencias: [requisitos](docs/v0.6-personal-tackbar-pilot-operations-requirements.md)
 y [decisiones](docs/v0.6-decisions.md).

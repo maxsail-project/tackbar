@@ -189,8 +189,10 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 Current development direction; the following functionality is planned, not yet
 part of the delivered pilot baseline:
 
-- Personal TackBar / My Activities: durable, read-only access to a Sailor's own
-  Activity history while consent is `ACTIVE` and a personal capability is valid;
+- Personal TackBar / My Sessions: read-only history of Sessions derived through
+  the Sailor's Activities, with ACTIVE consent and a valid personal capability.
+  Available Sessions open in the existing shared Viewer; unavailable Sessions
+  remain history but cannot currently be opened;
 - pilot/Admin operational improvements;
 - Gmail + OVHcloud acquisition through provider-independent ingestion;
 - application visual consolidation using `tackbar-web` as the current brand reference.
@@ -422,8 +424,10 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 Dirección actual de desarrollo; las siguientes funcionalidades están previstas
 y aún no forman parte de la baseline entregada del piloto:
 
-- Personal TackBar / My Activities: acceso duradero y de solo lectura al historial
-  de Activities del Sailor mientras su consentimiento sea `ACTIVE` y su capability personal sea válida;
+- Personal TackBar / My Sessions: historial de solo lectura de Sessions derivado
+  de las Activities del Sailor, con consentimiento ACTIVE y capability personal
+  válida. Las Sessions disponibles se abren en el Viewer compartido existente;
+  las no disponibles permanecen en el historial, pero no se pueden abrir;
 - mejoras operativas del piloto y de Admin;
 - adquisición mediante Gmail + OVHcloud con ingesta independiente del proveedor;
 - consolidación visual de la aplicación usando `tackbar-web` como referencia de marca actual.
