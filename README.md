@@ -475,9 +475,9 @@ Cualquier colaboración, idea, prueba o feedback por parte de regatistas, entren
 
 ## License / Licencia
 
-This project is released under the **MIT License**.
+TackBar source code is released under the **Mozilla Public License 2.0 (MPL-2.0)**.
 
-Este proyecto se publica bajo la **licencia MIT**.
+El código fuente de TackBar se publica bajo la **Mozilla Public License 2.0 (MPL-2.0)**.
 
 ---
 
