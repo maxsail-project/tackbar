@@ -9,7 +9,7 @@ from app.repositories.sessions import SessionRepository
 
 
 MAX_SESSION_DISTANCE_NM = 3.0
-MAX_SESSION_TIME_GAP_MINUTES = 60
+MAX_SESSION_TIME_GAP_MINUTES = 240
 EARTH_RADIUS_NM = 3440.065
 
 
