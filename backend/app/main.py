@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 
 from app.admin_routes import router as admin_router
 from app.api_models import (
@@ -23,6 +23,9 @@ from app.services.session_capabilities import (
 )
 from app.services.shared_session_reader import SharedSessionReader
 from app.storage.track_storage import TrackStorage
+from app.personal_api_models import PersonalTackBarResponse
+from app.services.personal_capabilities import PersonalCapabilityService
+from app.services.personal_reader import PersonalReader
 
 
 app = FastAPI(title="TackBar API", version="0.1.0")
@@ -35,6 +38,25 @@ def health() -> dict[str, str]:
         "status": "ok",
         "service": "tackbar",
     }
+
+
+@app.get("/api/me/{token}", response_model=PersonalTackBarResponse)
+def get_personal_tackbar(token: str, response: Response) -> PersonalTackBarResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        sailors = SailorRepository()
+        sessions = SessionRepository()
+        personal = PersonalReader(
+            PersonalCapabilityService(sailors, sessions), sailors, sessions,
+            ActivityRepository(), _shared_session_reader(),
+        ).get_personal(token)
+    except (SessionDataIntegrityError, SessionCapabilityIntegrityError, ValueError) as error:
+        raise HTTPException(status_code=500, detail="Persisted personal data is inconsistent",
+                            headers={"Cache-Control": "no-store"}) from error
+    if personal is None:
+        raise HTTPException(status_code=404, detail="Personal TackBar not found",
+                            headers={"Cache-Control": "no-store"})
+    return personal
 
 
 @app.get(

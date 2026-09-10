@@ -17,6 +17,7 @@ from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.admin_reader import AdminDataIntegrityError, AdminReader
+from app.services.personal_capabilities import PersonalCapabilityService
 from app.services.sailor_consent import (
     ConsentTransitionError,
     SailorConsentService,
@@ -116,6 +117,27 @@ def start_new_consent_cycle(sailor_id: str) -> AdminSailorDetailResponse:
             source="admin_started_new_consent_cycle",
         ),
     )
+
+
+@router.post("/sailors/{sailor_id}/personal-capability/regenerate", response_model=AdminSailorDetailResponse)
+def regenerate_personal_capability(sailor_id: str) -> AdminSailorDetailResponse:
+    return _perform_personal_action(sailor_id, lambda service: service.regenerate_capability(sailor_id))
+
+
+@router.post("/sailors/{sailor_id}/personal-capability/revoke", response_model=AdminSailorDetailResponse)
+def revoke_personal_capability(sailor_id: str) -> AdminSailorDetailResponse:
+    return _perform_personal_action(sailor_id, lambda service: service.revoke_capability(sailor_id))
+
+
+def _perform_personal_action(sailor_id: str, action: Callable[[PersonalCapabilityService], object]) -> AdminSailorDetailResponse:
+    sailors = SailorRepository()
+    try:
+        if sailors.get_by_id(sailor_id) is None:
+            raise HTTPException(status_code=404, detail="Sailor not found")
+        action(PersonalCapabilityService(sailors, SessionRepository()))
+    except ValueError as error:
+        raise _admin_integrity_error() from error
+    return get_sailor(sailor_id)
 
 
 @router.get("/sessions", response_model=list[AdminSessionResponse])

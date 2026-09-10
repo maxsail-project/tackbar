@@ -36,6 +36,8 @@ class AdminConsentEventResponse(BaseModel):
 
 
 class AdminSailorDetailResponse(AdminSailorResponse):
+    personal_capability_state: Literal["never_generated", "active", "revoked", "consent_inactive"]
+    personal_capability_path: str | None
     consent_events: list[AdminConsentEventResponse]
     sessions: list["AdminSailorSessionResponse"]
 

@@ -208,7 +208,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 15
+    assert len(admin_router.routes) == 17
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -614,3 +614,173 @@ def test_orphan_or_malformed_consent_events_are_generic_integrity_errors(monkeyp
     assert orphan.json == malformed.json == {"detail": "Persisted Admin data is inconsistent"}
     assert unchanged["consent_status"] == "PENDING"
     assert unchanged["consent_request_sent_at"] is None
+
+
+# Personal TackBar extends Sailor operations while retaining the shared boundary.
+def _personal_history_runtime(monkeypatch, temporary_directory):
+    root = _use_runtime(monkeypatch, temporary_directory)
+    own_old = _activity(ACTIVITY_ACTIVE, ACTIVE)
+    own_new = _activity(ACTIVITY_PENDING, ACTIVE)
+    own_duplicate = _activity(ACTIVITY_REVOKED, ACTIVE)
+    other = _activity(ACTIVITY_REVOKED_ONLY, PENDING_NEEDS)
+    for activity in (own_new, own_duplicate, other):
+        activity["start_time"] = "2026-09-05T13:00:00+00:00"
+        activity["end_time"] = "2026-09-05T17:00:00+00:00"
+    # A non-ACTIVE participant still contributes to the historical interval/count.
+    other["start_time"] = "2026-09-05T12:00:00+00:00"
+    other["end_time"] = "2026-09-05T18:00:00+00:00"
+    _write_json(root / "activities.json", [own_old, own_new, own_duplicate, other])
+    _write_json(root / "sessions.json", [
+        _session("old", [ACTIVITY_ACTIVE], EXPIRED_TOKEN, expires_at="2026-01-02T00:00:00+00:00"),
+        _session("new", [ACTIVITY_PENDING, ACTIVITY_REVOKED, ACTIVITY_REVOKED_ONLY], ACTIVE_TOKEN),
+        _session("unrelated", [ACTIVITY_REVOKED_ONLY], "unrelated-shared-token"),
+    ])
+    regenerated = _request("POST", f"/api/admin/sailors/{ACTIVE}/personal-capability/regenerate")
+    assert regenerated.status_code == 200
+    token = regenerated.json["personal_capability_path"].split("/")[-1]
+    return root, token
+
+
+def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch, temporary_directory):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    before = {path.name: path.read_bytes() for path in root.glob("*.json")}
+    response = _request("GET", f"/api/me/{token}", admin_key=None)
+    assert response.status_code == 200
+    body = response.json
+    assert set(body) == {"email", "name", "session_count", "last_sailing_end", "sessions"}
+    assert body["email"] == "active@example.com"
+    assert body["name"] == "active"
+    assert body["session_count"] == 2
+    assert body["last_sailing_end"] == "2026-09-05T18:00:00Z"
+    assert len(body["sessions"]) == 2
+    newest, oldest = body["sessions"]
+    assert set(newest) == {"sailing_start", "sailing_end", "sailor_count", "session_path"}
+    assert newest == {
+        "sailing_start": "2026-09-05T12:00:00Z",
+        "sailing_end": "2026-09-05T18:00:00Z",
+        "sailor_count": 2,
+        "session_path": f"/s/{ACTIVE_TOKEN}",
+    }
+    assert oldest["sailor_count"] == 1
+    assert oldest["session_path"] is None
+    assert oldest["sailing_end"] == "2026-08-10T10:00:00Z"
+    for private in (token, ACTIVE, PENDING_NEEDS, "needs@example.com", "revoked@example.com", "unrelated", EXPIRED_TOKEN):
+        assert private not in json.dumps(body)
+    shared = _request("GET", f"/api/shared/sessions/{ACTIVE_TOKEN}", admin_key=None)
+    assert shared.status_code == 200
+    assert len(shared.json["activities"]) == 2  # ACTIVE only; history count is unique Sailors.
+    assert _request("GET", f"/api/shared/sessions/{token}", admin_key=None).status_code == 404
+    assert _request("GET", f"/api/me/{ACTIVE_TOKEN}", admin_key=None).status_code == 404
+    assert {path.name: path.read_bytes() for path in root.glob("*.json")} == before
+    admin = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+    assert [item["sailing_end"] for item in admin.json["sessions"]] == [item["sailing_end"] for item in body["sessions"]]
+
+
+def test_personal_empty_history_includes_own_identity_and_has_no_last_sailing(monkeypatch, temporary_directory):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    _write_json(root / "sessions.json", [])
+    records = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    next(item for item in records if item["id"] == ACTIVE)["name"] = None
+    _write_json(root / "sailors.json", records)
+    response = _request("GET", f"/api/me/{token}", admin_key=None)
+    assert response.status_code == 200
+    assert response.json == {"email": "active@example.com", "name": None, "session_count": 0, "last_sailing_end": None, "sessions": []}
+
+
+@pytest.mark.parametrize("operation", ["expired", "revoked", "never_generated"])
+def test_personal_unavailable_session_stays_in_history(monkeypatch, temporary_directory, operation):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    newest = next(item for item in sessions if item["id"] == "new")
+    if operation == "expired":
+        newest["expires_at"] = "2026-01-02T00:00:00+00:00"
+    elif operation == "revoked":
+        newest["capability_revoked"] = True
+    else:
+        newest["capability_token"] = None
+    _write_json(root / "sessions.json", sessions)
+    response = _request("GET", f"/api/me/{token}", admin_key=None)
+    assert response.status_code == 200 and response.json["session_count"] == 2
+    assert response.json["sessions"][0]["session_path"] is None
+    assert ACTIVE_TOKEN not in json.dumps(response.json)
+
+
+def test_personal_history_reflects_renewal_without_rotating_tokens(monkeypatch, temporary_directory):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    sailors_before = (root / "sailors.json").read_bytes()
+    assert _request("GET", f"/api/me/{token}", admin_key=None).json["sessions"][1]["session_path"] is None
+    renewed = _request("POST", "/api/admin/sessions/old/renew", json_body={"days": 30})
+    assert renewed.status_code == 200
+    response = _request("GET", f"/api/me/{token}", admin_key=None)
+    assert response.json["sessions"][1]["session_path"] == f"/s/{EXPIRED_TOKEN}"
+    assert (root / "sailors.json").read_bytes() == sailors_before
+    _request("POST", "/api/admin/sessions/old/capability/revoke")
+    _request("POST", "/api/admin/sessions/old/renew")
+    assert _request("GET", f"/api/me/{token}", admin_key=None).json["sessions"][1]["session_path"] is None
+
+
+@pytest.mark.parametrize("access", ["unknown", "sailor_id", "pending", "revoked_consent", "revoked_capability", "superseded"])
+def test_personal_denial_is_nondisclosing(monkeypatch, temporary_directory, access):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    if access == "unknown":
+        token = "unknown"
+    elif access == "sailor_id":
+        token = ACTIVE
+    elif access in ("pending", "revoked_consent"):
+        _request("POST", f"/api/admin/sailors/{ACTIVE}/consent/revoke")
+        if access == "pending":
+            _request("POST", f"/api/admin/sailors/{ACTIVE}/consent/new-cycle")
+    else:
+        action = "revoke" if access == "revoked_capability" else "regenerate"
+        _request("POST", f"/api/admin/sailors/{ACTIVE}/personal-capability/{action}")
+    before = (root / "sailors.json").read_bytes()
+    response = _request("GET", f"/api/me/{token}", admin_key=None)
+    assert response.status_code == 404
+    assert response.json == {"detail": "Personal TackBar not found"}
+    assert (root / "sailors.json").read_bytes() == before
+
+
+def test_admin_personal_lifecycle_and_consent_cycle_preserve_shared_data(monkeypatch, temporary_directory):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    protected = {name: (root / name).read_bytes() for name in ("activities.json", "sessions.json")}
+    for operation in ("revoke", "new-cycle"):
+        response = _request("POST", f"/api/admin/sailors/{ACTIVE}/consent/{operation}")
+        assert response.status_code == 200
+        assert response.json["personal_capability_state"] == "consent_inactive"
+        assert response.json["personal_capability_path"] is None
+        assert _request("GET", f"/api/me/{token}", admin_key=None).status_code == 404
+    confirmed = _request("POST", f"/api/admin/sailors/{ACTIVE}/consent/confirm")
+    assert confirmed.status_code == 200
+    assert confirmed.json["personal_capability_path"] == f"/me/{token}"
+    assert _request("GET", f"/api/me/{token}", admin_key=None).status_code == 200
+    for operation in ("revoke", "regenerate"):
+        detail = _request("POST", f"/api/admin/sailors/{ACTIVE}/personal-capability/{operation}")
+        assert detail.status_code == 200 and detail.json["consent_status"] == "ACTIVE"
+        assert detail.json["personal_capability_state"] == ("revoked" if operation == "revoke" else "active")
+        assert _request("GET", f"/api/me/{token}", admin_key=None).status_code == 404
+    new_path = detail.json["personal_capability_path"]
+    assert new_path != f"/me/{token}"
+    assert _request("GET", "/api" + new_path, admin_key=None).status_code == 200
+    assert {name: (root / name).read_bytes() for name in protected} == protected
+
+
+@pytest.mark.parametrize("operation", ["regenerate", "revoke"])
+def test_personal_admin_operations_require_admin_and_unknown_sailor_is_404(monkeypatch, temporary_directory, operation):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    before = (root / "sailors.json").read_bytes()
+    path = f"/api/admin/sailors/{ACTIVE}/personal-capability/{operation}"
+    for key in (None, token, ACTIVE_TOKEN):
+        assert _request("POST", path, admin_key=key).status_code == 401
+    assert _request("POST", f"/api/admin/sailors/unknown/personal-capability/{operation}").status_code == 404
+    assert (root / "sailors.json").read_bytes() == before
+
+
+def test_admin_confirm_ensures_initial_personal_link_without_generate_action(monkeypatch, temporary_directory):
+    _use_runtime(monkeypatch, temporary_directory)
+    legacy = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+    assert legacy.json["personal_capability_state"] == "never_generated"
+    assert legacy.json["personal_capability_path"] is None
+    confirmed = _request("POST", f"/api/admin/sailors/{PENDING_WAITING}/consent/confirm")
+    assert confirmed.status_code == 200
+    assert confirmed.json["personal_capability_state"] == "active"
+    assert confirmed.json["personal_capability_path"].startswith("/me/")

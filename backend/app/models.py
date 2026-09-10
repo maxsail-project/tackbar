@@ -66,6 +66,8 @@ class Sailor:
     consent_request_sent_at: datetime | None = None
     consent_granted_at: datetime | None = None
     consent_revoked_at: datetime | None = None
+    personal_capability_token: str | None = None
+    personal_capability_revoked: bool = False
 
 
 @dataclass(frozen=True)

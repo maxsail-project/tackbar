@@ -3,6 +3,8 @@ import {
   AdminApiError,
   listAdminSailors,
   regenerateCapability,
+  regeneratePersonalCapability,
+  revokePersonalCapability,
   renewSession,
   startNewConsentCycle,
   listAdminIngestions,
@@ -70,4 +72,20 @@ describe('Admin API client', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/ingestions/ingestion%2Fid/reprocess')
     expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'POST' }))
   })
+})
+
+
+it('regenerates and revokes personal access using protected Sailor endpoints', async () => {
+  const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response('{"personal_capability_state":"revoked","personal_capability_path":null}')))
+  vi.stubGlobal('fetch', fetchMock)
+  await regeneratePersonalCapability('admin-key', 'sailor/id')
+  const revoked = await revokePersonalCapability('admin-key', 'sailor/id')
+  expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/sailors/sailor%2Fid/personal-capability/regenerate')
+  expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/sailors/sailor%2Fid/personal-capability/revoke')
+  for (const [, options] of fetchMock.mock.calls) {
+    expect(options.method).toBe('POST')
+    expect(options.headers['X-TackBar-Admin-Key']).toBe('admin-key')
+  }
+  expect(revoked.personal_capability_state).toBe('revoked')
+  expect(revoked.personal_capability_path).toBeNull()
 })

@@ -16,6 +16,7 @@ from app.repositories.activities import ActivityRepository
 from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
+from app.services.sailor_sessions import sailor_sessions
 from app.services.shared_activity_visibility import (
     SharedActivityVisibilityError,
     shareable_sailor,
@@ -90,6 +91,18 @@ class AdminReader:
                 for event in events
             ],
             sessions=self._sailor_sessions(sailor.id),
+            personal_capability_state=(
+                "revoked" if sailor.personal_capability_revoked else
+                "never_generated" if sailor.personal_capability_token is None else
+                "active" if sailor.consent_status == ConsentStatus.ACTIVE else
+                "consent_inactive"
+            ),
+            personal_capability_path=(
+                f"/me/{sailor.personal_capability_token}"
+                if sailor.personal_capability_token is not None
+                and not sailor.personal_capability_revoked
+                and sailor.consent_status == ConsentStatus.ACTIVE else None
+            ),
         )
 
     def _validate_consent_event_sailors(self, sailor_ids: set[str]) -> None:
@@ -144,32 +157,25 @@ class AdminReader:
     def _sailor_sessions(self, sailor_id: str) -> list[AdminSailorSessionResponse]:
         activities = {activity.id: activity for activity in self.activities.all()}
         sailors = {sailor.id: sailor for sailor in self.sailors.all()}
+        try:
+            history = sailor_sessions(sailor_id, self.sessions.all(), activities, sailors)
+        except ValueError as error:
+            raise AdminDataIntegrityError(str(error)) from error
         summaries = []
-        for session in self.sessions.all():
-            matched = []
-            for activity_id in session.activity_ids:
-                activity = activities.get(activity_id)
-                if activity is None:
-                    raise AdminDataIntegrityError("Session references unknown Activity")
-                if activity.sailor_id not in sailors:
-                    raise AdminDataIntegrityError("Activity references unknown Sailor")
-                if activity.sailor_id == sailor_id:
-                    matched.append(activity)
-            if not matched:
-                continue
-            all_session_activities = [activities[activity_id] for activity_id in session.activity_ids]
+        for item in history:
+            session = item.session
             state = self._capability_state(session)
             token = session.capability_token if state == "active" else None
             summaries.append(AdminSailorSessionResponse(
                 session_id=session.id,
-                sailing_start=min(activity.start_time for activity in all_session_activities),
-                sailing_end=max(activity.end_time for activity in all_session_activities),
-                sailor_activity_count=len(matched),
+                sailing_start=item.sailing_start,
+                sailing_end=item.sailing_end,
+                sailor_activity_count=item.sailor_activity_count,
                 expires_at=session.expires_at,
                 capability_state=state,
                 capability_path=f"/s/{token}" if token else None,
             ))
-        return sorted(summaries, key=lambda item: (item.sailing_end or datetime.min.replace(tzinfo=timezone.utc), item.sailing_start or datetime.min.replace(tzinfo=timezone.utc), item.session_id), reverse=True)
+        return summaries
 
     def _session_response(
         self,

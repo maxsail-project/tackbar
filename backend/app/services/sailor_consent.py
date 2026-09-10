@@ -8,6 +8,7 @@ from app.repositories.activities import ActivityRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.session_capabilities import SessionCapabilityService
+from app.services.personal_capabilities import PersonalCapabilityService
 
 
 class ConsentTransitionError(ValueError):
@@ -21,10 +22,14 @@ class SailorConsentService:
         events: ConsentEventRepository,
         agreement_version: str = CURRENT_CONSENT_AGREEMENT_VERSION,
         session_capabilities: SessionCapabilityService | None = None,
+        personal_capabilities: PersonalCapabilityService | None = None,
     ) -> None:
         self.sailors = sailors
         self.events = events
         self.agreement_version = agreement_version
+        self.personal_capabilities = personal_capabilities or PersonalCapabilityService(
+            sailors, SessionRepository(sailors.path.with_name("sessions.json")),
+        )
         self.session_capabilities = session_capabilities or SessionCapabilityService(
             SessionRepository(sailors.path.with_name("sessions.json")),
             ActivityRepository(sailors.path.with_name("activities.json")),
@@ -64,7 +69,7 @@ class SailorConsentService:
             consent_granted_at=occurred_at,
             consent_revoked_at=None,
         )
-        confirmed = self._persist_transition(
+        self._persist_transition(
             updated,
             ConsentEvent(
                 event_type=ConsentEventType.CONSENT_GRANTED,
@@ -75,7 +80,7 @@ class SailorConsentService:
             ),
         )
         self.session_capabilities.ensure_for_sailor(sailor_id)
-        return confirmed
+        return self.personal_capabilities.ensure_for_sailor(sailor_id)
 
     def revoke_consent(
         self,

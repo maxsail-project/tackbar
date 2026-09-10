@@ -1,3 +1,4 @@
+import type { PersonalTackBar } from '../types/personal'
 import type { SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 
@@ -9,6 +10,21 @@ export class TackBarApiError extends Error {
     this.name = 'TackBarApiError'
     this.status = status
   }
+}
+
+export class PersonalTackBarNotFoundError extends TackBarApiError {
+  constructor() {
+    super('Personal TackBar not found.', 404)
+    this.name = 'PersonalTackBarNotFoundError'
+  }
+}
+
+export function getPersonalTackBar(token: string, signal?: AbortSignal) {
+  return requestJson<PersonalTackBar>(
+    `/api/me/${encodeURIComponent(token)}`,
+    signal,
+    () => new PersonalTackBarNotFoundError(),
+  )
 }
 
 export class SessionNotFoundError extends TackBarApiError {

@@ -125,25 +125,25 @@ def test_overlapping_activity_matches_existing_session(
     assert result.session.id == "session-a"
 
 
-def test_gap_of_60_minutes_matches_existing_session(
+def test_gap_of_240_minutes_matches_existing_session(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     result, _ = _match_second_activity(
         temporary_json_file,
         _activity_record("activity-a", _time(10), _time(11)),
-        _activity_record("activity-b", _time(12), _time(13), 0.01),
+        _activity_record("activity-b", _time(15), _time(16), 0.01),
     )
 
     assert result.status == "matched"
 
 
-def test_gap_over_60_minutes_creates_another_session(
+def test_gap_over_240_minutes_creates_another_session(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     result, sessions = _match_second_activity(
         temporary_json_file,
         _activity_record("activity-a", _time(10), _time(11)),
-        _activity_record("activity-b", _time(12, 1), _time(13), 0.01),
+        _activity_record("activity-b", _time(15, 1), _time(16), 0.01),
     )
 
     assert result.status == "created"

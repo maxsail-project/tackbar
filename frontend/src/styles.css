@@ -869,3 +869,15 @@ input:focus-visible {
     transition: none !important;
   }
 }
+
+/* Personal TackBar uses the existing application presentation. */
+.personal-page { max-width: 640px; margin: 0 auto; padding: 24px 18px 40px; }
+.personal-page h1 { margin: 0 0 16px; }
+.personal-name { font-size: 1.2rem; overflow-wrap: anywhere; }
+.personal-page section { margin-top: 32px; }
+.personal-sessions { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.personal-session { padding: 20px; border: 1px solid #d2e0e3; border-radius: 15px; background: #fff; }
+.personal-session h3 { margin: 0; font-size: 1.1rem; }
+.personal-session p { margin: 12px 0; }
+.personal-session__action { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; margin-top: 20px; padding: 10px 16px; border: 1px solid #126f81; border-radius: 9px; color: #fff; background: #126f81; font: inherit; text-decoration: none; }
+.personal-session__action:disabled { color: #61767d; border-color: #d2e0e3; background: #f7fafb; cursor: not-allowed; }

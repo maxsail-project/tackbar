@@ -29,6 +29,8 @@ export interface AdminConsentEvent {
 }
 
 export interface AdminSailorDetail extends AdminSailor {
+  personal_capability_state: 'never_generated' | 'active' | 'revoked' | 'consent_inactive'
+  personal_capability_path: string | null
   consent_events: AdminConsentEvent[]
   sessions: AdminSailorSession[]
 }

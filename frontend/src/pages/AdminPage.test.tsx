@@ -1,12 +1,13 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminIngestion, AdminSailorDetail, AdminSession } from '../types/admin'
-import { AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, IngestionCard, SailorDetail, SessionCard } from './AdminPage'
+import { AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, IngestionCard, PersonalCapabilityControls, SailorDetail, SessionCard } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : 'PENDING',
   consent_request_sent_at: '2026-08-20T10:00:00Z', consent_granted_at: null, consent_revoked_at: null,
   operational_group: group, consent_events: [{ event_type: 'consent_requested', timestamp: '2026-08-20T10:00:00Z', source: 'admin', agreement_version: 'v1' }],
+  personal_capability_state: 'never_generated', personal_capability_path: null,
   activity_count: 0, session_count: 0, last_sailing_start: null, last_sailing_end: null, sessions: [],
 })
 const session = (state: AdminSession['capability_state']): AdminSession => ({
@@ -45,7 +46,7 @@ describe('minimal Admin UI', () => {
   })
 
   it('renders state-appropriate consent actions and chronological event data', () => {
-    const callbacks = { busy: false, onRequested: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined }
+    const callbacks = { onPersonalRegenerate: () => undefined, onPersonalRevoke: () => undefined, busy: false, onRequested: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined }
     const needs = renderToStaticMarkup(<SailorDetail sailor={sailor('pending_needs_request')} {...callbacks} />)
     const waiting = renderToStaticMarkup(<SailorDetail sailor={sailor('pending_awaiting_response')} {...callbacks} />)
     const active = renderToStaticMarkup(<SailorDetail sailor={sailor('active')} {...callbacks} />)
@@ -111,5 +112,31 @@ describe('minimal Admin UI', () => {
     expect(failed).toContain('Failed'); expect(failed).toContain('Invalid attachment'); expect(failed).toContain('Received:'); expect(failed).toContain('Received:</strong> —'); expect(failed).toContain('Attempts:</strong> 2'); expect(failed).toContain('Last attempt:'); expect(failed).toContain('Reprocess')
     expect(processed).toContain('Processed'); expect(processed).toContain('activity-1'); expect(processed).toContain('session-1')
     expect(failed).not.toContain('Review mailbox')
+  })
+})
+
+
+describe('Admin Personal TackBar controls', () => {
+  const callbacks = { busy: false, onRegenerate: () => undefined, onRevoke: () => undefined }
+  it('offers Copy link, Regenerate and Revoke for usable access without Generate', () => {
+    const detail: AdminSailorDetail = { ...sailor('active'), personal_capability_state: 'active', personal_capability_path: '/me/personal-token' }
+    const markup = renderToStaticMarkup(<PersonalCapabilityControls sailor={detail} {...callbacks} />)
+    expect(markup).toContain('Personal TackBar')
+    expect(markup).toContain('Active')
+    expect(markup).toContain('Copy link')
+    expect(markup).toContain('Regenerate')
+    expect(markup).toContain('Revoke')
+    expect(markup).not.toContain('>Generate<')
+    expect(markup).not.toContain('personal-token')
+    const busy = renderToStaticMarkup(<PersonalCapabilityControls sailor={detail} {...callbacks} busy />)
+    expect(busy.match(/disabled=""/g)).toHaveLength(3)
+  })
+
+  it.each(['revoked', 'never_generated', 'consent_inactive'] as const)('does not offer Copy link when %s', (state) => {
+    const detail: AdminSailorDetail = { ...sailor('active'), personal_capability_state: state, personal_capability_path: null }
+    const markup = renderToStaticMarkup(<PersonalCapabilityControls sailor={detail} {...callbacks} />)
+    expect(markup).not.toContain('Copy link')
+    expect(markup).toContain('Regenerate')
+    expect(markup).toContain(state === 'revoked' ? 'Revoked' : state === 'never_generated' ? 'Never generated' : 'consent inactive')
   })
 })

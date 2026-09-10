@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -86,6 +87,7 @@ class SailorRepository:
 def _validate_sailors(sailors: list[Sailor]) -> None:
     seen_ids: set[str] = set()
     seen_emails: set[str] = set()
+    seen_tokens: set[str] = set()
     for sailor in sailors:
         require_uuid(sailor.id, "Sailor")
         if sailor.id in seen_ids:
@@ -103,6 +105,16 @@ def _validate_sailors(sailors: list[Sailor]) -> None:
             )
         seen_emails.add(normalized_email)
 
+        token = sailor.personal_capability_token
+        if not isinstance(sailor.personal_capability_revoked, bool):
+            raise ValueError("Personal capability revocation must be a boolean")
+        if token is not None:
+            if not isinstance(token, str) or re.fullmatch(r"[A-Za-z0-9_-]{32,}", token) is None or token == sailor.id:
+                raise ValueError("Invalid personal capability token")
+            if token in seen_tokens:
+                raise ValueError("Duplicate personal capability token")
+            seen_tokens.add(token)
+
 
 def _deserialize_sailor(item: dict[str, object]) -> Sailor:
     return Sailor(
@@ -110,6 +122,8 @@ def _deserialize_sailor(item: dict[str, object]) -> Sailor:
         email=str(item["email"]),
         name=item.get("name"),
         default_boat_id=item.get("default_boat_id"),
+        personal_capability_token=item.get("personal_capability_token"),
+        personal_capability_revoked=item.get("personal_capability_revoked", False),
         consent_status=ConsentStatus(
             item.get("consent_status", ConsentStatus.PENDING)
         ),
