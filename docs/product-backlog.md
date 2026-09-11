@@ -4,7 +4,7 @@
 
 This document contains pending work only.
 
-Delivered items are removed from this backlog. Historical delivery information belongs in the implementation, tests, release requirements, `CHANGELOG.md` and GitHub Releases where applicable.
+Delivered items are removed from this backlog. Historical delivery information belongs in the implementation, tests, requirements, `CHANGELOG.md` and GitHub Releases where applicable.
 
 Being listed here does not imply commitment to a specific release unless a release is explicitly assigned.
 
@@ -36,19 +36,6 @@ If it is unclear whether something belongs in the backlog, report it for review 
 
 # Product & collaborative debrief
 
-## Personal TackBar / My Sessions
-
-**Status:** Near-term  
-**Release:** v0.6.0
-
-Provide an ACTIVE Sailor with a stable read-only entry point to Sessions they
-participated in, using a valid personal capability without login. Membership is
-derived through their Activities, not a new persisted relation. Open available
-Sessions in the existing collaborative Viewer; unavailable Sessions remain
-history without bypassing shared capability or lifetime rules.
-
----
-
 ## Individual personal Activity history/access
 
 **Status:** Future
@@ -58,22 +45,6 @@ history without bypassing shared capability or lifetime rules.
 Consider My Activities and personal single-Activity viewing if future pilot
 evidence justifies them. This is not committed v0.6 scope or assigned to v0.7.
 Any access independent from shared Session lifetime needs a separate decision.
-
----
-
-## Visual brand consolidation
-
-**Status:** Near-term  
-**Release:** v0.6.0
-
-Establish a coherent TackBar visual identity across the application and public website.
-
-Direction:
-
-- official TackBar logo system;
-- explicit core color palette;
-- consistent brand use in new Personal TackBar UI and existing public-facing surfaces;
-- preserve the current mobile-first product usability.
 
 ---
 
@@ -177,14 +148,20 @@ Discarding does not physically delete or roll back Activities, Sessions, origina
 
 ## Multi-provider email ingestion
 
-**Status:** Near-term  
-**Release:** v0.6.0
+**Status:** Future  
+**Release:** Unassigned
 
-Keep Gmail supported and add the TackBar mailbox hosted at OVHcloud.
+Keep Gmail supported and add the TackBar mailbox hosted at OVHcloud only when
+post-pilot priorities justify the extra operational surface.
 
-Both providers must remain adapters over the same provider-independent ingestion pipeline.
+Both providers should remain adapters over the same provider-independent
+ingestion pipeline.
 
-The concrete OVHcloud mailbox access mechanism should be selected after validating the actual mailbox service.
+The concrete OVHcloud mailbox access mechanism must be selected after validating
+the actual mailbox service.
+
+This work is explicitly deferred from v0.6.0 and is not automatically assigned
+to v0.7.0. A v0.6.1 follow-up may be considered after Mahón pilot validation.
 
 ---
 
@@ -259,7 +236,7 @@ Exact provider scopes, threading and sending mechanism must be decided before im
 **Status:** Future  
 **Release:** Unassigned
 
-Evaluate additional provider adapters after the Gmail + OVHcloud baseline when real operation justifies them.
+Evaluate additional provider adapters after the Gmail baseline when real operation justifies them.
 
 Provider-specific acquisition must preserve the common ingestion boundary.
 
@@ -351,16 +328,21 @@ Add concrete entries when one becomes an actual product candidate.
 
 ## Session maintenance usability
 
-**Status:** Near-term  
-**Release:** v0.6.0
+**Status:** Future  
+**Release:** Unassigned
 
-Improve routine Admin maintenance of existing Session lifetime and capability operations without changing Session semantics.
+Improve routine Admin presentation/filtering around existing Session lifetime and
+capability operations without changing Session semantics.
 
 Direction:
 
 - clearer active/expired operational status;
 - preserve renew, capability copy, regeneration and revocation;
 - preserve existing Session matching and shared-access rules.
+
+Small focused pilot fixes may still be made when required for reliable operation,
+but broader usability work is deferred from v0.6.0 and is not automatically
+assigned to v0.7.0.
 
 ---
 
@@ -512,19 +494,6 @@ Do not migrate to a database solely because the number of Activities grows.
 Evaluate SQLite or another persistence model only when current JSON/filesystem storage demonstrates requirements that justify database behavior.
 
 This is not currently a committed migration.
-
----
-
-# Project governance & licensing
-
-## MPL 2.0 transition
-
-**Status:** Near-term  
-**Release:** v0.6.0
-
-Transition TackBar's own public source code from MIT to MPL-2.0.
-
-The transition covers the TackBar application and public website, preserves applicable third-party notices and does not rewrite historical MIT releases.
 
 ---
 
