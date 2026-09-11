@@ -55,7 +55,7 @@ Detailed semantics: `docs/session-viewer-requirements.md`.
 
 ### v0.4.0 — Collaborative Sailing Debrief PoC
 
-Goal: connect persisted TackBar Sessions and Activities to the mobile-first Session Viewer for real collaborative debriefing around a phone or tablet.
+Goal: connect persisted TackBar Sessions and Activities to the mobile-first Session Viewer for real collaborative debriefing.
 
 Delivered baseline:
 
@@ -74,8 +74,7 @@ Detailed requirements: `docs/v0.4-collaborative-debrief-requirements.md`.
 
 ### v0.5.0 — Real Sailing Pilot
 
-Delivered and validated end-to-end with real sailing data, Gmail messages and
-runtime persistence.
+Delivered and validated end-to-end with real sailing data, Gmail messages and runtime persistence.
 
 Delivered direction:
 
@@ -85,52 +84,87 @@ Delivered direction:
 - Session capability URLs, expiration and renewal;
 - controlled real-sailing pilot validation with the existing Session Viewer.
 
-References: [requirements](docs/v0.5-real-sailing-pilot-requirements.md) and
-[CHANGELOG](CHANGELOG.md).
+References: [requirements](docs/v0.5-real-sailing-pilot-requirements.md) and [CHANGELOG](CHANGELOG.md).
 
 ### v0.5.1 — Pilot Fix & Usability
 
-Delivered: clearer Admin Session operational context, Sailor participation/history
-visibility and ingestion track context, preserving the validated v0.5.0 product flow.
+Delivered: clearer Admin Session operational context, Sailor participation/history visibility and ingestion track context, preserving the validated v0.5.0 product flow.
 
 Reference: [requirements](docs/v0.5.1-pilot-fix-and-usability-requirements.md).
 
+### v0.6.0 — Personal TackBar baseline
+
+Delivered productization baseline before the Mahon operational release.
+
+Delivered direction:
+
+- Personal TackBar / My Sessions with stable personal capability access for ACTIVE Sailors;
+- personal Session participation history derived through the Sailor's Activities;
+- Admin personal-capability management;
+- TackBar visual-brand consolidation using TackBar Web as the canonical visual reference;
+- MPL-2.0 transition for TackBar-owned source code;
+- preservation of validated v0.5.x domain, consent, capability, persistence and Viewer semantics.
+
+References: [requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md) and [decisions](docs/v0.6-decisions.md).
+
 ---
 
-## Current milestone — v0.6.0 Personal TackBar & Pilot Operations
+## Current milestone — v0.6.1 Mahon — Pilot Operations
 
-The next incremental productization step after the validated real-sailing pilot.
-This is current release direction, not a declaration that all v0.6 functionality
-has been delivered.
+Goal: publish the smallest coherent operational build needed for the Mahon pilot without expanding the product surface unnecessarily.
 
-- Personal TackBar / My Sessions with stable personal capability access for
-  ACTIVE Sailors;
-- personal Session participation history derived through the Sailor's Activities;
-- Admin ingestion `Discard` / `Restore` and practical Session maintenance;
-- Gmail and the TackBar OVHcloud mailbox behind one provider-independent
-  ingestion boundary;
-- incremental application brand consolidation using TackBar Web as the current
-  visual reference: logo/wordmark and coherent identity, without a full frontend redesign;
-- prospective MPL-2.0 transition, preserving third-party notices and historical
-  MIT versions. The root license transition is already applied.
+Current release direction:
 
-Personal access follows:
+- Admin ingestion administrative disposition (`active` / `discarded`);
+- semantic `Discard` / `Restore`;
+- filtering by technical status and administrative disposition;
+- deterministic Admin Session ordering by real sailing time, newest sailing first;
+- quieter OpenFreeMap Positron basemap in the Session Viewer;
+- standard MapLibre navigation/compass control for manual map rotation/reset;
+- focused hardening and release validation.
 
-`ACTIVE Sailor → personal capability URL → My TackBar → Sessions I participated in → open collaborative Session while available`
+The Mahon release preserves:
 
-Unavailable Sessions remain history but cannot be opened. The existing Session
-Viewer, shared authorization and Admin renewal rules remain unchanged.
-Individual personal Activity access is not committed v0.6 scope.
+- Gmail as the current mailbox provider;
+- current Session matching;
+- consent and ACTIVE-only shared visibility;
+- Session capability/lifetime semantics;
+- Personal TackBar semantics;
+- current Activity/Session persistence;
+- existing Viewer analytics/replay semantics;
+- existing functional track colors.
 
-References: [requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md)
-and [decisions](docs/v0.6-decisions.md).
+Explicitly outside v0.6.1:
+
+- OVHcloud / generalized multi-provider email ingestion;
+- broad Session-maintenance redesign;
+- GPX/VKX/FIT;
+- canonical logical track fingerprinting;
+- automatic wind-oriented map mode;
+- advanced analytics.
+
+References: [requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md) and [decisions](docs/v0.6-decisions.md).
+
+---
+
+## Future 0.6.x
+
+Valid follow-up work in the v0.6 family that has not been assigned to a concrete release remains labelled **Future 0.6.x**.
+
+Current examples:
+
+- multi-provider email ingestion / OVHcloud adapter;
+- broader Session-maintenance usability.
+
+After v0.6.1 is published, patch numbers such as v0.6.2 and v0.6.3 remain available for hot-fixes and corrective releases. They are not pre-reserved for feature work.
+
+A concrete version is assigned to Future 0.6.x work only when that scope is explicitly promoted.
 
 ---
 
 ## Planned milestone — v0.7.0 Multi-Format Track Ingestion
 
-Extend the existing ingestion flow to additional file formats while preserving
-one canonical TackBar normalized track representation.
+Extend the existing ingestion flow to additional file formats while preserving one canonical TackBar normalized track representation.
 
 Implementation and validation order: **GPX → VKX → FIT**.
 
@@ -138,22 +172,19 @@ Implementation and validation order: **GPX → VKX → FIT**.
 - keep provider and source-format ingestion boundaries independent;
 - converge all formats on the same canonical normalized track;
 - derive SOG/COG deterministically when required by source data;
-- introduce deterministic, Sailor-scoped logical duplicate resolution after
-  normalization, with the fingerprint contract finalized using representative
-  multi-format data before persistence.
+- introduce deterministic, Sailor-scoped logical duplicate resolution after normalization, with the fingerprint contract finalized using representative multi-format data before persistence.
 
-References: [requirements](docs/v0.7-multi-format-track-ingestion-requirements.md)
-and [decisions](docs/v0.7-decisions.md).
+Deferred v0.6 operational work is not automatically moved into v0.7.0.
+
+References: [requirements](docs/v0.7-multi-format-track-ingestion-requirements.md) and [decisions](docs/v0.7-decisions.md).
 
 ---
 
 ## Backlog relationship
 
-[docs/product-backlog.md](docs/product-backlog.md) remains the canonical inventory
-of unfinished future work. Only scope already committed in the corresponding
-release requirements and decisions belongs to v0.6 or v0.7. Other backlog items
-remain unassigned unless explicitly promoted; this roadmap does not duplicate
-their detailed scope.
+[docs/product-backlog.md](docs/product-backlog.md) remains the canonical inventory of unfinished future work.
+
+Only scope explicitly committed in release requirements/decisions belongs to a concrete release. Other work remains Unassigned or Future 0.6.x as explicitly decided.
 
 ---
 
@@ -167,7 +198,9 @@ their detailed scope.
 | v0.4.0 | Collaborative Sailing Debrief PoC | Delivered |
 | v0.5.0 | Real Sailing Pilot | Delivered / validated |
 | v0.5.1 | Pilot Fix & Usability | Delivered |
-| v0.6.0 | Personal TackBar & Pilot Operations | Current |
+| v0.6.0 | Personal TackBar baseline | Delivered |
+| v0.6.1 | Mahon — Pilot Operations | Current |
+| Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
 | v0.7.0 | Multi-Format Track Ingestion | Planned |
 
 ---
@@ -176,7 +209,7 @@ their detailed scope.
 
 TackBar evoluciona de forma incremental, validando cada etapa del producto con actividades reales de navegación antes de incorporar más complejidad.
 
-El roadmap se mantiene deliberadamente a alto nivel. Los requisitos detallados de cada release y el backlog futuro se mantienen en documentos separados.
+El roadmap se mantiene deliberadamente a alto nivel. Los requisitos detallados y el backlog futuro se mantienen por separado.
 
 ## Hipótesis principal del producto
 
@@ -188,147 +221,86 @@ El roadmap se mantiene deliberadamente a alto nivel. Los requisitos detallados d
 
 ### v0.1.0 — PoC de ingesta de tracks por email
 
-Objetivo: demostrar que TackBar puede recibir y procesar tracks de navegación enviados por correo electrónico.
-
-Dirección entregada:
-
-- ingesta de adjuntos por email;
-- soporte Vakaros CSV/CSV.GZ;
-- identidad mediante email remitente;
-- parsing y normalización;
-- persistencia de originales y tracks;
-- procesamiento posterior independiente del proveedor.
+Entregado: ingesta de adjuntos, Vakaros CSV/CSV.GZ, identidad por email, parsing/normalización, persistencia y procesamiento posterior independiente del proveedor.
 
 ### v0.2.0 — Detección automática de Sessions
 
-Objetivo: asociar automáticamente Activities compatibles con la misma Session.
-
-Dirección entregada:
-
-- compatibilidad temporal;
-- proximidad geográfica;
-- creación automática de Session;
-- asociación automática Activity-to-Session.
-
-El comportamiento actual de Session matching es una baseline establecida y no se redefine por trabajos posteriores de Viewer o control de acceso salvo requisito explícito.
+Entregado: compatibilidad temporal/geográfica, creación automática de Session y asociación Activity-to-Session.
 
 ### v0.3.x — Visor multi-track
 
-Objetivo: visualizar y comparar una o dos Activities de la misma Session.
+Entregado: Activity principal y comparación opcional, Analysis Window compartida, replay sincronizado, métricas básicas y experiencia mobile-first.
 
-Baseline entregada:
+### v0.4.0 — PoC de debriefing colaborativo
 
-- Activity principal y Activity de comparación opcional;
-- Analysis Window GPS/UTC compartida;
-- Replay sincronizado;
-- métricas resumen básicas;
-- base del Viewer SOG/COG;
-- experiencia responsive mobile-first.
-
-Semántica detallada: `docs/session-viewer-requirements.md`.
-
-### v0.4.0 — PoC de debriefing colaborativo de vela
-
-Objetivo: conectar Sessions y Activities persistidas por TackBar con el Session Viewer mobile-first para realizar debriefing colaborativo real alrededor de un móvil o tablet.
-
-Baseline entregada:
-
-- identidad Sailor separada del contexto Boat;
-- Activity persistida con contexto Boat opcional;
-- APIs FastAPI de lectura de Session/track;
-- frontend conectado a datos persistidos del backend;
-- comparación de una/dos Activities;
-- Analysis Window y Replay compartidos;
-- telemetría fija GPS/SOG/COG/HEEL en el mapa;
-- Summary refinado;
-- gráficos SOG/COG/HEEL/TRIM;
-- validación enfocada en móvil/tablet.
-
-Requisitos detallados: `docs/v0.4-collaborative-debrief-requirements.md`.
+Entregado: Sailor separado de Boat, API persistida, Viewer conectado al backend, comparación de una/dos Activities, Analysis Window, replay y métricas SOG/COG/HEEL/TRIM.
 
 ### v0.5.0 — Real Sailing Pilot
 
-Entregado y validado de extremo a extremo con datos reales de navegación,
-mensajes Gmail y persistencia runtime.
-
-Dirección entregada:
-
-- ciclo de consentimiento de Sailor y visibilidad compartida ACTIVE-only aplicada en backend;
-- operación del piloto desde Admin protegido e ingesta Gmail lanzada manualmente;
-- historial de ingesta y reproceso idempotente;
-- capability URLs de Session, expiración y renovación;
-- validación del piloto controlado con navegaciones reales y el Session Viewer existente.
-
-Referencias: [requisitos](docs/v0.5-real-sailing-pilot-requirements.md) y
-[CHANGELOG](CHANGELOG.md).
+Entregado y validado end-to-end con Gmail, consentimiento, Admin, capabilities y Session Viewer real.
 
 ### v0.5.1 — Pilot Fix & Usability
 
-Entregado: contexto operativo más claro de Sessions en Admin, visibilidad de
-participación/historial de Sailors y contexto de tracks en ingestas, preservando
-el flujo de producto validado de v0.5.0.
+Entregado: mejor contexto operativo de Sessions, Sailors e ingestas en Admin, preservando el flujo v0.5.0.
 
-Referencia: [requisitos](docs/v0.5.1-pilot-fix-and-usability-requirements.md).
+### v0.6.0 — Baseline Personal TackBar
+
+Entregado antes de Mahon:
+
+- Personal TackBar / My Sessions;
+- capability personal estable para Sailors ACTIVE;
+- gestión Admin de capability personal;
+- consolidación visual de marca TackBar;
+- transición MPL-2.0;
+- preservación de semánticas v0.5.x.
 
 ---
 
-## Hito actual — v0.6.0 Personal TackBar & Pilot Operations
+## Hito actual — v0.6.1 Mahon — Pilot Operations
 
-El siguiente paso incremental de consolidación del producto tras el piloto real
-validado. Es la dirección actual de la release, no una declaración de que toda
-la funcionalidad v0.6 esté entregada.
+Objetivo: publicar la build operativa mínima y coherente para el piloto de Mahon.
 
-- Personal TackBar / My Sessions con acceso mediante capability personal estable
-  para Sailors ACTIVE;
-- historial de participación en Sessions derivado de las Activities del Sailor;
-- `Discard` / `Restore` de ingestas en Admin y mantenimiento práctico de Sessions;
-- Gmail y el buzón TackBar en OVHcloud detrás de una ingesta independiente del proveedor;
-- consolidación incremental de la marca de la aplicación usando TackBar Web como
-  referencia visual actual: logo/wordmark e identidad coherente, sin rediseño completo del frontend;
-- transición prospectiva a MPL-2.0, preservando avisos de terceros y versiones
-  históricas MIT. La transición de la licencia raíz ya está aplicada.
+Alcance actual:
 
-El acceso personal sigue este criterio:
+- disposición administrativa de ingesta `active` / `discarded`;
+- `Discard` / `Restore` semánticos;
+- filtros por estado técnico y disposición;
+- orden determinista de Admin Sessions por hora real de navegación, más reciente primero;
+- mapa Positron más neutro en el Session Viewer;
+- control estándar MapLibre de navegación/brújula y rotación manual;
+- hardening y validación de release.
 
-`Sailor ACTIVE → capability URL personal → My TackBar → Sessions en las que participé → abrir Session colaborativa mientras esté disponible`
+Fuera de v0.6.1:
 
-Las Sessions no disponibles permanecen en el historial, pero no se pueden abrir.
-Se conservan el Session Viewer existente, la autorización compartida y las reglas
-de renovación Admin. El acceso personal a Activities individuales no forma parte
-del alcance comprometido de v0.6.
+- OVHcloud / ingesta multi-proveedor generalizada;
+- rediseño amplio de mantenimiento de Sessions;
+- GPX/VKX/FIT;
+- fingerprint lógico/canónico;
+- orientación automática del mapa por viento;
+- analytics avanzados.
 
-Referencias: [requisitos](docs/v0.6-personal-tackbar-pilot-operations-requirements.md)
-y [decisiones](docs/v0.6-decisions.md).
+---
+
+## Future 0.6.x
+
+El trabajo válido de la familia v0.6 que todavía no tiene release concreta se etiqueta **Future 0.6.x**.
+
+Actualmente incluye:
+
+- ingesta multi-proveedor / adapter OVHcloud;
+- mejoras amplias de usabilidad de mantenimiento de Sessions.
+
+Después de publicar v0.6.1, números como v0.6.2 y v0.6.3 quedan disponibles para hot-fixes y releases correctivas. No se reservan previamente para features.
 
 ---
 
 ## Hito previsto — v0.7.0 Multi-Format Track Ingestion
 
-Ampliar el flujo de ingesta existente a otros formatos de archivo conservando
-una única representación canónica de track normalizado de TackBar.
+Ampliar la ingesta a otros formatos manteniendo un único track normalizado canónico.
 
-Orden de implementación y validación: **GPX → VKX → FIT**.
+Orden: **GPX → VKX → FIT**.
 
-- conservar el soporte existente de Vakaros CSV/CSV.GZ;
-- mantener independientes los límites de ingesta por proveedor y formato de origen;
-- hacer converger todos los formatos en el mismo track normalizado canónico;
-- derivar SOG/COG de forma determinista cuando los datos de origen lo requieran;
-- incorporar resolución determinista de duplicados lógicos por Sailor tras la
-  normalización, cerrando el contrato de fingerprint con datos representativos
-  de varios formatos antes de persistirlo.
-
-Referencias: [requisitos](docs/v0.7-multi-format-track-ingestion-requirements.md)
-y [decisiones](docs/v0.7-decisions.md).
-
----
-
-## Relación con el backlog
-
-[docs/product-backlog.md](docs/product-backlog.md) sigue siendo el inventario
-canónico del trabajo futuro pendiente. Sólo el alcance ya comprometido en los
-requisitos y decisiones de cada release pertenece a v0.6 o v0.7. Los demás
-puntos del backlog siguen sin asignación salvo promoción explícita; este
-roadmap no duplica su alcance detallado.
+v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. El trabajo operativo diferido de v0.6 no se mueve automáticamente a v0.7.
 
 ---
 
@@ -342,5 +314,7 @@ roadmap no duplica su alcance detallado.
 | v0.4.0 | Collaborative Sailing Debrief PoC | Entregado |
 | v0.5.0 | Real Sailing Pilot | Entregado / validado |
 | v0.5.1 | Pilot Fix & Usability | Entregado |
-| v0.6.0 | Personal TackBar & Pilot Operations | Actual |
+| v0.6.0 | Personal TackBar baseline | Entregado |
+| v0.6.1 | Mahon — Pilot Operations | Actual |
+| Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
 | v0.7.0 | Multi-Format Track Ingestion | Previsto |

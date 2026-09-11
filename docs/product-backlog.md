@@ -4,7 +4,7 @@
 
 This document contains pending work only.
 
-Delivered items are removed from this backlog. Historical delivery information belongs in the implementation, tests, requirements, `CHANGELOG.md` and GitHub Releases where applicable.
+Delivered items are removed from this backlog. Historical delivery information belongs in implementation, tests, requirements, `CHANGELOG.md` and GitHub Releases where applicable.
 
 Being listed here does not imply commitment to a specific release unless a release is explicitly assigned.
 
@@ -12,25 +12,19 @@ Being listed here does not imply commitment to a specific release unless a relea
 
 ## Maintenance rules
 
-`docs/product-backlog.md` is maintained as part of explicit documentation work.
+`docs/product-backlog.md` is maintained only during explicitly authorized documentation work.
 
-Agents MUST NOT modify this backlog opportunistically during unrelated implementation tasks.
+During reconciliation:
 
-The backlog MAY be updated when the current task explicitly requests documentation maintenance, backlog reconciliation, release review, or a final sanity check that includes documentation changes.
-
-During an authorized backlog reconciliation:
-
-- remove items that are now delivered;
-- add concrete future work discovered during implementation;
+- remove delivered items;
+- add concrete future work discovered during implementation when appropriate;
 - merge duplicates;
 - remove obsolete items;
-- update items whose context or scope changed;
-- preserve references to source requirements when useful;
-- do not invent priorities, release assignments or product commitments that have not been decided.
+- update items whose context/scope changed;
+- preserve useful requirement references;
+- do not invent priorities or release commitments.
 
-During implementation tasks that do not authorize documentation changes, agents SHOULD report newly discovered backlog candidates in the completion summary instead of modifying this file.
-
-If it is unclear whether something belongs in the backlog, report it for review rather than adding it automatically.
+If assignment is unresolved, keep the item unassigned or use the explicitly agreed release-family label.
 
 ---
 
@@ -38,13 +32,10 @@ If it is unclear whether something belongs in the backlog, report it for review 
 
 ## Individual personal Activity history/access
 
-**Status:** Future
-
+**Status:** Future  
 **Release:** Unassigned
 
-Consider My Activities and personal single-Activity viewing if future pilot
-evidence justifies them. This is not committed v0.6 scope or assigned to v0.7.
-Any access independent from shared Session lifetime needs a separate decision.
+Consider My Activities and personal single-Activity viewing if future pilot evidence justifies them. Any access independent from shared Session lifetime requires a separate product/access decision.
 
 ---
 
@@ -55,7 +46,7 @@ Any access independent from shared Session lifetime needs a separate decision.
 
 Allow a Session capability URL to be shared using a QR code.
 
-The QR MUST represent the same capability URL used by normal shared Session access. It must not introduce a separate authorization mechanism.
+The QR MUST represent the existing capability URL and MUST NOT introduce a separate authorization mechanism.
 
 ---
 
@@ -63,13 +54,11 @@ The QR MUST represent the same capability URL used by normal shared Session acce
 
 **Status:** Future  
 **Release:** Unassigned  
-**Origin:** `docs/session-viewer-requirements.md` — Saved Segment concept
+**Origin:** `docs/session-viewer-requirements.md`
 
 Allow an ephemeral Analysis Window to be persisted as a named segment.
 
-Potential uses include races, legs, exercises or manually selected relevant intervals.
-
-Detailed semantics should be defined when promoted into a release.
+Potential uses include races, legs, exercises or manually selected relevant intervals. Detailed semantics must be defined when promoted.
 
 ---
 
@@ -80,18 +69,9 @@ Detailed semantics should be defined when promoted into a release.
 **Status:** Future  
 **Release:** Unassigned
 
-Replace or complement the human-operated PoC consent workflow with a dedicated web flow such as:
+Replace or complement the human-operated PoC consent workflow with a dedicated web flow such as `/consent/<token>`.
 
-`/consent/<token>`
-
-Expected direction:
-
-- high-entropy token;
-- explicit acceptance action;
-- agreement version;
-- token expiry;
-- idempotent processing;
-- structured consent event history.
+Expected direction includes high-entropy token, explicit acceptance, agreement version, token expiry, idempotent processing and structured consent-event history.
 
 ---
 
@@ -113,55 +93,28 @@ Do not rely on free-form AI/NLP interpretation of arbitrary consent text unless 
 
 Define operational handling of personal data after withdrawal or applicable retention periods.
 
-Topics to resolve include:
+Topics include physical deletion, anonymization, derived data, retention, backups/restore and participant data-right requests.
 
-- physical deletion;
-- anonymization;
-- derived/aggregated data;
-- operational retention;
-- restore/backups;
-- participant data-right requests.
-
-This is separate from immediate ACTIVE-only shared visibility enforcement and from administrative ingestion discard/restore.
+This remains separate from ACTIVE-only shared visibility and from administrative ingestion Discard/Restore.
 
 ---
 
 # Ingestion & email operations
 
-## Admin ingestion classification and filtering
-
-**Status:** Near-term  
-**Release:** v0.6.0
-
-Add an administrative disposition separate from technical ingestion status (`processed` / `failed`).
-
-Direction:
-
-- `active` / `discarded`;
-- semantic **Discard** and **Restore** actions;
-- discarded records remain retained and known to deduplication;
-- filtering by technical status and administrative disposition.
-
-Discarding does not physically delete or roll back Activities, Sessions, originals, consent or capabilities.
-
----
-
 ## Multi-provider email ingestion
 
 **Status:** Future  
-**Release:** Unassigned
+**Release:** Future 0.6.x
 
-Keep Gmail supported and add the TackBar mailbox hosted at OVHcloud only when
-post-pilot priorities justify the extra operational surface.
+Keep Gmail supported and add the TackBar mailbox hosted at OVHcloud only when post-Mahon pilot priorities justify the extra operational surface.
 
-Both providers should remain adapters over the same provider-independent
-ingestion pipeline.
+Both providers should remain adapters over the same provider-independent ingestion pipeline.
 
-The concrete OVHcloud mailbox access mechanism must be selected after validating
-the actual mailbox service.
+The concrete OVHcloud mailbox access mechanism must be selected after validating the actual mailbox service.
 
-This work is explicitly deferred from v0.6.0 and is not automatically assigned
-to v0.7.0. A v0.6.1 follow-up may be considered after Mahón pilot validation.
+This work is explicitly outside `v0.6.1 Mahon — Pilot Operations`. It is not assigned to v0.6.2 or another concrete patch. A specific v0.6.x version will be chosen only if/when this work is promoted.
+
+It is not automatically part of v0.7.0.
 
 ---
 
@@ -170,26 +123,18 @@ to v0.7.0. A v0.6.1 follow-up may be considered after Mahón pilot validation.
 **Status:** Planned  
 **Release:** v0.7.0
 
-Define logical duplicate detection after TackBar track normalization as part of
-the multi-format ingestion work, while retaining the existing raw attachment
-SHA-256 for exact-file deduplication.
-
-The fingerprint/hash contract must be designed together with the canonical
-multi-format track representation rather than frozen around the current
-single-format baseline.
+Define logical duplicate detection after TackBar track normalization as part of multi-format ingestion, while retaining existing raw attachment SHA-256 for exact-file deduplication.
 
 Direction:
 
-- supported GPX/VKX/FIT inputs converge on one canonical normalized track model;
-- define the minimum canonical fields used for logical duplicate identity;
-- SOG and COG are expected to be part of the minimum navigation baseline;
-- v0.7 must define how SOG and COG are obtained during normalization when a
-  source format does not provide them directly;
-- HEEL and TRIM remain optional when the source does not provide them;
+- GPX/VKX/FIT inputs converge on one canonical normalized track model;
+- define minimum canonical fields for logical identity;
+- SOG and COG are expected in the minimum navigation baseline;
+- define deterministic derivation when a source does not provide SOG/COG directly;
+- HEEL and TRIM remain optional;
 - do not invent missing sensor values;
 - do not derive HDG from COG;
-- freeze deterministic serialization/versioning only after the v0.7
-  normalization contract is understood and regression-tested;
+- freeze deterministic serialization/versioning only after representative multi-format validation;
 - preserve Sailor-scoped duplicate identity.
 
 ---
@@ -203,14 +148,7 @@ Run mailbox ingestion automatically without administrator interaction.
 
 The current pilot baseline remains manual Admin-triggered mailbox review.
 
-When implemented, consider:
-
-- multiple providers;
-- configurable polling interval;
-- pagination / candidate discovery;
-- execution locking;
-- retry policy;
-- operational observability.
+Future design should consider provider adapters, polling interval, pagination, locking, retry policy and observability.
 
 ---
 
@@ -219,13 +157,7 @@ When implemented, consider:
 **Status:** Future  
 **Release:** Unassigned
 
-Automate selected outgoing TackBar emails.
-
-Potential initial cases:
-
-- consent/invitation request;
-- processed Activity / Session link;
-- Personal TackBar access link.
+Automate selected outgoing TackBar emails, potentially including consent/invitation requests, processed Activity/Session links and Personal TackBar links.
 
 Exact provider scopes, threading and sending mechanism must be decided before implementation.
 
@@ -280,16 +212,11 @@ FIT file support remains separate from future Garmin Connect integration.
 ## Additional containers
 
 **Status:** Future  
-**Release:** Unassigned  
-**Origin:** existing ingestion discussions
+**Release:** Unassigned
 
-Evaluate additional containers around supported formats, including:
+Evaluate additional containers around supported formats, including VKX.GZ, ZIP and ZIP containing one or more supported sailing files.
 
-- VKX.GZ;
-- ZIP;
-- ZIP containing one or more supported sailing files.
-
-Archive safety, deterministic extraction and interaction with deduplication must be defined when promoted.
+Archive safety, deterministic extraction and deduplication interaction must be defined when promoted.
 
 ---
 
@@ -302,7 +229,9 @@ Evaluate official Garmin Connect / Activity API integration.
 
 Target direction:
 
-`Garmin → cloud integration → TackBar normalized track → Activity → existing Session flow`
+```text
+Garmin → cloud integration → TackBar normalized track → Activity → existing Session flow
+```
 
 Garmin-specific acquisition must not redefine downstream Activity, Session or Viewer semantics.
 
@@ -313,12 +242,7 @@ Garmin-specific acquisition must not redefine downstream Activity, Session or Vi
 **Status:** Future  
 **Release:** Unassigned
 
-Potential sources include:
-
-- direct Vakaros integration;
-- Intervals.icu;
-- Strava;
-- other sailing devices/platforms.
+Potential sources include direct Vakaros integration, Intervals.icu, Strava and other sailing devices/platforms.
 
 Add concrete entries when one becomes an actual product candidate.
 
@@ -329,10 +253,9 @@ Add concrete entries when one becomes an actual product candidate.
 ## Session maintenance usability
 
 **Status:** Future  
-**Release:** Unassigned
+**Release:** Future 0.6.x
 
-Improve routine Admin presentation/filtering around existing Session lifetime and
-capability operations without changing Session semantics.
+Improve routine Admin presentation/filtering around existing Session lifetime and capability operations without changing Session semantics.
 
 Direction:
 
@@ -340,9 +263,9 @@ Direction:
 - preserve renew, capability copy, regeneration and revocation;
 - preserve existing Session matching and shared-access rules.
 
-Small focused pilot fixes may still be made when required for reliable operation,
-but broader usability work is deferred from v0.6.0 and is not automatically
-assigned to v0.7.0.
+The deterministic newest-sailing-first Admin Session ordering delivered for Mahon is not pending work and is therefore not part of this backlog item.
+
+Broader usability work is outside `v0.6.1 Mahon — Pilot Operations`, is not assigned to v0.6.2, and is not automatically assigned to v0.7.0. A concrete v0.6.x version will be chosen only if/when this work is promoted.
 
 ---
 
@@ -380,9 +303,7 @@ Identify meaningful tactical events suitable for collaborative debriefing.
 **Status:** Future  
 **Release:** Unassigned
 
-Provide meaningful gained/lost comparison between boats over a selected period.
-
-Detailed sailing semantics must be defined before implementation.
+Provide meaningful gained/lost comparison between boats over a selected period. Detailed sailing semantics must be defined before implementation.
 
 ---
 
@@ -391,9 +312,7 @@ Detailed sailing semantics must be defined before implementation.
 **Status:** Future  
 **Release:** Unassigned
 
-Detect moments that may deserve attention during post-sailing debrief.
-
-This must evolve from validated sailing-domain rules rather than speculative feature depth.
+Detect moments that may deserve attention during post-sailing debrief, evolving from validated sailing-domain rules rather than speculative feature depth.
 
 ---
 
@@ -404,15 +323,7 @@ This must evolve from validated sailing-domain rules rather than speculative fea
 **Status:** Future  
 **Release:** Unassigned
 
-Prepare a simple deployable runtime.
-
-Likely areas:
-
-- Docker;
-- Docker Compose;
-- reverse proxy;
-- persistent volume/data directory;
-- runtime secrets.
+Prepare a simple deployable runtime, potentially including Docker, Docker Compose, reverse proxy, persistent volume/data directory and runtime secrets.
 
 Do not introduce infrastructure complexity beyond demonstrated PoC needs.
 
@@ -432,13 +343,7 @@ Configure or maintain public domain and HTTPS for the deployed TackBar pilot as 
 **Status:** Future  
 **Release:** Unassigned
 
-Define and validate backup/restore for:
-
-- metadata JSON;
-- normalized tracks;
-- original attachments;
-- consent history;
-- ingestion history.
+Define and validate backup/restore for metadata JSON, normalized tracks, original attachments, consent history and ingestion history.
 
 A backup solution is not complete until restore has been tested.
 
@@ -458,9 +363,7 @@ Add lightweight availability and health monitoring appropriate for the PoC.
 **Status:** Future  
 **Release:** Unassigned
 
-Introduce automated build/test/deployment workflows when deployment maturity justifies them.
-
-Keep Git/release control consistent with repository safety rules.
+Introduce automated build/test/deployment workflows when deployment maturity justifies them, while keeping Git/release control consistent with repository safety rules.
 
 ---
 
@@ -471,16 +374,7 @@ Keep Git/release control consistent with repository safety rules.
 **Status:** Future / evidence-driven  
 **Release:** Unassigned
 
-Review persistence when demonstrated operational needs appear.
-
-Possible triggers include:
-
-- concurrent writers;
-- lost updates;
-- interrupted JSON writes;
-- need for atomic multi-entity operations;
-- materially complex queries;
-- unacceptable measured persistence latency.
+Review persistence when demonstrated operational needs appear, including concurrent writers, lost updates, interrupted JSON writes, atomic multi-entity operations, complex queries or unacceptable measured latency.
 
 Do not migrate to a database solely because the number of Activities grows.
 
@@ -506,9 +400,7 @@ This is not currently a committed migration.
 
 The current shared Session lifetime is a PoC rule.
 
-Future product models may differentiate availability/history duration between plans, clubs or other usage models.
-
-No pricing or plan structure is currently defined.
+Future product models may differentiate availability/history duration between plans, clubs or other usage models. No pricing or plan structure is currently defined.
 
 ---
 
@@ -519,7 +411,7 @@ When explicitly authorized, this backlog should be reconciled during final relea
 A reconciliation should answer:
 
 1. Which backlog items were delivered and must be removed?
-2. Did the implementation create concrete new future work?
-3. Are any entries duplicated or obsolete?
+2. Did implementation create concrete new future work?
+3. Are entries duplicated or obsolete?
 4. Did any item acquire enough definition to move into release requirements?
 5. Are references to originating requirements still useful and correct?
