@@ -111,7 +111,8 @@ describe('minimal Admin UI', () => {
     const failed = renderToStaticMarkup(<IngestionCard ingestion={base} busy={false} {...actions} />)
     const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-1', session_id: 'session-1', disposition: 'discarded' }} busy={false} {...actions} />)
     expect(failed).toContain('Failed'); expect(failed).toContain('Active'); expect(failed).toContain('Discard'); expect(failed).toContain('Invalid attachment'); expect(failed).toContain('Received:'); expect(failed).toContain('Received:</strong> —'); expect(failed).toContain('Attempts:</strong> 2'); expect(failed).toContain('Last attempt:'); expect(failed).toContain('Reprocess')
-    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).toContain('Restore'); expect(processed).toContain('Reprocess'); expect(processed).toContain('activity-1'); expect(processed).toContain('session-1')
+    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).toContain('Restore'); expect(processed).toContain('Reprocess'); expect(processed).toContain('Result'); expect(processed).toContain('Sailor identified:'); expect(processed).toContain('Activity created/reused:'); expect(processed).toContain('Session associated:'); expect(processed).toContain('activity-1'); expect(processed).toContain('session-1')
+    expect(failed).not.toContain('Ingestion result')
     expect(failed).not.toContain('Review mailbox')
   })
 

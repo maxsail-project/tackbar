@@ -824,6 +824,9 @@ input:focus-visible {
 .admin-ingestion-sailing__summary { margin: 3px 0 0; font-size: .88rem; font-weight: 700; }
 .admin-ingestion-ops { display: grid; gap: 4px; margin: 14px 0; }
 .admin-ingestion-ops p { margin: 0; color: var(--color-navy); font-size: .8rem; }
+.admin-ingestion-result { margin: 14px 0; padding: 12px; border: 1px solid var(--color-pale); border-radius: 10px; background: var(--color-background); }
+.admin-ingestion-result h3 { margin: 0 0 6px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.admin-ingestion-result p { margin: 4px 0; color: var(--color-navy); font-size: .8rem; }
 .state-badge { color: #17323a; flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; background: #e7eff1; font-size: .7rem; font-weight: 800; }
 .state-active { color: #17633a; background: #dff3e7; }
 .state-expired, .state-revoked { color: #8a352b; background: #fae5e1; }
