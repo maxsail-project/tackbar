@@ -2,6 +2,116 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.6.0 — Mahon — Pilot Operations
+
+### English
+
+TackBar v0.6.0 Mahon consolidates the complete v0.6 work developed after v0.5.1 into the smallest coherent operational build for the Mahon pilot, focused on Personal TackBar access, practical Admin ingestion maintenance, visual-brand consolidation and release hardening.
+
+### Added
+
+* Personal TackBar / My Sessions provides ACTIVE Sailors with a stable, non-guessable personal capability URL and read-only Session participation history derived through `Sailor → Activity → Session`.
+* Admin can inspect, copy, regenerate and revoke personal Sailor capability access without changing consent state.
+* Admin Ingestions now have a separate administrative disposition (`active` / `discarded`) alongside technical processing status (`processed` / `failed`).
+* Semantic `Discard` / `Restore` operations preserve ingestion history, deduplication knowledge, originals, Activities, Session membership, consent and capabilities.
+* Admin Ingestions can be filtered independently by technical status and administrative disposition.
+* The Session Viewer now includes the standard MapLibre navigation/compass control for manual rotation and north reset.
+
+### Improved
+
+* Admin Sessions are ordered deterministically by real sailing start time, newest sailing first.
+* Admin Ingestion cards now prioritize the real sailing date/time and duration, keep operational metadata secondary and present the processing result explicitly through Sailor email, Activity and Session references.
+* The Session Viewer uses the quieter OpenFreeMap Positron basemap while preserving existing functional track colors and Viewer semantics.
+* TackBar application surfaces progressively adopt the canonical TackBar visual identity, official logo family and shared core palette from `tackbar-web`.
+* Session capability generation now rejects collisions with existing personal Sailor capability tokens as well as existing Session tokens.
+* Admin ingestion API regression coverage now includes default and combined filters plus Reprocess, Discard and Restore mutations.
+* Public ingestion test data is aligned with the v0.6 `disposition` field so regression execution no longer mutates the versioned fixture in place.
+
+### Design
+
+* Gmail remains the current mailbox provider and email remains the track-sharing channel for v0.6.0.
+* Existing Activity identity, Session matching, consent lifecycle, ACTIVE-only shared visibility, Session capability/lifetime semantics, persistence and Viewer analytics/replay remain unchanged.
+* `Discard` is an administrative classification, not deletion: it does not roll back Activity or Session domain results.
+* `Restore` changes only administrative disposition and does not reprocess automatically.
+* Reprocess continues to operate on the preserved original and remains an explicit technical recovery/reprocessing action.
+* Personal access reuses the existing collaborative Session Viewer and does not introduce a standalone Activity Viewer or a second personal Viewer.
+* TackBar-owned public source code transitions to Mozilla Public License 2.0; historical releases remain under their original license grants.
+* Multi-provider mailbox ingestion, broad Session-maintenance redesign and GPX/VKX/FIT ingestion remain outside v0.6.0 scope.
+
+### Validated
+
+The Mahon release was manually validated end-to-end with real sailing data, real Gmail ingestion and persistent runtime data, including:
+
+`Gmail track → Admin mailbox review → Ingestion → Activity → Session → Sailor/consent → Personal TackBar → shared Session Viewer`
+
+Manual release validation is recorded as `PASS` in `docs/v0.6.0-manual-test.md`, covering Admin Sessions, Ingestions, deduplication, Sailor/consent, Personal TackBar, Session Viewer, real Gmail flow and persistence across restart.
+
+Automated release validation confirmed:
+
+* backend regression suite passes 210 tests;
+* frontend regression suite passes 129 tests across 14 test files;
+* TypeScript typecheck passes;
+* production frontend build passes;
+* backend `compileall` passes;
+* `git diff --check` passes.
+
+---
+
+## v0.6.0 — Mahon — Pilot Operations
+
+### Español
+
+TackBar v0.6.0 Mahon consolida todo el trabajo v0.6 desarrollado después de v0.5.1 en la build operativa mínima y coherente para el piloto de Mahon, centrada en Personal TackBar, mantenimiento práctico de ingestas en Admin, consolidación visual de marca y hardening de release.
+
+### Añadido
+
+* Personal TackBar / My Sessions ofrece a los Sailors `ACTIVE` una capability URL personal estable y no adivinable, con historial de participación en Sessions de solo lectura derivado mediante `Sailor → Activity → Session`.
+* Admin puede inspeccionar, copiar, regenerar y revocar la capability personal de un Sailor sin cambiar su estado de consentimiento.
+* Admin Ingestions incorpora una disposición administrativa separada (`active` / `discarded`) junto al estado técnico de procesamiento (`processed` / `failed`).
+* Las operaciones semánticas `Discard` / `Restore` preservan historial de ingesta, conocimiento de deduplicación, originales, Activities, membresía de Session, consentimiento y capabilities.
+* Admin Ingestions permite filtrar de forma independiente por estado técnico y disposición administrativa.
+* El Session Viewer incorpora el control estándar de navegación/brújula de MapLibre para rotación manual y vuelta al norte.
+
+### Mejorado
+
+* Admin Sessions se ordena de forma determinista por hora real de inicio de navegación, más reciente primero.
+* Las cards de Admin Ingestion priorizan ahora la fecha/hora real de navegación y la duración, mantienen la metadata operativa en segundo plano y muestran explícitamente el resultado del procesamiento mediante email del Sailor, Activity y Session.
+* El Session Viewer utiliza el basemap OpenFreeMap Positron, más neutro, preservando los colores funcionales actuales de los tracks y las semánticas del Viewer.
+* Las superficies de la aplicación adoptan progresivamente la identidad visual canónica de TackBar, la familia oficial de logos y la paleta principal compartida con `tackbar-web`.
+* La generación de capability de Session evita ahora colisiones tanto con capabilities personales existentes como con otros tokens de Session.
+* La cobertura de regresión de la API Admin de ingestas incluye filtros por defecto y combinados, además de las mutaciones Reprocess, Discard y Restore.
+* Los datos públicos de prueba de ingesta quedan alineados con el campo v0.6 `disposition`, evitando que la regresión modifique el fixture versionado durante su ejecución.
+
+### Diseño
+
+* Gmail sigue siendo el proveedor de buzón actual y el email continúa siendo el canal de envío de tracks en v0.6.0.
+* Se mantienen sin cambios la identidad de Activity, Session matching, ciclo de consentimiento, visibilidad compartida exclusiva para `ACTIVE`, semánticas de capability/vigencia de Session, persistencia y analytics/replay del Viewer.
+* `Discard` es una clasificación administrativa y no un borrado: no revierte los resultados de dominio Activity o Session.
+* `Restore` cambia únicamente la disposición administrativa y no reprocesa automáticamente.
+* Reprocess continúa operando sobre el original preservado y sigue siendo una acción técnica explícita de recuperación/reprocesamiento.
+* El acceso personal reutiliza el Session Viewer colaborativo existente y no introduce un Activity Viewer independiente ni un segundo Viewer personal.
+* El código fuente público propiedad de TackBar pasa a Mozilla Public License 2.0; las releases históricas conservan las licencias bajo las que fueron publicadas.
+* La ingesta multi-proveedor, el rediseño amplio del mantenimiento de Sessions y la ingesta GPX/VKX/FIT permanecen fuera del alcance de v0.6.0.
+
+### Validado
+
+La release Mahon fue validada manualmente end-to-end con datos reales de navegación, ingesta Gmail real y persistencia runtime real, incluyendo:
+
+`Track Gmail → revisión de buzón Admin → Ingestion → Activity → Session → Sailor/consent → Personal TackBar → Session Viewer compartido`
+
+La validación manual de release figura como `PASS` en `docs/v0.6.0-manual-test.md` y cubre Admin Sessions, Ingestions, deduplicación, Sailor/consent, Personal TackBar, Session Viewer, flujo Gmail real y persistencia tras reinicio.
+
+La validación automatizada confirmó:
+
+* la suite de regresión backend supera 210 tests;
+* la suite de regresión frontend supera 129 tests distribuidos en 14 archivos de test;
+* el typecheck de TypeScript finaliza correctamente;
+* el build frontend de producción finaliza correctamente;
+* `compileall` del backend finaliza correctamente;
+* `git diff --check` finaliza correctamente.
+
+---
+
 ## v0.5.1 — Pilot Fix & Usability
 
 ### English
