@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import Map, {
   Layer,
   Marker,
+  NavigationControl,
   Source,
   type MapRef,
 } from 'react-map-gl/maplibre'
@@ -123,6 +124,7 @@ export default function TrackMap({
         attributionControl={{ compact: true }}
         onLoad={fitTrack}
       >
+        <NavigationControl position="top-right" />
         {primaryGeometry && (
           <Source
             id="primary-activity-track"
