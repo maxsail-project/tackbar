@@ -112,7 +112,7 @@ Both providers should remain adapters over the same provider-independent ingesti
 
 The concrete OVHcloud mailbox access mechanism must be selected after validating the actual mailbox service.
 
-This work is explicitly outside `v0.6.1 Mahon — Pilot Operations`. It is not assigned to v0.6.2 or another concrete patch. A specific v0.6.x version will be chosen only if/when this work is promoted.
+This work is explicitly outside `v0.6.0 Mahon — Pilot Operations`. It is not assigned to v0.6.1 or another concrete patch. A specific v0.6.x version will be chosen only if/when this work is promoted.
 
 It is not automatically part of v0.7.0.
 
@@ -265,7 +265,7 @@ Direction:
 
 The deterministic newest-sailing-first Admin Session ordering delivered for Mahon is not pending work and is therefore not part of this backlog item.
 
-Broader usability work is outside `v0.6.1 Mahon — Pilot Operations`, is not assigned to v0.6.2, and is not automatically assigned to v0.7.0. A concrete v0.6.x version will be chosen only if/when this work is promoted.
+Broader usability work is outside `v0.6.0 Mahon — Pilot Operations`, is not assigned to v0.6.1, and is not automatically assigned to v0.7.0. A concrete v0.6.x version will be chosen only if/when this work is promoted.
 
 ---
 

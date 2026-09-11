@@ -92,33 +92,23 @@ Delivered: clearer Admin Session operational context, Sailor participation/histo
 
 Reference: [requirements](docs/v0.5.1-pilot-fix-and-usability-requirements.md).
 
-### v0.6.0 — Personal TackBar baseline
+---
 
-Delivered productization baseline before the Mahon operational release.
+## Current milestone — v0.6.0 Mahon — Pilot Operations
 
-Delivered direction:
+Goal: publish the smallest coherent operational build needed for the Mahon pilot, consolidating the complete v0.6 work developed after v0.5.1 without expanding the product surface unnecessarily.
+
+Current release scope:
 
 - Personal TackBar / My Sessions with stable personal capability access for ACTIVE Sailors;
 - personal Session participation history derived through the Sailor's Activities;
 - Admin personal-capability management;
-- TackBar visual-brand consolidation using TackBar Web as the canonical visual reference;
-- MPL-2.0 transition for TackBar-owned source code;
-- preservation of validated v0.5.x domain, consent, capability, persistence and Viewer semantics.
-
-References: [requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md) and [decisions](docs/v0.6-decisions.md).
-
----
-
-## Current milestone — v0.6.1 Mahon — Pilot Operations
-
-Goal: publish the smallest coherent operational build needed for the Mahon pilot without expanding the product surface unnecessarily.
-
-Current release direction:
-
 - Admin ingestion administrative disposition (`active` / `discarded`);
 - semantic `Discard` / `Restore`;
 - filtering by technical status and administrative disposition;
 - deterministic Admin Session ordering by real sailing time, newest sailing first;
+- TackBar visual-brand consolidation using TackBar Web as the canonical visual reference;
+- MPL-2.0 transition for TackBar-owned source code;
 - quieter OpenFreeMap Positron basemap in the Session Viewer;
 - standard MapLibre navigation/compass control for manual map rotation/reset;
 - focused hardening and release validation.
@@ -134,7 +124,7 @@ The Mahon release preserves:
 - existing Viewer analytics/replay semantics;
 - existing functional track colors.
 
-Explicitly outside v0.6.1:
+Explicitly outside v0.6.0:
 
 - OVHcloud / generalized multi-provider email ingestion;
 - broad Session-maintenance redesign;
@@ -156,7 +146,7 @@ Current examples:
 - multi-provider email ingestion / OVHcloud adapter;
 - broader Session-maintenance usability.
 
-After v0.6.1 is published, patch numbers such as v0.6.2 and v0.6.3 remain available for hot-fixes and corrective releases. They are not pre-reserved for feature work.
+After v0.6.0 is published, patch numbers such as v0.6.1, v0.6.2 and later remain available for hot-fixes and corrective releases. They are not pre-reserved for feature work.
 
 A concrete version is assigned to Future 0.6.x work only when that scope is explicitly promoted.
 
@@ -198,8 +188,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.4.0 | Collaborative Sailing Debrief PoC | Delivered |
 | v0.5.0 | Real Sailing Pilot | Delivered / validated |
 | v0.5.1 | Pilot Fix & Usability | Delivered |
-| v0.6.0 | Personal TackBar baseline | Delivered |
-| v0.6.1 | Mahon — Pilot Operations | Current |
+| v0.6.0 | Mahon — Pilot Operations | Current |
 | Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
 | v0.7.0 | Multi-Format Track Ingestion | Planned |
 
@@ -243,34 +232,28 @@ Entregado y validado end-to-end con Gmail, consentimiento, Admin, capabilities y
 
 Entregado: mejor contexto operativo de Sessions, Sailors e ingestas en Admin, preservando el flujo v0.5.0.
 
-### v0.6.0 — Baseline Personal TackBar
+---
 
-Entregado antes de Mahon:
+## Hito actual — v0.6.0 Mahon — Pilot Operations
+
+Objetivo: publicar la build operativa mínima y coherente para el piloto de Mahon, incluyendo todo el trabajo v0.6 desarrollado después de v0.5.1.
+
+Alcance actual:
 
 - Personal TackBar / My Sessions;
 - capability personal estable para Sailors ACTIVE;
 - gestión Admin de capability personal;
-- consolidación visual de marca TackBar;
-- transición MPL-2.0;
-- preservación de semánticas v0.5.x.
-
----
-
-## Hito actual — v0.6.1 Mahon — Pilot Operations
-
-Objetivo: publicar la build operativa mínima y coherente para el piloto de Mahon.
-
-Alcance actual:
-
 - disposición administrativa de ingesta `active` / `discarded`;
 - `Discard` / `Restore` semánticos;
 - filtros por estado técnico y disposición;
 - orden determinista de Admin Sessions por hora real de navegación, más reciente primero;
+- consolidación visual de marca TackBar;
+- transición MPL-2.0;
 - mapa Positron más neutro en el Session Viewer;
 - control estándar MapLibre de navegación/brújula y rotación manual;
 - hardening y validación de release.
 
-Fuera de v0.6.1:
+Fuera de v0.6.0:
 
 - OVHcloud / ingesta multi-proveedor generalizada;
 - rediseño amplio de mantenimiento de Sessions;
@@ -290,7 +273,7 @@ Actualmente incluye:
 - ingesta multi-proveedor / adapter OVHcloud;
 - mejoras amplias de usabilidad de mantenimiento de Sessions.
 
-Después de publicar v0.6.1, números como v0.6.2 y v0.6.3 quedan disponibles para hot-fixes y releases correctivas. No se reservan previamente para features.
+Después de publicar v0.6.0, números como v0.6.1, v0.6.2 y siguientes quedan disponibles para hot-fixes y releases correctivas. No se reservan previamente para features.
 
 ---
 
@@ -314,7 +297,6 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.4.0 | Collaborative Sailing Debrief PoC | Entregado |
 | v0.5.0 | Real Sailing Pilot | Entregado / validado |
 | v0.5.1 | Pilot Fix & Usability | Entregado |
-| v0.6.0 | Personal TackBar baseline | Entregado |
-| v0.6.1 | Mahon — Pilot Operations | Actual |
+| v0.6.0 | Mahon — Pilot Operations | Actual |
 | Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
 | v0.7.0 | Multi-Format Track Ingestion | Previsto |
