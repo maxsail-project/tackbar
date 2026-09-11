@@ -9,6 +9,8 @@ import {
   startNewConsentCycle,
   listAdminIngestions,
   reprocessIngestion,
+  discardIngestion,
+  restoreIngestion,
 } from './adminApi'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -63,14 +65,24 @@ describe('Admin API client', () => {
     )
   })
 
-  it('lists and reprocesses known ingestions with the Admin header', async () => {
+  it('lists filtered ingestions and sends encoded Admin mutations', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response('[]', { status: 200 })))
     vi.stubGlobal('fetch', fetchMock)
     await listAdminIngestions('key')
+    await listAdminIngestions('key', 'failed', 'discarded')
     await reprocessIngestion('key', 'ingestion/id')
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/ingestions')
-    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/ingestions/ingestion%2Fid/reprocess')
-    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'POST' }))
+    await discardIngestion('key', 'ingestion/id')
+    await restoreIngestion('key', 'ingestion/id')
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/ingestions?status=all&disposition=all')
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/ingestions?status=failed&disposition=discarded')
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/admin/ingestions/ingestion%2Fid/reprocess')
+    expect(fetchMock.mock.calls[3][0]).toBe('/api/admin/ingestions/ingestion%2Fid/discard')
+    expect(fetchMock.mock.calls[4][0]).toBe('/api/admin/ingestions/ingestion%2Fid/restore')
+    for (const [, options] of fetchMock.mock.calls.slice(2)) {
+      expect(options).toEqual(expect.objectContaining({ method: 'POST' }))
+      expect(options.headers['X-TackBar-Admin-Key']).toBe('key')
+    }
   })
 })
 

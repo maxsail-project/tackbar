@@ -303,8 +303,17 @@ def test_regeneration_retries_current_and_cross_session_token_collisions(
     second_session = sessions.create("activity-other")
     collision = "collision-token-0000000000000000000000000001"
     sessions.replace(replace(second_session, capability_token=collision))
+    sailor = sailors.get_by_id(SAILOR_ID)
+    assert sailor is not None
+    personal_collision = "personal-token-00000000000000000000000000001"
+    sailors.replace(replace(sailor, personal_capability_token=personal_collision))
     fresh = "fresh-token-00000000000000000000000000000002"
-    generated = iter([first_session.capability_token, collision, fresh])
+    generated = iter([
+        first_session.capability_token,
+        collision,
+        personal_collision,
+        fresh,
+    ])
     service = SessionCapabilityService(
         sessions,
         activities,

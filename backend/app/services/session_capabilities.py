@@ -96,12 +96,18 @@ class SessionCapabilityService:
         )
 
     def _new_unique_token(self, excluded_token: str | None = None) -> str:
+        personal_tokens = {
+            sailor.personal_capability_token
+            for sailor in self.sailors.all()
+            if sailor.personal_capability_token is not None
+        }
         for _ in range(10):
             token = self.token_generator()
             if len(token) < 32:
                 raise ValueError("Capability token generator returned low entropy")
             if (
                 token != excluded_token
+                and token not in personal_tokens
                 and self.sessions.get_by_capability_token(token) is None
             ):
                 return token
