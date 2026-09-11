@@ -38,3 +38,14 @@ export function formatSessionRange(startTimestamp: string, endTimestamp: string)
   }
   return `${startDate} ${utcTime(start)} UTC – ${endDate} ${utcTime(end)} UTC`
 }
+
+export function formatSessionDuration(startTimestamp: string, endTimestamp: string) {
+  const start = parseTimestamp(startTimestamp)
+  const end = parseTimestamp(endTimestamp)
+  if (!start || !end || end.getTime() < start.getTime()) return '—'
+
+  const totalMinutes = Math.floor((end.getTime() - start.getTime()) / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return hours > 0 ? `${hours}h ${String(minutes).padStart(2, '0')}m` : `${minutes}m`
+}

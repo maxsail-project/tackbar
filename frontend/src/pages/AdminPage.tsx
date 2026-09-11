@@ -1,3 +1,4 @@
+import TackBarBrand from '../components/TackBarBrand'
 import { useState, type FormEvent } from 'react'
 import {
   AdminApiError,
@@ -55,7 +56,7 @@ export function AdminAccessForm({ onEnter, error, busy }: { onEnter: (key: strin
   const [value, setValue] = useState('')
   const submit = (event: FormEvent) => { event.preventDefault(); if (value.trim()) onEnter(value) }
   return <main className="admin-login"><form className="admin-login__card" onSubmit={submit}>
-    <p className="brand">TackBar</p><h1>Admin</h1>
+    <TackBarBrand /><h1>Admin</h1>
     <label htmlFor="admin-key">Admin key</label>
     <input id="admin-key" type="password" autoComplete="off" value={value} onChange={(event) => setValue(event.target.value)} />
     {error && <p className="admin-error" role="alert">{error}</p>}
@@ -128,7 +129,7 @@ export default function AdminPage() {
   if (!adminKey) return <AdminAccessForm onEnter={enter} error={error} busy={busy} />
 
   return <main className="admin-page">
-    <header className="admin-header"><div><p className="brand">TackBar</p><span>Admin · Real Sailing Pilot</span></div><button onClick={refresh} disabled={busy}>Refresh</button></header>
+    <header className="admin-header"><div><TackBarBrand inverted /><span>Admin · Real Sailing Pilot</span></div><button onClick={refresh} disabled={busy}>Refresh</button></header>
     <nav className="admin-tabs" aria-label="Admin sections">
       {(['sailors', 'sessions', 'ingestions'] as Section[]).map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => setSection(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
     </nav>

@@ -24,7 +24,10 @@ describe('Personal TackBar / My Sessions', () => {
     const loaded = await getPersonalTackBar('personal-token')
     const markup = render(loaded)
     expect(fetchMock).toHaveBeenCalledWith('/api/me/personal-token', expect.objectContaining({ method: 'GET' }))
-    expect(markup).toContain('My TackBar')
+    expect(markup).toContain('<h1 id="my-sessions-heading">My Sessions</h1>')
+    expect(markup.match(/My Sessions/g)).toHaveLength(1)
+    expect(markup).not.toContain('My TackBar')
+    expect(markup).toMatch(/<header[^>]*><img[^>]*alt="TackBar"/)
     expect(markup).toContain('sailor@example.com - Test Sailor</p><p>2 Sessions</p>')
     expect(markup).toContain('2 Sessions')
     expect(markup).not.toContain('Last sailing')
@@ -57,7 +60,7 @@ describe('Personal TackBar / My Sessions', () => {
     expect(markup).toContain('This personal link is unavailable.')
     expect(markup).not.toContain('Test Sailor')
     expect(markup).not.toContain('sailor@example.com')
-    expect(markup).not.toContain('My Sessions')
+    expect(markup).not.toContain('personal-sessions')
   })
 
   it('handles network and malformed responses without rendering backend details', async () => {

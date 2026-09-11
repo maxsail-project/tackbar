@@ -1,3 +1,4 @@
+import TackBarBrand from '../components/TackBarBrand'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
@@ -35,7 +36,7 @@ import {
 } from '../utils/metricPresentation'
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
 import { formatActivityIdentity } from '../utils/activityLabel'
-import { formatSessionRange } from '../utils/sessionPresentation'
+import { formatSessionDuration, formatSessionRange } from '../utils/sessionPresentation'
 
 type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
 
@@ -358,14 +359,19 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
       || (comparisonTrackState.status === 'ready' && comparisonRange === null)
     )
 
+  const uniqueSailorCount = new Set(session.activities.map((activity) => activity.sailor.id)).size
+
   return (
     <main className="page-shell viewer-page">
       <header className="app-header viewer-header">
-        <div>
-          <p className="brand">TackBar</p>
-          <h1>{formatSessionRange(session.start_time, session.end_time)}</h1>
-        </div>
+        <TackBarBrand inverted />
       </header>
+
+      <section className="session-summary" aria-labelledby="session-summary-heading">
+        <h1 id="session-summary-heading">Session</h1>
+        <p>{formatSessionRange(session.start_time, session.end_time)}</p>
+        <p>{formatSessionDuration(session.start_time, session.end_time)} · {uniqueSailorCount} {uniqueSailorCount === 1 ? 'sailor' : 'sailors'}</p>
+      </section>
 
       <section className="selector-panel" aria-label="Activity selection">
         <ActivitySelector
@@ -512,7 +518,7 @@ export default function SessionViewerPage() {
   if (status === 'loading') {
     return (
       <main className="page-shell not-found-page" aria-live="polite">
-        <p className="brand">TackBar</p>
+        <TackBarBrand />
         <h1>Loading Session…</h1>
       </main>
     )
@@ -525,7 +531,7 @@ export default function SessionViewerPage() {
   if (status === 'error' || !session) {
     return (
       <main className="page-shell not-found-page" role="alert">
-        <p className="brand">TackBar</p>
+        <TackBarBrand />
         <h1>Unable to load Session.</h1>
         <p>Please try the shared link again later.</p>
       </main>
@@ -538,7 +544,7 @@ export default function SessionViewerPage() {
 export function SharedSessionUnavailable() {
   return (
     <main className="page-shell not-found-page">
-      <p className="brand">TackBar</p>
+      <TackBarBrand />
       <h1>Session not found</h1>
       <p>This shared link is unavailable.</p>
     </main>
