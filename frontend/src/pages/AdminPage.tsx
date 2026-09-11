@@ -47,6 +47,21 @@ function localDate(value: string | null) {
   return value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—'
 }
 
+function sailingDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+}
+
+function sailingTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value))
+}
+
+function sailingDuration(start: string, end: string) {
+  const minutes = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000))
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return hours > 0 ? `${hours} h ${remainder} min` : `${remainder} min`
+}
+
 function errorMessage(error: unknown) {
   if (!(error instanceof AdminApiError) || error.status === null) return 'Cannot reach the Admin backend.'
   if (error.status === 401) return 'Admin authorization failed.'
@@ -168,8 +183,8 @@ export function IngestionFilters({ status, disposition, busy, onChange }: { stat
 }
 
 export function IngestionCard({ ingestion, busy, onReprocess, onDiscard, onRestore }: { ingestion: AdminIngestion, busy: boolean, onReprocess: () => void, onDiscard: () => void, onRestore: () => void }) {
-  const track = ingestion.activity_start_time && ingestion.activity_end_time ? `${localDate(ingestion.activity_start_time)}–${localDate(ingestion.activity_end_time)}` : '—'
-  return <article className="admin-card"><div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.sender_email || 'Unknown sender'} · {ingestion.provider}</p></div><span className={`state-badge state-${ingestion.status}`}>{ingestion.status === 'processed' ? 'Processed' : 'Failed'}</span></div><p className="admin-meta"><strong>Disposition:</strong> {ingestion.disposition === 'active' ? 'Active' : 'Discarded'}<br /><strong>Received:</strong> {localDate(ingestion.received_at)}<br /><strong>Track:</strong> {track}<br /><strong>Samples:</strong> {ingestion.activity_sample_count?.toLocaleString() ?? '—'}<br /><strong>Attempts:</strong> {ingestion.attempts} · <strong>Last attempt:</strong> {localDate(ingestion.last_attempt_at)}</p>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}<p className="admin-meta">Activity: {ingestion.activity_id || '—'}<br />Session: {ingestion.session_id || '—'}<br />Original: {ingestion.original_available ? 'Available' : 'Unavailable'}</p><div className="admin-actions">{ingestion.original_available && <button disabled={busy} onClick={onReprocess}>Reprocess</button>}<button disabled={busy} onClick={ingestion.disposition === 'active' ? onDiscard : onRestore}>{ingestion.disposition === 'active' ? 'Discard' : 'Restore'}</button></div></article>
+  const hasSailing = Boolean(ingestion.activity_start_time && ingestion.activity_end_time)
+  return <article className="admin-card"><div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.sender_email || 'Unknown sender'} · {ingestion.provider}</p></div><span className={`state-badge state-${ingestion.status}`}>{ingestion.status === 'processed' ? 'Processed' : 'Failed'}</span></div>{hasSailing ? <div className="admin-ingestion-sailing"><time className="admin-ingestion-sailing__date" dateTime={ingestion.activity_start_time!}>{sailingDate(ingestion.activity_start_time!)}</time><p className="admin-ingestion-sailing__interval"><time dateTime={ingestion.activity_start_time!}>{sailingTime(ingestion.activity_start_time!)}</time> – <time dateTime={ingestion.activity_end_time!}>{sailingTime(ingestion.activity_end_time!)}</time></p><p className="admin-ingestion-sailing__summary">{sailingDuration(ingestion.activity_start_time!, ingestion.activity_end_time!)} · {ingestion.activity_sample_count?.toLocaleString() ?? '—'} samples</p></div> : <p className="admin-meta"><strong>Sailing:</strong> —</p>}<div className="admin-ingestion-ops"><p><strong>Disposition:</strong> {ingestion.disposition === 'active' ? 'Active' : 'Discarded'}</p><p><strong>Received:</strong> {localDate(ingestion.received_at)}</p><p><strong>Attempts:</strong> {ingestion.attempts} · <strong>Last attempt:</strong> {localDate(ingestion.last_attempt_at)}</p></div>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}<p className="admin-meta">Activity: {ingestion.activity_id || '—'}<br />Session: {ingestion.session_id || '—'}<br />Original: {ingestion.original_available ? 'Available' : 'Unavailable'}</p><div className="admin-actions">{ingestion.original_available && <button disabled={busy} onClick={onReprocess}>Reprocess</button>}<button disabled={busy} onClick={ingestion.disposition === 'active' ? onDiscard : onRestore}>{ingestion.disposition === 'active' ? 'Discard' : 'Restore'}</button></div></article>
 }
 
 export function SailorDetail({ sailor, busy, onRequested, onConfirm, onRevoke, onNewCycle, onPersonalRegenerate, onPersonalRevoke }: { sailor: AdminSailorDetail, busy: boolean, onRequested: () => void, onConfirm: () => void, onRevoke: () => void, onNewCycle: () => void, onPersonalRegenerate: () => void, onPersonalRevoke: () => void }) {

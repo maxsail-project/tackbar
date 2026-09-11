@@ -817,6 +817,13 @@ input:focus-visible {
 .admin-card__heading > div { min-width: 0; }
 .admin-card h2 { max-width: 100%; margin: 0; overflow: hidden; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
 .admin-card__heading p, .admin-meta { margin: 5px 0; color: var(--color-navy); font-size: .8rem; }
+.admin-ingestion-sailing { margin: 16px 0; color: var(--color-navy); }
+.admin-ingestion-sailing__date, .admin-ingestion-sailing__interval { display: block; color: var(--color-navy); font-size: 1.12rem; font-weight: 800; }
+.admin-ingestion-sailing__date { margin: 0; text-transform: uppercase; }
+.admin-ingestion-sailing__interval { margin: 3px 0 0; }
+.admin-ingestion-sailing__summary { margin: 3px 0 0; font-size: .88rem; font-weight: 700; }
+.admin-ingestion-ops { display: grid; gap: 4px; margin: 14px 0; }
+.admin-ingestion-ops p { margin: 0; color: var(--color-navy); font-size: .8rem; }
 .state-badge { color: #17323a; flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; background: #e7eff1; font-size: .7rem; font-weight: 800; }
 .state-active { color: #17633a; background: #dff3e7; }
 .state-expired, .state-revoked { color: #8a352b; background: #fae5e1; }

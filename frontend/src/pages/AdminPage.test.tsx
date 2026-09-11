@@ -115,6 +115,22 @@ describe('minimal Admin UI', () => {
     expect(failed).not.toContain('Review mailbox')
   })
 
+  it('puts the sailing interval and sample count ahead of operational metadata', () => {
+    const ingestion: AdminIngestion = {
+      id: 'ing-2', provider: 'gmail', provider_message_id: 'message-2', sender_email: 'leandro@example.test',
+      received_at: '2026-09-07T16:13:00Z', attachment_name: 'Vakaros Lea 32050.csv.gz', status: 'processed', disposition: 'active',
+      attempts: 1, last_attempt_at: '2026-09-10T10:32:00Z', last_error: null, activity_id: 'activity-2', session_id: 'session-2',
+      original_available: true, activity_start_time: '2026-09-05T13:49:00Z', activity_end_time: '2026-09-05T17:21:00Z', activity_sample_count: 25453,
+    }
+    const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} busy={false} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+
+    expect(markup).toContain('admin-ingestion-sailing')
+    expect(markup).toMatch(/25[,.]453 samples/)
+    expect(markup.indexOf('admin-ingestion-sailing')).toBeLessThan(markup.indexOf('admin-ingestion-ops'))
+    expect(markup).toContain('Disposition:')
+    expect(markup).toContain('Attempts:')
+  })
+
   it('exposes independent ingestion status and disposition filters', () => {
     const markup = renderToStaticMarkup(<IngestionFilters status="all" disposition="all" busy={false} onChange={() => undefined} />)
     for (const label of ['Status', 'All', 'Processed', 'Failed', 'Disposition', 'Active', 'Discarded']) expect(markup).toContain(label)
