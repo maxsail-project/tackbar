@@ -45,8 +45,9 @@ Consent controls shared visibility, not technical ingestion or Session matching.
 Only Activities of currently `ACTIVE` Sailors appear in shared Sessions.
 Access uses a valid Session capability URL, without a general Sailor login.
 
-GPX, VKX and FIT are planned formats, not current support. OVHcloud ingestion
-is part of the v0.6 direction and is not yet operational in this baseline.
+GPX, VKX and FIT are planned formats, not current support. OVHcloud/generalized
+multi-provider ingestion is deferred to **Future 0.6.x** and is explicitly
+outside v0.6.0 Mahon.
 
 ---
 
@@ -162,14 +163,14 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot, with v0.6.0 as the current productization increment.**
+**Controlled real-sailing pilot, with v0.6.0 Mahon — Pilot Operations as the current release candidate.**
 
 **v0.5.0 — Real Sailing Pilot** is delivered and validated end-to-end with real
 Gmail messages, runtime persistence, explicit consent and capability-based
 shared Session access. **v0.5.1 — Pilot Fix & Usability** is delivered, adding
 clearer sailing and participation context to Admin.
 
-The delivered baseline includes Sailor / optional Boat context, automatic
+The delivered v0.5.x baseline includes Sailor / optional Boat context, automatic
 Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
 Window, synchronized replay and SOG/COG/HEEL/TRIM analysis.
 
@@ -182,25 +183,40 @@ See the [CHANGELOG](CHANGELOG.md) for delivered changes and the
 
 The project is not currently affiliated with or endorsed by Garmin, Vakaros or any other device manufacturer.
 
-## Next direction
+## Current release and next direction
 
-### v0.6.0 — Personal TackBar & Pilot Operations
+### v0.6.0 Mahon — Pilot Operations
 
-Current development direction; the following functionality is planned, not yet
-part of the delivered pilot baseline:
+The current release candidate consolidates all v0.6 work developed after v0.5.1
+for the Mahon pilot. Its scope includes:
 
-- Personal TackBar / My Sessions: read-only history of Sessions derived through
-  the Sailor's Activities, with ACTIVE consent and a valid personal capability.
-  Available Sessions open in the existing shared Viewer; unavailable Sessions
-  remain history but cannot currently be opened;
-- pilot/Admin operational improvements;
-- Gmail + OVHcloud acquisition through provider-independent ingestion;
-- application visual consolidation using `tackbar-web` as the current brand reference.
+- Personal TackBar / My Sessions with stable personal capability access for ACTIVE Sailors;
+- personal Session participation history derived through the Sailor's Activities;
+- Admin personal-capability management;
+- Admin ingestion `active` / `discarded` disposition with semantic Discard / Restore;
+- filtering by technical status and administrative disposition;
+- deterministic Admin Session ordering by real sailing time;
+- TackBar visual-brand consolidation and the MPL-2.0 transition;
+- OpenFreeMap Positron in the Session Viewer;
+- standard MapLibre navigation/compass controls for manual rotation/reset;
+- focused hardening and release validation.
 
-The MPL-2.0 licensing transition is already applied in the current repository.
-This does not mean the whole v0.6.0 release is delivered.
+OVHcloud/generalized multi-provider ingestion and broader Session-maintenance
+usability are explicitly outside v0.6.0 and remain **Future 0.6.x**. Individual
+personal Activity history/access is also not committed v0.6.0 scope.
 
-See the [v0.6 requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md).
+Manual release validation is recorded in
+[`docs/v0.6.0-manual-test.md`](docs/v0.6.0-manual-test.md).
+
+See the [v0.6 requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md),
+[v0.6 decisions](docs/v0.6-decisions.md) and [ROADMAP](ROADMAP.md).
+
+### Future 0.6.x
+
+Valid operational follow-up remains unassigned until explicitly promoted to a
+concrete patch release. Current examples are multi-provider email ingestion /
+OVHcloud and broader Session-maintenance usability. Patch numbers such as
+v0.6.1 and v0.6.2 are not pre-reserved for feature work.
 
 ### v0.7.0 — Multi-Format Track Ingestion
 
@@ -279,8 +295,9 @@ el Session matching. Sólo las Activities de Sailors actualmente `ACTIVE`
 aparecen en Sessions compartidas. El acceso utiliza una capability URL de
 Session válida, sin un sistema general de login de Sailor.
 
-GPX, VKX y FIT son formatos previstos, no soporte actual. La ingesta OVHcloud
-forma parte de la dirección v0.6 y aún no está operativa en esta baseline.
+GPX, VKX y FIT son formatos previstos, no soporte actual. La ingesta OVHcloud /
+multi-proveedor generalizada queda diferida a **Future 0.6.x** y está
+explícitamente fuera de v0.6.0 Mahon.
 
 ---
 
@@ -396,7 +413,7 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Piloto controlado con navegaciones reales, con v0.6.0 como incremento actual de consolidación del producto.**
+**Piloto controlado con navegaciones reales, con v0.6.0 Mahon — Pilot Operations como release candidate actual.**
 
 **v0.5.0 — Real Sailing Pilot** está entregado y validado de extremo a extremo
 con mensajes Gmail reales, persistencia runtime, consentimiento explícito y
@@ -404,8 +421,8 @@ acceso compartido a Sessions mediante capability URL. **v0.5.1 — Pilot Fix &
 Usability** está entregado y aporta un contexto más claro de navegación y
 participación en Admin.
 
-La baseline entregada incluye Sailor / contexto Boat opcional, Session matching
-automático, comparación de una/dos Activities, Analysis Window GPS/UTC
+La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session
+matching automático, comparación de una/dos Activities, Analysis Window GPS/UTC
 compartida, replay sincronizado y análisis SOG/COG/HEEL/TRIM.
 
 El debriefing es colaborativo porque los regatistas inspeccionan y comentan la
@@ -417,25 +434,41 @@ Consulta el [CHANGELOG](CHANGELOG.md) para los cambios entregados y las
 
 Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni ningún otro fabricante de dispositivos.
 
-## Próxima dirección
+## Release actual y próxima dirección
 
-### v0.6.0 — Personal TackBar & Pilot Operations
+### v0.6.0 Mahon — Pilot Operations
 
-Dirección actual de desarrollo; las siguientes funcionalidades están previstas
-y aún no forman parte de la baseline entregada del piloto:
+La release candidate actual consolida todo el trabajo v0.6 desarrollado después
+de v0.5.1 para el piloto de Mahon. Su alcance incluye:
 
-- Personal TackBar / My Sessions: historial de solo lectura de Sessions derivado
-  de las Activities del Sailor, con consentimiento ACTIVE y capability personal
-  válida. Las Sessions disponibles se abren en el Viewer compartido existente;
-  las no disponibles permanecen en el historial, pero no se pueden abrir;
-- mejoras operativas del piloto y de Admin;
-- adquisición mediante Gmail + OVHcloud con ingesta independiente del proveedor;
-- consolidación visual de la aplicación usando `tackbar-web` como referencia de marca actual.
+- Personal TackBar / My Sessions con capability personal estable para Sailors ACTIVE;
+- historial de participación en Sessions derivado de las Activities del Sailor;
+- gestión Admin de capability personal;
+- disposición de ingesta `active` / `discarded` con Discard / Restore semánticos;
+- filtros por estado técnico y disposición administrativa;
+- orden determinista de Admin Sessions por hora real de navegación;
+- consolidación visual de marca TackBar y transición MPL-2.0;
+- mapa OpenFreeMap Positron en el Session Viewer;
+- controles estándar MapLibre de navegación/brújula para rotación/reset manual;
+- hardening y validación enfocada de release.
 
-La transición de licencia a MPL-2.0 ya está aplicada en el repositorio actual.
-Esto no significa que toda la release v0.6.0 esté entregada.
+OVHcloud / ingesta multi-proveedor generalizada y mejoras amplias de
+mantenimiento de Sessions están explícitamente fuera de v0.6.0 y permanecen en
+**Future 0.6.x**. El historial/acceso individual a Activities tampoco forma
+parte del alcance comprometido de v0.6.0.
 
-Consulta los [requisitos v0.6](docs/v0.6-personal-tackbar-pilot-operations-requirements.md).
+La validación manual de release se registra en
+[`docs/v0.6.0-manual-test.md`](docs/v0.6.0-manual-test.md).
+
+Consulta los [requisitos v0.6](docs/v0.6-personal-tackbar-pilot-operations-requirements.md),
+las [decisiones v0.6](docs/v0.6-decisions.md) y el [ROADMAP](ROADMAP.md).
+
+### Future 0.6.x
+
+El seguimiento operativo válido permanece sin versión concreta hasta que se
+promueva explícitamente. Los ejemplos actuales son la ingesta multi-proveedor /
+OVHcloud y mejoras amplias de mantenimiento de Sessions. Los números de patch
+como v0.6.1 y v0.6.2 no están reservados previamente para features.
 
 ### v0.7.0 — Multi-Format Track Ingestion
 
