@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminIngestion, AdminSailorDetail, AdminSession } from '../types/admin'
-import { AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, IngestionCard, PersonalCapabilityControls, SailorDetail, SessionCard } from './AdminPage'
+import { AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, IngestionCard, IngestionFilters, PersonalCapabilityControls, SailorDetail, SessionCard } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : 'PENDING',
@@ -106,12 +106,20 @@ describe('minimal Admin UI', () => {
   })
 
   it('renders operational ingestion success and failure cards', () => {
-    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
-    const failed = renderToStaticMarkup(<IngestionCard ingestion={base} busy={false} onReprocess={() => undefined} />)
-    const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-1', session_id: 'session-1' }} busy={false} onReprocess={() => undefined} />)
-    expect(failed).toContain('Failed'); expect(failed).toContain('Invalid attachment'); expect(failed).toContain('Received:'); expect(failed).toContain('Received:</strong> —'); expect(failed).toContain('Attempts:</strong> 2'); expect(failed).toContain('Last attempt:'); expect(failed).toContain('Reprocess')
-    expect(processed).toContain('Processed'); expect(processed).toContain('activity-1'); expect(processed).toContain('session-1')
+    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', disposition: 'active', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
+    const actions = { onReprocess: () => undefined, onDiscard: () => undefined, onRestore: () => undefined }
+    const failed = renderToStaticMarkup(<IngestionCard ingestion={base} busy={false} {...actions} />)
+    const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-1', session_id: 'session-1', disposition: 'discarded' }} busy={false} {...actions} />)
+    expect(failed).toContain('Failed'); expect(failed).toContain('Active'); expect(failed).toContain('Discard'); expect(failed).toContain('Invalid attachment'); expect(failed).toContain('Received:'); expect(failed).toContain('Received:</strong> —'); expect(failed).toContain('Attempts:</strong> 2'); expect(failed).toContain('Last attempt:'); expect(failed).toContain('Reprocess')
+    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).toContain('Restore'); expect(processed).toContain('Reprocess'); expect(processed).toContain('activity-1'); expect(processed).toContain('session-1')
     expect(failed).not.toContain('Review mailbox')
+  })
+
+  it('exposes independent ingestion status and disposition filters', () => {
+    const markup = renderToStaticMarkup(<IngestionFilters status="all" disposition="all" busy={false} onChange={() => undefined} />)
+    for (const label of ['Status', 'All', 'Processed', 'Failed', 'Disposition', 'Active', 'Discarded']) expect(markup).toContain(label)
+    const busy = renderToStaticMarkup(<IngestionFilters status="all" disposition="all" busy onChange={() => undefined} />)
+    expect(busy.match(/disabled=""/g)).toHaveLength(2)
   })
 })
 

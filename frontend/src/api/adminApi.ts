@@ -1,5 +1,8 @@
 import type { AdminIngestion, AdminMailboxReview, AdminSailor, AdminSailorDetail, AdminSession } from '../types/admin'
 
+export type IngestionStatusFilter = 'all' | 'processed' | 'failed'
+export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
+
 export class AdminApiError extends Error {
   readonly status: number | null
 
@@ -62,6 +65,9 @@ export const revokeCapability = (key: string, id: string) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/capability/revoke`, key, 'POST')
 export const renewSession = (key: string, id: string, days: number) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/renew`, key, 'POST', { days })
-export const listAdminIngestions = (key: string) => adminRequest<AdminIngestion[]>('/api/admin/ingestions', key)
+export const listAdminIngestions = (key: string, status: IngestionStatusFilter = 'all', disposition: IngestionDispositionFilter = 'all') =>
+  adminRequest<AdminIngestion[]>(`/api/admin/ingestions?status=${status}&disposition=${disposition}`, key)
 export const reprocessIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/reprocess`, key, 'POST')
+export const discardIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/discard`, key, 'POST')
+export const restoreIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/restore`, key, 'POST')
 export const reviewMailbox = (key: string) => adminRequest<AdminMailboxReview>('/api/admin/ingestions/review-mailbox', key, 'POST')

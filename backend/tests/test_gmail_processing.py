@@ -73,9 +73,24 @@ def test_legacy_records_are_migrated_in_place(
     assert migrated[0]["status"] == "processed"
     assert migrated[0]["activity_id"] == "activity-1"
     assert migrated[0]["session_id"] is None
+    assert migrated[0]["disposition"] == "active"
     assert migrated[0]["last_attempt_at"] == legacy_records[0]["processed_at"]
     assert history_path.exists()
     assert IngestionHistory(history_path).records() == migrated
+
+
+def test_unknown_disposition_is_rejected_as_malformed_persistence(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    path = temporary_json_file("malformed-history", [{
+        "id": "record-1", "provider": "gmail", "provider_message_id": "message", "sender_email": None,
+        "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None,
+        "status": "failed", "disposition": "deleted", "attempts": 0, "last_attempt_at": None,
+        "last_error": None, "activity_id": None, "session_id": None,
+    }])
+
+    with pytest.raises(ValueError, match="Malformed ingestion record"):
+        IngestionHistory(path).records()
 
 
 def test_missing_runtime_history_does_not_import_other_path(
@@ -151,6 +166,26 @@ def test_provider_and_message_id_deduplicate_ingestion(
     )
     assert archived_original.read_bytes() == email.attachment_bytes
     assert second is None
+    assert history.records()[0]["disposition"] == "active"
+
+
+def test_disposition_is_preserved_without_affecting_provider_deduplication(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
+    email = _email(FIXTURE_PATH.read_bytes())
+    first = process_provider_email("gmail", email, sailors, boats, activities, sessions, history)
+    assert first is not None
+    record = history.records()[0]
+    discarded = history.set_disposition(record["id"], "discarded")
+
+    assert discarded["status"] == "processed"
+    assert discarded["activity_id"] == first.activity.id
+    assert discarded["session_id"] == first.session_match.session.id
+    assert history.set_disposition(record["id"], "discarded") == discarded
+    assert process_provider_email("gmail", email, sailors, boats, activities, sessions, history) is None
+    restored = history.set_disposition(record["id"], "active")
+    assert restored["disposition"] == "active"
 
 
 def test_active_sailor_ingestion_creates_stable_session_capability(

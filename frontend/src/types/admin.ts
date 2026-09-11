@@ -65,6 +65,7 @@ export interface AdminSession {
 export interface AdminIngestion {
   id: string; provider: string; provider_message_id: string; sender_email: string | null
   received_at: string | null; attachment_name: string | null; status: 'processed' | 'failed'
+  disposition: 'active' | 'discarded'
   attempts: number; last_attempt_at: string | null; last_error: string | null
   activity_id: string | null; session_id: string | null; original_available: boolean
   activity_start_time: string | null; activity_end_time: string | null; activity_sample_count: number | null

@@ -16,7 +16,11 @@ import {
   revokeConsent,
   startNewConsentCycle,
   reprocessIngestion,
+  discardIngestion,
+  restoreIngestion,
   reviewMailbox,
+  type IngestionDispositionFilter,
+  type IngestionStatusFilter,
 } from '../api/adminApi'
 import type { AdminIngestion, AdminSailor, AdminSailorDetail, AdminSession, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 
@@ -70,6 +74,8 @@ export default function AdminPage() {
   const [sailors, setSailors] = useState<AdminSailor[]>([])
   const [sessions, setSessions] = useState<AdminSession[]>([])
   const [ingestions, setIngestions] = useState<AdminIngestion[]>([])
+  const [ingestionStatus, setIngestionStatus] = useState<IngestionStatusFilter>('all')
+  const [ingestionDisposition, setIngestionDisposition] = useState<IngestionDispositionFilter>('all')
   const [reviewSummary, setReviewSummary] = useState<string | null>(null)
   const [selectedSailor, setSelectedSailor] = useState<AdminSailorDetail | null>(null)
   const [busy, setBusy] = useState(false)
@@ -85,7 +91,7 @@ export default function AdminPage() {
     }
   }
   const loadAll = async (key: string) => {
-    const [nextSailors, nextSessions, nextIngestions] = await Promise.all([listAdminSailors(key), listAdminSessions(key), listAdminIngestions(key)])
+    const [nextSailors, nextSessions, nextIngestions] = await Promise.all([listAdminSailors(key), listAdminSessions(key), listAdminIngestions(key, ingestionStatus, ingestionDisposition)])
     setSailors(nextSailors); setSessions(nextSessions); setIngestions(nextIngestions)
   }
   const enter = async (key: string) => {
@@ -119,12 +125,22 @@ export default function AdminPage() {
   const ingestionAction = async (id: string) => {
     if (!adminKey) return
     setBusy(true); setError(null)
-    try { const updated = await reprocessIngestion(adminKey, id); setIngestions((current) => current.map((item) => item.id === id ? updated : item)); setIngestions(await listAdminIngestions(adminKey)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    try { const updated = await reprocessIngestion(adminKey, id); setIngestions((current) => current.map((item) => item.id === id ? updated : item)); setIngestions(await listAdminIngestions(adminKey, ingestionStatus, ingestionDisposition)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+  }
+  const ingestionDispositionAction = async (action: () => Promise<AdminIngestion>) => {
+    if (!adminKey) return
+    setBusy(true); setError(null)
+    try { await action(); setIngestions(await listAdminIngestions(adminKey, ingestionStatus, ingestionDisposition)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+  }
+  const changeIngestionFilters = async (status: IngestionStatusFilter, disposition: IngestionDispositionFilter) => {
+    if (!adminKey) return
+    setBusy(true); setError(null); setIngestionStatus(status); setIngestionDisposition(disposition)
+    try { setIngestions(await listAdminIngestions(adminKey, status, disposition)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
   const mailboxAction = async () => {
     if (!adminKey) return
     setBusy(true); setError(null); setReviewSummary(null)
-    try { const result = await reviewMailbox(adminKey); setReviewSummary(`Mailbox review complete: ${result.processed} processed · ${result.skipped_already_processed} skipped · ${result.known_failed} known failed · ${result.failed} failed`); setIngestions(await listAdminIngestions(adminKey)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    try { const result = await reviewMailbox(adminKey); setReviewSummary(`Mailbox review complete: ${result.processed} processed · ${result.skipped_already_processed} skipped · ${result.known_failed} known failed · ${result.failed} failed`); setIngestions(await listAdminIngestions(adminKey, ingestionStatus, ingestionDisposition)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
   if (!adminKey) return <AdminAccessForm onEnter={enter} error={error} busy={busy} />
 
@@ -143,13 +159,17 @@ export default function AdminPage() {
       </article>)}
     </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><div className="admin-list">
       {sessions.map((session) => <SessionCard key={session.id} session={session} busy={busy} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
-    </div></section> : <section className="admin-content"><h1>Ingestions</h1><button disabled={busy} onClick={() => void mailboxAction()}>Review mailbox now</button>{reviewSummary && <p className="admin-meta">{reviewSummary}</p>}<div className="admin-list">{ingestions.map((item) => <IngestionCard key={item.id} ingestion={item} busy={busy} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} />)}</div></section>}
+    </div></section> : <section className="admin-content"><h1>Ingestions</h1><button disabled={busy} onClick={() => void mailboxAction()}>Review mailbox now</button><IngestionFilters status={ingestionStatus} disposition={ingestionDisposition} busy={busy} onChange={changeIngestionFilters} />{reviewSummary && <p className="admin-meta">{reviewSummary}</p>}<div className="admin-list">{ingestions.map((item) => <IngestionCard key={item.id} ingestion={item} busy={busy} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} onDiscard={() => void ingestionDispositionAction(() => discardIngestion(adminKey!, item.id))} onRestore={() => void ingestionDispositionAction(() => restoreIngestion(adminKey!, item.id))} />)}</div></section>}
   </main>
 }
 
-export function IngestionCard({ ingestion, busy, onReprocess }: { ingestion: AdminIngestion, busy: boolean, onReprocess: () => void }) {
+export function IngestionFilters({ status, disposition, busy, onChange }: { status: IngestionStatusFilter, disposition: IngestionDispositionFilter, busy: boolean, onChange: (status: IngestionStatusFilter, disposition: IngestionDispositionFilter) => void }) {
+  return <div className="admin-filters"><label>Status<select value={status} disabled={busy} onChange={(event) => onChange(event.target.value as IngestionStatusFilter, disposition)}><option value="all">All</option><option value="processed">Processed</option><option value="failed">Failed</option></select></label><label>Disposition<select value={disposition} disabled={busy} onChange={(event) => onChange(status, event.target.value as IngestionDispositionFilter)}><option value="all">All</option><option value="active">Active</option><option value="discarded">Discarded</option></select></label></div>
+}
+
+export function IngestionCard({ ingestion, busy, onReprocess, onDiscard, onRestore }: { ingestion: AdminIngestion, busy: boolean, onReprocess: () => void, onDiscard: () => void, onRestore: () => void }) {
   const track = ingestion.activity_start_time && ingestion.activity_end_time ? `${localDate(ingestion.activity_start_time)}–${localDate(ingestion.activity_end_time)}` : '—'
-  return <article className="admin-card"><div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.sender_email || 'Unknown sender'} · {ingestion.provider}</p></div><span className={`state-badge state-${ingestion.status}`}>{ingestion.status === 'processed' ? 'Processed' : 'Failed'}</span></div><p className="admin-meta"><strong>Received:</strong> {localDate(ingestion.received_at)}<br /><strong>Track:</strong> {track}<br /><strong>Samples:</strong> {ingestion.activity_sample_count?.toLocaleString() ?? '—'}<br /><strong>Attempts:</strong> {ingestion.attempts} · <strong>Last attempt:</strong> {localDate(ingestion.last_attempt_at)}</p>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}<p className="admin-meta">Activity: {ingestion.activity_id || '—'}<br />Session: {ingestion.session_id || '—'}<br />Original: {ingestion.original_available ? 'Available' : 'Unavailable'}</p>{ingestion.original_available && <button disabled={busy} onClick={onReprocess}>Reprocess</button>}</article>
+  return <article className="admin-card"><div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.sender_email || 'Unknown sender'} · {ingestion.provider}</p></div><span className={`state-badge state-${ingestion.status}`}>{ingestion.status === 'processed' ? 'Processed' : 'Failed'}</span></div><p className="admin-meta"><strong>Disposition:</strong> {ingestion.disposition === 'active' ? 'Active' : 'Discarded'}<br /><strong>Received:</strong> {localDate(ingestion.received_at)}<br /><strong>Track:</strong> {track}<br /><strong>Samples:</strong> {ingestion.activity_sample_count?.toLocaleString() ?? '—'}<br /><strong>Attempts:</strong> {ingestion.attempts} · <strong>Last attempt:</strong> {localDate(ingestion.last_attempt_at)}</p>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}<p className="admin-meta">Activity: {ingestion.activity_id || '—'}<br />Session: {ingestion.session_id || '—'}<br />Original: {ingestion.original_available ? 'Available' : 'Unavailable'}</p><div className="admin-actions">{ingestion.original_available && <button disabled={busy} onClick={onReprocess}>Reprocess</button>}<button disabled={busy} onClick={ingestion.disposition === 'active' ? onDiscard : onRestore}>{ingestion.disposition === 'active' ? 'Discard' : 'Restore'}</button></div></article>
 }
 
 export function SailorDetail({ sailor, busy, onRequested, onConfirm, onRevoke, onNewCycle, onPersonalRegenerate, onPersonalRevoke }: { sailor: AdminSailorDetail, busy: boolean, onRequested: () => void, onConfirm: () => void, onRevoke: () => void, onNewCycle: () => void, onPersonalRegenerate: () => void, onPersonalRevoke: () => void }) {

@@ -208,7 +208,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 17
+    assert len(admin_router.routes) == 19
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -633,6 +633,43 @@ def test_admin_ingestions_are_ordered_by_received_at_before_attempt_time(
     missing["last_attempt_at"] = "2026-08-28T16:00:00+00:00"; history.replace(missing)
     response = _request("GET", "/api/admin/ingestions")
     assert [item["provider_message_id"] for item in response.json] == ["new", "old", "missing"]
+
+
+def test_admin_ingestion_disposition_operations_and_filters(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory(root / "ingestion_history.json")
+    processed = history.create("gmail", "processed", "a@example.test", "processed.csv", "sha-processed")
+    processed.update(status="processed", attempts=2, activity_id=ACTIVITY_ACTIVE, session_id=SESSION_ACTIVE, received_at="2026-08-28T12:00:00+00:00")
+    history.replace(processed)
+    failed = history.create("gmail", "failed", "a@example.test", "failed.csv", "sha-failed")
+    failed.update(status="failed", attempts=3, last_error="invalid", received_at="2026-08-28T11:00:00+00:00")
+    history.replace(failed)
+
+    discarded = _request("POST", f"/api/admin/ingestions/{processed['id']}/discard")
+    discarded_again = _request("POST", f"/api/admin/ingestions/{processed['id']}/discard")
+    restored = _request("POST", f"/api/admin/ingestions/{processed['id']}/restore")
+    missing = _request("POST", "/api/admin/ingestions/unknown/discard")
+    unauthorized = _request("POST", f"/api/admin/ingestions/{failed['id']}/discard", admin_key=None)
+    history.set_disposition(processed["id"], "discarded")
+    all_records = _request("GET", "/api/admin/ingestions")
+    processed_active = _request("GET", "/api/admin/ingestions", query_string="status=processed&disposition=active")
+    failed_active = _request("GET", "/api/admin/ingestions", query_string="status=failed&disposition=active")
+    discarded_only = _request("GET", "/api/admin/ingestions", query_string="disposition=discarded")
+
+    assert discarded.status_code == discarded_again.status_code == restored.status_code == 200
+    assert discarded.json["disposition"] == discarded_again.json["disposition"] == "discarded"
+    assert discarded.json["status"] == "processed"
+    assert {key: discarded.json[key] for key in ("attempts", "activity_id", "session_id", "provider", "provider_message_id")} == {key: processed[key] for key in ("attempts", "activity_id", "session_id", "provider", "provider_message_id")}
+    assert restored.json["disposition"] == "active"
+    assert missing.status_code == 404
+    assert unauthorized.status_code == 401
+    assert [item["provider_message_id"] for item in all_records.json] == ["processed", "failed"]
+    assert processed_active.json == []
+    assert [item["provider_message_id"] for item in failed_active.json] == ["failed"]
+    assert [item["provider_message_id"] for item in discarded_only.json] == ["processed"]
+    assert "attachment_sha256" not in discarded.json and "original_file" not in discarded.json
 
 
 def test_orphan_or_malformed_consent_events_are_generic_integrity_errors(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

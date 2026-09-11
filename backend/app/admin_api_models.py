@@ -86,6 +86,7 @@ class AdminIngestionResponse(BaseModel):
     received_at: datetime | None
     attachment_name: str | None
     status: Literal["processed", "failed"]
+    disposition: Literal["active", "discarded"]
     attempts: int
     last_attempt_at: datetime | None
     last_error: str | None

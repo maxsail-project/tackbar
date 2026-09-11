@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Literal
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -149,12 +149,16 @@ def list_sessions() -> list[AdminSessionResponse]:
 
 
 @router.get("/ingestions", response_model=list[AdminIngestionResponse])
-def list_ingestions() -> list[AdminIngestionResponse]:
+def list_ingestions(
+    status: Literal["all", "processed", "failed"] = "all",
+    disposition: Literal["all", "active", "discarded"] = "all",
+) -> list[AdminIngestionResponse]:
     try:
         records = IngestionHistory().records()
         def sort_key(item: AdminIngestionResponse) -> tuple[bool, datetime]:
             return (item.received_at is not None, item.received_at or item.last_attempt_at or datetime.min.replace(tzinfo=timezone.utc))
-        return sorted((_ingestion_response(record) for record in records), key=sort_key, reverse=True)
+        responses = (_ingestion_response(record) for record in records)
+        return sorted((item for item in responses if (status == "all" or item.status == status) and (disposition == "all" or item.disposition == disposition)), key=sort_key, reverse=True)
     except (ValueError, AdminDataIntegrityError) as error:
         raise _admin_integrity_error() from error
 
@@ -190,6 +194,26 @@ def reprocess_admin_ingestion(ingestion_id: str) -> AdminIngestionResponse:
         record = history.get(ingestion_id)
         if record is None: raise _admin_integrity_error() from error
     return _ingestion_response(record)
+
+
+@router.post("/ingestions/{ingestion_id}/discard", response_model=AdminIngestionResponse)
+def discard_ingestion(ingestion_id: str) -> AdminIngestionResponse:
+    try:
+        return _ingestion_response(IngestionHistory().set_disposition(ingestion_id, "discarded"))
+    except ValueError as error:
+        if "not found" in str(error):
+            raise HTTPException(status_code=404, detail="Ingestion not found") from error
+        raise _admin_integrity_error() from error
+
+
+@router.post("/ingestions/{ingestion_id}/restore", response_model=AdminIngestionResponse)
+def restore_ingestion(ingestion_id: str) -> AdminIngestionResponse:
+    try:
+        return _ingestion_response(IngestionHistory().set_disposition(ingestion_id, "active"))
+    except ValueError as error:
+        if "not found" in str(error):
+            raise HTTPException(status_code=404, detail="Ingestion not found") from error
+        raise _admin_integrity_error() from error
 
 
 @router.get("/sessions/{session_id}", response_model=AdminSessionResponse)
@@ -346,4 +370,4 @@ def _ingestion_response(record: dict) -> AdminIngestionResponse:
         activity = ActivityRepository().get_by_id(record["activity_id"])
         if activity is None:
             raise AdminDataIntegrityError("Ingestion references unknown Activity")
-    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
+    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
