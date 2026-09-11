@@ -360,6 +360,45 @@ def test_admin_sessions_include_internal_counts_lifetime_and_all_states(monkeypa
     assert sessions[SESSION_EXPIRED]["capability_token"] is None
 
 
+def test_admin_sessions_are_ordered_by_sailing_start_with_deterministic_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    activities = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    sailing_times = {
+        ACTIVITY_ACTIVE: ("2026-09-10T12:00:00+00:00", "2026-09-10T13:00:00+00:00"),
+        ACTIVITY_PENDING: ("2026-09-12T12:00:00+00:00", "2026-09-12T13:00:00+00:00"),
+        ACTIVITY_REVOKED: ("2026-09-11T12:00:00+00:00", "2026-09-11T13:00:00+00:00"),
+    }
+    for activity in activities:
+        if activity["id"] in sailing_times:
+            activity["start_time"], activity["end_time"] = sailing_times[activity["id"]]
+    _write_json(root / "activities.json", activities)
+    sessions = [
+        _session("created-old-sailing-new", [ACTIVITY_PENDING], "token-new"),
+        _session("created-new-sailing-old", [ACTIVITY_ACTIVE], "token-old"),
+        _session("tie-z", [ACTIVITY_REVOKED], None),
+        _session("tie-a", [ACTIVITY_REVOKED], None),
+        _session("without-sailing", [], None),
+    ]
+    sessions[0]["created_at"] = "2026-01-01T00:00:00+00:00"
+    sessions[1]["created_at"] = "2026-12-01T00:00:00+00:00"
+    _write_json(root / "sessions.json", sessions)
+
+    response = _request("GET", "/api/admin/sessions")
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json] == [
+        "created-old-sailing-new",
+        "tie-z",
+        "tie-a",
+        "created-new-sailing-old",
+        "without-sailing",
+    ]
+    assert response.json[-1]["sailing_start"] is None
+
+
 def test_expired_state_precedes_token_and_revocation_combinations(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
     token_present = _request("GET", f"/api/admin/sessions/{SESSION_EXPIRED}")

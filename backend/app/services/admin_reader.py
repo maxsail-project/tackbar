@@ -123,7 +123,11 @@ class AdminReader:
         ]
         return sorted(
             responses,
-            key=lambda session: (session.created_at, session.id),
+            key=lambda session: (
+                session.sailing_start is not None,
+                session.sailing_start or datetime.min.replace(tzinfo=timezone.utc),
+                session.id,
+            ),
             reverse=True,
         )
 
