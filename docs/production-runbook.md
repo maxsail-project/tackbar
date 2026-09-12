@@ -17,6 +17,8 @@ Caddy routes `/api/*` to the backend and serves the SPA from `/var/www/tackbar`.
 Gmail OAuth token and persistent application data remain outside normal
 repository content. Never place secrets in Git or this file.
 
+For Gmail OAuth token renewal, follow `docs/gmail-token-renewal.md`.
+
 ## Standard release upgrade
 
 From `/opt/tackbar`, check state, fetch tags, checkout `<TARGET_TAG>`, and
