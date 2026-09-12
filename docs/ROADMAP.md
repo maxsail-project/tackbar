@@ -100,41 +100,28 @@ The release preserved Gmail as the operational mailbox provider and explicitly d
 
 References: [requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md), [decisions](docs/v0.6-decisions.md) and [CHANGELOG](CHANGELOG.md).
 
----
+### v0.6.1 — OVH Mailbox Ingestion
 
-## Current milestone — v0.6.1 OVH Mailbox Ingestion
+Delivered and validated in production: Gmail was replaced as the operational ingestion mailbox by `share@tackbar.eu` on OVHcloud Zimbra, using IMAP over TLS while preserving the existing provider-independent TackBar pipeline and established product/domain semantics.
 
-Goal: replace Gmail as the operational production ingestion mailbox with `share@tackbar.eu` on OVHcloud Zimbra, while preserving the existing provider-independent TackBar pipeline and all established product/domain semantics.
+Delivered direction:
 
-Current release scope:
-
-- OVHcloud Zimbra mailbox `share@tackbar.eu` as the production track-sharing address;
+- `share@tackbar.eu` as the production track-sharing mailbox;
 - IMAP over TLS using `imap.mail.ovh.net:993`;
-- runtime-configured non-interactive mailbox credentials;
+- runtime-configured mailbox credentials outside the repository;
 - OVH adapter producing the existing `InboundEmail` model;
-- explicit mailbox-provider selection in the Admin-triggered review path;
+- explicit provider selection in the Admin-triggered mailbox review path;
 - provider-message identity based on IMAP `UIDVALIDITY + UID` under a distinct OVH provider key;
-- preservation of existing raw attachment SHA-256 exact-file deduplication;
+- unchanged raw attachment SHA-256 exact-file deduplication;
 - unchanged Sailor resolution, Vakaros CSV/CSV.GZ parsing, normalization, Activity creation, Session matching, consent, Personal TackBar, capabilities and Viewer semantics;
-- production cutover that no longer depends on Gmail OAuth refresh-token renewal;
-- optional one-time clean restart of the current small pilot runtime dataset during the human-controlled production cutover.
+- production operation without Gmail OAuth refresh-token renewal;
+- human-controlled clean restart of the small pilot runtime dataset during cutover.
 
-Explicitly outside v0.6.1:
+Manual production validation confirmed the real end-to-end flow:
 
-- simultaneous Gmail + OVH production acquisition;
-- automatic mailbox polling;
-- outbound email / SMTP automation;
-- `info@tackbar.eu`;
-- consent redesign;
-- forwarded-message sender reconstruction;
-- GPX/VKX/FIT;
-- canonical logical track fingerprinting;
-- Admin redesign;
-- Viewer changes;
-- database migration;
-- advanced analytics.
+`real email → share@tackbar.eu → OVH IMAP adapter → InboundEmail → ingestion → Activity → Session → Viewer`
 
-References: [requirements](docs/v0.6.1-ovh-mailbox-ingestion-requirements.md) and [decisions](docs/v0.6.1-decisions.md).
+References: [requirements](docs/v0.6.1-ovh-mailbox-ingestion-requirements.md), [decisions](docs/v0.6.1-decisions.md) and [manual validation](docs/v0.6.1-manual-validation.md).
 
 ---
 
@@ -189,7 +176,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.5.0 | Real Sailing Pilot | Delivered / validated |
 | v0.5.1 | Pilot Fix & Usability | Delivered |
 | v0.6.0 | Mahon — Pilot Operations | Delivered |
-| v0.6.1 | OVH Mailbox Ingestion | Current |
+| v0.6.1 | OVH Mailbox Ingestion | Delivered / validated |
 | Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
 | v0.7.0 | Multi-Format Track Ingestion | Planned |
 
@@ -237,38 +224,28 @@ Entregado: mejor contexto operativo de Sessions, Sailors e ingestas en Admin, pr
 
 Entregado: Personal TackBar, mantenimiento de ingestas en Admin, orden de Sessions, consolidación visual, MPL-2.0 y hardening para el piloto de Mahon. Gmail se mantuvo como proveedor de correo y OVHcloud quedó diferido.
 
----
+### v0.6.1 — OVH Mailbox Ingestion
 
-## Hito actual — v0.6.1 OVH Mailbox Ingestion
+Entregado y validado en producción: `share@tackbar.eu` en OVHcloud Zimbra sustituye a Gmail como buzón operativo de ingesta mediante IMAP/TLS, manteniendo intacto el pipeline downstream.
 
-Objetivo: sustituir Gmail como buzón operativo de ingesta por `share@tackbar.eu` en OVHcloud Zimbra, manteniendo sin cambios el pipeline y las semánticas de producto existentes.
-
-Alcance:
+Alcance entregado:
 
 - `share@tackbar.eu` como dirección de envío de tracks;
 - IMAP/TLS mediante `imap.mail.ovh.net:993`;
-- credenciales configuradas en runtime;
+- credenciales configuradas en runtime y fuera del repositorio;
 - adapter OVH que produce el `InboundEmail` existente;
 - selección explícita del proveedor en la revisión manual desde Admin;
 - identidad de mensaje basada en `UIDVALIDITY + UID` bajo una identidad de proveedor OVH;
 - preservación de la deduplicación SHA-256 actual;
 - sin cambios en Sailor, parsing Vakaros CSV/CSV.GZ, normalización, Activity, Session, consentimiento, Personal TackBar, capabilities o Viewer;
 - producción deja de depender de la renovación de refresh tokens OAuth de Gmail;
-- se permite un reinicio limpio puntual de los datos del pequeño piloto durante el cutover controlado.
+- reinicio limpio controlado de los datos del pequeño piloto durante el cutover.
 
-Fuera de v0.6.1:
+La validación manual en producción confirmó el flujo real:
 
-- Gmail + OVH simultáneos en producción;
-- polling automático;
-- email saliente / SMTP;
-- `info@tackbar.eu`;
-- rediseño del consentimiento;
-- reconstrucción del remitente original en forwards;
-- GPX/VKX/FIT;
-- fingerprint lógico/canónico;
-- rediseño de Admin o Viewer;
-- migración a base de datos;
-- analytics avanzados.
+`correo real → share@tackbar.eu → adapter IMAP OVH → InboundEmail → ingesta → Activity → Session → Viewer`
+
+Referencias: [requisitos](docs/v0.6.1-ovh-mailbox-ingestion-requirements.md), [decisiones](docs/v0.6.1-decisions.md) y [validación manual](docs/v0.6.1-manual-validation.md).
 
 ---
 
@@ -301,6 +278,6 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.5.0 | Real Sailing Pilot | Entregado / validado |
 | v0.5.1 | Pilot Fix & Usability | Entregado |
 | v0.6.0 | Mahon — Pilot Operations | Entregado |
-| v0.6.1 | OVH Mailbox Ingestion | Actual |
+| v0.6.1 | OVH Mailbox Ingestion | Entregado / validado |
 | Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
 | v0.7.0 | Multi-Format Track Ingestion | Previsto |
