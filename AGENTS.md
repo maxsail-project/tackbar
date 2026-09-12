@@ -49,6 +49,13 @@ For any v0.6 task involving product behavior, personal access, pilot operations,
 
 `docs/v0.6-decisions.md`
 
+For v0.6.1 OVH Mailbox Ingestion work, including OVHcloud/Zimbra IMAP acquisition, mailbox-provider selection, provider-message identity, Gmail replacement, production cutover or pilot-data reset, also read both:
+
+- `docs/v0.6.1-ovh-mailbox-ingestion-requirements.md`
+- `docs/v0.6.1-decisions.md`
+
+The v0.6.1 documents explicitly promote the OVH mailbox work that v0.6.0 historical documents had deferred. For v0.6.1 implementation, treat the v0.6.1 requirements/decisions as the current release scope while preserving all unchanged v0.6.0 semantics.
+
 ## Instruction hierarchy
 
 Interpret repository instructions in this order:
