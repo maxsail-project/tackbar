@@ -2,6 +2,84 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.6.1 — OVH Mailbox Ingestion
+
+### English
+
+TackBar v0.6.1 replaces Gmail as the operational production mailbox with `share@tackbar.eu` on OVHcloud Zimbra, while preserving the existing provider-independent ingestion pipeline and established TackBar product semantics.
+
+### Added
+
+* OVHcloud Zimbra mailbox acquisition through IMAP over TLS at `imap.mail.ovh.net:993`.
+* Runtime-configured mailbox provider selection using `TACKBAR_MAILBOX_PROVIDER`.
+* Runtime OVH mailbox configuration for host, port, username and password, with credentials kept outside the repository.
+* OVH email adapter that converts real mailbox messages into the existing `InboundEmail` boundary.
+* Stable OVH provider-message identity based on IMAP `UIDVALIDITY + UID` under a distinct provider key.
+* Focused regression coverage for the OVH adapter, provider selection, provider-message identity/deduplication and the common ingestion path.
+
+### Design
+
+* OVHcloud remains an acquisition adapter only; parsing, normalization, Sailor resolution, Activity creation, Session matching, consent, Personal TackBar, Admin ingestion semantics and Viewer behavior remain provider-independent.
+* Gmail remains available in the codebase for compatibility/rollback but is no longer the production ingestion path.
+* Production ingestion no longer depends on Gmail OAuth refresh-token renewal.
+* Remote IMAP `Seen`/`Unread` flags are not TackBar processing state; ingestion history remains the source of truth.
+* Sender identity continues to use the outer message sender; forwarded-message sender reconstruction is not introduced.
+* Supported input formats remain Vakaros CSV/CSV.GZ.
+* Automatic polling, outbound email, `info@tackbar.eu`, new track formats, consent redesign, Admin redesign and Viewer changes remain outside v0.6.1.
+
+### Validated
+
+Focused implementation validation passed 80 backend tests together with Python compile and `git diff --check`, with no new Python dependencies.
+
+The production cutover was manually validated with a real message received by `share@tackbar.eu` and processed through the existing TackBar flow:
+
+`real email → share@tackbar.eu → OVH IMAP adapter → InboundEmail → ingestion → Sailor → Activity → Session → Viewer`
+
+Production was configured with OVH runtime credentials outside the repository, the backend health check passed after restart, and the small pilot runtime dataset was intentionally reset and rebuilt from a clean baseline.
+
+Manual production validation is recorded as `PASS` in `docs/v0.6.1-manual-validation.md`.
+
+---
+
+## v0.6.1 — Ingesta de buzón OVH
+
+### Español
+
+TackBar v0.6.1 sustituye Gmail como buzón operativo de producción por `share@tackbar.eu` en OVHcloud Zimbra, manteniendo el pipeline de ingesta independiente del proveedor y las semánticas de producto existentes.
+
+### Añadido
+
+* Adquisición desde OVHcloud Zimbra mediante IMAP/TLS en `imap.mail.ovh.net:993`.
+* Selección del proveedor de buzón mediante configuración runtime con `TACKBAR_MAILBOX_PROVIDER`.
+* Configuración runtime del host, puerto, usuario y contraseña del buzón OVH, manteniendo las credenciales fuera del repositorio.
+* Adapter OVH que convierte los mensajes reales del buzón en el `InboundEmail` existente.
+* Identidad estable de mensaje OVH basada en `UIDVALIDITY + UID` bajo una clave de proveedor diferenciada.
+* Cobertura de regresión focalizada para adapter OVH, selección de proveedor, identidad/deduplicación de mensaje y pipeline común de ingesta.
+
+### Diseño
+
+* OVHcloud es únicamente un adapter de adquisición; parsing, normalización, resolución de Sailor, creación de Activity, Session matching, consentimiento, Personal TackBar, semánticas Admin y Viewer permanecen independientes del proveedor.
+* Gmail permanece en el código para compatibilidad/rollback, pero deja de ser el camino operativo de producción.
+* La ingesta de producción deja de depender de la renovación de refresh tokens OAuth de Gmail.
+* Los flags IMAP `Seen`/`Unread` no son estado TackBar; el historial de ingesta sigue siendo la fuente de verdad.
+* La identidad del Sailor sigue usando el remitente exterior del mensaje; no se reconstruye el remitente original de forwards.
+* Los formatos soportados siguen siendo Vakaros CSV/CSV.GZ.
+* Polling automático, email saliente, `info@tackbar.eu`, nuevos formatos, rediseño del consentimiento, Admin o Viewer quedan fuera de v0.6.1.
+
+### Validado
+
+La validación focalizada de implementación superó 80 tests backend, además de compile de Python y `git diff --check`, sin añadir dependencias Python.
+
+El cutover de producción se validó manualmente con un mensaje real recibido por `share@tackbar.eu` y procesado mediante el flujo TackBar existente:
+
+`correo real → share@tackbar.eu → adapter IMAP OVH → InboundEmail → ingesta → Sailor → Activity → Session → Viewer`
+
+Producción quedó configurada con credenciales OVH runtime fuera del repositorio, el health check del backend pasó tras el reinicio y el pequeño dataset del piloto se reinició intencionadamente desde una baseline limpia.
+
+La validación manual de producción figura como `PASS` en `docs/v0.6.1-manual-validation.md`.
+
+---
+
 ## v0.6.0 — Mahon — Pilot Operations
 
 ### English
