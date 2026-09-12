@@ -101,20 +101,20 @@ This remains separate from ACTIVE-only shared visibility and from administrative
 
 # Ingestion & email operations
 
-## Multi-provider email ingestion
+## OVHcloud mailbox ingestion
 
-**Status:** Future  
-**Release:** Future 0.6.x
+**Status:** Planned  
+**Release:** v0.6.1
 
-Keep Gmail supported and add the TackBar mailbox hosted at OVHcloud only when post-Mahon pilot priorities justify the extra operational surface.
+Replace Gmail as the operational production mailbox with `share@tackbar.eu`, hosted on OVHcloud Zimbra and accessed through IMAP over TLS.
 
-Both providers should remain adapters over the same provider-independent ingestion pipeline.
+The adapter must feed the existing provider-independent `InboundEmail` and downstream ingestion pipeline without changing Sailor, Activity, Session, consent, deduplication, Admin or Viewer semantics.
 
-The concrete OVHcloud mailbox access mechanism must be selected after validating the actual mailbox service.
+Production v0.6.1 uses OVHcloud as the configured mailbox provider; simultaneous Gmail + OVHcloud production acquisition is not required. The Gmail adapter may remain available for compatibility or rollback.
 
-This work is explicitly outside `v0.6.0 Mahon — Pilot Operations`. It is not assigned to v0.6.1 or another concrete patch. A specific v0.6.x version will be chosen only if/when this work is promoted.
+The validated mailbox access profile is `imap.mail.ovh.net:993` using non-interactive runtime-configured credentials. Remote unread/seen flags are not TackBar processing state.
 
-It is not automatically part of v0.7.0.
+Detailed scope and acceptance criteria: `docs/v0.6.1-ovh-mailbox-ingestion-requirements.md` and `docs/v0.6.1-decisions.md`.
 
 ---
 
@@ -168,7 +168,7 @@ Exact provider scopes, threading and sending mechanism must be decided before im
 **Status:** Future  
 **Release:** Unassigned
 
-Evaluate additional provider adapters after the Gmail baseline when real operation justifies them.
+Evaluate additional provider adapters after the Gmail/OVH baseline when real operation justifies them.
 
 Provider-specific acquisition must preserve the common ingestion boundary.
 
