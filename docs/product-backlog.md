@@ -101,23 +101,6 @@ This remains separate from ACTIVE-only shared visibility and from administrative
 
 # Ingestion & email operations
 
-## OVHcloud mailbox ingestion
-
-**Status:** Planned  
-**Release:** v0.6.1
-
-Replace Gmail as the operational production mailbox with `share@tackbar.eu`, hosted on OVHcloud Zimbra and accessed through IMAP over TLS.
-
-The adapter must feed the existing provider-independent `InboundEmail` and downstream ingestion pipeline without changing Sailor, Activity, Session, consent, deduplication, Admin or Viewer semantics.
-
-Production v0.6.1 uses OVHcloud as the configured mailbox provider; simultaneous Gmail + OVHcloud production acquisition is not required. The Gmail adapter may remain available for compatibility or rollback.
-
-The validated mailbox access profile is `imap.mail.ovh.net:993` using non-interactive runtime-configured credentials. Remote unread/seen flags are not TackBar processing state.
-
-Detailed scope and acceptance criteria: `docs/v0.6.1-ovh-mailbox-ingestion-requirements.md` and `docs/v0.6.1-decisions.md`.
-
----
-
 ## Canonical track fingerprint
 
 **Status:** Planned  
