@@ -101,6 +101,22 @@ This remains separate from ACTIVE-only shared visibility and from administrative
 
 # Ingestion & email operations
 
+## Sailor consent status in Admin Ingestion result
+
+**Status:** Future  
+**Release:** Future 0.6.x
+
+Expose the resolved Sailor's current consent state (`PENDING`, `ACTIVE` or `REVOKED`) in the Admin Ingestion result so an operator can distinguish between:
+
+- a successfully processed ingestion whose Activity/Session exists and is shareable because the Sailor is `ACTIVE`;
+- a successfully processed ingestion whose resulting Activity is not currently visible in shared Sessions because the Sailor is `PENDING` or `REVOKED`.
+
+This is presentation/operational context only. It must not change consent semantics, ingestion status, Activity/Session creation, Session membership or ACTIVE-only shared visibility.
+
+Current intent is to prioritize this in the next 0.6.x usability pack, with v0.6.2 as the likely candidate. The concrete patch assignment remains to be confirmed when that pack is explicitly promoted.
+
+---
+
 ## Canonical track fingerprint
 
 **Status:** Planned  
