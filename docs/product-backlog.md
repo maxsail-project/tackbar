@@ -64,6 +64,29 @@ Other predefined individual combinations such as SOG + HEEL may be evaluated sep
 
 ---
 
+## Temporal chart zoom
+
+**Status:** Future  
+**Release:** Future 0.6.x  
+**Origin:** Session Viewer chart usability
+
+Allow sailors to visually zoom into a shorter GPS/UTC interval inside time-series charts so short events such as a tack, acceleration or course change can be inspected in more detail without changing the current Analysis Window.
+
+Required direction:
+
+- zoom is presentation-only and MUST NOT modify the Analysis Window;
+- zoom MUST NOT change map state, Summary calculations, replay state or shared `playbackTime`;
+- the chart's original visible interval remains the reference range;
+- provide a simple `Reset` action that restores the original chart interval;
+- when multiple charts belong to the same analysis block, including the Individual Analysis SOG + COG pair, they MUST share the same zoomed GPS/UTC range;
+- the implementation SHOULD reuse the existing Recharts-based chart stack and MUST NOT introduce another charting library unless a demonstrated limitation requires it;
+- touch/tablet interaction MUST remain compatible with normal page scrolling and the current mobile-first Viewer experience;
+- zoom MUST NOT persist a segment or create new Activity, track or analytics data.
+
+This requirement is intentionally limited to visual chart inspection. Persisted/saved Analysis Segments and changes to the shared Analysis Window remain separate product concerns.
+
+---
+
 ## QR Session sharing
 
 **Status:** Future  
