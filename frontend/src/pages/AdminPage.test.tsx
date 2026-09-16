@@ -106,12 +106,12 @@ describe('minimal Admin UI', () => {
   })
 
   it('renders operational ingestion success and failure cards', () => {
-    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', disposition: 'active', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
+    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', disposition: 'active', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, sailor_consent_status: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
     const actions = { onReprocess: () => undefined, onDiscard: () => undefined, onRestore: () => undefined }
     const failed = renderToStaticMarkup(<IngestionCard ingestion={base} busy={false} {...actions} />)
-    const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-1', session_id: 'session-1', disposition: 'discarded' }} busy={false} {...actions} />)
+    const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-1', session_id: 'session-1', sailor_consent_status: 'PENDING', disposition: 'discarded' }} busy={false} {...actions} />)
     expect(failed).toContain('Failed'); expect(failed).toContain('Active'); expect(failed).toContain('Discard'); expect(failed).toContain('Invalid attachment'); expect(failed).toContain('Received:'); expect(failed).toContain('Received:</strong> —'); expect(failed).toContain('Attempts:</strong> 2'); expect(failed).toContain('Last attempt:'); expect(failed).toContain('Reprocess')
-    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).toContain('Restore'); expect(processed).toContain('Reprocess'); expect(processed).toContain('Result'); expect(processed).toContain('Sailor identified:'); expect(processed).toContain('Activity created/reused:'); expect(processed).toContain('Session associated:'); expect(processed).toContain('activity-1'); expect(processed).toContain('session-1')
+    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).toContain('Restore'); expect(processed).toContain('Reprocess'); expect(processed).toContain('Result'); expect(processed).toContain('Sailor identified:'); expect(processed).toContain('Status:'); expect(processed).toContain('Pending'); expect(processed).toContain('Activity created/reused:'); expect(processed).toContain('Session associated:'); expect(processed).toContain('activity-1'); expect(processed).toContain('session-1')
     expect(failed).not.toContain('Ingestion result')
     expect(failed).not.toContain('Review mailbox')
   })
@@ -121,7 +121,7 @@ describe('minimal Admin UI', () => {
       id: 'ing-2', provider: 'gmail', provider_message_id: 'message-2', sender_email: 'leandro@example.test',
       received_at: '2026-09-07T16:13:00Z', attachment_name: 'Vakaros Lea 32050.csv.gz', status: 'processed', disposition: 'active',
       attempts: 1, last_attempt_at: '2026-09-10T10:32:00Z', last_error: null, activity_id: 'activity-2', session_id: 'session-2',
-      original_available: true, activity_start_time: '2026-09-05T13:49:00Z', activity_end_time: '2026-09-05T17:21:00Z', activity_sample_count: 25453,
+      sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: '2026-09-05T13:49:00Z', activity_end_time: '2026-09-05T17:21:00Z', activity_sample_count: 25453,
     }
     const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} busy={false} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
 

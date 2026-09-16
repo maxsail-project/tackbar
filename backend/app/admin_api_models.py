@@ -92,6 +92,7 @@ class AdminIngestionResponse(BaseModel):
     last_error: str | None
     activity_id: str | None
     session_id: str | None
+    sailor_consent_status: Literal["PENDING", "ACTIVE", "REVOKED"] | None
     original_available: bool
     activity_start_time: datetime | None
     activity_end_time: datetime | None

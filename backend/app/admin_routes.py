@@ -366,8 +366,11 @@ def _ingestion_response(record: dict) -> AdminIngestionResponse:
         try: IngestionOriginalStorage().read(record["original_file"]); available = True
         except (FileNotFoundError, ValueError): pass
     activity = None
+    sailor_consent_status = None
     if record["activity_id"] is not None:
         activity = ActivityRepository().get_by_id(record["activity_id"])
         if activity is None:
             raise AdminDataIntegrityError("Ingestion references unknown Activity")
-    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
+        sailor = SailorRepository().get_by_id(activity.sailor_id)
+        sailor_consent_status = sailor.consent_status.value if sailor is not None else None
+    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, sailor_consent_status=sailor_consent_status, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)

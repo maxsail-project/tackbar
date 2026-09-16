@@ -611,6 +611,7 @@ def test_admin_ingestion_inspection_and_reprocess_are_protected_and_path_safe(
     assert listing.json[0]["activity_start_time"] is None
     assert listing.json[0]["activity_end_time"] is None
     assert listing.json[0]["activity_sample_count"] is None
+    assert listing.json[0]["sailor_consent_status"] is None
     assert "original_file" not in listing.json[0]
     assert "attachment_sha256" not in listing.json[0]
     assert str(root) not in json.dumps(listing.json)
@@ -618,6 +619,36 @@ def test_admin_ingestion_inspection_and_reprocess_are_protected_and_path_safe(
     assert reprocessed.json["attempts"] == 1
     assert reprocessed.json["last_error"]
     assert "/api/admin/mailbox" not in app.openapi()["paths"]
+
+
+def test_admin_ingestion_exposes_current_resolved_sailor_consent_status(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory()
+    records = []
+    for message_id, activity_id in (
+        ("active", ACTIVITY_ACTIVE),
+        ("pending", ACTIVITY_PENDING),
+        ("revoked", ACTIVITY_REVOKED),
+    ):
+        record = history.create("gmail", message_id, f"{message_id}@example.test", f"{message_id}.csv", None)
+        record.update(status="processed", activity_id=activity_id)
+        history.replace(record)
+        records.append(record)
+    unresolved = history.create("gmail", "unresolved", "unresolved@example.test", "unresolved.csv", None)
+
+    initial = _request("GET", "/api/admin/ingestions")
+    confirmed = _request("POST", f"/api/admin/sailors/{PENDING_NEEDS}/consent/confirm")
+    updated = _request("GET", f"/api/admin/ingestions/{records[1]['id']}")
+
+    statuses = {item["provider_message_id"]: item["sailor_consent_status"] for item in initial.json}
+    assert initial.status_code == confirmed.status_code == updated.status_code == 200
+    assert statuses == {"active": "ACTIVE", "pending": "PENDING", "revoked": "REVOKED", "unresolved": None}
+    assert updated.json["sailor_consent_status"] == "ACTIVE"
+    assert history.get(records[1]["id"]) is not None
+    assert "sailor_consent_status" not in history.get(records[1]["id"])
 
 
 def test_admin_ingestions_are_ordered_by_received_at_before_attempt_time(
