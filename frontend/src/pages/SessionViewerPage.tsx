@@ -10,6 +10,7 @@ import {
 import ActivitySelector from '../components/ActivitySelector'
 import AnalysisWindow from '../components/AnalysisWindow'
 import ComparisonTable from '../components/ComparisonTable'
+import IndividualAnalysis from '../components/IndividualAnalysis'
 import MetricChart from '../components/MetricChart'
 import MetricSelector from '../components/MetricSelector'
 import ReplayControls from '../components/ReplayControls'
@@ -475,6 +476,23 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
             ? formatActivityIdentity(comparisonActivity)
             : undefined
         }
+      />
+      <IndividualAnalysis
+        primaryActivity={{
+          id: primaryActivity.id,
+          label: formatActivityIdentity(primaryActivity),
+          samples: canReplay ? primaryWindowSamples : null,
+          colorRole: 'primary',
+        }}
+        comparisonActivity={comparisonActivity && comparisonTrack
+          ? {
+              id: comparisonActivity.id,
+              label: formatActivityIdentity(comparisonActivity),
+              samples: comparisonWindowSamples,
+              colorRole: 'comparison',
+            }
+          : undefined}
+        playbackTime={canReplay ? playbackTime : null}
       />
     </main>
   )

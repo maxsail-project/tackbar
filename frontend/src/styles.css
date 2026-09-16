@@ -744,6 +744,66 @@ input:focus-visible {
   text-align: center;
 }
 
+.individual-analysis {
+  background: #f3f7f8;
+}
+
+.individual-analysis .section-heading h2 {
+  margin: 0;
+  color: #17323a;
+  font-size: 1rem;
+}
+
+.individual-analysis__toggle {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #c9d9dc;
+  border-radius: 9px;
+  color: #49656d;
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.individual-analysis__content {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.individual-analysis__activity {
+  overflow: hidden;
+  border: 1px solid #d5e1e3;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.individual-analysis__activity h3 {
+  margin: 0;
+  padding: 14px 16px;
+  color: #17323a;
+  font-size: 0.9rem;
+}
+
+.individual-analysis__activity .individual-sog-cog-chart {
+  border-top: 1px solid #d3e0e2;
+}
+
+.individual-sog-cog-chart {
+  min-width: 0;
+  padding: 20px 16px;
+  background: #f8fbfb;
+}
+
+.individual-sog-cog-chart--empty {
+  display: grid;
+  place-content: center;
+  min-height: 230px;
+  color: #52717a;
+  text-align: center;
+}
+
 .not-found-page {
   display: grid;
   align-content: center;

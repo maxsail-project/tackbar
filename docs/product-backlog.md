@@ -50,7 +50,8 @@ Add a simple `Individual Analysis` presentation inside the existing Session View
 Required direction:
 
 - the Session Viewer remains the working screen; this MUST NOT introduce a separate Activity-detail navigation flow;
-- SOG and COG MUST be shown as two separate, vertically aligned time-series charts rather than overlaid on one chart with dual scales;
+- SOG and COG MUST be shown together in a single time-series chart for each Activity, sharing the same GPS/UTC time axis, with SOG on the primary Y axis in knots and COG on a secondary Y axis in degrees from 0° to 360°;
+- each selected Activity MUST have its own independent Individual Analysis chart; with two selected Activities, show two separate dual-axis SOG + COG charts rather than combining four series in one chart;
 - both charts MUST use the same GPS/UTC time axis and the current shared Analysis Window;
 - with one selected Activity, show one individual SOG + COG analysis block for that Activity;
 - with two selected Activities, show equivalent individual SOG + COG analysis blocks for each selected Activity, keeping each Activity's two metrics visually separate from the other Activity;
@@ -78,7 +79,7 @@ Required direction:
 - zoom MUST NOT change map state, Summary calculations, replay state or shared `playbackTime`;
 - the chart's original visible interval remains the reference range;
 - provide a simple `Reset` action that restores the original chart interval;
-- when multiple charts belong to the same analysis block, including the Individual Analysis SOG + COG pair, they MUST share the same zoomed GPS/UTC range;
+- each chart owns its own independent visual zoom range; zooming or resetting one Activity's Individual Analysis chart MUST NOT change any other chart;
 - the implementation SHOULD reuse the existing Recharts-based chart stack and MUST NOT introduce another charting library unless a demonstrated limitation requires it;
 - touch/tablet interaction MUST remain compatible with normal page scrolling and the current mobile-first Viewer experience;
 - zoom MUST NOT persist a segment or create new Activity, track or analytics data.
