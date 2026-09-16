@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   CartesianGrid,
   Line,
@@ -20,9 +20,13 @@ import {
 } from '../utils/metricChartData'
 import {
   createTemporalRange,
+  finishTemporalPointerSelection,
+  resolveTemporalPointerTimestamp,
   resolveTemporalZoomChartPresentation,
-  selectTemporalZoom,
+  startTemporalPointerSelection,
   type TemporalRange,
+  type TemporalPointerSelection,
+  updateTemporalPointerSelection,
 } from '../utils/metricChartZoom'
 import { formatGpsTime, timestampToMilliseconds } from '../utils/replay'
 
@@ -48,8 +52,8 @@ export default function MetricChart({
   comparisonLabel,
 }: MetricChartProps) {
   const [zoomRange, setZoomRange] = useState<TemporalRange | null>(null)
-  const [selectionStart, setSelectionStart] = useState<number | null>(null)
-  const [selectionEnd, setSelectionEnd] = useState<number | null>(null)
+  const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
+  const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
   const scalarMetric: ScalarChartMetric | null = metric === 'HEEL'
     || metric === 'TRIM'
     ? metric
@@ -139,20 +143,60 @@ export default function MetricChart({
   // (from an Activity or Analysis Window change) always starts unzoomed.
   useEffect(() => {
     setZoomRange(null)
-    setSelectionStart(null)
-    setSelectionEnd(null)
+    pointerSelectionRef.current = null
+    setPointerSelection(null)
   }, [originalRange?.end, originalRange?.start])
 
-  function timestampFromChartEvent(event: { activeLabel?: unknown } | undefined) {
-    const value = Number(event?.activeLabel)
-    return Number.isFinite(value) ? value : null
+  function updatePointerSelection(nextSelection: TemporalPointerSelection | null) {
+    pointerSelectionRef.current = nextSelection
+    setPointerSelection(nextSelection)
   }
 
-  function finishSelection(event: { activeLabel?: unknown } | undefined) {
-    const selectionEnd = timestampFromChartEvent(event)
-    setZoomRange(selectTemporalZoom(originalRange, selectionStart, selectionEnd))
-    setSelectionStart(null)
-    setSelectionEnd(null)
+  function pointerTimestamp(event: ReactPointerEvent<HTMLDivElement>) {
+    const axisLine = event.currentTarget.querySelector('.recharts-xAxis .recharts-cartesian-axis-line')
+    const bounds = (axisLine ?? event.currentTarget).getBoundingClientRect()
+    return resolveTemporalPointerTimestamp(zoomRange ?? originalRange, event.clientX, bounds)
+  }
+
+  function clearPointerSelection() {
+    updatePointerSelection(null)
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return
+
+    const nextSelection = startTemporalPointerSelection(event.pointerId, pointerTimestamp(event))
+    if (nextSelection === null) return
+
+    event.currentTarget.setPointerCapture(event.pointerId)
+    updatePointerSelection(nextSelection)
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (pointerSelectionRef.current?.pointerId !== event.pointerId) return
+
+    updatePointerSelection(updateTemporalPointerSelection(
+      pointerSelectionRef.current,
+      event.pointerId,
+      pointerTimestamp(event),
+    ))
+  }
+
+  function handlePointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    if (pointerSelectionRef.current?.pointerId !== event.pointerId) return
+
+    const nextZoomRange = finishTemporalPointerSelection(
+      originalRange,
+      pointerSelectionRef.current,
+      event.pointerId,
+      pointerTimestamp(event),
+    )
+    if (nextZoomRange !== null) setZoomRange(nextZoomRange)
+    clearPointerSelection()
+  }
+
+  function cancelPointerSelection(event: ReactPointerEvent<HTMLDivElement>) {
+    if (pointerSelectionRef.current?.pointerId === event.pointerId) clearPointerSelection()
   }
 
   if (!hasChartData || playbackTime === null) {
@@ -180,25 +224,22 @@ export default function MetricChart({
           </button>
         )}
       </div>
-      <div className="metric-chart__canvas">
+      <div
+        className="metric-chart__canvas"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={cancelPointerSelection}
+        onPointerLeave={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) cancelPointerSelection(event)
+        }}
+        onLostPointerCapture={cancelPointerSelection}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={isSignedOrientation ? timelinePoints : chartPoints}
             margin={{ top: 8, right: 8, bottom: 0, left: -12 }}
             accessibilityLayer
-            onMouseDown={(event) => {
-              const timestamp = timestampFromChartEvent(event)
-              setSelectionStart(timestamp)
-              setSelectionEnd(timestamp)
-            }}
-            onMouseMove={(event) => {
-              if (selectionStart !== null) setSelectionEnd(timestampFromChartEvent(event))
-            }}
-            onMouseUp={finishSelection}
-            onMouseLeave={() => {
-              setSelectionStart(null)
-              setSelectionEnd(null)
-            }}
           >
             <CartesianGrid stroke="#dbe6e8" strokeDasharray="3 4" vertical={false} />
             <XAxis
@@ -239,10 +280,10 @@ export default function MetricChart({
               strokeWidth={2}
               ifOverflow={zoomPresentation.playbackReferenceOverflow}
             />
-            {selectionStart !== null && selectionEnd !== null && (
+            {pointerSelection !== null && (
               <ReferenceArea
-                x1={selectionStart}
-                x2={selectionEnd}
+                x1={pointerSelection.start}
+                x2={pointerSelection.end}
                 fill="#168097"
                 fillOpacity={0.12}
               />

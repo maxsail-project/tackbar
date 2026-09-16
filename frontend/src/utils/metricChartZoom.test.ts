@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   createTemporalRange,
+  finishTemporalPointerSelection,
+  resolveTemporalPointerTimestamp,
   resolveTemporalZoomChartPresentation,
   selectTemporalZoom,
+  startTemporalPointerSelection,
+  updateTemporalPointerSelection,
 } from './metricChartZoom'
 
 describe('metric chart temporal zoom', () => {
@@ -63,5 +67,38 @@ describe('metric chart temporal zoom', () => {
       allowDataOverflow: false,
       playbackReferenceOverflow: 'extendDomain',
     })
+  })
+
+  it('maps a pointer position on the visible x axis to a GPS timestamp', () => {
+    expect(resolveTemporalPointerTimestamp(fullRange, 150, { left: 100, right: 200 })).toBe(3_000)
+    expect(resolveTemporalPointerTimestamp(fullRange, 80, { left: 100, right: 200 })).toBe(1_000)
+    expect(resolveTemporalPointerTimestamp(fullRange, 240, { left: 100, right: 200 })).toBe(5_000)
+  })
+
+  it('starts, extends and completes a pointer selection as one local temporal zoom', () => {
+    const selection = startTemporalPointerSelection(
+      7,
+      resolveTemporalPointerTimestamp(fullRange, 125, { left: 100, right: 200 }),
+    )
+    const extendedSelection = updateTemporalPointerSelection(
+      selection,
+      7,
+      resolveTemporalPointerTimestamp(fullRange, 175, { left: 100, right: 200 }),
+    )
+
+    expect(selection).toEqual({ pointerId: 7, start: 2_000, end: 2_000 })
+    expect(extendedSelection).toEqual({ pointerId: 7, start: 2_000, end: 4_000 })
+    expect(finishTemporalPointerSelection(fullRange, extendedSelection, 7, 4_000)).toEqual({
+      start: 2_000,
+      end: 4_000,
+    })
+  })
+
+  it('does not complete a cancelled or unrelated pointer selection', () => {
+    const selection = startTemporalPointerSelection(7, 2_000)
+
+    expect(updateTemporalPointerSelection(selection, 8, 4_000)).toBe(selection)
+    expect(finishTemporalPointerSelection(fullRange, null, 7, 4_000)).toBeNull()
+    expect(finishTemporalPointerSelection(fullRange, selection, 8, 4_000)).toBeNull()
   })
 })

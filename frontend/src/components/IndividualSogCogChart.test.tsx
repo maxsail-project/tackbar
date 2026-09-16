@@ -2,7 +2,6 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import IndividualSogCogChart, {
   INDIVIDUAL_SOG_COG_CHART_CONFIG,
-  resolveIndividualChartTimestamp,
 } from './IndividualSogCogChart'
 import type { TrackSample } from '../types/track'
 
@@ -31,11 +30,6 @@ describe('Individual SOG + COG chart', () => {
       cogTicks: [0, 90, 180, 270, 360],
       cogColor: '#60777e',
     })
-  })
-
-  it('resolves the temporal label supplied by the chart event boundary', () => {
-    expect(resolveIndividualChartTimestamp({ activeLabel: 1_000 })).toBe(1_000)
-    expect(resolveIndividualChartTimestamp({ activeLabel: undefined })).toBeNull()
   })
 
   it('renders one chart heading for the superimposed SOG and COG series', () => {
