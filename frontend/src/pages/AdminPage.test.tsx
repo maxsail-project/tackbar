@@ -89,9 +89,25 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('Internal tracks')
     expect(markup).toContain('Shareable now')
     expect(markup).toContain('Copy link')
-    expect(markup).toContain('Open shared Session')
+    expect(markup).toContain('Open session')
+    expect(markup).not.toContain('Open shared Session')
     expect(markup).toContain('Sets expiry to days from now')
     expect(markup).toContain('value="30"')
+  })
+
+  it('uses the shorter action copy in Sailor Session history without changing the capability href', () => {
+    const detail: AdminSailorDetail = {
+      ...sailor('active'),
+      sessions: [{
+        session_id: 'session-123', sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z',
+        sailor_activity_count: 1, expires_at: '2026-09-30T10:00:00Z', capability_state: 'active', capability_path: '/s/token',
+      }],
+    }
+    const markup = renderToStaticMarkup(<SailorDetail sailor={detail} busy={false} onRequested={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} />)
+
+    expect(markup).toContain('href="/s/token"')
+    expect(markup).toContain('>Open session</a>')
+    expect(markup).not.toContain('Open shared Session')
   })
 
   it('presents Session lifetime from expiry independently of shared capability', () => {
@@ -118,7 +134,7 @@ describe('minimal Admin UI', () => {
     const markup = renderToStaticMarkup(<SessionCard session={session('active')} busy onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(markup).not.toContain('Copy link')
-    expect(markup).not.toContain('Open shared Session')
+    expect(markup).not.toContain('Open session')
   })
 
   it.each(['expired', 'revoked', 'never_generated'] as const)('does not expose a usable link for %s capability', (state) => {
@@ -126,7 +142,7 @@ describe('minimal Admin UI', () => {
     const markup = renderToStaticMarkup(<SessionCard session={session(state)} busy={false} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(markup).not.toContain('Copy link')
-    expect(markup).not.toContain('Open shared Session')
+    expect(markup).not.toContain('Open session')
   })
 
   it('renders operational ingestion success and failure cards', () => {

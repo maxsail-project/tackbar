@@ -162,7 +162,7 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot, with v0.6.3 — Touch Chart Zoom Fix as the current delivered release.**
+**Controlled real-sailing pilot, with v0.6.3 — Usability & Maintenance as the current delivered release.**
 
 **v0.5.0 — Real Sailing Pilot** is delivered and validated end-to-end with real
 Gmail messages, runtime persistence, explicit consent and capability-based
@@ -170,9 +170,9 @@ shared Session access. **v0.5.1 — Pilot Fix & Usability** is delivered, adding
 clearer sailing and participation context to Admin.
 
 **v0.6.1 — OVH Mailbox Ingestion** replaced Gmail as the operational mailbox with
-`share@tackbar.eu` on OVHcloud Zimbra. **v0.6.3 — Touch Chart Zoom Fix** adds
-mobile/tablet Pointer Events support to the existing local visual temporal chart
-zoom.
+`share@tackbar.eu` on OVHcloud Zimbra. **v0.6.3 — Usability & Maintenance** adds
+mobile/tablet Pointer Events support to local visual temporal chart zoom and a
+shorter Admin Session action label.
 
 The delivered v0.5.x baseline includes Sailor / optional Boat context, automatic
 Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
@@ -225,14 +225,14 @@ Session semantics.
 
 See the [v0.6.2 requirements](docs/v0.6.2-viewer-admin-usability-requirements.md).
 
-### v0.6.3 — Touch Chart Zoom Fix
+### v0.6.3 — Usability & Maintenance
 
 The current delivered release corrects local visual temporal chart zoom on mobile
-and tablet through Pointer Events, pointer capture and cancellation handling. It
-preserves the v0.6.2 Viewer, Analysis Window, replay, `playbackTime`, chart and
-COG semantics.
+and tablet through Pointer Events, pointer capture and cancellation handling, and
+shortens the Admin Session action to `Open session`. It preserves the v0.6.2
+Viewer, Analysis Window, replay, `playbackTime`, chart and COG semantics.
 
-See the [v0.6.3 requirements](docs/v0.6.3-touch-chart-zoom-fix-requirements.md).
+See the [v0.6.3 requirements](docs/v0.6.3-usability-and-maintenance-requirements.md).
 
 ### Future 0.6.x
 
@@ -435,7 +435,7 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Piloto controlado con navegaciones reales, con v0.6.3 — Corrección de zoom táctil en gráficos como release entregada actual.**
+**Piloto controlado con navegaciones reales, con v0.6.3 — Usabilidad y mantenimiento como release entregada actual.**
 
 **v0.5.0 — Real Sailing Pilot** está entregado y validado de extremo a extremo
 con mensajes Gmail reales, persistencia runtime, consentimiento explícito y
@@ -444,9 +444,9 @@ Usability** está entregado y aporta un contexto más claro de navegación y
 participación en Admin.
 
 **v0.6.1 — OVH Mailbox Ingestion** sustituyó Gmail como buzón operativo por
-`share@tackbar.eu` en OVHcloud Zimbra. **v0.6.3 — Corrección de zoom táctil en gráficos**
-añade soporte Pointer Events para móvil/tablet al zoom temporal visual local ya
-existente.
+`share@tackbar.eu` en OVHcloud Zimbra. **v0.6.3 — Usabilidad y mantenimiento**
+añade soporte Pointer Events para móvil/tablet al zoom temporal visual local y
+acorta la acción de Session en Admin.
 
 La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session
 matching automático, comparación de una/dos Activities, Analysis Window GPS/UTC
@@ -498,14 +498,15 @@ Preserva la baseline v0.6.1 de buzón OVH y las semánticas existentes.
 
 Consulta los [requisitos v0.6.2](docs/v0.6.2-viewer-admin-usability-requirements.md).
 
-### v0.6.3 — Corrección de zoom táctil en gráficos
+### v0.6.3 — Usabilidad y mantenimiento
 
 La release entregada actual corrige el zoom temporal visual local de los gráficos
 en móvil y tablet mediante Pointer Events, captura de puntero y manejo de
-cancelación. Preserva las semánticas v0.6.2 de Viewer, Analysis Window, replay,
-`playbackTime`, gráficos y COG.
+cancelación, y acorta la acción de Session en Admin a `Open session`. Preserva
+las semánticas v0.6.2 de Viewer, Analysis Window, replay, `playbackTime`,
+gráficos y COG.
 
-Consulta los [requisitos v0.6.3](docs/v0.6.3-touch-chart-zoom-fix-requirements.md).
+Consulta los [requisitos v0.6.3](docs/v0.6.3-usability-and-maintenance-requirements.md).
 
 ### Future 0.6.x
 

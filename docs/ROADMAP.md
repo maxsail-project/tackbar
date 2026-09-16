@@ -129,11 +129,11 @@ Delivered: Individual SOG + COG analysis with visual temporal zoom, clearer Admi
 
 Reference: [requirements](v0.6.2-viewer-admin-usability-requirements.md).
 
-### v0.6.3 — Touch Chart Zoom Fix
+### v0.6.3 — Usability & Maintenance
 
-Delivered: mobile/tablet Pointer Events support for local visual temporal chart zoom, including pointer capture and cancellation handling. The v0.6.2 Viewer, Analysis Window, replay, `playbackTime`, chart and COG semantics remain unchanged.
+Delivered: focused mobile/tablet Pointer Events chart-zoom correction, shorter Admin Session action microcopy and GitHub Actions checkout maintenance. The v0.6.2 Viewer, Analysis Window, replay, `playbackTime`, chart and COG semantics remain unchanged.
 
-Reference: [requirements](v0.6.3-touch-chart-zoom-fix-requirements.md).
+Reference: [requirements](v0.6.3-usability-and-maintenance-requirements.md).
 
 ---
 
@@ -190,7 +190,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.0 | Mahon — Pilot Operations | Delivered |
 | v0.6.1 | OVH Mailbox Ingestion | Delivered / validated |
 | v0.6.2 | Viewer & Admin Usability | Delivered |
-| v0.6.3 | Touch Chart Zoom Fix | Delivered |
+| v0.6.3 | Usability & Maintenance | Delivered |
 | Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
 | v0.7.0 | Multi-Format Track Ingestion | Planned |
 
@@ -267,11 +267,11 @@ Entregado: análisis individual SOG + COG con zoom temporal visual, presentació
 
 Referencia: [requisitos](v0.6.2-viewer-admin-usability-requirements.md).
 
-### v0.6.3 — Corrección de zoom táctil en gráficos
+### v0.6.3 — Usabilidad y mantenimiento
 
-Entregado: soporte Pointer Events para móvil/tablet en el zoom temporal visual local de los gráficos, incluida captura de puntero y manejo de cancelación. Las semánticas v0.6.2 de Viewer, Analysis Window, replay, `playbackTime`, gráficos y COG permanecen sin cambios.
+Entregado: corrección focalizada del zoom de gráficos con Pointer Events en móvil/tablet, microcopy más corto para las acciones de Session en Admin y mantenimiento del checkout de GitHub Actions. Las semánticas v0.6.2 de Viewer, Analysis Window, replay, `playbackTime`, gráficos y COG permanecen sin cambios.
 
-Referencia: [requisitos](v0.6.3-touch-chart-zoom-fix-requirements.md).
+Referencia: [requisitos](v0.6.3-usability-and-maintenance-requirements.md).
 
 ---
 
@@ -306,6 +306,6 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.6.0 | Mahon — Pilot Operations | Entregado |
 | v0.6.1 | OVH Mailbox Ingestion | Entregado / validado |
 | v0.6.2 | Viewer & Admin Usability | Entregado |
-| v0.6.3 | Corrección de zoom táctil en gráficos | Entregado |
+| v0.6.3 | Usabilidad y mantenimiento | Entregado |
 | Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
 | v0.7.0 | Multi-Format Track Ingestion | Previsto |

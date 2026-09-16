@@ -2,7 +2,7 @@
 
 All notable changes to TackBar will be documented in this file.
 
-## v0.6.3 — Touch Chart Zoom Fix
+## v0.6.3 — Usability & Maintenance
 
 ### English
 
@@ -12,6 +12,7 @@ TackBar v0.6.3 is a focused mobile and tablet corrective release for the visual 
 
 * Time-series charts now use Pointer Events for touch, stylus and mouse press-drag-release zoom selection.
 * Pointer capture and cancellation handling keep chart selection local and prevent stale selections when an interaction is cancelled or loses capture.
+* Admin Session capability links use the shorter responsive microcopy `Open session` instead of `Open shared Session`.
 
 ### Improved
 
@@ -28,7 +29,7 @@ Focused temporal zoom and Individual Analysis checks passed, together with front
 
 ---
 
-## v0.6.3 — Corrección de zoom táctil en gráficos
+## v0.6.3 — Usabilidad y mantenimiento
 
 ### Español
 
@@ -38,6 +39,7 @@ TackBar v0.6.3 es una release correctiva focalizada para móvil y tablet del zoo
 
 * Los gráficos temporales usan ahora Pointer Events para la selección de zoom mediante pulsar, arrastrar y soltar con toque, lápiz o ratón.
 * La captura de puntero y el manejo de cancelación mantienen la selección dentro del gráfico y evitan estados obsoletos cuando se cancela una interacción o se pierde la captura.
+* Los enlaces de capability de Session en Admin usan el microcopy responsive más corto `Open session` en lugar de `Open shared Session`.
 
 ### Mejorado
 
