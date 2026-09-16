@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout deployment tooling
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve and validate GitHub Release
         id: release
