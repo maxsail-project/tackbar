@@ -26,6 +26,9 @@ import type { AdminIngestion, AdminSailor, AdminSailorDetail, AdminSession, Capa
 
 type Section = 'sailors' | 'sessions' | 'ingestions'
 
+export const ADMIN_SECTION_ORDER: Section[] = ['ingestions', 'sailors', 'sessions']
+export const DEFAULT_ADMIN_SECTION: Section = 'ingestions'
+
 export const consentLabels: Record<ConsentOperationalGroup, string> = {
   pending_needs_request: 'Pending · request needed',
   pending_awaiting_response: 'Pending · awaiting response',
@@ -91,7 +94,7 @@ export function AdminAccessForm({ onEnter, error, busy }: { onEnter: (key: strin
 
 export default function AdminPage() {
   const [adminKey, setAdminKey] = useState<string | null>(null)
-  const [section, setSection] = useState<Section>('sailors')
+  const [section, setSection] = useState<Section>(DEFAULT_ADMIN_SECTION)
   const [sailors, setSailors] = useState<AdminSailor[]>([])
   const [sessions, setSessions] = useState<AdminSession[]>([])
   const [ingestions, setIngestions] = useState<AdminIngestion[]>([])
@@ -168,7 +171,7 @@ export default function AdminPage() {
   return <main className="admin-page">
     <header className="admin-header"><div><TackBarBrand inverted /><span>Admin · Real Sailing Pilot</span></div><button onClick={refresh} disabled={busy}>Refresh</button></header>
     <nav className="admin-tabs" aria-label="Admin sections">
-      {(['sailors', 'sessions', 'ingestions'] as Section[]).map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => setSection(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
+      {ADMIN_SECTION_ORDER.map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => setSection(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
     </nav>
     {error && <p className="admin-error admin-feedback" role="alert">{error}</p>}
     {section === 'sailors' ? <section className="admin-content"><h1>Sailors</h1><div className="admin-list">

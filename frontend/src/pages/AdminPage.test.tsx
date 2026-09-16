@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminIngestion, AdminSailorDetail, AdminSession } from '../types/admin'
-import { AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, IngestionCard, IngestionFilters, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard } from './AdminPage'
+import { ADMIN_SECTION_ORDER, AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, DEFAULT_ADMIN_SECTION, IngestionCard, IngestionFilters, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : 'PENDING',
@@ -20,6 +20,11 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('minimal Admin UI', () => {
+  it('presents the Admin sections in operational order and starts at Ingestions', () => {
+    expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'sailors', 'sessions'])
+    expect(DEFAULT_ADMIN_SECTION).toBe('ingestions')
+  })
+
   it('renders a password credential form without putting a key in markup', () => {
     const markup = renderToStaticMarkup(<AdminAccessForm onEnter={() => undefined} error={null} busy={false} />)
 

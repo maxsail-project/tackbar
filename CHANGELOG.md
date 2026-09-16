@@ -14,6 +14,7 @@ TackBar v0.6.3 is a focused mobile and tablet corrective release for the visual 
 * Pointer capture and cancellation handling keep chart selection local and prevent stale selections when an interaction is cancelled or loses capture.
 * Admin Session capability links use the shorter responsive microcopy `Open session` instead of `Open shared Session`.
 * Session Viewer Activity selectors hide the domain of email-derived labels while retaining `@`.
+* Admin navigation now follows `Ingestions → Sailors → Sessions`, with Ingestions as the default section after access.
 
 ### Improved
 
@@ -42,6 +43,7 @@ TackBar v0.6.3 es una release correctiva focalizada para móvil y tablet del zoo
 * La captura de puntero y el manejo de cancelación mantienen la selección dentro del gráfico y evitan estados obsoletos cuando se cancela una interacción o se pierde la captura.
 * Los enlaces de capability de Session en Admin usan el microcopy responsive más corto `Open session` en lugar de `Open shared Session`.
 * Los selectores de Activity en Session Viewer ocultan el dominio de las etiquetas derivadas del email y conservan `@`.
+* La navegación de Admin sigue ahora `Ingestions → Sailors → Sessions`, con Ingestions como sección inicial tras el acceso.
 
 ### Mejorado
 
