@@ -20,6 +20,7 @@ import {
 } from '../utils/metricChartData'
 import {
   createTemporalRange,
+  resolveTemporalZoomChartPresentation,
   selectTemporalZoom,
   type TemporalRange,
 } from '../utils/metricChartZoom'
@@ -132,6 +133,7 @@ export default function MetricChart({
     ]),
     [comparisonSamples, primarySamples],
   )
+  const zoomPresentation = resolveTemporalZoomChartPresentation(zoomRange)
 
   // Chart zoom is local presentation state. A new filtered sample interval
   // (from an Activity or Analysis Window change) always starts unzoomed.
@@ -203,7 +205,8 @@ export default function MetricChart({
               dataKey="time"
               type="number"
               scale="time"
-              domain={zoomRange ? [zoomRange.start, zoomRange.end] : ['dataMin', 'dataMax']}
+              domain={zoomPresentation.domain}
+              allowDataOverflow={zoomPresentation.allowDataOverflow}
               tickFormatter={formatAxisTime}
               minTickGap={28}
               tick={{ fill: '#60777e', fontSize: 11 }}
@@ -234,7 +237,7 @@ export default function MetricChart({
               x={playbackTime}
               stroke="#ed7658"
               strokeWidth={2}
-              ifOverflow="extendDomain"
+              ifOverflow={zoomPresentation.playbackReferenceOverflow}
             />
             {selectionStart !== null && selectionEnd !== null && (
               <ReferenceArea

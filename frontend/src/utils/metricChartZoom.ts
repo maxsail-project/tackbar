@@ -3,6 +3,12 @@ export interface TemporalRange {
   end: number
 }
 
+export interface TemporalZoomChartPresentation {
+  domain: [number, number] | ['dataMin', 'dataMax']
+  allowDataOverflow: boolean
+  playbackReferenceOverflow: 'discard' | 'extendDomain'
+}
+
 export function createTemporalRange(timestamps: number[]): TemporalRange | null {
   const validTimestamps = timestamps.filter(Number.isFinite)
   if (validTimestamps.length === 0) return null
@@ -33,4 +39,22 @@ export function selectTemporalZoom(
   if (start === originalRange.start && end === originalRange.end) return null
 
   return { start, end }
+}
+
+export function resolveTemporalZoomChartPresentation(
+  zoomRange: TemporalRange | null,
+): TemporalZoomChartPresentation {
+  if (zoomRange === null) {
+    return {
+      domain: ['dataMin', 'dataMax'],
+      allowDataOverflow: false,
+      playbackReferenceOverflow: 'extendDomain',
+    }
+  }
+
+  return {
+    domain: [zoomRange.start, zoomRange.end],
+    allowDataOverflow: true,
+    playbackReferenceOverflow: 'discard',
+  }
 }

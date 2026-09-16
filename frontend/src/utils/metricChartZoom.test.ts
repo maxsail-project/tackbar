@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createTemporalRange, selectTemporalZoom } from './metricChartZoom'
+import {
+  createTemporalRange,
+  resolveTemporalZoomChartPresentation,
+  selectTemporalZoom,
+} from './metricChartZoom'
 
 describe('metric chart temporal zoom', () => {
   const fullRange = { start: 1_000, end: 5_000 }
@@ -40,5 +44,24 @@ describe('metric chart temporal zoom', () => {
 
     expect(timestamps).toEqual([1_000, 2_000, 5_000])
     expect(originalRange).toEqual(fullRange)
+  })
+
+  it('makes a zoomed domain authoritative without changing playback time', () => {
+    const playbackTime = 5_000
+
+    expect(resolveTemporalZoomChartPresentation({ start: 2_000, end: 4_000 })).toEqual({
+      domain: [2_000, 4_000],
+      allowDataOverflow: true,
+      playbackReferenceOverflow: 'discard',
+    })
+    expect(playbackTime).toBe(5_000)
+  })
+
+  it('restores the original domain and playback-line behavior on reset', () => {
+    expect(resolveTemporalZoomChartPresentation(null)).toEqual({
+      domain: ['dataMin', 'dataMax'],
+      allowDataOverflow: false,
+      playbackReferenceOverflow: 'extendDomain',
+    })
   })
 })
