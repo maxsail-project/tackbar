@@ -123,6 +123,12 @@ Manual production validation confirmed the real end-to-end flow:
 
 References: [requirements](docs/v0.6.1-ovh-mailbox-ingestion-requirements.md), [decisions](docs/v0.6.1-decisions.md) and [manual validation](docs/v0.6.1-manual-validation.md).
 
+### v0.6.2 — Viewer & Admin Usability
+
+Delivered: Individual SOG + COG analysis with visual temporal zoom, clearer Admin Session lifetime/capability presentation, and current Sailor consent context in Admin Ingestion results. Existing Viewer, consent, ingestion and Session semantics remain unchanged.
+
+Reference: [requirements](v0.6.2-viewer-admin-usability-requirements.md).
+
 ---
 
 ## Future 0.6.x
@@ -177,6 +183,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.5.1 | Pilot Fix & Usability | Delivered |
 | v0.6.0 | Mahon — Pilot Operations | Delivered |
 | v0.6.1 | OVH Mailbox Ingestion | Delivered / validated |
+| v0.6.2 | Viewer & Admin Usability | Delivered |
 | Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
 | v0.7.0 | Multi-Format Track Ingestion | Planned |
 
@@ -247,6 +254,12 @@ La validación manual en producción confirmó el flujo real:
 
 Referencias: [requisitos](docs/v0.6.1-ovh-mailbox-ingestion-requirements.md), [decisiones](docs/v0.6.1-decisions.md) y [validación manual](docs/v0.6.1-manual-validation.md).
 
+### v0.6.2 — Usabilidad de Viewer y Admin
+
+Entregado: análisis individual SOG + COG con zoom temporal visual, presentación más clara de la vigencia/capability de Session en Admin y contexto actual de consentimiento del Sailor en los resultados de Ingestion. Las semánticas existentes del Viewer, consentimiento, ingesta y Sessions permanecen sin cambios.
+
+Referencia: [requisitos](v0.6.2-viewer-admin-usability-requirements.md).
+
 ---
 
 ## Future 0.6.x
@@ -279,5 +292,6 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.5.1 | Pilot Fix & Usability | Entregado |
 | v0.6.0 | Mahon — Pilot Operations | Entregado |
 | v0.6.1 | OVH Mailbox Ingestion | Entregado / validado |
+| v0.6.2 | Viewer & Admin Usability | Entregado |
 | Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
 | v0.7.0 | Multi-Format Track Ingestion | Previsto |

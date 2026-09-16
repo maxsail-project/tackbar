@@ -39,55 +39,6 @@ Consider My Activities and personal single-Activity viewing if future pilot evid
 
 ---
 
-## Individual SOG + COG analysis in Session Viewer
-
-**Status:** Future  
-**Release:** Future 0.6.x  
-**Origin:** Session Viewer usability / validated MaxSail analysis pattern
-
-Add a simple `Individual Analysis` presentation inside the existing Session Viewer so sailors can inspect SOG and COG together without turning the normal two-Activity comparison chart into a four-line plot.
-
-Required direction:
-
-- the Session Viewer remains the working screen; this MUST NOT introduce a separate Activity-detail navigation flow;
-- SOG and COG MUST be shown together in a single time-series chart for each Activity, sharing the same GPS/UTC time axis, with SOG on the primary Y axis in knots and COG on a secondary Y axis in degrees from 0° to 360°;
-- each selected Activity MUST have its own independent Individual Analysis chart; with two selected Activities, show two separate dual-axis SOG + COG charts rather than combining four series in one chart;
-- both charts MUST use the same GPS/UTC time axis and the current shared Analysis Window;
-- with one selected Activity, show one individual SOG + COG analysis block for that Activity;
-- with two selected Activities, show equivalent individual SOG + COG analysis blocks for each selected Activity, keeping each Activity's two metrics visually separate from the other Activity;
-- the existing map, shared `playbackTime`, replay and Analysis Window semantics MUST remain unchanged;
-- COG MUST continue to respect existing circular-angle semantics;
-- this presentation MUST NOT introduce derived tactical metrics, maneuver detection, smoothing, causal claims or new persisted analytics data.
-
-The purpose is to make it easy to relate changes in boat speed to changes in sailing direction for each selected Activity while preserving the simple collaborative Viewer model.
-
-Other predefined individual combinations such as SOG + HEEL may be evaluated separately after this pattern is validated; they are not part of this requirement.
-
----
-
-## Temporal chart zoom
-
-**Status:** Future  
-**Release:** Future 0.6.x  
-**Origin:** Session Viewer chart usability
-
-Allow sailors to visually zoom into a shorter GPS/UTC interval inside time-series charts so short events such as a tack, acceleration or course change can be inspected in more detail without changing the current Analysis Window.
-
-Required direction:
-
-- zoom is presentation-only and MUST NOT modify the Analysis Window;
-- zoom MUST NOT change map state, Summary calculations, replay state or shared `playbackTime`;
-- the chart's original visible interval remains the reference range;
-- provide a simple `Reset` action that restores the original chart interval;
-- each chart owns its own independent visual zoom range; zooming or resetting one Activity's Individual Analysis chart MUST NOT change any other chart;
-- the implementation SHOULD reuse the existing Recharts-based chart stack and MUST NOT introduce another charting library unless a demonstrated limitation requires it;
-- touch/tablet interaction MUST remain compatible with normal page scrolling and the current mobile-first Viewer experience;
-- zoom MUST NOT persist a segment or create new Activity, track or analytics data.
-
-This requirement is intentionally limited to visual chart inspection. Persisted/saved Analysis Segments and changes to the shared Analysis Window remain separate product concerns.
-
----
-
 ## QR Session sharing
 
 **Status:** Future  
@@ -149,22 +100,6 @@ This remains separate from ACTIVE-only shared visibility and from administrative
 ---
 
 # Ingestion & email operations
-
-## Sailor consent status in Admin Ingestion result
-
-**Status:** Future  
-**Release:** Future 0.6.x
-
-Expose the resolved Sailor's current consent state (`PENDING`, `ACTIVE` or `REVOKED`) in the Admin Ingestion result so an operator can distinguish between:
-
-- a successfully processed ingestion whose Activity/Session exists and is shareable because the Sailor is `ACTIVE`;
-- a successfully processed ingestion whose resulting Activity is not currently visible in shared Sessions because the Sailor is `PENDING` or `REVOKED`.
-
-This is presentation/operational context only. It must not change consent semantics, ingestion status, Activity/Session creation, Session membership or ACTIVE-only shared visibility.
-
-Current intent is to prioritize this in the next 0.6.x usability pack, with v0.6.2 as the likely candidate. The concrete patch assignment remains to be confirmed when that pack is explicitly promoted.
-
----
 
 ## Canonical track fingerprint
 
@@ -297,25 +232,6 @@ Add concrete entries when one becomes an actual product candidate.
 ---
 
 # Session operations
-
-## Session maintenance usability
-
-**Status:** Future  
-**Release:** Future 0.6.x
-
-Improve routine Admin presentation/filtering around existing Session lifetime and capability operations without changing Session semantics.
-
-Direction:
-
-- clearer active/expired operational status;
-- preserve renew, capability copy, regeneration and revocation;
-- preserve existing Session matching and shared-access rules.
-
-The deterministic newest-sailing-first Admin Session ordering delivered for Mahon is not pending work and is therefore not part of this backlog item.
-
-Broader usability work is outside `v0.6.0 Mahon — Pilot Operations`, is not assigned to v0.6.1, and is not automatically assigned to v0.7.0. A concrete v0.6.x version will be chosen only if/when this work is promoted.
-
----
 
 # Sailing analytics
 

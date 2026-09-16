@@ -2,6 +2,72 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.6.2 — Viewer & Admin Usability
+
+### English
+
+TackBar v0.6.2 is a focused usability release that improves individual Session Viewer analysis and clarifies operational Admin context while preserving the validated v0.6.1 OVH mailbox baseline.
+
+### Added
+
+* Individual Analysis inside the existing Session Viewer with one dual-axis SOG + COG chart per selected Activity.
+* Visual-only temporal zoom with Reset and independent zoom state per chart.
+* Current Sailor consent status in the Admin Ingestion `Result` section.
+
+### Improved
+
+* Individual charts share the GPS/UTC X axis, use SOG in knots on the primary Y axis and COG on a fixed 0°–360° secondary Y axis.
+* Admin Session cards present prominent `ACTIVE` / `EXPIRED` lifetime status, expiration date and remaining days separately from Shared capability state.
+* Admin Ingestion `Processed` / `Failed` badges use the established positive/negative Admin status language, while Sailor status is labelled explicitly as `Sailor status`.
+
+### Design
+
+* Individual Analysis remains inside the existing Session Viewer; it does not introduce a separate Activity Viewer or persisted analytics.
+* Temporal zoom is presentation-only and does not change the Analysis Window, map, Summary, replay or shared `playbackTime`.
+* Sailor consent status in an Ingestion is current derived context and is not persisted as an Ingestion snapshot.
+* Session lifetime is derived only from `expires_at` and remains independent from capability state.
+* Activity identity, Session matching and membership, consent lifecycle, ACTIVE-only shared visibility, capability and renewal semantics, persistence, ingestion processing and existing comparison chart behavior remain unchanged.
+* COG circular-angle semantics remain unchanged.
+
+### Validated
+
+Focused regression checks for Individual Analysis, temporal chart zoom, Admin Ingestion and Admin Session usability passed, together with frontend typecheck, production build and `git diff --check`. No full repository regression suite is claimed for this release.
+
+---
+
+## v0.6.2 — Usabilidad de Viewer y Admin
+
+### Español
+
+TackBar v0.6.2 es una release focalizada de usabilidad que mejora el análisis individual en el Session Viewer y aclara el contexto operativo de Admin, preservando la baseline validada de v0.6.1 con buzón OVH.
+
+### Añadido
+
+* Individual Analysis dentro del Session Viewer existente, con un chart dual SOG + COG por cada Activity seleccionada.
+* Zoom temporal visual con Reset y estado de zoom independiente por chart.
+* Estado actual de consentimiento del Sailor en la sección `Result` de Admin Ingestion.
+
+### Mejorado
+
+* Los charts individuales comparten el eje GPS/UTC, usan SOG en nudos en el eje Y primario y COG en un eje Y secundario fijo de 0°–360°.
+* Las cards de Admin Session muestran de forma prominente el estado de vigencia `ACTIVE` / `EXPIRED`, la expiración y los días restantes, separado del estado de Shared capability.
+* Los badges `Processed` / `Failed` de Admin Ingestion reutilizan el lenguaje visual positivo/negativo existente; el consentimiento se etiqueta explícitamente como `Sailor status`.
+
+### Diseño
+
+* Individual Analysis permanece dentro del Session Viewer existente; no introduce un Activity Viewer separado ni analytics persistidos.
+* El zoom temporal es solo de presentación y no cambia Analysis Window, mapa, Summary, replay ni `playbackTime` compartido.
+* El estado de consentimiento del Sailor en una Ingestion es contexto actual derivado y no se persiste como snapshot de la Ingestion.
+* La vigencia de Session se deriva únicamente de `expires_at` y permanece independiente del estado de capability.
+* Se mantienen sin cambios identidad y membresía de Activity/Session, Session matching, ciclo de consentimiento, visibilidad compartida exclusiva para `ACTIVE`, semánticas de capability y renovación, persistencia, procesamiento de ingestas y chart de comparación existente.
+* Se mantienen las semánticas circulares de COG.
+
+### Validado
+
+Pasaron las comprobaciones focalizadas de Individual Analysis, zoom temporal, Admin Ingestion y Admin Session, además del typecheck frontend, build de producción y `git diff --check`. No se afirma una regresión completa del repositorio para esta release.
+
+---
+
 ## v0.6.1 — OVH Mailbox Ingestion
 
 ### English

@@ -36,7 +36,7 @@ The debrief starts when the sailing stops.
 
 `Sail → share Vakaros activity → email ingestion → Sailor → Activity → Session → capability URL → shared Session Viewer → collaborative debrief`
 
-The current pilot accepts **Vakaros CSV and CSV.GZ** exports through Gmail.
+The current pilot accepts **Vakaros CSV and CSV.GZ** exports through the OVH mailbox `share@tackbar.eu`.
 Admin triggers mailbox review, manages consent and shares Session links.
 The normalized sender email resolves the Sailor; each received track becomes
 an Activity with optional Boat context and is automatically matched to a Session.
@@ -45,9 +45,8 @@ Consent controls shared visibility, not technical ingestion or Session matching.
 Only Activities of currently `ACTIVE` Sailors appear in shared Sessions.
 Access uses a valid Session capability URL, without a general Sailor login.
 
-GPX, VKX and FIT are planned formats, not current support. OVHcloud/generalized
-multi-provider ingestion is deferred to **Future 0.6.x** and is explicitly
-outside v0.6.0 Mahon.
+GPX, VKX and FIT are planned formats, not current support. Generalized
+multi-provider ingestion remains future work.
 
 ---
 
@@ -112,7 +111,7 @@ Current technology and persistence:
 * **Frontend:** React + TypeScript Session Viewer
 * **Backend:** Python + FastAPI
 * **Persistence:** JSON metadata plus filesystem originals and normalized tracks
-* **Activity ingestion:** Gmail API adapter with provider-independent downstream processing
+* **Activity ingestion:** OVH IMAP adapter with provider-independent downstream processing
 * **Target experience:** mobile-first web application that also works naturally on tablets
 
 The current pilot connects the Viewer to Sessions, Activities and canonical tracks
@@ -163,12 +162,17 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot, with v0.6.0 Mahon — Pilot Operations as the current release candidate.**
+**Controlled real-sailing pilot, with v0.6.2 — Viewer & Admin Usability as the current delivered release.**
 
 **v0.5.0 — Real Sailing Pilot** is delivered and validated end-to-end with real
 Gmail messages, runtime persistence, explicit consent and capability-based
 shared Session access. **v0.5.1 — Pilot Fix & Usability** is delivered, adding
 clearer sailing and participation context to Admin.
+
+**v0.6.1 — OVH Mailbox Ingestion** replaced Gmail as the operational mailbox with
+`share@tackbar.eu` on OVHcloud Zimbra. **v0.6.2 — Viewer & Admin Usability** adds
+Individual SOG + COG analysis, temporal chart zoom and clearer Admin operational
+context.
 
 The delivered v0.5.x baseline includes Sailor / optional Boat context, automatic
 Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
@@ -187,7 +191,7 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ### v0.6.0 Mahon — Pilot Operations
 
-The current release candidate consolidates all v0.6 work developed after v0.5.1
+The delivered v0.6.0 release consolidated all v0.6 work developed after v0.5.1
 for the Mahon pilot. Its scope includes:
 
 - Personal TackBar / My Sessions with stable personal capability access for ACTIVE Sailors;
@@ -201,9 +205,9 @@ for the Mahon pilot. Its scope includes:
 - standard MapLibre navigation/compass controls for manual rotation/reset;
 - focused hardening and release validation.
 
-OVHcloud/generalized multi-provider ingestion and broader Session-maintenance
-usability are explicitly outside v0.6.0 and remain **Future 0.6.x**. Individual
-personal Activity history/access is also not committed v0.6.0 scope.
+OVHcloud ingestion was subsequently delivered in v0.6.1; the v0.6.2 usability
+work is documented below. Individual personal Activity history/access remains
+outside the committed scope.
 
 Manual release validation is recorded in
 [`docs/v0.6.0-manual-test.md`](docs/v0.6.0-manual-test.md).
@@ -211,12 +215,21 @@ Manual release validation is recorded in
 See the [v0.6 requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md),
 [v0.6 decisions](docs/v0.6-decisions.md) and [ROADMAP](ROADMAP.md).
 
+### v0.6.2 — Viewer & Admin Usability
+
+The current delivered release adds Individual SOG + COG analysis with visual-only
+temporal zoom, clearer Admin Session lifetime/capability presentation and current
+Sailor consent context in Admin Ingestion results. It preserves the v0.6.1 OVH
+mailbox baseline and existing Viewer, consent, ingestion, capability and
+Session semantics.
+
+See the [v0.6.2 requirements](docs/v0.6.2-viewer-admin-usability-requirements.md).
+
 ### Future 0.6.x
 
 Valid operational follow-up remains unassigned until explicitly promoted to a
-concrete patch release. Current examples are multi-provider email ingestion /
-OVHcloud and broader Session-maintenance usability. Patch numbers such as
-v0.6.1 and v0.6.2 are not pre-reserved for feature work.
+concrete patch release. Current examples are additional mailbox providers and
+broader operational work.
 
 ### v0.7.0 — Multi-Format Track Ingestion
 
@@ -284,7 +297,7 @@ El debriefing empieza cuando termina la navegación.
 
 `Navegar → compartir actividad Vakaros → ingesta por email → Sailor → Activity → Session → capability URL → Session Viewer compartido → debriefing colaborativo`
 
-El piloto actual admite exportaciones **Vakaros CSV y CSV.GZ** mediante Gmail.
+El piloto actual admite exportaciones **Vakaros CSV y CSV.GZ** mediante el buzón OVH `share@tackbar.eu`.
 Admin inicia la revisión del buzón, gestiona el consentimiento y comparte los
 enlaces de Session. El email remitente normalizado resuelve el Sailor; cada
 track recibido se convierte en una Activity con contexto Boat opcional y se
@@ -362,7 +375,7 @@ Tecnología y persistencia actuales:
 * **Frontend:** Session Viewer con React + TypeScript
 * **Backend:** Python + FastAPI
 * **Persistencia:** metadata JSON más originales y tracks normalizados en el sistema de archivos
-* **Ingesta de Activity:** adaptador Gmail API con procesamiento posterior independiente del proveedor
+* **Ingesta de Activity:** adaptador IMAP OVH con procesamiento posterior independiente del proveedor
 * **Experiencia objetivo:** aplicación web mobile-first que también funciona de forma natural en tablet
 
 El piloto actual conecta el Viewer con Sessions, Activities y tracks canónicos realmente
@@ -413,13 +426,18 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Piloto controlado con navegaciones reales, con v0.6.0 Mahon — Pilot Operations como release candidate actual.**
+**Piloto controlado con navegaciones reales, con v0.6.2 — Usabilidad de Viewer y Admin como release entregada actual.**
 
 **v0.5.0 — Real Sailing Pilot** está entregado y validado de extremo a extremo
 con mensajes Gmail reales, persistencia runtime, consentimiento explícito y
 acceso compartido a Sessions mediante capability URL. **v0.5.1 — Pilot Fix &
 Usability** está entregado y aporta un contexto más claro de navegación y
 participación en Admin.
+
+**v0.6.1 — OVH Mailbox Ingestion** sustituyó Gmail como buzón operativo por
+`share@tackbar.eu` en OVHcloud Zimbra. **v0.6.2 — Usabilidad de Viewer y Admin**
+añade análisis individual SOG + COG, zoom temporal y un contexto operativo Admin
+más claro.
 
 La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session
 matching automático, comparación de una/dos Activities, Analysis Window GPS/UTC
@@ -438,7 +456,7 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ### v0.6.0 Mahon — Pilot Operations
 
-La release candidate actual consolida todo el trabajo v0.6 desarrollado después
+La release v0.6.0 entregada consolidó todo el trabajo v0.6 desarrollado después
 de v0.5.1 para el piloto de Mahon. Su alcance incluye:
 
 - Personal TackBar / My Sessions con capability personal estable para Sailors ACTIVE;
@@ -452,10 +470,9 @@ de v0.5.1 para el piloto de Mahon. Su alcance incluye:
 - controles estándar MapLibre de navegación/brújula para rotación/reset manual;
 - hardening y validación enfocada de release.
 
-OVHcloud / ingesta multi-proveedor generalizada y mejoras amplias de
-mantenimiento de Sessions están explícitamente fuera de v0.6.0 y permanecen en
-**Future 0.6.x**. El historial/acceso individual a Activities tampoco forma
-parte del alcance comprometido de v0.6.0.
+La ingesta OVHcloud se entregó posteriormente en v0.6.1; la usabilidad v0.6.2 se
+documenta más abajo. El historial/acceso individual a Activities sigue fuera
+del alcance comprometido.
 
 La validación manual de release se registra en
 [`docs/v0.6.0-manual-test.md`](docs/v0.6.0-manual-test.md).
@@ -463,12 +480,20 @@ La validación manual de release se registra en
 Consulta los [requisitos v0.6](docs/v0.6-personal-tackbar-pilot-operations-requirements.md),
 las [decisiones v0.6](docs/v0.6-decisions.md) y el [ROADMAP](ROADMAP.md).
 
+### v0.6.2 — Usabilidad de Viewer y Admin
+
+La release entregada actual añade análisis individual SOG + COG con zoom temporal
+solo visual, una presentación más clara de vigencia/capability de Session en Admin
+y el contexto actual de consentimiento del Sailor en los resultados de Ingestion.
+Preserva la baseline v0.6.1 de buzón OVH y las semánticas existentes.
+
+Consulta los [requisitos v0.6.2](docs/v0.6.2-viewer-admin-usability-requirements.md).
+
 ### Future 0.6.x
 
 El seguimiento operativo válido permanece sin versión concreta hasta que se
-promueva explícitamente. Los ejemplos actuales son la ingesta multi-proveedor /
-OVHcloud y mejoras amplias de mantenimiento de Sessions. Los números de patch
-como v0.6.1 y v0.6.2 no están reservados previamente para features.
+promueva explícitamente. Entre los ejemplos actuales están proveedores de buzón
+adicionales y trabajo operativo más amplio.
 
 ### v0.7.0 — Multi-Format Track Ingestion
 
