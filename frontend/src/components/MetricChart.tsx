@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -17,6 +18,11 @@ import {
   buildScalarChartPoints,
   type ScalarChartMetric,
 } from '../utils/metricChartData'
+import {
+  createTemporalRange,
+  selectTemporalZoom,
+  type TemporalRange,
+} from '../utils/metricChartZoom'
 import { formatGpsTime, timestampToMilliseconds } from '../utils/replay'
 
 interface MetricChartProps {
@@ -40,6 +46,9 @@ export default function MetricChart({
   primaryLabel,
   comparisonLabel,
 }: MetricChartProps) {
+  const [zoomRange, setZoomRange] = useState<TemporalRange | null>(null)
+  const [selectionStart, setSelectionStart] = useState<number | null>(null)
+  const [selectionEnd, setSelectionEnd] = useState<number | null>(null)
   const scalarMetric: ScalarChartMetric | null = metric === 'HEEL'
     || metric === 'TRIM'
     ? metric
@@ -116,6 +125,33 @@ export default function MetricChart({
     : isSignedOrientation
       ? hasValidScalar
       : chartPoints.length > 0
+  const originalRange = useMemo(
+    () => createTemporalRange([
+      ...(primarySamples ?? []).map((sample) => timestampToMilliseconds(sample.utc)),
+      ...(comparisonSamples ?? []).map((sample) => timestampToMilliseconds(sample.utc)),
+    ]),
+    [comparisonSamples, primarySamples],
+  )
+
+  // Chart zoom is local presentation state. A new filtered sample interval
+  // (from an Activity or Analysis Window change) always starts unzoomed.
+  useEffect(() => {
+    setZoomRange(null)
+    setSelectionStart(null)
+    setSelectionEnd(null)
+  }, [originalRange?.end, originalRange?.start])
+
+  function timestampFromChartEvent(event: { activeLabel?: unknown } | undefined) {
+    const value = Number(event?.activeLabel)
+    return Number.isFinite(value) ? value : null
+  }
+
+  function finishSelection(event: { activeLabel?: unknown } | undefined) {
+    const selectionEnd = timestampFromChartEvent(event)
+    setZoomRange(selectTemporalZoom(originalRange, selectionStart, selectionEnd))
+    setSelectionStart(null)
+    setSelectionEnd(null)
+  }
 
   if (!hasChartData || playbackTime === null) {
     return (
@@ -128,8 +164,19 @@ export default function MetricChart({
   return (
     <section className="metric-chart" aria-label={`${metric} time-series chart`}>
       <div className="metric-chart__heading">
-        <strong>{metric} over GPS time</strong>
-        <span>{usesDegrees ? 'degrees' : 'knots'} · UTC</span>
+        <div>
+          <strong>{metric} over GPS time</strong>
+          <span>{usesDegrees ? 'degrees' : 'knots'} · UTC</span>
+        </div>
+        {zoomRange && (
+          <button
+            className="metric-chart__reset"
+            type="button"
+            onClick={() => setZoomRange(null)}
+          >
+            Reset
+          </button>
+        )}
       </div>
       <div className="metric-chart__canvas">
         <ResponsiveContainer width="100%" height="100%">
@@ -137,13 +184,26 @@ export default function MetricChart({
             data={isSignedOrientation ? timelinePoints : chartPoints}
             margin={{ top: 8, right: 8, bottom: 0, left: -12 }}
             accessibilityLayer
+            onMouseDown={(event) => {
+              const timestamp = timestampFromChartEvent(event)
+              setSelectionStart(timestamp)
+              setSelectionEnd(timestamp)
+            }}
+            onMouseMove={(event) => {
+              if (selectionStart !== null) setSelectionEnd(timestampFromChartEvent(event))
+            }}
+            onMouseUp={finishSelection}
+            onMouseLeave={() => {
+              setSelectionStart(null)
+              setSelectionEnd(null)
+            }}
           >
             <CartesianGrid stroke="#dbe6e8" strokeDasharray="3 4" vertical={false} />
             <XAxis
               dataKey="time"
               type="number"
               scale="time"
-              domain={['dataMin', 'dataMax']}
+              domain={zoomRange ? [zoomRange.start, zoomRange.end] : ['dataMin', 'dataMax']}
               tickFormatter={formatAxisTime}
               minTickGap={28}
               tick={{ fill: '#60777e', fontSize: 11 }}
@@ -176,6 +236,14 @@ export default function MetricChart({
               strokeWidth={2}
               ifOverflow="extendDomain"
             />
+            {selectionStart !== null && selectionEnd !== null && (
+              <ReferenceArea
+                x1={selectionStart}
+                x2={selectionEnd}
+                fill="#168097"
+                fillOpacity={0.12}
+              />
+            )}
             {isSignedOrientation && (
               <ReferenceLine
                 y={0}

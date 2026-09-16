@@ -705,10 +705,27 @@ input:focus-visible {
   color: #17323a;
 }
 
+.metric-chart__heading > div {
+  display: grid;
+  gap: 2px;
+}
+
 .metric-chart__heading span {
   color: #647b82;
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.metric-chart__reset {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #c9d9dc;
+  border-radius: 8px;
+  color: #49656d;
+  background: #f7fafb;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .metric-chart__canvas {
@@ -716,6 +733,7 @@ input:focus-visible {
   min-width: 0;
   height: 240px;
   margin-top: 12px;
+  touch-action: pan-y;
 }
 
 .metric-chart--empty {
