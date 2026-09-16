@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionActivity } from '../types/session'
-import { formatActivityIdentity, formatActivityLabel } from './activityLabel'
+import {
+  formatActivityIdentity,
+  formatActivityLabel,
+  formatActivitySelectorLabel,
+} from './activityLabel'
 
 function activity(overrides: Partial<SessionActivity> = {}): SessionActivity {
   return {
@@ -62,5 +66,28 @@ describe('Activity presentation labels', () => {
       boat: null,
       sailor: { id: 'sailor-internal-id', name: null, email: ' ' },
     }))).toBe('sailor-internal-id')
+  })
+
+  it('hides the domain for an email-derived selector identity while retaining @ and time', () => {
+    const emailActivity = activity({
+      boat: null,
+      sailor: { id: 'sailor-1', name: null, email: 'maxi@example.com' },
+    })
+
+    expect(formatActivitySelectorLabel(emailActivity)).toBe('maxi@ · 08:03–10:42')
+    expect(formatActivityLabel(emailActivity)).toBe('maxi@example.com · 08:03–10:42')
+    expect(formatActivitySelectorLabel(activity({
+      boat: null,
+      sailor: { id: 'sailor-1', name: null, email: 'maxi+vakaros@example.com' },
+    }))).toBe('maxi+vakaros@ · 08:03–10:42')
+  })
+
+  it('keeps non-email, Boat and Sailor-name selector identities unchanged', () => {
+    expect(formatActivitySelectorLabel(activity({
+      boat: null,
+      sailor: { id: 'sailor-1', name: null, email: 'maxi' },
+    }))).toBe('maxi · 08:03–10:42')
+    expect(formatActivitySelectorLabel(activity({ boat: null }))).toBe('Sailor A · 08:03–10:42')
+    expect(formatActivitySelectorLabel(activity())).toBe('DEMO-1001 · 08:03–10:42')
   })
 })

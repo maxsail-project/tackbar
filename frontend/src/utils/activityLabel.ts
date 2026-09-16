@@ -27,3 +27,21 @@ export function formatActivityLabel(activity: SessionActivity) {
 
   return `${identity} · ${utcHourMinute(activity.start_time)}–${utcHourMinute(activity.end_time)}`
 }
+
+export function formatActivitySelectorIdentity(activity: SessionActivity) {
+  const identity = formatActivityIdentity(activity)
+  const boatIdentity = firstNonEmpty(activity.boat?.sail_number, activity.boat?.name)
+  const sailorName = firstNonEmpty(activity.sailor.name)
+  const sailorEmail = firstNonEmpty(activity.sailor.email)
+
+  if (boatIdentity || sailorName || identity !== sailorEmail || !sailorEmail) return identity
+
+  const atIndex = sailorEmail.indexOf('@')
+  return atIndex >= 0 ? sailorEmail.slice(0, atIndex + 1) : identity
+}
+
+export function formatActivitySelectorLabel(activity: SessionActivity) {
+  const identity = formatActivitySelectorIdentity(activity)
+
+  return `${identity} · ${utcHourMinute(activity.start_time)}–${utcHourMinute(activity.end_time)}`
+}

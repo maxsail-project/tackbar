@@ -1,5 +1,5 @@
 import type { SessionActivity } from '../types/session'
-import { formatActivityLabel } from '../utils/activityLabel'
+import { formatActivitySelectorLabel } from '../utils/activityLabel'
 
 interface ActivitySelectorProps {
   label: string
@@ -35,7 +35,7 @@ export default function ActivitySelector({
           )}
           {activities.map((activity) => (
             <option key={activity.id} value={activity.id}>
-              {formatActivityLabel(activity)}
+              {formatActivitySelectorLabel(activity)}
             </option>
           ))}
         </select>
