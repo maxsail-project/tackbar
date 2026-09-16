@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminIngestion, AdminSailorDetail, AdminSession } from '../types/admin'
-import { AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, IngestionCard, IngestionFilters, PersonalCapabilityControls, SailorDetail, SessionCard } from './AdminPage'
+import { AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, IngestionCard, IngestionFilters, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : 'PENDING',
@@ -17,7 +17,7 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', active_sailors: [{ id: 'sailor-1', label: 'Test Sailor' }], consent_active_count: 1, consent_pending_count: 0, consent_revoked_count: 0,
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('minimal Admin UI', () => {
   it('renders a password credential form without putting a key in markup', () => {
@@ -77,16 +77,40 @@ describe('minimal Admin UI', () => {
   })
 
   it('shows counts, active link actions and renewal-from-now wording', () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-18T12:00:00Z'))
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
     const callbacks = { busy: false, onRegenerate: () => undefined, onRevoke: () => undefined, onRenew: () => undefined }
     const markup = renderToStaticMarkup(<SessionCard session={session('active')} {...callbacks} />)
 
+    expect(markup).toContain('>ACTIVE<')
+    expect(markup).toContain('Expires')
+    expect(markup).toContain('12 days remaining')
+    expect(markup).toContain('Shared capability')
     expect(markup).toContain('Internal tracks')
     expect(markup).toContain('Shareable now')
     expect(markup).toContain('Copy link')
     expect(markup).toContain('Open shared Session')
     expect(markup).toContain('Sets expiry to days from now')
     expect(markup).toContain('value="30"')
+  })
+
+  it('presents Session lifetime from expiry independently of shared capability', () => {
+    const now = new Date('2026-09-18T12:00:00Z')
+    expect(sessionLifetimePresentation('2026-09-18T13:00:00Z', now)).toMatchObject({ state: 'active', expiration: expect.stringContaining('1 days remaining') })
+    expect(sessionLifetimePresentation('2026-09-18T12:00:00Z', now)).toMatchObject({ state: 'expired', expiration: expect.stringContaining('Expired') })
+
+    vi.useFakeTimers(); vi.setSystemTime(now)
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const revoked = renderToStaticMarkup(<SessionCard session={session('revoked')} busy={false} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+    const expired = renderToStaticMarkup(<SessionCard session={{ ...session('active'), expires_at: '2026-09-01T10:00:00Z' }} busy={false} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+
+    expect(revoked).toContain('>ACTIVE<')
+    expect(revoked).toContain('Shared capability')
+    expect(revoked).toContain('>Revoked<')
+    expect(expired).toContain('>EXPIRED<')
+    expect(expired).toContain('Expired')
+    expect(expired).toContain('>Active<')
+    expect(expired).toContain('Renew')
   })
 
   it('hides active link actions while a mutation or refresh is pending', () => {

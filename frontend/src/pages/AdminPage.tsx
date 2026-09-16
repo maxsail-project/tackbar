@@ -47,6 +47,12 @@ function localDate(value: string | null) {
   return value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—'
 }
 
+export function sessionLifetimePresentation(expiresAt: string, now = new Date()) {
+  const remainingMilliseconds = new Date(expiresAt).getTime() - now.getTime()
+  if (remainingMilliseconds <= 0) return { state: 'expired' as const, expiration: `Expired ${localDate(expiresAt)}` }
+  return { state: 'active' as const, expiration: `Expires ${localDate(expiresAt)} · ${Math.ceil(remainingMilliseconds / 86_400_000)} days remaining` }
+}
+
 function sailingDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
@@ -229,12 +235,15 @@ export function SessionCard({ session, busy, onRegenerate, onRevoke, onRenew }: 
   const sailing = session.sailing_start && session.sailing_end ? (() => { const start = new Date(session.sailing_start); const end = new Date(session.sailing_end); const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }); const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }); return day.format(start) === day.format(end) ? `${day.format(start)} · ${time.format(start)}–${time.format(end)}` : `${localDate(session.sailing_start)}–${localDate(session.sailing_end)}` })() : '—'
   const consentParts: Array<[string, number]> = [['ACTIVE', session.consent_active_count], ['PENDING', session.consent_pending_count], ['REVOKED', session.consent_revoked_count]]
   const consent = consentParts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join(' · ')
-  return <article className="admin-card"><div className="admin-card__heading"><div><h2 title={session.id}>{session.id}</h2><p>Created {localDate(session.created_at)}</p></div><span className={`state-badge state-${session.capability_state}`}>{capabilityLabels[session.capability_state]}</span></div>
+  const lifetime = sessionLifetimePresentation(session.expires_at)
+  return <article className="admin-card admin-session-card"><div className="admin-card__heading"><div><h2 title={session.id}>Session · {sailing}</h2><p>{session.id} · Created {localDate(session.created_at)}</p></div><span className={`state-badge state-${lifetime.state}`}>{lifetime.state.toUpperCase()}</span></div>
+    <p className="admin-session-expiration">{lifetime.expiration}</p>
     <p className="admin-meta"><strong>Sailing:</strong> {sailing}<br /><strong>Sailors:</strong> {session.active_sailors.map((sailor) => sailor.label).join(' · ') || '—'}<br /><strong>Consent:</strong> {consent}</p>
     <dl className="session-counts"><div><dt>Internal tracks</dt><dd>{session.total_activity_count}</dd></div><div><dt>Shareable now</dt><dd>{session.visible_activity_count}</dd></div></dl>
-    <p className="admin-meta"><strong>Expires:</strong> {localDate(session.expires_at)}</p>
-    {url && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(url)}>Copy link</button><a className="admin-button" href={session.capability_path!} target="_blank" rel="noreferrer">Open shared Session</a></div>}
-    <div className="admin-actions"><button disabled={busy} onClick={onRegenerate}>Regenerate capability</button><button disabled={busy} className="danger" onClick={onRevoke}>Revoke capability</button></div>
+    <section className="admin-session-capability"><h3>Shared capability</h3><span className={`state-badge state-${session.capability_state}`}>{capabilityLabels[session.capability_state]}</span>
+      {url && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(url)}>Copy link</button><a className="admin-button" href={session.capability_path!} target="_blank" rel="noreferrer">Open shared Session</a></div>}
+      <div className="admin-actions"><button disabled={busy} onClick={onRegenerate}>Regenerate capability</button><button disabled={busy} className="danger" onClick={onRevoke}>Revoke capability</button></div>
+    </section>
     <form className="renew-form" onSubmit={(event) => { event.preventDefault(); if (days >= 1 && days <= 365) onRenew(days) }}><label>Renew Session <span>Sets expiry to days from now</span><input type="number" min="1" max="365" value={days} onChange={(event) => setDays(Number(event.target.value))} /></label><button disabled={busy || days < 1 || days > 365}>Renew</button></form>
   </article>
 }
