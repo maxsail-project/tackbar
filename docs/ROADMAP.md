@@ -135,6 +135,20 @@ Delivered: focused mobile/tablet Pointer Events chart-zoom correction, shorter A
 
 Reference: [requirements](v0.6.3-usability-and-maintenance-requirements.md).
 
+### v0.6.4 — Sailor Activation Welcome Email
+
+Committed / Planned: one operational welcome email follows successful Admin
+consent confirmation, using authenticated OVH SMTP from `share@tackbar.eu`.
+The message contains English and Spanish, both Vakaros Connect guides and the
+Sailor's Personal TackBar link. Delivery failure remains separate from consent;
+Admin receives minimal delivery status and an explicit resend operation, without
+a general outbound-mail platform. The release package also includes the pending
+SailorDetail Session-history presentation fix committed after v0.6.3, which is
+not a second product objective.
+
+References: [requirements](v0.6.4-sailor-activation-welcome-email-requirements.md)
+and [decisions](v0.6.4-decisions.md).
+
 ---
 
 ## Future 0.6.x
@@ -191,6 +205,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.1 | OVH Mailbox Ingestion | Delivered / validated |
 | v0.6.2 | Viewer & Admin Usability | Delivered |
 | v0.6.3 | Usability & Maintenance | Delivered |
+| v0.6.4 | Sailor Activation Welcome Email | Committed / Planned |
 | Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
 | v0.7.0 | Multi-Format Track Ingestion | Planned |
 
@@ -273,6 +288,20 @@ Entregado: corrección focalizada del zoom de gráficos con Pointer Events en m�
 
 Referencia: [requisitos](v0.6.3-usability-and-maintenance-requirements.md).
 
+### v0.6.4 — Correo de bienvenida tras la activación de Sailor
+
+Comprometido / Previsto: un correo de bienvenida operativo sigue a la
+confirmación de consentimiento desde Admin, usando SMTP autenticado de OVH desde
+`share@tackbar.eu`. El mensaje incluye inglés y español, ambas guías de Vakaros
+Connect y el enlace Personal TackBar del Sailor. Un fallo de entrega permanece
+separado del consentimiento; Admin recibe estado mínimo y reenvío explícito, sin
+una plataforma general de correo saliente. El paquete también incluye la mejora
+pendiente de presentación del historial de Session en SailorDetail, confirmada
+después de v0.6.3 y que no constituye un segundo objetivo.
+
+Referencias: [requisitos](v0.6.4-sailor-activation-welcome-email-requirements.md)
+y [decisiones](v0.6.4-decisions.md).
+
 ---
 
 ## Future 0.6.x
@@ -307,5 +336,6 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.6.1 | OVH Mailbox Ingestion | Entregado / validado |
 | v0.6.2 | Viewer & Admin Usability | Entregado |
 | v0.6.3 | Usabilidad y mantenimiento | Entregado |
+| v0.6.4 | Correo de bienvenida tras la activación de Sailor | Comprometido / Previsto |
 | Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
 | v0.7.0 | Multi-Format Track Ingestion | Previsto |

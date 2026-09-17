@@ -56,6 +56,12 @@ For v0.6.1 OVH Mailbox Ingestion work, including OVHcloud/Zimbra IMAP acquisitio
 
 The v0.6.1 documents explicitly promote the OVH mailbox work that v0.6.0 historical documents had deferred. For v0.6.1 implementation, treat the v0.6.1 requirements/decisions as the current release scope while preserving all unchanged v0.6.0 semantics.
 
+For v0.6.4 work involving consent activation, outbound SMTP, welcome-email
+delivery state, Personal TackBar delivery or Admin resend, also read both:
+
+- `docs/v0.6.4-sailor-activation-welcome-email-requirements.md`
+- `docs/v0.6.4-decisions.md`
+
 ## Instruction hierarchy
 
 Interpret repository instructions in this order:

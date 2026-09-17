@@ -135,14 +135,17 @@ Future design should consider provider adapters, polling interval, pagination, l
 
 ---
 
-## Automatic outbound email
+## Additional automatic outbound email
 
 **Status:** Future  
 **Release:** Unassigned
 
-Automate selected outgoing TackBar emails, potentially including consent/invitation requests, processed Activity/Session links and Personal TackBar links.
+v0.6.4 promotes only the Sailor activation welcome email. Other outbound flows
+remain Future / Unassigned, including consent/invitation requests, processed
+Activity or Session notifications and other operational messages.
 
-Exact provider scopes, threading and sending mechanism must be decided before implementation.
+Each additional outbound-email workflow requires a separate explicit product
+decision before implementation.
 
 ---
 
