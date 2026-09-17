@@ -13,6 +13,7 @@ TackBar v0.6.3 is a focused mobile and tablet corrective release for the visual 
 * Time-series charts now use Pointer Events for touch, stylus and mouse press-drag-release zoom selection.
 * Pointer capture and cancellation handling keep chart selection local and prevent stale selections when an interaction is cancelled or loses capture.
 * Admin Session capability links use the shorter responsive microcopy `Open session` instead of `Open shared Session`.
+* Sailor detail Session history cards now separate sailing date/time, capability state, Activity/expiry metadata and Session access for a clearer mobile-first hierarchy, with correct `Activity` / `Activities` wording.
 * Session Viewer Activity selectors hide the domain of email-derived labels while retaining `@`.
 * Admin navigation now follows `Ingestions → Sailors → Sessions`, with Ingestions as the default section after access.
 
@@ -42,6 +43,7 @@ TackBar v0.6.3 es una release correctiva focalizada para móvil y tablet del zoo
 * Los gráficos temporales usan ahora Pointer Events para la selección de zoom mediante pulsar, arrastrar y soltar con toque, lápiz o ratón.
 * La captura de puntero y el manejo de cancelación mantienen la selección dentro del gráfico y evitan estados obsoletos cuando se cancela una interacción o se pierde la captura.
 * Los enlaces de capability de Session en Admin usan el microcopy responsive más corto `Open session` en lugar de `Open shared Session`.
+* Las cards del historial de Session en el detalle de Sailor separan fecha/hora de navegación, estado de capability, metadata de Activity/expiración y acceso a Session para una jerarquía mobile-first más clara, con el uso correcto de `Activity` / `Activities`.
 * Los selectores de Activity en Session Viewer ocultan el dominio de las etiquetas derivadas del email y conservan `@`.
 * La navegación de Admin sigue ahora `Ingestions → Sailors → Sessions`, con Ingestions como sección inicial tras el acceso.
 

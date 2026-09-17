@@ -922,6 +922,16 @@ input:focus-visible {
 .admin-session-expiration { margin: 14px 0; color: var(--color-navy); font-size: .9rem; font-weight: 750; }
 .admin-session-capability { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
 .admin-session-capability h3 { margin: 0 0 8px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.admin-sailor-session__date, .admin-sailor-session__interval { display: block; color: var(--color-navy); }
+.admin-sailor-session__date { font-size: 1.12rem; font-weight: 800; text-transform: uppercase; }
+.admin-sailor-session__interval { margin: 3px 0 0; font-size: .9rem; font-weight: 700; }
+.admin-sailor-session__details { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 16px 0; }
+.admin-sailor-session__details div { padding: 10px; border-radius: 9px; background: var(--color-background); }
+.admin-sailor-session__details dt { color: var(--color-navy); font-size: .72rem; }
+.admin-sailor-session__details dd { margin: 4px 0 0; color: var(--color-navy); font-size: .85rem; font-weight: 750; }
+.admin-sailor-session__access { padding-top: 14px; border-top: 1px solid var(--color-pale); }
+.admin-sailor-session__access h4 { margin: 0; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.admin-sailor-session__access .admin-actions { margin-top: 8px; }
 .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .event-list { display: grid; gap: 10px; padding-left: 20px; }
 .event-list li span { display: block; color: var(--color-navy); font-size: .76rem; }

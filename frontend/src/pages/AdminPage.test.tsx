@@ -100,19 +100,47 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('value="30"')
   })
 
-  it('uses the shorter action copy in Sailor Session history without changing the capability href', () => {
+  it('organizes Sailor Session history around sailing, details and access without changing the capability href', () => {
     const detail: AdminSailorDetail = {
       ...sailor('active'),
       sessions: [{
         session_id: 'session-123', sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z',
         sailor_activity_count: 1, expires_at: '2026-09-30T10:00:00Z', capability_state: 'active', capability_path: '/s/token',
+      }, {
+        session_id: 'session-456', sailing_start: '2026-08-02T08:00:00Z', sailing_end: '2026-08-02T10:00:00Z',
+        sailor_activity_count: 2, expires_at: '2026-10-30T10:00:00Z', capability_state: 'expired', capability_path: null,
       }],
     }
     const markup = renderToStaticMarkup(<SailorDetail sailor={detail} busy={false} onRequested={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} />)
 
+    expect(markup).toContain('admin-sailor-session__date')
+    expect(markup).toContain('admin-sailor-session__interval')
+    expect(markup).toContain('>Active<')
+    expect(markup).toContain('>Expired<')
+    expect(markup).toContain('>Activities</dt><dd>1 Activity</dd>')
+    expect(markup).toContain('>Activities</dt><dd>2 Activities</dd>')
+    expect(markup).toContain('>Expires</dt>')
+    expect(markup).toContain('Session access')
+    expect(markup.indexOf('Session access')).toBeGreaterThan(markup.indexOf('>Expires</dt>'))
     expect(markup).toContain('href="/s/token"')
     expect(markup).toContain('>Open session</a>')
     expect(markup).not.toContain('Open shared Session')
+  })
+
+  it('keeps Sailor Session history links unavailable when consent or capability conditions do not permit them', () => {
+    const unavailable: AdminSailorDetail = {
+      ...sailor('pending_needs_request'),
+      sessions: [{
+        session_id: 'session-123', sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z',
+        sailor_activity_count: 1, expires_at: '2026-09-30T10:00:00Z', capability_state: 'active', capability_path: '/s/token',
+      }],
+    }
+    const markup = renderToStaticMarkup(<SailorDetail sailor={unavailable} busy={false} onRequested={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} />)
+
+    expect(markup).toContain('>Active<')
+    expect(markup).not.toContain('Session access')
+    expect(markup).not.toContain('Open session')
+    expect(markup).not.toContain('href="/s/token"')
   })
 
   it('presents Session lifetime from expiry independently of shared capability', () => {
