@@ -11,6 +11,7 @@ from app.repositories.sessions import SessionRepository
 from app.services.session_capabilities import SessionCapabilityService
 from app.services.personal_capabilities import PersonalCapabilityService
 from app.services.welcome_email_delivery import (
+    WELCOME_EMAIL_DELIVERY_FAILURE,
     WelcomeEmailDeliveryError,
     send_welcome_email,
 )
@@ -18,9 +19,6 @@ from app.services.welcome_email_delivery import (
 
 class ConsentTransitionError(ValueError):
     pass
-
-
-WELCOME_EMAIL_DELIVERY_FAILURE = "Welcome email delivery failed"
 
 
 class SailorConsentService:
@@ -93,6 +91,11 @@ class SailorConsentService:
         )
         self.session_capabilities.ensure_for_sailor(sailor_id)
         active_sailor = self.personal_capabilities.ensure_for_sailor(sailor_id)
+        if (
+            active_sailor.personal_capability_token is None
+            or active_sailor.personal_capability_revoked
+        ):
+            return active_sailor
         capability_path = self._personal_capability_path(active_sailor)
         try:
             self.welcome_email_sender(active_sailor.email, capability_path)

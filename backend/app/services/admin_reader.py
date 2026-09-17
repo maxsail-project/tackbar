@@ -103,6 +103,8 @@ class AdminReader:
                 and not sailor.personal_capability_revoked
                 and sailor.consent_status == ConsentStatus.ACTIVE else None
             ),
+            welcome_email_sent_at=sailor.welcome_email_sent_at,
+            welcome_email_last_error=sailor.welcome_email_last_error,
         )
 
     def _validate_consent_event_sailors(self, sailor_ids: set[str]) -> None:

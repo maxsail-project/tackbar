@@ -13,6 +13,7 @@ from app.config import CURRENT_CONSENT_AGREEMENT_VERSION
 from app.main import app
 from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
 from app.services.ingestion_history import IngestionHistory
+from app.services.welcome_email_delivery import WelcomeEmailDeliveryError
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
 
 
@@ -33,6 +34,7 @@ SESSION_REVOKED_SAILOR = "session-revoked-sailor"
 ACTIVE_TOKEN = "admin-api-active-capability-token-000000000000001"
 REVOKED_TOKEN = "admin-api-revoked-capability-token-0000000000001"
 EXPIRED_TOKEN = "admin-api-expired-capability-token-0000000000001"
+RESEND_TOKEN = "admin-api-welcome-email-token-00000000000001"
 
 
 @dataclass(frozen=True)
@@ -208,7 +210,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 19
+    assert len(admin_router.routes) == 20
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -240,6 +242,193 @@ def test_sailor_groups_and_history_are_explicit(monkeypatch: pytest.MonkeyPatch,
         "source": "admin_confirmed_email",
         "agreement_version": CURRENT_CONSENT_AGREEMENT_VERSION,
     }]
+
+
+def test_admin_sailor_detail_exposes_welcome_email_delivery_state(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+
+    never_sent = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+
+    assert never_sent.status_code == 200
+    assert never_sent.json["welcome_email_sent_at"] is None
+    assert never_sent.json["welcome_email_last_error"] is None
+    assert never_sent.json["consent_status"] == "ACTIVE"
+    assert never_sent.json["personal_capability_state"] == "never_generated"
+    assert never_sent.json["personal_capability_path"] is None
+
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    sailor = next(item for item in sailors if item["id"] == ACTIVE)
+    sailor["welcome_email_sent_at"] = "2031-06-18T12:00:00+00:00"
+    _write_json(root / "sailors.json", sailors)
+
+    sent = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+
+    assert sent.json["welcome_email_sent_at"] == "2031-06-18T12:00:00Z"
+    assert sent.json["welcome_email_last_error"] is None
+    assert sent.json["consent_status"] == "ACTIVE"
+    assert sent.json["personal_capability_state"] == "never_generated"
+
+    sailor["welcome_email_last_error"] = "Welcome email delivery failed"
+    _write_json(root / "sailors.json", sailors)
+
+    failed = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+
+    assert failed.json["welcome_email_sent_at"] == "2031-06-18T12:00:00Z"
+    assert failed.json["welcome_email_last_error"] == "Welcome email delivery failed"
+    assert failed.json["consent_status"] == "ACTIVE"
+    assert failed.json["personal_capability_state"] == "never_generated"
+
+
+def test_admin_resend_welcome_email_reuses_current_capability_and_returns_state(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    sailor = next(item for item in sailors if item["id"] == ACTIVE)
+    sailor["personal_capability_token"] = RESEND_TOKEN
+    sailor["welcome_email_sent_at"] = "2031-06-17T12:00:00+00:00"
+    sailor["welcome_email_last_error"] = "Welcome email delivery failed"
+    _write_json(root / "sailors.json", sailors)
+    delivered: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.welcome_email_resend.send_welcome_email",
+        lambda recipient, path: delivered.append((recipient, path)),
+    )
+    sessions_before = (root / "sessions.json").read_bytes()
+    events_before = (root / "consent_events.json").read_bytes()
+
+    response = _request(
+        "POST",
+        f"/api/admin/sailors/{ACTIVE}/welcome-email/resend",
+    )
+
+    persisted = next(
+        item
+        for item in json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+        if item["id"] == ACTIVE
+    )
+    assert response.status_code == 200
+    assert delivered == [("active@example.com", f"/me/{RESEND_TOKEN}")]
+    assert response.json["personal_capability_path"] == f"/me/{RESEND_TOKEN}"
+    assert response.json["welcome_email_sent_at"] is not None
+    assert response.json["welcome_email_last_error"] is None
+    assert persisted["personal_capability_token"] == RESEND_TOKEN
+    assert persisted["personal_capability_revoked"] is False
+    assert persisted["welcome_email_sent_at"] is not None
+    assert persisted["welcome_email_last_error"] is None
+    assert (root / "sessions.json").read_bytes() == sessions_before
+    assert (root / "consent_events.json").read_bytes() == events_before
+
+
+def test_admin_resend_welcome_email_records_controlled_delivery_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    sailor = next(item for item in sailors if item["id"] == ACTIVE)
+    sailor["personal_capability_token"] = RESEND_TOKEN
+    sailor["welcome_email_sent_at"] = "2031-06-17T12:00:00+00:00"
+    _write_json(root / "sailors.json", sailors)
+    monkeypatch.setattr(
+        "app.services.welcome_email_resend.send_welcome_email",
+        lambda *_: (_ for _ in ()).throw(
+            WelcomeEmailDeliveryError("provider secret and delivery-token-secret")
+        ),
+    )
+
+    response = _request(
+        "POST",
+        f"/api/admin/sailors/{ACTIVE}/welcome-email/resend",
+    )
+
+    persisted = next(
+        item
+        for item in json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+        if item["id"] == ACTIVE
+    )
+    assert response.status_code == 200
+    assert response.json["consent_status"] == "ACTIVE"
+    assert response.json["personal_capability_path"] == f"/me/{RESEND_TOKEN}"
+    assert response.json["welcome_email_sent_at"] == "2031-06-17T12:00:00Z"
+    assert response.json["welcome_email_last_error"] == "Welcome email delivery failed"
+    assert "provider secret" not in json.dumps(response.json)
+    assert "delivery-token-secret" not in json.dumps(response.json)
+    assert persisted["personal_capability_token"] == RESEND_TOKEN
+    assert persisted["welcome_email_sent_at"] == "2031-06-17T12:00:00+00:00"
+    assert persisted["welcome_email_last_error"] == "Welcome email delivery failed"
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["pending", "revoked", "no_capability", "revoked_capability"],
+)
+def test_admin_resend_welcome_email_rejects_ineligible_sailors_without_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    case: str,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    sailor_id = {
+        "pending": PENDING_NEEDS,
+        "revoked": REVOKED,
+        "no_capability": ACTIVE,
+        "revoked_capability": ACTIVE,
+    }[case]
+    sailor = next(item for item in sailors if item["id"] == sailor_id)
+    if case == "revoked_capability":
+        sailor["personal_capability_token"] = RESEND_TOKEN
+        sailor["personal_capability_revoked"] = True
+    _write_json(root / "sailors.json", sailors)
+    delivered: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.welcome_email_resend.send_welcome_email",
+        lambda recipient, path: delivered.append((recipient, path)),
+    )
+
+    response = _request(
+        "POST",
+        f"/api/admin/sailors/{sailor_id}/welcome-email/resend",
+    )
+
+    assert response.status_code == 409
+    assert response.json == {"detail": "Welcome email resend rejected"}
+    assert delivered == []
+
+
+def test_admin_resend_welcome_email_is_protected_and_unknown_is_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    sailor = next(item for item in sailors if item["id"] == ACTIVE)
+    sailor["personal_capability_token"] = RESEND_TOKEN
+    _write_json(root / "sailors.json", sailors)
+    delivered: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.welcome_email_resend.send_welcome_email",
+        lambda recipient, path: delivered.append((recipient, path)),
+    )
+
+    unauthorized = _request(
+        "POST",
+        f"/api/admin/sailors/{ACTIVE}/welcome-email/resend",
+        admin_key=None,
+    )
+    unknown = _request(
+        "POST",
+        "/api/admin/sailors/unknown/welcome-email/resend",
+    )
+
+    assert unauthorized.status_code == 401
+    assert unknown.status_code == 404
+    assert delivered == []
 
 
 def test_mark_request_and_confirm_use_semantic_service(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

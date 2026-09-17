@@ -22,6 +22,10 @@ from app.services.sailor_consent import (
     ConsentTransitionError,
     SailorConsentService,
 )
+from app.services.welcome_email_resend import (
+    WelcomeEmailResendEligibilityError,
+    WelcomeEmailResendService,
+)
 from app.services.session_capabilities import (
     SessionCapabilityIntegrityError,
     SessionCapabilityOperationError,
@@ -127,6 +131,28 @@ def regenerate_personal_capability(sailor_id: str) -> AdminSailorDetailResponse:
 @router.post("/sailors/{sailor_id}/personal-capability/revoke", response_model=AdminSailorDetailResponse)
 def revoke_personal_capability(sailor_id: str) -> AdminSailorDetailResponse:
     return _perform_personal_action(sailor_id, lambda service: service.revoke_capability(sailor_id))
+
+
+@router.post(
+    "/sailors/{sailor_id}/welcome-email/resend",
+    response_model=AdminSailorDetailResponse,
+)
+def resend_welcome_email(sailor_id: str) -> AdminSailorDetailResponse:
+    sailors = SailorRepository()
+    try:
+        if sailors.get_by_id(sailor_id) is None:
+            raise HTTPException(status_code=404, detail="Sailor not found")
+        WelcomeEmailResendService(sailors).resend(sailor_id)
+    except HTTPException:
+        raise
+    except WelcomeEmailResendEligibilityError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Welcome email resend rejected",
+        ) from error
+    except ValueError as error:
+        raise _admin_integrity_error() from error
+    return get_sailor(sailor_id)
 
 
 def _perform_personal_action(sailor_id: str, action: Callable[[PersonalCapabilityService], object]) -> AdminSailorDetailResponse:
