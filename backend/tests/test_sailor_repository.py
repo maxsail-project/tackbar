@@ -92,6 +92,8 @@ def test_unknown_email_creates_uuid_sailor_with_null_metadata(
         "consent_revoked_at": None,
         "personal_capability_token": None,
         "personal_capability_revoked": False,
+        "welcome_email_sent_at": None,
+        "welcome_email_last_error": None,
     }
 
 

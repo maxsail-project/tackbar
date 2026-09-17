@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import datetime, timezone
+from typing import Callable
 
 from app.config import CURRENT_CONSENT_AGREEMENT_VERSION
 from app.models import ConsentEvent, ConsentEventType, ConsentStatus, Sailor
@@ -9,10 +10,14 @@ from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.session_capabilities import SessionCapabilityService
 from app.services.personal_capabilities import PersonalCapabilityService
+from app.services.welcome_email_delivery import send_welcome_email
 
 
 class ConsentTransitionError(ValueError):
     pass
+
+
+WELCOME_EMAIL_DELIVERY_FAILURE = "Welcome email delivery failed"
 
 
 class SailorConsentService:
@@ -23,6 +28,8 @@ class SailorConsentService:
         agreement_version: str = CURRENT_CONSENT_AGREEMENT_VERSION,
         session_capabilities: SessionCapabilityService | None = None,
         personal_capabilities: PersonalCapabilityService | None = None,
+        welcome_email_sender: Callable[[str, str], None] | None = None,
+        delivery_clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.sailors = sailors
         self.events = events
@@ -35,6 +42,8 @@ class SailorConsentService:
             ActivityRepository(sailors.path.with_name("activities.json")),
             sailors,
         )
+        self.welcome_email_sender = welcome_email_sender or send_welcome_email
+        self.delivery_clock = delivery_clock or (lambda: datetime.now(timezone.utc))
 
     def mark_consent_requested(
         self,
@@ -80,7 +89,23 @@ class SailorConsentService:
             ),
         )
         self.session_capabilities.ensure_for_sailor(sailor_id)
-        return self.personal_capabilities.ensure_for_sailor(sailor_id)
+        active_sailor = self.personal_capabilities.ensure_for_sailor(sailor_id)
+        try:
+            capability_path = self._personal_capability_path(active_sailor)
+            self.welcome_email_sender(active_sailor.email, capability_path)
+            sent_at = self.delivery_clock()
+            if sent_at.tzinfo is None or sent_at.utcoffset() != timezone.utc.utcoffset(sent_at):
+                raise ValueError("Welcome email delivery clock must return UTC-aware time")
+        except Exception:
+            return self.sailors.replace(replace(
+                active_sailor,
+                welcome_email_last_error=WELCOME_EMAIL_DELIVERY_FAILURE,
+            ))
+        return self.sailors.replace(replace(
+            active_sailor,
+            welcome_email_sent_at=sent_at,
+            welcome_email_last_error=None,
+        ))
 
     def revoke_consent(
         self,
@@ -179,3 +204,9 @@ class SailorConsentService:
         self.sailors.replace(sailor)
         self.events.append(event)
         return sailor
+
+    @staticmethod
+    def _personal_capability_path(sailor: Sailor) -> str:
+        if sailor.personal_capability_token is None or sailor.personal_capability_revoked:
+            raise ValueError("Usable Personal TackBar capability is unavailable")
+        return f"/me/{sailor.personal_capability_token}"

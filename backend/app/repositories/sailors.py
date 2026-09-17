@@ -1,7 +1,7 @@
 import json
 import re
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -115,6 +115,15 @@ def _validate_sailors(sailors: list[Sailor]) -> None:
                 raise ValueError("Duplicate personal capability token")
             seen_tokens.add(token)
 
+        if sailor.welcome_email_sent_at is not None:
+            timestamp = sailor.welcome_email_sent_at
+            if timestamp.tzinfo is None or timestamp.utcoffset() != timedelta(0):
+                raise ValueError("Welcome email sent timestamp must be UTC-aware")
+        if sailor.welcome_email_last_error is not None and not isinstance(
+            sailor.welcome_email_last_error, str
+        ):
+            raise ValueError("Welcome email delivery error must be a string or null")
+
 
 def _deserialize_sailor(item: dict[str, object]) -> Sailor:
     return Sailor(
@@ -136,6 +145,10 @@ def _deserialize_sailor(item: dict[str, object]) -> Sailor:
         consent_revoked_at=_parse_optional_datetime(
             item.get("consent_revoked_at")
         ),
+        welcome_email_sent_at=_parse_optional_datetime(
+            item.get("welcome_email_sent_at")
+        ),
+        welcome_email_last_error=item.get("welcome_email_last_error"),
     )
 
 
@@ -146,6 +159,7 @@ def _serialize_sailor(sailor: Sailor) -> dict[str, object]:
         "consent_request_sent_at",
         "consent_granted_at",
         "consent_revoked_at",
+        "welcome_email_sent_at",
     ):
         value = getattr(sailor, field_name)
         record[field_name] = value.isoformat() if value is not None else None

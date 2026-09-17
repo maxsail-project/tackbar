@@ -68,6 +68,8 @@ class Sailor:
     consent_revoked_at: datetime | None = None
     personal_capability_token: str | None = None
     personal_capability_revoked: bool = False
+    welcome_email_sent_at: datetime | None = None
+    welcome_email_last_error: str | None = None
 
 
 @dataclass(frozen=True)
