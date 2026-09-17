@@ -10,7 +10,10 @@ from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.session_capabilities import SessionCapabilityService
 from app.services.personal_capabilities import PersonalCapabilityService
-from app.services.welcome_email_delivery import send_welcome_email
+from app.services.welcome_email_delivery import (
+    WelcomeEmailDeliveryError,
+    send_welcome_email,
+)
 
 
 class ConsentTransitionError(ValueError):
@@ -90,22 +93,31 @@ class SailorConsentService:
         )
         self.session_capabilities.ensure_for_sailor(sailor_id)
         active_sailor = self.personal_capabilities.ensure_for_sailor(sailor_id)
+        capability_path = self._personal_capability_path(active_sailor)
         try:
-            capability_path = self._personal_capability_path(active_sailor)
             self.welcome_email_sender(active_sailor.email, capability_path)
-            sent_at = self.delivery_clock()
-            if sent_at.tzinfo is None or sent_at.utcoffset() != timezone.utc.utcoffset(sent_at):
-                raise ValueError("Welcome email delivery clock must return UTC-aware time")
-        except Exception:
-            return self.sailors.replace(replace(
+        except WelcomeEmailDeliveryError:
+            return self.sailors.replace(
+                replace(
+                    active_sailor,
+                    welcome_email_last_error=WELCOME_EMAIL_DELIVERY_FAILURE,
+                )
+            )
+        sent_at = self.delivery_clock()
+        if (
+            sent_at.tzinfo is None
+            or sent_at.utcoffset() != timezone.utc.utcoffset(sent_at)
+        ):
+            raise ValueError(
+                "Welcome email delivery clock must return UTC-aware time"
+            )
+        return self.sailors.replace(
+            replace(
                 active_sailor,
-                welcome_email_last_error=WELCOME_EMAIL_DELIVERY_FAILURE,
-            ))
-        return self.sailors.replace(replace(
-            active_sailor,
-            welcome_email_sent_at=sent_at,
-            welcome_email_last_error=None,
-        ))
+                welcome_email_sent_at=sent_at,
+                welcome_email_last_error=None,
+            )
+        )
 
     def revoke_consent(
         self,

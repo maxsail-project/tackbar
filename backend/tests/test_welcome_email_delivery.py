@@ -152,6 +152,41 @@ def test_failed_welcome_delivery_preserves_active_consent_and_existing_capabilit
     assert events.for_sailor(SAILOR_ID)[0].event_type == ConsentEventType.CONSENT_GRANTED
 
 
+def test_unexpected_sender_error_is_not_absorbed(temporary_json_file):
+    service, sailors, events, _ = _service(
+        temporary_json_file,
+        lambda *_: (_ for _ in ()).throw(RuntimeError("programming error")),
+    )
+
+    with pytest.raises(RuntimeError, match="programming error"):
+        service.confirm_consent(SAILOR_ID, source="admin_confirmed_email")
+
+    persisted = sailors.get_by_id(SAILOR_ID)
+    assert persisted is not None
+    assert persisted.consent_status == ConsentStatus.ACTIVE
+    assert persisted.personal_capability_token == TOKEN
+    assert persisted.personal_capability_revoked is False
+    assert persisted.welcome_email_last_error is None
+    assert events.for_sailor(SAILOR_ID)[0].event_type == ConsentEventType.CONSENT_GRANTED
+
+
+def test_invalid_delivery_clock_error_is_not_absorbed(temporary_json_file):
+    service, sailors, events, _ = _service(
+        temporary_json_file,
+        lambda *_: None,
+        delivery_clock=lambda: datetime(2031, 6, 18, 12, 0),
+    )
+
+    with pytest.raises(ValueError, match="UTC-aware"):
+        service.confirm_consent(SAILOR_ID, source="admin_confirmed_email")
+
+    persisted = sailors.get_by_id(SAILOR_ID)
+    assert persisted is not None
+    assert persisted.consent_status == ConsentStatus.ACTIVE
+    assert persisted.welcome_email_last_error is None
+    assert events.for_sailor(SAILOR_ID)[0].event_type == ConsentEventType.CONSENT_GRANTED
+
+
 def test_invalid_confirmation_does_not_send_or_modify_delivery_state(temporary_json_file):
     sent: list[tuple[str, str]] = []
     service, sailors, _, _ = _service(
