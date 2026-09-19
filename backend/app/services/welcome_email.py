@@ -33,31 +33,73 @@ def compose_welcome_email(
     public_base_url: str,
 ) -> OutboundMailMessage:
     personal_url = personal_tackbar_url(public_base_url, personal_capability_path)
-    body = f"""Hello,
+    body = f"""Hi,
 
-Thank you for participating in TackBar and confirming your participation.
+I'm Maxi, a Snipe sailor and the person behind TackBar.
 
-Send your sailing tracks to share@tackbar.eu. The currently supported sharing workflow is Vakaros Connect. Follow the English Vakaros guide:
+Thanks for joining the TackBar pilot.
+
+Your participation is now confirmed, so you can start sending your sailing tracks to:
+
+share@tackbar.eu
+
+TackBar currently supports tracks shared through Vakaros Connect.
+
+You can follow the English guide here:
+
 {ENGLISH_VAKAROS_GUIDE_URL}
 
-Your Personal TackBar link is:
+Your personal TackBar link is:
+
 {personal_url}
 
-Personal TackBar gives you access to your Sessions, subject to their existing availability rules. Keep this personal link private.
+From there, you'll be able to access the Sessions available to you after sailing.
+
+Please keep this link private, as it gives access to your personal TackBar area.
+
+If you have any problem getting started, just let me know.
+
+Thanks,
+
+Maxi
+
+TackBar
+Sail. Debrief. Learn.
 
 ---
 
 Hola,
 
-Gracias por participar en TackBar y confirmar tu participación.
+Soy Maxi, regatista de Snipe y la persona detrás de TackBar.
 
-Envía tus tracks de navegación a share@tackbar.eu. El flujo soportado actualmente es Vakaros Connect. Sigue la guía de Vakaros en español:
+Gracias por participar en el piloto de TackBar.
+
+Tu participación ya está confirmada, así que ya puedes empezar a enviar tus tracks de navegación a:
+
+share@tackbar.eu
+
+Actualmente TackBar admite los tracks compartidos mediante Vakaros Connect.
+
+Puedes seguir la guía en español aquí:
+
 {SPANISH_VAKAROS_GUIDE_URL}
 
 Tu enlace personal de TackBar es:
+
 {personal_url}
 
-Personal TackBar te da acceso a tus Sessions según sus reglas de disponibilidad actuales. Mantén privado este enlace personal.
+Desde ahí podrás acceder a las Sessions que tengas disponibles después de navegar.
+
+Guarda este enlace de forma privada, ya que da acceso a tu espacio personal de TackBar.
+
+Si tienes cualquier problema para empezar, escríbeme.
+
+Gracias,
+
+Maxi
+
+TackBar
+Sail. Debrief. Learn.
 """
     return OutboundMailMessage(recipient, WELCOME_EMAIL_SUBJECT, body)
 

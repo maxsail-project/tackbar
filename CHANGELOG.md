@@ -7,8 +7,16 @@ All notable changes to TackBar will be documented in this file.
 ### English
 
 This planned release has one new functional objective: operational welcome email
-after successful Admin Sailor consent confirmation. SMTP/welcome-email delivery
-is not implemented or validated by this changelog entry.
+after successful Admin Sailor consent confirmation. The implementation includes
+the approved plain-text bilingual message in Maxi's personal first-person voice;
+release and production SMTP validation are not claimed by this changelog entry.
+
+### Refined
+
+* Welcome-email copy now introduces Maxi as a Snipe sailor and the person behind
+  TackBar, with direct English-first and Spanish-second pilot guidance, the
+  current Personal TackBar link, privacy warning and `Sail. Debrief. Learn.`
+  signature line.
 
 ### Included from post-v0.6.3 work
 
@@ -24,7 +32,16 @@ is not implemented or validated by this changelog entry.
 
 Esta release planificada tiene un único objetivo funcional nuevo: correo de
 bienvenida operativo después de la confirmación de consentimiento de Sailor
-desde Admin. Esta entrada no afirma implementación ni validación de SMTP/correo.
+desde Admin. La implementación incluye el mensaje bilingüe de texto plano
+aprobado con la voz personal de Maxi; esta entrada no afirma validación de
+release ni de SMTP en producción.
+
+### Refinado
+
+* El copy del correo presenta a Maxi como regatista de Snipe y la persona detrás
+  de TackBar, con orientación directa en inglés y después en español, el enlace
+  actual de Personal TackBar, el aviso de privacidad y la firma `Sail. Debrief.
+  Learn.`.
 
 ### Incluido de trabajo posterior a v0.6.3
 

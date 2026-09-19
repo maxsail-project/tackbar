@@ -19,14 +19,74 @@ def test_welcome_email_is_bilingual_and_contains_required_operational_content():
 
     assert message.recipient == "sailor@example.test"
     assert message.subject == WELCOME_EMAIL_SUBJECT
-    assert message.body.index("Thank you") < message.body.index("Gracias")
-    assert "share@tackbar.eu" in message.body
-    assert "Vakaros Connect" in message.body
-    assert ENGLISH_VAKAROS_GUIDE_URL in message.body
-    assert SPANISH_VAKAROS_GUIDE_URL in message.body
-    assert "https://app.example.test/me/test-personal-token" in message.body
-    assert "Keep this personal link private" in message.body
-    assert "Mantén privado este enlace personal" in message.body
+    assert message.body == f"""Hi,
+
+I'm Maxi, a Snipe sailor and the person behind TackBar.
+
+Thanks for joining the TackBar pilot.
+
+Your participation is now confirmed, so you can start sending your sailing tracks to:
+
+share@tackbar.eu
+
+TackBar currently supports tracks shared through Vakaros Connect.
+
+You can follow the English guide here:
+
+{ENGLISH_VAKAROS_GUIDE_URL}
+
+Your personal TackBar link is:
+
+https://app.example.test/me/test-personal-token
+
+From there, you'll be able to access the Sessions available to you after sailing.
+
+Please keep this link private, as it gives access to your personal TackBar area.
+
+If you have any problem getting started, just let me know.
+
+Thanks,
+
+Maxi
+
+TackBar
+Sail. Debrief. Learn.
+
+---
+
+Hola,
+
+Soy Maxi, regatista de Snipe y la persona detrás de TackBar.
+
+Gracias por participar en el piloto de TackBar.
+
+Tu participación ya está confirmada, así que ya puedes empezar a enviar tus tracks de navegación a:
+
+share@tackbar.eu
+
+Actualmente TackBar admite los tracks compartidos mediante Vakaros Connect.
+
+Puedes seguir la guía en español aquí:
+
+{SPANISH_VAKAROS_GUIDE_URL}
+
+Tu enlace personal de TackBar es:
+
+https://app.example.test/me/test-personal-token
+
+Desde ahí podrás acceder a las Sessions que tengas disponibles después de navegar.
+
+Guarda este enlace de forma privada, ya que da acceso a tu espacio personal de TackBar.
+
+Si tienes cualquier problema para empezar, escríbeme.
+
+Gracias,
+
+Maxi
+
+TackBar
+Sail. Debrief. Learn.
+"""
     for unsupported_format in ("GPX", "VKX", "FIT"):
         assert unsupported_format not in message.body
 
