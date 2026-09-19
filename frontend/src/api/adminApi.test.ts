@@ -4,6 +4,7 @@ import {
   listAdminSailors,
   regenerateCapability,
   regeneratePersonalCapability,
+  resendWelcomeEmail,
   revokePersonalCapability,
   renewSession,
   startNewConsentCycle,
@@ -63,6 +64,32 @@ describe('Admin API client', () => {
       '/api/admin/sailors/sailor%2Fid/consent/new-cycle',
       expect.objectContaining({ method: 'POST' }),
     )
+  })
+
+  it('resends a welcome email through the protected Sailor endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        id: 'sailor/id',
+        welcome_email_sent_at: '2031-06-18T12:00:00Z',
+        welcome_email_last_error: null,
+      }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const updated = await resendWelcomeEmail('key', 'sailor/id')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/admin/sailors/sailor%2Fid/welcome-email/resend',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(updated.welcome_email_sent_at).toBe('2031-06-18T12:00:00Z')
+    expect(updated.welcome_email_last_error).toBeNull()
+  })
+
+  it('keeps resend HTTP failures distinct from delivery-state responses', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 409 })))
+
+    await expect(resendWelcomeEmail('key', 'sailor-1')).rejects.toMatchObject({ status: 409 })
   })
 
   it('lists filtered ingestions and sends encoded Admin mutations', async () => {

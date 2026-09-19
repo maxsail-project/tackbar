@@ -57,6 +57,8 @@ export const regeneratePersonalCapability = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/personal-capability/regenerate`, key, 'POST')
 export const revokePersonalCapability = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/personal-capability/revoke`, key, 'POST')
+export const resendWelcomeEmail = (key: string, id: string) =>
+  adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/welcome-email/resend`, key, 'POST')
 export const listAdminSessions = (key: string) =>
   adminRequest<AdminSession[]>('/api/admin/sessions', key)
 export const regenerateCapability = (key: string, id: string) =>

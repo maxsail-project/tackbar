@@ -922,6 +922,9 @@ input:focus-visible {
 .admin-session-expiration { margin: 14px 0; color: var(--color-navy); font-size: .9rem; font-weight: 750; }
 .admin-session-capability { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
 .admin-session-capability h3 { margin: 0 0 8px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.admin-welcome-email { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
+.admin-welcome-email h3 { margin: 0 0 8px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.admin-welcome-email p { margin: 4px 0; color: var(--color-navy); font-size: .85rem; }
 .admin-sailor-session__date, .admin-sailor-session__interval { display: block; color: var(--color-navy); }
 .admin-sailor-session__date { font-size: 1.12rem; font-weight: 800; text-transform: uppercase; }
 .admin-sailor-session__interval { margin: 3px 0 0; font-size: .9rem; font-weight: 700; }
