@@ -42,6 +42,41 @@ Admin-triggered **Review mailbox now** remains the ingestion trigger. Automatic 
 
 Remote IMAP `Seen`/`Unread` flags are not TackBar processing state; TackBar ingestion history owns processing/idempotency state.
 
+## v0.6.4 outbound SMTP runtime configuration
+
+The v0.6.4 welcome email uses an independent authenticated OVH SMTP
+configuration. Add these values to `/etc/tackbar/tackbar.env` for the release
+environment:
+
+```text
+TACKBAR_OVH_SMTP_HOST=smtp.mail.ovh.net
+TACKBAR_OVH_SMTP_PORT=465
+TACKBAR_OVH_SMTP_USERNAME=share@tackbar.eu
+TACKBAR_OVH_SMTP_PASSWORD=<secret>
+TACKBAR_OVH_SMTP_FROM=share@tackbar.eu
+TACKBAR_PUBLIC_BASE_URL=https://app.tackbar.eu
+```
+
+Keep `TACKBAR_OVH_SMTP_PASSWORD` outside Git and out of logs. SMTP settings are
+independent from the IMAP settings above; do not replace or reuse the IMAP
+variable names in the application environment. Restart `tackbar.service` after
+changing the environment and verify the local health endpoint before performing
+the pending welcome-email validation.
+
+IMAP remains the inbound track-acquisition contract. SMTP is the separate
+outbound welcome-email delivery contract; adding SMTP does not remove or replace
+IMAP. The two credentials must remain separately configured even if their
+operational password values happen to be equal. SMTP uses authenticated
+SSL/TLS on port 465, and Personal TackBar links use the configured public origin
+`https://app.tackbar.eu` through `TACKBAR_PUBLIC_BASE_URL`.
+
+`TACKBAR_OVH_IMAP_PASSWORD` and `TACKBAR_OVH_SMTP_PASSWORD` are operational
+secrets. Never paste either password into documentation, logs or screenshots;
+only the `<secret>` placeholder belongs in repository documentation. This
+section documents the required configuration but does not claim that production
+has already been updated. Follow [`docs/v0.6.4-manual-validation.md`](v0.6.4-manual-validation.md)
+for the separate post-deployment validation.
+
 ## Standard release upgrade
 
 From `/opt/tackbar`, check state, fetch tags, checkout `<TARGET_TAG>`, and verify detached HEAD and a clean tree with `git status` and `git describe --tags --always`.

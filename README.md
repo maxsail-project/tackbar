@@ -174,6 +174,14 @@ clearer sailing and participation context to Admin.
 mobile/tablet Pointer Events support to local visual temporal chart zoom and a
 shorter Admin Session action label.
 
+**v0.6.4 — Sailor Activation Welcome Email** is implemented and release-ready;
+production SMTP and manual validation are pending. It adds the post-activation
+bilingual English-first / Spanish-second welcome email, authenticated OVH SMTP
+outbound delivery, persisted delivery state, Admin delivery status and resend
+controls, and the current Personal TackBar link in the message. It also includes the
+post-v0.6.3 Sailor history hierarchy fix and focused Session Viewer marker and
+map-viewport improvements without changing Viewer or Analysis Window semantics.
+
 The delivered v0.5.x baseline includes Sailor / optional Boat context, automatic
 Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
 Window, synchronized replay and SOG/COG/HEEL/TRIM analysis.
@@ -233,6 +241,18 @@ shortens the Admin Session action to `Open session`. It preserves the v0.6.2
 Viewer, Analysis Window, replay, `playbackTime`, chart and COG semantics.
 
 See the [v0.6.3 requirements](docs/v0.6.3-usability-and-maintenance-requirements.md).
+
+### v0.6.4 — Sailor Activation Welcome Email
+
+Implemented and release-ready; production SMTP and manual validation are
+pending. The release adds the post-activation English-first / Spanish-second
+welcome email, authenticated OVH SMTP outbound delivery, persisted delivery
+state, Admin delivery status and resend controls, the current Personal TackBar
+link and the approved onboarding copy. It also includes the post-v0.6.3 Sailor
+history hierarchy fix and focused Session Viewer marker and map-viewport
+improvements without changing Viewer or Analysis Window semantics.
+
+Consulta los [requisitos v0.6.4](docs/v0.6.4-sailor-activation-welcome-email-requirements.md).
 
 ### Future 0.6.x
 
@@ -448,6 +468,15 @@ participación en Admin.
 añade soporte Pointer Events para móvil/tablet al zoom temporal visual local y
 acorta la acción de Session en Admin.
 
+**v0.6.4 — Correo de bienvenida tras la activación de Sailor** está implementado
+y listo para release; la validación SMTP y manual de producción está pendiente.
+Añade el correo bilingüe posterior a la activación, primero en inglés y después en
+español, el envío SMTP autenticado de OVH, estado de entrega persistido, estado y
+reenvío desde Admin y el enlace actual de Personal TackBar en el mensaje.
+También incluye la mejora de jerarquía del historial de Sailor y mejoras
+focalizadas de marcadores y viewport del Session Viewer posteriores a v0.6.3,
+sin cambiar las semánticas del Viewer ni de Analysis Window.
+
 La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session
 matching automático, comparación de una/dos Activities, Analysis Window GPS/UTC
 compartida, replay sincronizado y análisis SOG/COG/HEEL/TRIM.
@@ -507,6 +536,19 @@ las semánticas v0.6.2 de Viewer, Analysis Window, replay, `playbackTime`,
 gráficos y COG.
 
 Consulta los [requisitos v0.6.3](docs/v0.6.3-usability-and-maintenance-requirements.md).
+
+### v0.6.4 — Correo de bienvenida tras la activación de Sailor
+
+Implementado y listo para release; la validación SMTP y manual de producción está
+pendiente. Añade el correo bilingüe posterior a la activación, primero en inglés y
+después en español, el envío SMTP autenticado de OVH, estado de entrega
+persistido, estado y reenvío desde Admin, el enlace actual de Personal TackBar y
+el copy aprobado de onboarding. También incluye la mejora de jerarquía del
+historial de Sailor y mejoras focalizadas de marcadores y viewport del Session
+Viewer posteriores a v0.6.3, sin cambiar las semánticas del Viewer ni de Analysis
+Window.
+
+Consulta los [requisitos v0.6.4](docs/v0.6.4-sailor-activation-welcome-email-requirements.md).
 
 ### Future 0.6.x
 

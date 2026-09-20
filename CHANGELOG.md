@@ -2,21 +2,39 @@
 
 All notable changes to TackBar will be documented in this file.
 
-## v0.6.4 — Sailor Activation Welcome Email (Upcoming)
+## v0.6.4 — Sailor Activation Welcome Email (Release-ready — production validation pending)
 
 ### English
 
-This planned release has one new functional objective: operational welcome email
-after successful Admin Sailor consent confirmation. The implementation includes
-the approved plain-text bilingual message in Maxi's personal first-person voice;
-release and production SMTP validation are not claimed by this changelog entry.
+Implementation complete; production validation pending. The single functional
+objective is an operational welcome email after successful Admin Sailor consent
+confirmation. Focused implementation checks passed during development; real
+production SMTP/manual validation remains pending.
+
+### Added
+
+* Automatic welcome email after successful Sailor activation.
+* Authenticated OVH SMTP outbound support with runtime configuration.
+* Configured public TackBar application origin for Personal links.
+* Persisted welcome-email delivery state.
+* Admin delivery status and explicit resend.
+* The current Personal TackBar link in the bilingual message.
 
 ### Refined
 
-* Welcome-email copy now introduces Maxi as a Snipe sailor and the person behind
-  TackBar, with direct English-first and Spanish-second pilot guidance, the
-  current Personal TackBar link, privacy warning and `Sail. Debrief. Learn.`
-  signature line.
+* Approved personal welcome-email copy in Maxi's first-person voice.
+* Sailor Session-history card hierarchy.
+* COG-oriented compact boat/hull replay markers.
+* Stable map viewport when only Analysis Window bounds change.
+
+### Preserved
+
+* SMTP failure does not roll back ACTIVE consent.
+* Sending does not regenerate the Personal TackBar capability.
+* Existing ingestion, Session, Viewer and consent semantics remain unchanged
+  except for the explicitly delivered presentation improvements.
+* Session matching, shared Session authorization and Viewer analytical semantics
+  remain unchanged.
 
 ### Included from post-v0.6.3 work
 
@@ -24,24 +42,48 @@ release and production SMTP validation are not claimed by this changelog entry.
   state, Activity/expiry metadata and Session access for a clearer mobile-first
   hierarchy, with correct `Activity` / `Activities` wording.
 
+### Validation
+
+Focused implementation checks passed during development. Real production
+SMTP/manual validation remains pending; production PASS is not claimed.
+
 ---
 
-## v0.6.4 — Correo de bienvenida tras la activación de Sailor (Próxima)
+## v0.6.4 — Correo de bienvenida tras la activación de Sailor (Lista para release — validación de producción pendiente)
 
 ### Español
 
-Esta release planificada tiene un único objetivo funcional nuevo: correo de
-bienvenida operativo después de la confirmación de consentimiento de Sailor
-desde Admin. La implementación incluye el mensaje bilingüe de texto plano
-aprobado con la voz personal de Maxi; esta entrada no afirma validación de
-release ni de SMTP en producción.
+Implementación completa; validación de producción pendiente. El único objetivo
+funcional es el correo de bienvenida operativo después de la confirmación de
+consentimiento de Sailor desde Admin. Las comprobaciones focalizadas de
+implementación pasaron durante el desarrollo; la validación SMTP/manual real de
+producción sigue pendiente.
+
+### Añadido
+
+* Correo de bienvenida automático tras la activación de Sailor.
+* Soporte SMTP autenticado de OVH con configuración runtime.
+* Origen público configurado de TackBar para los enlaces Personal.
+* Estado persistido de entrega del correo.
+* Estado de entrega y reenvío explícito desde Admin.
+* Enlace Personal TackBar actual en el mensaje bilingüe.
 
 ### Refinado
 
-* El copy del correo presenta a Maxi como regatista de Snipe y la persona detrás
-  de TackBar, con orientación directa en inglés y después en español, el enlace
-  actual de Personal TackBar, el aviso de privacidad y la firma `Sail. Debrief.
-  Learn.`.
+* Copy personal aprobado del correo, en primera persona de Maxi.
+* Jerarquía de las cards del historial de Session de Sailor.
+* Marcadores compactos de barco/casco orientados por COG.
+* Viewport estable del mapa al cambiar únicamente los límites de Analysis Window.
+
+### Conservado
+
+* Un fallo SMTP no revierte el consentimiento `ACTIVE`.
+* El envío no regenera la capability de Personal TackBar.
+* Las semánticas existentes de ingesta, Session, Viewer y consentimiento
+  permanecen sin cambios, salvo las mejoras de presentación entregadas
+  explícitamente.
+* El matching de Sessions, la autorización de Sessions compartidas y las
+  semánticas analíticas del Viewer permanecen sin cambios.
 
 ### Incluido de trabajo posterior a v0.6.3
 
@@ -49,6 +91,11 @@ release ni de SMTP en producción.
   de navegación, estado de capability, metadata de Activity/expiración y acceso
   a Session para una jerarquía mobile-first más clara, con el uso correcto de
   `Activity` / `Activities`.
+
+### Validación
+
+Las comprobaciones focalizadas de implementación pasaron durante el desarrollo.
+La validación SMTP/manual real de producción sigue pendiente; no se afirma PASS.
 
 ---
 
