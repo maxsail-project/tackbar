@@ -19,6 +19,7 @@ import { buildTrackGeometry, combineTrackBounds } from '../utils/trackGeometry'
 interface TrackMapProps {
   primaryVisibleSamples: TrackSample[]
   comparisonVisibleSamples?: TrackSample[]
+  fitActivityKey: string
   primaryBoatPosition: TrackPosition | null
   comparisonBoatPosition?: TrackPosition | null
   hasComparison?: boolean
@@ -57,6 +58,13 @@ export function boatMarkerRotation(cog: number | null) {
   return cog ?? 0
 }
 
+export function shouldRefitForActivityChange(
+  previousFitActivityKey: string | null,
+  fitActivityKey: string,
+) {
+  return previousFitActivityKey !== fitActivityKey
+}
+
 function BoatMarker({
   color,
   cog,
@@ -89,6 +97,7 @@ function BoatMarker({
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
+  fitActivityKey,
   primaryBoatPosition,
   comparisonBoatPosition = null,
   hasComparison = false,
@@ -101,6 +110,7 @@ export default function TrackMap({
   comparisonHeel = null,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
+  const fittedActivityKeyRef = useRef<string | null>(null)
   const primaryGeometry = useMemo(
     () => primaryVisibleSamples.length >= 2
       ? buildTrackGeometry(primaryVisibleSamples)
@@ -134,8 +144,14 @@ export default function TrackMap({
   }, [combinedBounds, windowFocus])
 
   useEffect(() => {
+    if (!shouldRefitForActivityChange(
+      fittedActivityKeyRef.current,
+      fitActivityKey,
+    )) return
+
+    fittedActivityKeyRef.current = fitActivityKey
     fitTrack()
-  }, [fitTrack])
+  }, [fitActivityKey, fitTrack])
 
   if (!windowFocus) return null
 

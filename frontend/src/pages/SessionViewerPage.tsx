@@ -409,6 +409,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         <TrackMap
           primaryVisibleSamples={primaryWindowSamples}
           comparisonVisibleSamples={comparisonWindowSamples}
+          fitActivityKey={`${primaryTrack.activity_id}:${comparisonTrack?.activity_id ?? ''}`}
           primaryBoatPosition={primaryReplayPresentation.position}
           comparisonBoatPosition={comparisonReplayPresentation.position}
           hasComparison={comparisonTrack !== null}
