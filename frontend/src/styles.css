@@ -357,17 +357,14 @@ input:focus-visible {
   place-items: center;
   width: 30px;
   height: 30px;
-  border: 4px solid #fff;
-  border-radius: 50%;
-  color: #fff;
-  background: #126f81;
-  box-shadow: 0 3px 12px rgb(5 36 43 / 48%);
+  filter: drop-shadow(0 3px 4px rgb(5 36 43 / 48%));
 }
 
-.boat-marker span {
-  font-size: 0.66rem;
-  font-weight: 900;
-  line-height: 1;
+.boat-marker__hull {
+  width: 30px;
+  height: 30px;
+  overflow: visible;
+  transform-origin: center;
 }
 
 .content-section,

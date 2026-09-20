@@ -53,6 +53,39 @@ const FIT_OPTIONS = {
   duration: 0,
 }
 
+export function boatMarkerRotation(cog: number | null) {
+  return cog ?? 0
+}
+
+function BoatMarker({
+  color,
+  cog,
+  label,
+}: {
+  color: string
+  cog: number | null
+  label: string
+}) {
+  return (
+    <div className="boat-marker" role="img" aria-label={label}>
+      <svg
+        aria-hidden="true"
+        className="boat-marker__hull"
+        viewBox="0 0 32 32"
+        style={{ transform: `rotate(${boatMarkerRotation(cog)}deg)` }}
+      >
+        <path
+          d="M16 2 25 25 16 30 7 25Z"
+          fill={color}
+          stroke="#fff"
+          strokeWidth="3"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  )
+}
+
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
@@ -159,14 +192,11 @@ export default function TrackMap({
             latitude={primaryBoatPosition.lat}
             anchor="center"
           >
-            <div
-              className="boat-marker"
-              style={{ backgroundColor: ACTIVITY_COLORS.primary }}
-              role="img"
-              aria-label="Primary boat position"
-            >
-              <span aria-hidden="true">P</span>
-            </div>
+            <BoatMarker
+              color={ACTIVITY_COLORS.primary}
+              cog={primaryCog}
+              label="Primary boat position"
+            />
           </Marker>
         )}
         {comparisonBoatPosition && (
@@ -175,14 +205,11 @@ export default function TrackMap({
             latitude={comparisonBoatPosition.lat}
             anchor="center"
           >
-            <div
-              className="boat-marker"
-              style={{ backgroundColor: ACTIVITY_COLORS.comparison }}
-              role="img"
-              aria-label="Comparison boat position"
-            >
-              <span aria-hidden="true">C</span>
-            </div>
+            <BoatMarker
+              color={ACTIVITY_COLORS.comparison}
+              cog={comparisonCog}
+              label="Comparison boat position"
+            />
           </Marker>
         )}
       </Map>
