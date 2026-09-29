@@ -2,14 +2,18 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from threading import Lock
+from typing import Callable
 
 from app.models import ConsentStatus, InboundEmail, Sailor, StoredActivity
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.consent_events import ConsentEventRepository
+from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.activity_tracks import persist_activity_track
+from app.services.automatic_consent_requests import AutomaticConsentRequestService
+from app.services.consent_requests import ConsentRequestService
 from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
@@ -41,6 +45,7 @@ def process_provider_email(
     history: IngestionHistory,
     track_storage: TrackStorage | None = None,
     consent_events: ConsentEventRepository | None = None,
+    consent_request_sender: Callable[[str, str], None] | None = None,
 ) -> IngestionProcessingResult | None:
     with _INGESTION_LOCK:
         if not email.provider_message_id:
@@ -55,7 +60,19 @@ def process_provider_email(
             original_storage = IngestionOriginalStorage(activities.path.parent)
             record["original_file"] = original_storage.preserve(record["id"], email.attachment_filename, email.attachment_bytes)
             history.replace(record)
-        return _attempt_record(record, email, sailors, boats, activities, sessions, history, track_storage, consent_events, True)
+        return _attempt_record(
+            record,
+            email,
+            sailors,
+            boats,
+            activities,
+            sessions,
+            history,
+            track_storage,
+            consent_events,
+            consent_request_sender,
+            True,
+        )
 
 
 def reprocess_ingestion(
@@ -66,6 +83,7 @@ def reprocess_ingestion(
     sessions: SessionRepository,
     history: IngestionHistory,
     track_storage: TrackStorage | None = None,
+    consent_request_sender: Callable[[str, str], None] | None = None,
 ) -> dict:
     with _INGESTION_LOCK:
         record = history.get(ingestion_id)
@@ -80,7 +98,20 @@ def reprocess_ingestion(
                 raise FileNotFoundError("Preserved ingestion original is unavailable")
             content = IngestionOriginalStorage(activities.path.parent).read(record["original_file"])
             email = InboundEmail(sender_email=record["sender_email"], subject=record["attachment_name"], attachment_filename=record["attachment_name"], attachment_bytes=content, provider_message_id=record["provider_message_id"])
-            _attempt_record(record, email, sailors, boats, activities, sessions, history, track_storage, None, False, attempt_started=True)
+            _attempt_record(
+                record,
+                email,
+                sailors,
+                boats,
+                activities,
+                sessions,
+                history,
+                track_storage,
+                None,
+                consent_request_sender,
+                False,
+                attempt_started=True,
+            )
         except (ValueError, OSError, EOFError, FileNotFoundError) as error:
             record["last_error"] = _safe_error(error)
             history.replace(record)
@@ -93,7 +124,20 @@ def reprocess_ingestion(
         return updated
 
 
-def _attempt_record(record, email, sailors, boats, activities, sessions, history, track_storage, consent_events, raise_errors, attempt_started=False):
+def _attempt_record(
+    record,
+    email,
+    sailors,
+    boats,
+    activities,
+    sessions,
+    history,
+    track_storage,
+    consent_events,
+    consent_request_sender,
+    raise_errors,
+    attempt_started=False,
+):
     if not attempt_started:
         record["attempts"] += 1; record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
     record["last_error"] = None
@@ -101,11 +145,21 @@ def _attempt_record(record, email, sailors, boats, activities, sessions, history
         if email.attachment_bytes is None or sha256(email.attachment_bytes).hexdigest() != record["attachment_sha256"]: raise ValueError("Preserved ingestion original SHA-256 mismatch")
         result = _process_known_email(record["provider"], email, sailors, boats, activities, sessions, history, track_storage, consent_events)
         record.update(status="processed", last_error=None, activity_id=result.activity.id, session_id=result.session_match.session.id)
-        history.replace(record); return result
+        history.replace(record)
     except Exception as error:
         record.update(status="failed", last_error=_safe_error(error)); history.replace(record)
         if raise_errors or not isinstance(error, (ValueError, OSError, EOFError, FileNotFoundError)): raise
         return None
+    _automatic_consent_requests(
+        sailors,
+        sessions,
+        consent_events,
+        consent_request_sender,
+    ).attempt_for_sailor(
+        result.sailor.id,
+        source=f"{record['provider']}_automatic_consent_request",
+    )
+    return result
 
 
 def _safe_error(error: Exception) -> str:
@@ -113,6 +167,31 @@ def _safe_error(error: Exception) -> str:
         message = str(error).replace("\\", "/")
         return message.rsplit("/", 1)[-1][:300]
     return "Unexpected ingestion processing error"
+
+
+def _automatic_consent_requests(
+    sailors: SailorRepository,
+    sessions: SessionRepository,
+    consent_events: ConsentEventRepository | None,
+    sender: Callable[[str, str], None] | None,
+) -> AutomaticConsentRequestService:
+    events = consent_events or ConsentEventRepository(
+        sailors.path.with_name("consent_events.json")
+    )
+    requests = ConsentRequestService(
+        ConsentRequestRepository(
+            sailors.path.with_name("consent_requests.json")
+        ),
+        sailors,
+        events,
+        sessions,
+    )
+    return AutomaticConsentRequestService(
+        requests,
+        sailors,
+        SailorConsentService(sailors, events),
+        sender=sender,
+    )
 
 
 def _process_known_email(
