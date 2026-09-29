@@ -39,10 +39,10 @@ operación, soporte, mantenimiento, reprocesamiento y gestión del consentimient
 
 ### Canal de email
 
-Gmail es actualmente el canal de email de la PoC para enviar y recibir tracks y
-mensajes relacionados con el consentimiento. El flujo es manual: el Admin
-envía la solicitud, revisa tu respuesta explícita y confirma el consentimiento
-en TackBar Admin.
+`share@tackbar.eu` es actualmente el canal de email de la PoC para recibir
+tracks y enviar mensajes operativos. El flujo de consentimiento vigente sigue
+siendo manual: el Admin envía la solicitud, revisa tu respuesta explícita y
+confirma el consentimiento en TackBar Admin.
 
 ### Cómo aceptar
 
@@ -86,9 +86,10 @@ support, maintenance, reprocessing and consent management.
 
 ### Email channel
 
-Gmail is currently the PoC email channel for sending and receiving tracks and
-consent-related messages. The workflow is manual: the Admin sends the request,
-reviews your explicit reply and confirms consent in TackBar Admin.
+`share@tackbar.eu` is currently the PoC email channel for receiving tracks and
+sending operational messages. The current consent workflow remains manual: the
+Admin sends the request, reviews your explicit reply and confirms consent in
+TackBar Admin.
 
 ### How to accept
 

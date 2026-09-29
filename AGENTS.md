@@ -62,6 +62,14 @@ delivery state, Personal TackBar delivery or Admin resend, also read both:
 - `docs/v0.6.4-sailor-activation-welcome-email-requirements.md`
 - `docs/v0.6.4-decisions.md`
 
+For v0.6.5 work involving track-first onboarding, automatic consent-request
+email, consent capability/token, `/consent/<token>`, web consent acceptance,
+consent-request resend/reissue or v0.6.5 consent lifecycle behavior, also read
+both:
+
+- `docs/v0.6.5-simplified-pilot-onboarding-requirements.md`
+- `docs/v0.6.5-decisions.md`
+
 ## Instruction hierarchy
 
 Interpret repository instructions in this order:

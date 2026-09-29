@@ -64,17 +64,6 @@ Potential uses include races, legs, exercises or manually selected relevant inte
 
 # Consent, privacy & access
 
-## Web consent flow
-
-**Status:** Future  
-**Release:** Unassigned
-
-Replace or complement the human-operated PoC consent workflow with a dedicated web flow such as `/consent/<token>`.
-
-Expected direction includes high-entropy token, explicit acceptance, agreement version, token expiry, idempotent processing and structured consent-event history.
-
----
-
 ## Automatic consent reply processing
 
 **Status:** Future  
@@ -140,9 +129,10 @@ Future design should consider provider adapters, polling interval, pagination, l
 **Status:** Future  
 **Release:** Unassigned
 
-v0.6.4 promotes only the Sailor activation welcome email. Other outbound flows
-remain Future / Unassigned, including consent/invitation requests, processed
-Activity or Session notifications and other operational messages.
+The v0.6.4 Sailor activation welcome email is implemented, and the v0.6.5
+consent-request email is committed. Broader outbound flows remain Future /
+Unassigned, including processed Activity or Session notifications and other
+operational messages.
 
 Each additional outbound-email workflow requires a separate explicit product
 decision before implementation.

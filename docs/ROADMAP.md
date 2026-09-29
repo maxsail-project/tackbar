@@ -150,6 +150,20 @@ additional product objectives.
 References: [requirements](v0.6.4-sailor-activation-welcome-email-requirements.md)
 and [decisions](v0.6.4-decisions.md).
 
+### v0.6.5 — Simplified Pilot Onboarding & Web Consent
+
+Committed / implementation pending: normal pilot entry starts with a supported
+track sent to `share@tackbar.eu`. After successful processing, a PENDING Sailor
+receives one automatic bilingual consent request for the current pending cycle
+and explicitly confirms participation in the TackBar app through a
+purpose-specific capability valid for 28 days. Acceptance reuses the existing
+consent activation path and v0.6.4 welcome flow. Sending a track is not consent,
+and established ingestion, Session matching, ACTIVE-only visibility, Personal
+TackBar, Session capability and Viewer semantics remain unchanged.
+
+References: [requirements](v0.6.5-simplified-pilot-onboarding-requirements.md)
+and [decisions](v0.6.5-decisions.md).
+
 ---
 
 ## Future 0.6.x
@@ -207,6 +221,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.2 | Viewer & Admin Usability | Delivered |
 | v0.6.3 | Usability & Maintenance | Delivered |
 | v0.6.4 | Sailor Activation Welcome Email | Implemented / production validation pending |
+| v0.6.5 | Simplified Pilot Onboarding & Web Consent | Committed / implementation pending |
 | Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
 | v0.7.0 | Multi-Format Track Ingestion | Planned |
 
@@ -304,6 +319,21 @@ v0.6.3; no constituyen objetivos funcionales adicionales.
 Referencias: [requisitos](v0.6.4-sailor-activation-welcome-email-requirements.md)
 y [decisiones](v0.6.4-decisions.md).
 
+### v0.6.5 — Onboarding simplificado del piloto y consentimiento web
+
+Comprometido / implementación pendiente: la entrada normal al piloto comienza
+con un track compatible enviado a `share@tackbar.eu`. Tras procesarlo
+correctamente, un Sailor PENDING recibe una única solicitud bilingüe automática
+para el ciclo pendiente actual y confirma explícitamente su participación en la
+app de TackBar mediante una capability específica válida durante 28 días. La
+aceptación reutiliza la activación de consentimiento existente y el flujo de
+bienvenida de v0.6.4. Enviar un track no equivale a consentir y se mantienen sin
+cambios la ingesta, el Session matching, la visibilidad sólo para ACTIVE,
+Personal TackBar, las capabilities de Session y el Viewer.
+
+Referencias: [requisitos](v0.6.5-simplified-pilot-onboarding-requirements.md)
+y [decisiones](v0.6.5-decisions.md).
+
 ---
 
 ## Future 0.6.x
@@ -339,5 +369,6 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.6.2 | Viewer & Admin Usability | Entregado |
 | v0.6.3 | Usabilidad y mantenimiento | Entregado |
 | v0.6.4 | Correo de bienvenida tras la activación de Sailor | Implementado / validación de producción pendiente |
+| v0.6.5 | Onboarding simplificado del piloto y consentimiento web | Comprometido / implementación pendiente |
 | Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
 | v0.7.0 | Multi-Format Track Ingestion | Previsto |
