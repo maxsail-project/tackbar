@@ -11,8 +11,20 @@ from app.admin_auth import ADMIN_KEY_ENVIRONMENT_VARIABLE
 from app.admin_routes import router as admin_router
 from app.config import CURRENT_CONSENT_AGREEMENT_VERSION
 from app.main import app
+from app.models import ConsentRequest, ConsentRequestState, ConsentStatus
+from app.repositories.consent_events import ConsentEventRepository
+from app.repositories.consent_requests import ConsentRequestRepository
+from app.repositories.sailors import SailorRepository
+from app.repositories.sessions import SessionRepository
 from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
+from app.services.automatic_consent_requests import AutomaticConsentRequestService
+from app.services.consent_request_delivery import ConsentRequestDeliveryError
+from app.services.consent_requests import (
+    CONSENT_REQUEST_DELIVERY_FAILURE,
+    ConsentRequestService,
+)
 from app.services.ingestion_history import IngestionHistory
+from app.services.sailor_consent import SailorConsentService
 from app.services.welcome_email_delivery import WelcomeEmailDeliveryError
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
 
@@ -35,6 +47,8 @@ ACTIVE_TOKEN = "admin-api-active-capability-token-000000000000001"
 REVOKED_TOKEN = "admin-api-revoked-capability-token-0000000000001"
 EXPIRED_TOKEN = "admin-api-expired-capability-token-0000000000001"
 RESEND_TOKEN = "admin-api-welcome-email-token-00000000000001"
+MANUAL_REQUEST_ID = "50000000-0000-4000-8000-000000000001"
+MANUAL_REQUEST_TOKEN = "manual-consent-request-" + "r" * 40
 
 
 @dataclass(frozen=True)
@@ -445,6 +459,218 @@ def test_mark_request_and_confirm_use_semantic_service(monkeypatch: pytest.Monke
     assert confirmed.json["consent_events"][-1]["source"] == "admin_confirmed_email"
     assert session.json["visible_activity_count"] == 1
     assert session.json["capability_state"] == "active"
+
+
+def test_admin_manual_confirmation_without_consent_request_keeps_activation_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    requests_path = root / "consent_requests.json"
+    delivered: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.sailor_consent.send_welcome_email",
+        lambda email, path: delivered.append((email, path)),
+    )
+    sessions_before = json.loads(
+        (root / "sessions.json").read_text(encoding="utf-8")
+    )
+    active_token_before = next(
+        item["capability_token"]
+        for item in sessions_before
+        if item["id"] == SESSION_ACTIVE
+    )
+
+    response = _request(
+        "POST",
+        f"/api/admin/sailors/{PENDING_NEEDS}/consent/confirm",
+    )
+
+    granted = [
+        event
+        for event in response.json["consent_events"]
+        if event["event_type"] == "consent_granted"
+    ]
+    sessions_after = json.loads(
+        (root / "sessions.json").read_text(encoding="utf-8")
+    )
+    assert response.status_code == 200
+    assert response.json["consent_status"] == "ACTIVE"
+    assert len(granted) == 1
+    assert granted[0]["source"] == "admin_confirmed_email"
+    assert granted[0]["agreement_version"] == CURRENT_CONSENT_AGREEMENT_VERSION
+    assert response.json["personal_capability_state"] == "active"
+    assert response.json["personal_capability_path"].startswith("/me/")
+    assert delivered == [
+        (
+            "needs@example.com",
+            response.json["personal_capability_path"],
+        )
+    ]
+    assert next(
+        item["capability_token"]
+        for item in sessions_after
+        if item["id"] == SESSION_ACTIVE
+    ) == active_token_before
+    assert next(
+        item["capability_token"]
+        for item in sessions_after
+        if item["id"] == SESSION_NEVER
+    ) is not None
+    assert not requests_path.exists()
+
+
+@pytest.mark.parametrize("expired", [False, True], ids=["valid", "expired"])
+def test_admin_manual_confirmation_ignores_request_token_state_and_preserves_history(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    expired: bool,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    now = datetime.now(timezone.utc)
+    created_at = now - timedelta(days=29 if expired else 1)
+    request_repository = ConsentRequestRepository(
+        root / "consent_requests.json"
+    )
+    request = ConsentRequest(
+        id=MANUAL_REQUEST_ID,
+        sailor_id=PENDING_NEEDS,
+        token=MANUAL_REQUEST_TOKEN,
+        agreement_version=CURRENT_CONSENT_AGREEMENT_VERSION,
+        consent_cycle_sequence=0,
+        created_at=created_at,
+        expires_at=created_at + timedelta(days=28),
+    )
+    request_repository.add(request)
+    request_service = ConsentRequestService(
+        request_repository,
+        SailorRepository(root / "sailors.json"),
+        ConsentEventRepository(root / "consent_events.json"),
+        SessionRepository(root / "sessions.json"),
+        clock=lambda: now,
+    )
+    assert request_service.resolve(MANUAL_REQUEST_TOKEN).state == (
+        ConsentRequestState.EXPIRED if expired else ConsentRequestState.VALID
+    )
+    request_history_before = request_repository.path.read_bytes()
+    delivered: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.sailor_consent.send_welcome_email",
+        lambda email, path: delivered.append((email, path)),
+    )
+
+    confirmed = _request(
+        "POST",
+        f"/api/admin/sailors/{PENDING_NEEDS}/consent/confirm",
+    )
+    sailors_after_manual = (root / "sailors.json").read_bytes()
+    sessions_after_manual = (root / "sessions.json").read_bytes()
+    events_after_manual = (root / "consent_events.json").read_bytes()
+    token_attempt = _request(
+        "POST",
+        f"/api/consent/{MANUAL_REQUEST_TOKEN}/accept",
+        admin_key=None,
+    )
+    detail = _request("GET", f"/api/admin/sailors/{PENDING_NEEDS}")
+
+    granted = [
+        event
+        for event in detail.json["consent_events"]
+        if event["event_type"] == "consent_granted"
+    ]
+    assert confirmed.status_code == 200
+    assert confirmed.json["consent_status"] == "ACTIVE"
+    assert token_attempt.status_code == 404
+    assert token_attempt.json == {"detail": "Consent request unavailable"}
+    assert len(granted) == 1
+    assert granted[0]["source"] == "admin_confirmed_email"
+    assert detail.json["personal_capability_path"] == (
+        confirmed.json["personal_capability_path"]
+    )
+    assert delivered == [
+        (
+            "needs@example.com",
+            confirmed.json["personal_capability_path"],
+        )
+    ]
+    assert request_repository.path.read_bytes() == request_history_before
+    assert request_repository.get_by_token(MANUAL_REQUEST_TOKEN) == request
+    assert (root / "sailors.json").read_bytes() == sailors_after_manual
+    assert (root / "sessions.json").read_bytes() == sessions_after_manual
+    assert (root / "consent_events.json").read_bytes() == events_after_manual
+    assert request_service.resolve(MANUAL_REQUEST_TOKEN).state == (
+        ConsentRequestState.UNUSABLE
+    )
+
+
+def test_admin_manual_confirmation_recovers_after_controlled_request_delivery_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    sailors = SailorRepository(root / "sailors.json")
+    events = ConsentEventRepository(root / "consent_events.json")
+    requests = ConsentRequestRepository(root / "consent_requests.json")
+    request_service = ConsentRequestService(
+        requests,
+        sailors,
+        events,
+        SessionRepository(root / "sessions.json"),
+        token_generator=lambda: MANUAL_REQUEST_TOKEN,
+    )
+    automatic = AutomaticConsentRequestService(
+        request_service,
+        sailors,
+        SailorConsentService(sailors, events),
+        sender=lambda *_: (_ for _ in ()).throw(
+            ConsentRequestDeliveryError("provider detail must stay private")
+        ),
+    )
+
+    failed = automatic.attempt_for_sailor(
+        PENDING_NEEDS,
+        source="ovh_automatic_consent_request",
+    )
+
+    pending = sailors.get_by_id(PENDING_NEEDS)
+    assert failed is not None
+    assert failed.automatic_delivery_attempted_at is not None
+    assert failed.delivery_sent_at is None
+    assert failed.delivery_last_error == CONSENT_REQUEST_DELIVERY_FAILURE
+    assert pending is not None and pending.consent_status == ConsentStatus.PENDING
+    assert pending.consent_request_sent_at is None
+    assert all(
+        event.event_type.value != "consent_granted"
+        for event in events.for_sailor(PENDING_NEEDS)
+    )
+    request_history_before = requests.path.read_bytes()
+    delivered: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.sailor_consent.send_welcome_email",
+        lambda email, path: delivered.append((email, path)),
+    )
+
+    confirmed = _request(
+        "POST",
+        f"/api/admin/sailors/{PENDING_NEEDS}/consent/confirm",
+    )
+
+    granted = [
+        event
+        for event in confirmed.json["consent_events"]
+        if event["event_type"] == "consent_granted"
+    ]
+    assert confirmed.status_code == 200
+    assert confirmed.json["consent_status"] == "ACTIVE"
+    assert len(granted) == 1
+    assert granted[0]["source"] == "admin_confirmed_email"
+    assert delivered == [
+        (
+            "needs@example.com",
+            confirmed.json["personal_capability_path"],
+        )
+    ]
+    assert requests.path.read_bytes() == request_history_before
 
 
 @pytest.mark.parametrize(
