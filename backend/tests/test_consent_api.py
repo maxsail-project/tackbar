@@ -47,6 +47,8 @@ class ConsentApiContext:
     sailors: SailorRepository
     events: ConsentEventRepository
     sessions: SessionRepository
+    session_capabilities: SessionCapabilityService
+    personal_capabilities: PersonalCapabilityService
     sent: list[tuple[str, str]]
     activation_versions: list[str]
     set_now: Callable[[datetime], None]
@@ -168,6 +170,8 @@ def _context(
         sailors=sailors,
         events=events,
         sessions=sessions,
+        session_capabilities=session_capabilities,
+        personal_capabilities=personal_capabilities,
         sent=sent,
         activation_versions=activation_versions,
         set_now=lambda value: current_time.__setitem__(0, value),
@@ -316,6 +320,8 @@ def test_first_post_activates_once_using_persisted_agreement_version(
     assert events[0].event_type == ConsentEventType.CONSENT_GRANTED
     assert events[0].source == "web_consent"
     assert events[0].agreement_version == "agreement-issued-v1"
+    assert events[0].timestamp == NOW
+    assert sailor.consent_granted_at == NOW
 
     repeated = _accept(REQUEST_TOKEN)
 
@@ -330,7 +336,10 @@ def test_first_post_activates_once_using_persisted_agreement_version(
     assert repeated_session is not None
     assert repeated_session.capability_token == SESSION_TOKEN
     assert len(context.sent) == 1
-    assert context.activation_versions == ["agreement-issued-v1"]
+    assert context.activation_versions == [
+        "agreement-issued-v1",
+        "agreement-issued-v1",
+    ]
 
 
 def test_get_after_activation_returns_truthful_confirmed_state(
@@ -412,6 +421,155 @@ def test_post_retry_recovers_when_acceptance_persisted_before_activation(
     assert len(context.sent) == 1
 
 
+def test_post_retry_completes_activation_interrupted_before_session_capability(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    ensure_session = context.session_capabilities.ensure_for_sailor
+    attempts = 0
+
+    def interrupt_once(sailor_id: str):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ValueError("simulated interruption before Session capability")
+        return ensure_session(sailor_id)
+
+    monkeypatch.setattr(
+        context.session_capabilities,
+        "ensure_for_sailor",
+        interrupt_once,
+    )
+
+    interrupted = _accept(REQUEST_TOKEN)
+
+    active = context.sailors.get_by_id(SAILOR_ID)
+    session = context.sessions.get_by_id(SESSION_ID)
+    events = context.events.for_sailor(SAILOR_ID)
+    assert interrupted.status_code == 500
+    assert active is not None and active.consent_status == ConsentStatus.ACTIVE
+    assert active.consent_granted_at == NOW
+    assert active.personal_capability_token is None
+    assert session is not None and session.capability_token is None
+    assert len(events) == 1
+    assert events[0].event_type == ConsentEventType.CONSENT_GRANTED
+    assert events[0].source == "web_consent"
+    assert events[0].agreement_version == "agreement-issued-v1"
+    assert events[0].timestamp == NOW
+    assert context.sent == []
+
+    recovered = _accept(REQUEST_TOKEN)
+
+    recovered_sailor = context.sailors.get_by_id(SAILOR_ID)
+    recovered_session = context.sessions.get_by_id(SESSION_ID)
+    assert recovered.status_code == 200
+    assert recovered.json["status"] == "confirmed"
+    assert recovered_sailor is not None
+    assert recovered_sailor.personal_capability_token == PERSONAL_TOKEN
+    assert recovered_sailor.consent_granted_at == NOW
+    assert recovered_session is not None
+    assert recovered_session.capability_token == SESSION_TOKEN
+    assert context.events.for_sailor(SAILOR_ID) == events
+    assert context.sent == [
+        ("private-sailor@example.com", f"/me/{PERSONAL_TOKEN}")
+    ]
+
+
+def test_post_retry_completes_personal_capability_without_regeneration(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    ensure_personal = context.personal_capabilities.ensure_for_sailor
+    attempts = 0
+
+    def interrupt_once(sailor_id: str):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ValueError("simulated interruption before Personal capability")
+        return ensure_personal(sailor_id)
+
+    monkeypatch.setattr(
+        context.personal_capabilities,
+        "ensure_for_sailor",
+        interrupt_once,
+    )
+
+    interrupted = _accept(REQUEST_TOKEN)
+
+    session_after_interruption = context.sessions.get_by_id(SESSION_ID)
+    active = context.sailors.get_by_id(SAILOR_ID)
+    events = context.events.for_sailor(SAILOR_ID)
+    assert interrupted.status_code == 500
+    assert session_after_interruption is not None
+    assert session_after_interruption.capability_token == SESSION_TOKEN
+    assert active is not None and active.personal_capability_token is None
+    assert len(events) == 1
+    assert context.sent == []
+
+    recovered = _accept(REQUEST_TOKEN)
+    repeated = _accept(REQUEST_TOKEN)
+
+    recovered_sailor = context.sailors.get_by_id(SAILOR_ID)
+    recovered_session = context.sessions.get_by_id(SESSION_ID)
+    assert recovered.status_code == repeated.status_code == 200
+    assert recovered_sailor is not None
+    assert recovered_sailor.personal_capability_token == PERSONAL_TOKEN
+    assert recovered_session is not None
+    assert recovered_session.capability_token == SESSION_TOKEN
+    assert context.events.for_sailor(SAILOR_ID) == events
+    assert context.sent == [
+        ("private-sailor@example.com", f"/me/{PERSONAL_TOKEN}")
+    ]
+
+
+def test_post_retry_completes_welcome_attempt_interrupted_before_send(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    capability_path = SailorConsentService._personal_capability_path
+    attempts = 0
+
+    def interrupt_once(sailor):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ValueError("simulated interruption before welcome attempt")
+        return capability_path(sailor)
+
+    monkeypatch.setattr(
+        SailorConsentService,
+        "_personal_capability_path",
+        staticmethod(interrupt_once),
+    )
+
+    interrupted = _accept(REQUEST_TOKEN)
+
+    active = context.sailors.get_by_id(SAILOR_ID)
+    session = context.sessions.get_by_id(SESSION_ID)
+    events = context.events.for_sailor(SAILOR_ID)
+    assert interrupted.status_code == 500
+    assert active is not None
+    assert active.personal_capability_token == PERSONAL_TOKEN
+    assert active.welcome_email_sent_at is None
+    assert active.welcome_email_last_error is None
+    assert session is not None and session.capability_token == SESSION_TOKEN
+    assert len(events) == 1
+    assert context.sent == []
+
+    recovered = _accept(REQUEST_TOKEN)
+    repeated = _accept(REQUEST_TOKEN)
+
+    assert recovered.status_code == repeated.status_code == 200
+    assert context.events.for_sailor(SAILOR_ID) == events
+    assert context.sent == [
+        ("private-sailor@example.com", f"/me/{PERSONAL_TOKEN}")
+    ]
+
+
 @pytest.mark.parametrize(
     "token",
     ["short", "unknown-consent-request-" + "u" * 32],
@@ -484,6 +642,107 @@ def test_old_cycle_request_is_safe_and_cannot_activate(
     assert context.sent == []
 
 
+def test_old_cycle_request_cannot_repair_later_active_cycle(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    accepted = context.requests.mark_accepted(REQUEST_TOKEN)
+    assert accepted.accepted_at == NOW
+    cycle_service = SailorConsentService(context.sailors, context.events)
+    cycle_service.revoke_consent(SAILOR_ID, source="declined", timestamp=NOW)
+    cycle_service.start_new_consent_cycle(
+        SAILOR_ID,
+        source="valid_track",
+        timestamp=NOW + timedelta(minutes=1),
+    )
+    attempts = 0
+
+    def interrupt_session(sailor_id: str):
+        nonlocal attempts
+        attempts += 1
+        raise ValueError("simulated later-cycle interruption")
+
+    monkeypatch.setattr(
+        context.session_capabilities,
+        "ensure_for_sailor",
+        interrupt_session,
+    )
+    later_activation = SailorConsentService(
+        context.sailors,
+        context.events,
+        agreement_version="later-cycle-agreement",
+        session_capabilities=context.session_capabilities,
+        personal_capabilities=context.personal_capabilities,
+        welcome_email_sender=lambda email, path: context.sent.append(
+            (email, path)
+        ),
+        delivery_clock=lambda: NOW + timedelta(minutes=2),
+    )
+    with pytest.raises(ValueError, match="later-cycle interruption"):
+        later_activation.confirm_consent(
+            SAILOR_ID,
+            source="admin_confirmed",
+            timestamp=NOW + timedelta(minutes=2),
+        )
+
+    later_active = context.sailors.get_by_id(SAILOR_ID)
+    event_count = len(context.events.all())
+    assert later_active is not None
+    assert later_active.consent_status == ConsentStatus.ACTIVE
+    assert later_active.personal_capability_token is None
+    assert attempts == 1
+
+    _assert_unavailable(_accept(REQUEST_TOKEN))
+
+    unchanged = context.sailors.get_by_id(SAILOR_ID)
+    session = context.sessions.get_by_id(SESSION_ID)
+    assert unchanged == later_active
+    assert session is not None and session.capability_token is None
+    assert len(context.events.all()) == event_count
+    assert attempts == 1
+    assert context.sent == []
+
+
+def test_accepted_request_cannot_recover_an_unrelated_active_grant(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    context.requests.mark_accepted(REQUEST_TOKEN)
+    manual_activation = SailorConsentService(
+        context.sailors,
+        context.events,
+        agreement_version="agreement-issued-v1",
+        session_capabilities=context.session_capabilities,
+        personal_capabilities=context.personal_capabilities,
+        welcome_email_sender=lambda email, path: context.sent.append(
+            (email, path)
+        ),
+        delivery_clock=lambda: NOW + timedelta(minutes=1),
+    )
+    manual_activation.confirm_consent(
+        SAILOR_ID,
+        source="admin_confirmed",
+        timestamp=NOW + timedelta(minutes=1),
+    )
+    sailor_before = context.sailors.get_by_id(SAILOR_ID)
+    session_before = context.sessions.get_by_id(SESSION_ID)
+    events_before = context.events.all()
+    sent_before = list(context.sent)
+
+    response = _accept(REQUEST_TOKEN)
+
+    assert response.status_code == 500
+    assert response.json == {
+        "detail": "Persisted consent data is inconsistent"
+    }
+    assert context.sailors.get_by_id(SAILOR_ID) == sailor_before
+    assert context.sessions.get_by_id(SESSION_ID) == session_before
+    assert context.events.all() == events_before
+    assert context.sent == sent_before
+
+
 def test_welcome_delivery_failure_preserves_active_consent(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -495,13 +754,17 @@ def test_welcome_delivery_failure_preserves_active_consent(
     )
 
     response = _accept(REQUEST_TOKEN)
+    events = context.events.for_sailor(SAILOR_ID)
+    repeated = _accept(REQUEST_TOKEN)
 
     sailor = context.sailors.get_by_id(SAILOR_ID)
     assert response.status_code == 200
+    assert repeated.status_code == 200
     assert response.json["status"] == "confirmed"
     assert sailor is not None and sailor.consent_status == ConsentStatus.ACTIVE
     assert sailor.welcome_email_last_error == "Welcome email delivery failed"
-    assert len(context.events.for_sailor(SAILOR_ID)) == 1
+    assert len(events) == 1
+    assert context.events.for_sailor(SAILOR_ID) == events
     assert len(context.sent) == 1
 
 

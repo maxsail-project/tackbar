@@ -89,11 +89,44 @@ class SailorConsentService:
                 agreement_version=self.agreement_version,
             ),
         )
+        return self._complete_activation(sailor_id, attempt_welcome=True)
+
+    def complete_activation(
+        self,
+        sailor_id: str,
+        source: str,
+        timestamp: datetime,
+    ) -> Sailor:
+        sailor = self._require_status(sailor_id, ConsentStatus.ACTIVE)
+        matching_events = [
+            event
+            for event in self.events.for_sailor(sailor_id)
+            if event.event_type == ConsentEventType.CONSENT_GRANTED
+            and event.timestamp == timestamp
+            and event.source == source
+            and event.agreement_version == self.agreement_version
+        ]
+        if sailor.consent_granted_at != timestamp or len(matching_events) != 1:
+            raise ConsentTransitionError(
+                "ACTIVE Sailor does not match the accepted consent grant"
+            )
+        attempt_welcome = (
+            sailor.welcome_email_sent_at is None
+            and sailor.welcome_email_last_error is None
+        )
+        return self._complete_activation(sailor_id, attempt_welcome)
+
+    def _complete_activation(
+        self,
+        sailor_id: str,
+        attempt_welcome: bool,
+    ) -> Sailor:
         self.session_capabilities.ensure_for_sailor(sailor_id)
         active_sailor = self.personal_capabilities.ensure_for_sailor(sailor_id)
         if (
             active_sailor.personal_capability_token is None
             or active_sailor.personal_capability_revoked
+            or not attempt_welcome
         ):
             return active_sailor
         capability_path = self._personal_capability_path(active_sailor)
