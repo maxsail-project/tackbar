@@ -4,6 +4,7 @@ import {
   listAdminSailors,
   regenerateCapability,
   regeneratePersonalCapability,
+  sendConsentRequest,
   resendWelcomeEmail,
   revokePersonalCapability,
   renewSession,
@@ -84,6 +85,32 @@ describe('Admin API client', () => {
     )
     expect(updated.welcome_email_sent_at).toBe('2031-06-18T12:00:00Z')
     expect(updated.welcome_email_last_error).toBeNull()
+  })
+
+  it('sends or recovers a consent request through only the protected action endpoint', async () => {
+    const response = {
+      id: 'sailor/id',
+      consent_request: {
+        state: 'valid',
+        delivery_sent_at: '2031-06-18T12:00:00Z',
+        delivery_last_error: null,
+      },
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(response), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const updated = await sendConsentRequest('key', 'sailor/id')
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/admin/sailors/sailor%2Fid/consent/request/send',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(updated.consent_request.delivery_sent_at).toBe(
+      '2031-06-18T12:00:00Z',
+    )
   })
 
   it('keeps resend HTTP failures distinct from delivery-state responses', async () => {

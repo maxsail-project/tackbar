@@ -47,6 +47,8 @@ export const getAdminSailor = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}`, key)
 export const markConsentRequested = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/consent/requested`, key, 'POST')
+export const sendConsentRequest = (key: string, id: string) =>
+  adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/consent/request/send`, key, 'POST')
 export const confirmConsent = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/consent/confirm`, key, 'POST')
 export const revokeConsent = (key: string, id: string) =>

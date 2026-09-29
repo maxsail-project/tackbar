@@ -1,14 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminIngestion, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ADMIN_SECTION_ORDER, AdminAccessForm, capabilityLabels, confirmNewConsentCycle, consentLabels, DEFAULT_ADMIN_SECTION, IngestionCard, IngestionFilters, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard, WelcomeEmailStatus } from './AdminPage'
+import { ADMIN_SECTION_ORDER, AdminAccessForm, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, IngestionCard, IngestionFilters, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
-  id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : 'PENDING',
+  id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
   consent_request_sent_at: '2026-08-20T10:00:00Z', consent_granted_at: null, consent_revoked_at: null,
   operational_group: group, consent_events: [{ event_type: 'consent_requested', timestamp: '2026-08-20T10:00:00Z', source: 'admin', agreement_version: 'v1' }],
   personal_capability_state: 'never_generated', personal_capability_path: null,
   welcome_email_sent_at: null, welcome_email_last_error: null,
+  consent_request: { state: 'none', agreement_version: null, created_at: null, expires_at: null, automatic_delivery_attempted_at: null, delivery_sent_at: null, delivery_last_error: null },
   activity_count: 0, session_count: 0, last_sailing_start: null, last_sailing_end: null, sessions: [],
 })
 const session = (state: AdminSession['capability_state']): AdminSession => ({
@@ -52,15 +53,19 @@ describe('minimal Admin UI', () => {
   })
 
   it('renders state-appropriate consent actions and chronological event data', () => {
-    const callbacks = { onPersonalRegenerate: () => undefined, onPersonalRevoke: () => undefined, onWelcomeEmailResend: () => undefined, busy: false, onRequested: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined }
+    const callbacks = { onPersonalRegenerate: () => undefined, onPersonalRevoke: () => undefined, onWelcomeEmailResend: () => undefined, busy: false, onRequested: () => undefined, onConsentRequestSend: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined }
     const needs = renderToStaticMarkup(<SailorDetail sailor={sailor('pending_needs_request')} {...callbacks} />)
     const waiting = renderToStaticMarkup(<SailorDetail sailor={sailor('pending_awaiting_response')} {...callbacks} />)
+    const failedPending = renderToStaticMarkup(<SailorDetail sailor={{ ...sailor('pending_needs_request'), consent_request: { state: 'valid', agreement_version: 'v0.6.5', created_at: '2031-06-18T10:00:00Z', expires_at: '2031-07-16T10:00:00Z', automatic_delivery_attempted_at: '2031-06-18T10:01:00Z', delivery_sent_at: null, delivery_last_error: 'Consent request delivery failed' } }} {...callbacks} />)
     const active = renderToStaticMarkup(<SailorDetail sailor={sailor('active')} {...callbacks} />)
     const revoked = renderToStaticMarkup(<SailorDetail sailor={sailor('revoked')} {...callbacks} />)
 
-    expect(needs).toContain('Mark request sent')
+    expect(needs).toContain('Mark request sent manually')
+    expect(needs).toContain('Confirm consent')
     expect(waiting).toContain('Confirm consent')
     expect(waiting).toContain('Record decline')
+    expect(failedPending).toContain('Status:</strong> Failed')
+    expect(failedPending).toContain('Confirm consent')
     expect(active).toContain('Record withdrawal')
     expect(revoked).not.toContain('Confirm consent')
     expect(revoked).not.toContain('Activate')
@@ -71,6 +76,60 @@ describe('minimal Admin UI', () => {
     expect(waiting).toContain('consent requested')
     expect(waiting).toContain('admin')
     expect(waiting).toContain('v1')
+  })
+
+  it('shows safe Consent Request recovery states and actions without rendering tokens', () => {
+    const callbacks = { busy: false, onSend: () => undefined }
+    const none = renderToStaticMarkup(<ConsentRequestStatus sailor={sailor('pending_needs_request')} {...callbacks} />)
+    const validRequest = { state: 'valid' as const, agreement_version: 'v0.6.5', created_at: '2031-06-18T10:00:00Z', expires_at: '2031-07-16T10:00:00Z', automatic_delivery_attempted_at: '2031-06-18T10:01:00Z', delivery_sent_at: '2031-06-18T10:02:00Z', delivery_last_error: null }
+    const requestWithUnexpectedToken = { ...validRequest, token: 'secret-consent-token' } as AdminSailorDetail['consent_request']
+    const valid = renderToStaticMarkup(<ConsentRequestStatus sailor={{ ...sailor('pending_awaiting_response'), consent_request: requestWithUnexpectedToken }} {...callbacks} />)
+    const expired = renderToStaticMarkup(<ConsentRequestStatus sailor={{ ...sailor('pending_awaiting_response'), consent_request: { state: 'expired', agreement_version: 'v0.6.5', created_at: '2031-05-01T10:00:00Z', expires_at: '2031-05-29T10:00:00Z', automatic_delivery_attempted_at: null, delivery_sent_at: null, delivery_last_error: 'Consent request delivery failed' } }} {...callbacks} />)
+    const accepted = renderToStaticMarkup(<ConsentRequestStatus sailor={{ ...sailor('pending_awaiting_response'), consent_request: { ...sailor('pending_awaiting_response').consent_request, state: 'accepted' } }} {...callbacks} />)
+
+    expect(none).toContain('Not issued')
+    expect(none).toContain('Send consent request')
+    expect(valid).toContain('Status:</strong> Sent')
+    expect(valid).toContain('Agreement:</strong> v0.6.5')
+    expect(valid).toContain('Automatic attempt:')
+    expect(valid).toContain('Last delivery:')
+    expect(valid).toContain('Resend consent request')
+    expect(expired).toContain('Status:</strong> Expired')
+    expect(expired).toContain('Consent request delivery failed')
+    expect(expired).toContain('Reissue consent request')
+    expect(accepted).toContain('Status:</strong> Accepted')
+    expect(accepted).not.toContain('<button')
+    for (const markup of [none, valid, expired, accepted]) {
+      expect(markup).not.toContain('secret-consent-token')
+    }
+  })
+
+  it('does not offer request recovery to ACTIVE or REVOKED Sailors and disables it while busy', () => {
+    const request = { state: 'valid' as const, agreement_version: 'v0.6.5', created_at: '2031-06-18T10:00:00Z', expires_at: '2031-07-16T10:00:00Z', automatic_delivery_attempted_at: null, delivery_sent_at: null, delivery_last_error: null }
+    const active = renderToStaticMarkup(<ConsentRequestStatus sailor={{ ...sailor('active'), consent_request: request }} busy={false} onSend={() => undefined} />)
+    const revoked = renderToStaticMarkup(<ConsentRequestStatus sailor={{ ...sailor('revoked'), consent_request: request }} busy={false} onSend={() => undefined} />)
+    const busy = renderToStaticMarkup(<ConsentRequestStatus sailor={{ ...sailor('pending_awaiting_response'), consent_request: request }} busy onSend={() => undefined} />)
+
+    expect(active).not.toContain('Resend consent request')
+    expect(revoked).not.toContain('Resend consent request')
+    expect(busy).toContain('Sending consent request…')
+    expect(busy).toContain('disabled=""')
+  })
+
+  it('only asks for confirmation when reissuing an expired request', () => {
+    const confirm = vi.fn(() => false)
+    const action = vi.fn()
+
+    confirmConsentRequestSend('valid', confirm, action)
+    expect(confirm).not.toHaveBeenCalled()
+    expect(action).toHaveBeenCalledOnce()
+    action.mockClear()
+    confirmConsentRequestSend('expired', confirm, action)
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(action).not.toHaveBeenCalled()
+    confirm.mockReturnValue(true)
+    confirmConsentRequestSend('expired', confirm, action)
+    expect(action).toHaveBeenCalledOnce()
   })
 
   it('cancels or confirms a new consent cycle without bypassing confirmation', () => {
@@ -87,7 +146,7 @@ describe('minimal Admin UI', () => {
     const notSent = renderToStaticMarkup(<WelcomeEmailStatus sailor={sailor('active')} {...callbacks} />)
     const sent = renderToStaticMarkup(<WelcomeEmailStatus sailor={{ ...sailor('active'), welcome_email_sent_at: '2031-06-18T12:00:00Z' }} {...callbacks} />)
     const failed = renderToStaticMarkup(<WelcomeEmailStatus sailor={{ ...sailor('active'), welcome_email_sent_at: '2031-06-18T12:00:00Z', welcome_email_last_error: 'Welcome email delivery failed' }} {...callbacks} />)
-    const detail = renderToStaticMarkup(<SailorDetail sailor={{ ...sailor('active'), personal_capability_state: 'active', personal_capability_path: '/me/personal-token', welcome_email_last_error: 'Welcome email delivery failed' }} busy={false} onRequested={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
+    const detail = renderToStaticMarkup(<SailorDetail sailor={{ ...sailor('active'), personal_capability_state: 'active', personal_capability_path: '/me/personal-token', welcome_email_last_error: 'Welcome email delivery failed' }} busy={false} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
 
     expect(notSent).toContain('Welcome email:</strong> Not sent')
     expect(notSent).not.toContain('Last sent')
@@ -151,7 +210,7 @@ describe('minimal Admin UI', () => {
         sailor_activity_count: 2, expires_at: '2026-10-30T10:00:00Z', capability_state: 'expired', capability_path: null,
       }],
     }
-    const markup = renderToStaticMarkup(<SailorDetail sailor={detail} busy={false} onRequested={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
+    const markup = renderToStaticMarkup(<SailorDetail sailor={detail} busy={false} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
 
     expect(markup).toContain('admin-sailor-session__date')
     expect(markup).toContain('admin-sailor-session__interval')
@@ -175,7 +234,7 @@ describe('minimal Admin UI', () => {
         sailor_activity_count: 1, expires_at: '2026-09-30T10:00:00Z', capability_state: 'active', capability_path: '/s/token',
       }],
     }
-    const markup = renderToStaticMarkup(<SailorDetail sailor={unavailable} busy={false} onRequested={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
+    const markup = renderToStaticMarkup(<SailorDetail sailor={unavailable} busy={false} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
 
     expect(markup).toContain('>Active<')
     expect(markup).not.toContain('Session access')

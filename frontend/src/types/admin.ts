@@ -28,11 +28,24 @@ export interface AdminConsentEvent {
   agreement_version: string | null
 }
 
+export type AdminConsentRequestState = 'none' | 'valid' | 'expired' | 'accepted' | 'unusable'
+
+export interface AdminConsentRequest {
+  state: AdminConsentRequestState
+  agreement_version: string | null
+  created_at: string | null
+  expires_at: string | null
+  automatic_delivery_attempted_at: string | null
+  delivery_sent_at: string | null
+  delivery_last_error: string | null
+}
+
 export interface AdminSailorDetail extends AdminSailor {
   personal_capability_state: 'never_generated' | 'active' | 'revoked' | 'consent_inactive'
   personal_capability_path: string | null
   welcome_email_sent_at: string | null
   welcome_email_last_error: string | null
+  consent_request: AdminConsentRequest
   consent_events: AdminConsentEvent[]
   sessions: AdminSailorSession[]
 }

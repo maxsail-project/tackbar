@@ -84,6 +84,18 @@ class ConsentRequestService:
             return None
         return max(candidates, key=lambda request: (request.created_at, request.id))
 
+    def current_resolution_for_sailor(
+        self,
+        sailor_id: str,
+    ) -> ConsentRequestResolution:
+        request = self.find_current_for_sailor(sailor_id)
+        if request is None:
+            return ConsentRequestResolution(ConsentRequestState.NOT_FOUND)
+        return ConsentRequestResolution(
+            self._state(request, self._now()),
+            request,
+        )
+
     def automatic_delivery_was_attempted_for_current_cycle(
         self,
         sailor_id: str,

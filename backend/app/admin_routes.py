@@ -14,9 +14,15 @@ from app.admin_api_models import (
 from app.admin_auth import require_admin_key
 from app.repositories.activities import ActivityRepository
 from app.repositories.consent_events import ConsentEventRepository
+from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.admin_reader import AdminDataIntegrityError, AdminReader
+from app.services.admin_consent_requests import (
+    AdminConsentRequestEligibilityError,
+    AdminConsentRequestService,
+)
+from app.services.consent_requests import ConsentRequestService
 from app.services.personal_capabilities import PersonalCapabilityService
 from app.services.sailor_consent import (
     ConsentTransitionError,
@@ -79,6 +85,40 @@ def mark_consent_requested(sailor_id: str) -> AdminSailorDetailResponse:
             source="admin_marked_consent_requested",
         ),
     )
+
+
+@router.post(
+    "/sailors/{sailor_id}/consent/request/send",
+    response_model=AdminSailorDetailResponse,
+)
+def send_consent_request(sailor_id: str) -> AdminSailorDetailResponse:
+    sailors = SailorRepository()
+    events = ConsentEventRepository()
+    sessions = SessionRepository()
+    try:
+        if sailors.get_by_id(sailor_id) is None:
+            raise HTTPException(status_code=404, detail="Sailor not found")
+        requests = ConsentRequestService(
+            ConsentRequestRepository(),
+            sailors,
+            events,
+            sessions,
+        )
+        AdminConsentRequestService(
+            requests,
+            sailors,
+            SailorConsentService(sailors, events),
+        ).send(sailor_id)
+    except HTTPException:
+        raise
+    except AdminConsentRequestEligibilityError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Consent request delivery rejected",
+        ) from error
+    except ValueError as error:
+        raise _admin_integrity_error() from error
+    return get_sailor(sailor_id)
 
 
 @router.post(

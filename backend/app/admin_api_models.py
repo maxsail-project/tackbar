@@ -11,6 +11,13 @@ ConsentOperationalGroup = Literal[
     "revoked",
 ]
 CapabilityState = Literal["never_generated", "active", "revoked", "expired"]
+ConsentRequestAdminState = Literal[
+    "none",
+    "valid",
+    "expired",
+    "accepted",
+    "unusable",
+]
 
 
 class AdminSailorResponse(BaseModel):
@@ -35,11 +42,22 @@ class AdminConsentEventResponse(BaseModel):
     agreement_version: str | None
 
 
+class AdminConsentRequestResponse(BaseModel):
+    state: ConsentRequestAdminState
+    agreement_version: str | None
+    created_at: datetime | None
+    expires_at: datetime | None
+    automatic_delivery_attempted_at: datetime | None
+    delivery_sent_at: datetime | None
+    delivery_last_error: str | None
+
+
 class AdminSailorDetailResponse(AdminSailorResponse):
     personal_capability_state: Literal["never_generated", "active", "revoked", "consent_inactive"]
     personal_capability_path: str | None
     welcome_email_sent_at: datetime | None
     welcome_email_last_error: str | None
+    consent_request: AdminConsentRequestResponse
     consent_events: list[AdminConsentEventResponse]
     sessions: list["AdminSailorSessionResponse"]
 

@@ -8,6 +8,7 @@ import {
   listAdminSessions,
   listAdminIngestions,
   markConsentRequested,
+  sendConsentRequest,
   regenerateCapability,
   regeneratePersonalCapability,
   revokePersonalCapability,
@@ -23,7 +24,7 @@ import {
   type IngestionDispositionFilter,
   type IngestionStatusFilter,
 } from '../api/adminApi'
-import type { AdminIngestion, AdminSailor, AdminSailorDetail, AdminSession, CapabilityState, ConsentOperationalGroup } from '../types/admin'
+import type { AdminConsentRequestState, AdminIngestion, AdminSailor, AdminSailorDetail, AdminSession, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 
 type Section = 'sailors' | 'sessions' | 'ingestions'
 
@@ -45,6 +46,14 @@ export function confirmNewConsentCycle(
   action: () => void,
 ) {
   if (confirm('Start a new consent cycle for this Sailor? They will return to Pending and will need consent again.')) action()
+}
+
+export function confirmConsentRequestSend(
+  state: AdminConsentRequestState,
+  confirm: (message: string) => boolean,
+  action: () => void,
+) {
+  if (state !== 'expired' || confirm('Reissue this expired consent request? A new consent link will be created.')) action()
 }
 
 function localDate(value: string | null) {
@@ -180,7 +189,7 @@ export default function AdminPage() {
         <div className="admin-card__heading"><div><h2>{sailor.name || sailor.email}</h2>{sailor.name && <p>{sailor.email}</p>}</div><span className={`state-badge state-${sailor.operational_group}`}>{consentLabels[sailor.operational_group]}</span></div>
         <p className="admin-meta">Activities: {sailor.activity_count} · Sessions: {sailor.session_count}<br />Last sailing: {sailor.last_sailing_end ? localDate(sailor.last_sailing_start) + '–' + localDate(sailor.last_sailing_end) : '—'}<br />{sailor.operational_group === 'active' ? 'Consent granted' : sailor.operational_group === 'revoked' ? 'Consent revoked' : 'Consent request'}: {localDate(sailor.operational_group === 'active' ? sailor.consent_granted_at : sailor.operational_group === 'revoked' ? sailor.consent_revoked_at : sailor.consent_request_sent_at)}</p>
         <button disabled={busy} onClick={async () => { if (!adminKey) return; setBusy(true); try { setSelectedSailor(await getAdminSailor(adminKey, sailor.id)) } catch (cause) { handleError(cause) } finally { setBusy(false) } }}>View details</button>
-        {selectedSailor?.id === sailor.id && <SailorDetail sailor={selectedSailor} busy={busy} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} onPersonalRegenerate={() => { if (window.confirm('Regenerate personal access? The current personal link will stop working.')) void sailorAction(() => regeneratePersonalCapability(adminKey, sailor.id)) }} onPersonalRevoke={() => { if (window.confirm('Revoke personal access? Consent and shared Sessions will remain unchanged.')) void sailorAction(() => revokePersonalCapability(adminKey, sailor.id)) }} onWelcomeEmailResend={() => void sailorAction(() => resendWelcomeEmail(adminKey, sailor.id))} />}
+        {selectedSailor?.id === sailor.id && <SailorDetail sailor={selectedSailor} busy={busy} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConsentRequestSend={() => sailorAction(() => sendConsentRequest(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} onPersonalRegenerate={() => { if (window.confirm('Regenerate personal access? The current personal link will stop working.')) void sailorAction(() => regeneratePersonalCapability(adminKey, sailor.id)) }} onPersonalRevoke={() => { if (window.confirm('Revoke personal access? Consent and shared Sessions will remain unchanged.')) void sailorAction(() => revokePersonalCapability(adminKey, sailor.id)) }} onWelcomeEmailResend={() => void sailorAction(() => resendWelcomeEmail(adminKey, sailor.id))} />}
       </article>)}
     </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><div className="admin-list">
       {sessions.map((session) => <SessionCard key={session.id} session={session} busy={busy} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
@@ -199,9 +208,11 @@ export function IngestionCard({ ingestion, busy, onReprocess, onDiscard, onResto
   return <article className="admin-card"><div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.sender_email || 'Unknown sender'} · {ingestion.provider}</p></div><span className={`state-badge state-${technicalStatusClass}`}>{ingestion.status === 'processed' ? 'Processed' : 'Failed'}</span></div>{hasSailing ? <div className="admin-ingestion-sailing"><time className="admin-ingestion-sailing__date" dateTime={ingestion.activity_start_time!}>{sailingDate(ingestion.activity_start_time!)}</time><p className="admin-ingestion-sailing__interval"><time dateTime={ingestion.activity_start_time!}>{sailingTime(ingestion.activity_start_time!)}</time> – <time dateTime={ingestion.activity_end_time!}>{sailingTime(ingestion.activity_end_time!)}</time></p><p className="admin-ingestion-sailing__summary">{sailingDuration(ingestion.activity_start_time!, ingestion.activity_end_time!)} · {ingestion.activity_sample_count?.toLocaleString() ?? '—'} samples</p></div> : <p className="admin-meta"><strong>Sailing:</strong> —</p>}<div className="admin-ingestion-ops"><p><strong>Disposition:</strong> {ingestion.disposition === 'active' ? 'Active' : 'Discarded'}</p><p><strong>Received:</strong> {localDate(ingestion.received_at)}</p><p><strong>Attempts:</strong> {ingestion.attempts} · <strong>Last attempt:</strong> {localDate(ingestion.last_attempt_at)}</p></div>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}{ingestion.status === 'processed' ? <section className="admin-ingestion-result" aria-label="Ingestion result"><h3>Result</h3><p><strong>Sailor identified:</strong> {ingestion.sender_email || 'Unknown sender'}</p><p><strong>Sailor status:</strong> {ingestion.sailor_consent_status ? sailorConsentLabels[ingestion.sailor_consent_status] : '—'}</p><p><strong>Activity created/reused:</strong> {ingestion.activity_id || '—'}</p><p><strong>Session associated:</strong> {ingestion.session_id || '—'}</p></section> : <p className="admin-meta">Activity: {ingestion.activity_id || '—'}<br />Session: {ingestion.session_id || '—'}</p>}<p className="admin-meta">Original: {ingestion.original_available ? 'Available' : 'Unavailable'}</p><div className="admin-actions">{ingestion.original_available && <button disabled={busy} onClick={onReprocess}>Reprocess</button>}<button disabled={busy} onClick={ingestion.disposition === 'active' ? onDiscard : onRestore}>{ingestion.disposition === 'active' ? 'Discard' : 'Restore'}</button></div></article>
 }
 
-export function SailorDetail({ sailor, busy, onRequested, onConfirm, onRevoke, onNewCycle, onPersonalRegenerate, onPersonalRevoke, onWelcomeEmailResend }: { sailor: AdminSailorDetail, busy: boolean, onRequested: () => void, onConfirm: () => void, onRevoke: () => void, onNewCycle: () => void, onPersonalRegenerate: () => void, onPersonalRevoke: () => void, onWelcomeEmailResend: () => void }) {
+export function SailorDetail({ sailor, busy, onRequested, onConsentRequestSend, onConfirm, onRevoke, onNewCycle, onPersonalRegenerate, onPersonalRevoke, onWelcomeEmailResend }: { sailor: AdminSailorDetail, busy: boolean, onRequested: () => void, onConsentRequestSend: () => void, onConfirm: () => void, onRevoke: () => void, onNewCycle: () => void, onPersonalRegenerate: () => void, onPersonalRevoke: () => void, onWelcomeEmailResend: () => void }) {
+  const pending = sailor.consent_status === 'PENDING'
   return <div className="admin-detail"><dl><div><dt>Granted</dt><dd>{localDate(sailor.consent_granted_at)}</dd></div><div><dt>Revoked</dt><dd>{localDate(sailor.consent_revoked_at)}</dd></div></dl>
-    <div className="admin-actions">{sailor.operational_group === 'pending_needs_request' && <button disabled={busy} onClick={onRequested}>Mark request sent</button>}{sailor.operational_group === 'pending_awaiting_response' && <><button disabled={busy} onClick={onConfirm}>Confirm consent</button><button disabled={busy} className="danger" onClick={onRevoke}>Record decline</button></>}{sailor.operational_group === 'active' && <button disabled={busy} className="danger" onClick={onRevoke}>Record withdrawal</button>}{sailor.operational_group === 'revoked' && <button disabled={busy} onClick={onNewCycle}>Start new consent cycle</button>}</div>
+    <ConsentRequestStatus sailor={sailor} busy={busy} onSend={onConsentRequestSend} />
+    <div className="admin-actions">{sailor.operational_group === 'pending_needs_request' && <button disabled={busy} onClick={onRequested}>Mark request sent manually</button>}{pending && <><button disabled={busy} onClick={onConfirm}>Confirm consent</button><button disabled={busy} className="danger" onClick={onRevoke}>Record decline</button></>}{sailor.operational_group === 'active' && <button disabled={busy} className="danger" onClick={onRevoke}>Record withdrawal</button>}{sailor.operational_group === 'revoked' && <button disabled={busy} onClick={onNewCycle}>Start new consent cycle</button>}</div>
     <PersonalCapabilityControls key={`${sailor.id}-${sailor.personal_capability_path}-${sailor.personal_capability_state}`} sailor={sailor} busy={busy} onRegenerate={onPersonalRegenerate} onRevoke={onPersonalRevoke} />
     <WelcomeEmailStatus sailor={sailor} busy={busy} onResend={onWelcomeEmailResend} />
     <h3>Activity history</h3><p className="admin-meta">Activities: {sailor.activity_count} · Sessions: {sailor.session_count}<br />Last sailing: {sailor.last_sailing_end ? `${localDate(sailor.last_sailing_start)}–${localDate(sailor.last_sailing_end)}` : '—'}</p><h3>Sessions</h3>{sailor.sessions.length === 0 ? <p>No Sessions recorded.</p> : <div className="admin-list">{sailor.sessions.map((session) => {
@@ -217,6 +228,40 @@ export function SailorDetail({ sailor, busy, onRequested, onConfirm, onRevoke, o
     })}</div>}
     <h3>Consent history</h3>{sailor.consent_events.length === 0 ? <p>No consent events recorded.</p> : <ol className="event-list">{sailor.consent_events.map((event, index) => <li key={`${event.timestamp}-${index}`}><strong>{event.event_type.replaceAll('_', ' ')}</strong><span>{localDate(event.timestamp)} · {event.source}{event.agreement_version ? ` · ${event.agreement_version}` : ''}</span></li>)}</ol>}
   </div>
+}
+
+export function ConsentRequestStatus({ sailor, busy, onSend }: {
+  sailor: AdminSailorDetail; busy: boolean; onSend: () => void
+}) {
+  const request = sailor.consent_request
+  const failed = request.delivery_last_error !== null
+  const status = request.state === 'none' ? 'Not issued'
+    : request.state === 'expired' ? 'Expired'
+    : request.state === 'accepted' ? 'Accepted'
+    : request.state === 'unusable' ? 'Unavailable'
+    : failed ? 'Failed'
+    : request.delivery_sent_at ? 'Sent'
+    : 'Not sent'
+  const action = request.state === 'none' ? 'Send consent request'
+    : request.state === 'expired' ? 'Reissue consent request'
+    : request.state === 'valid' ? 'Resend consent request'
+    : null
+  const send = () => confirmConsentRequestSend(
+    request.state,
+    (message) => window.confirm(message),
+    onSend,
+  )
+  return <section className="admin-consent-request" aria-label="Consent request">
+    <h3>Consent request</h3>
+    <p><strong>Status:</strong> {status}</p>
+    {request.agreement_version && <p><strong>Agreement:</strong> {request.agreement_version}</p>}
+    {request.created_at && <p><strong>Created:</strong> {localDate(request.created_at)}</p>}
+    {request.expires_at && <p><strong>Expires:</strong> {localDate(request.expires_at)}</p>}
+    {request.automatic_delivery_attempted_at && <p><strong>Automatic attempt:</strong> {localDate(request.automatic_delivery_attempted_at)}</p>}
+    {request.delivery_sent_at && <p><strong>Last delivery:</strong> {localDate(request.delivery_sent_at)}</p>}
+    {failed && <p className="admin-error">{request.delivery_last_error}</p>}
+    {sailor.consent_status === 'PENDING' && action && <div className="admin-actions"><button disabled={busy} onClick={send}>{busy ? 'Sending consent request…' : action}</button></div>}
+  </section>
 }
 
 export function WelcomeEmailStatus({ sailor, busy, onResend }: {

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from app.admin_api_models import (
+    AdminConsentRequestResponse,
     AdminConsentEventResponse,
     AdminSailorDetailResponse,
     AdminSailorResponse,
@@ -11,11 +12,22 @@ from app.admin_api_models import (
     CapabilityState,
     ConsentOperationalGroup,
 )
-from app.models import ConsentStatus, Sailor, Session, StoredActivity
+from app.models import (
+    ConsentRequestState,
+    ConsentStatus,
+    Sailor,
+    Session,
+    StoredActivity,
+)
 from app.repositories.activities import ActivityRepository
 from app.repositories.consent_events import ConsentEventRepository
+from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
+from app.services.consent_requests import (
+    CONSENT_REQUEST_DELIVERY_FAILURE,
+    ConsentRequestService,
+)
 from app.services.sailor_sessions import sailor_sessions
 from app.services.shared_activity_visibility import (
     SharedActivityVisibilityError,
@@ -35,12 +47,22 @@ class AdminReader:
         sessions: SessionRepository,
         activities: ActivityRepository,
         clock: Callable[[], datetime] | None = None,
+        consent_requests: ConsentRequestRepository | None = None,
     ) -> None:
         self.sailors = sailors
         self.consent_events = consent_events
         self.sessions = sessions
         self.activities = activities
         self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.consent_requests = ConsentRequestService(
+            consent_requests or ConsentRequestRepository(
+                sailors.path.with_name("consent_requests.json")
+            ),
+            sailors,
+            consent_events,
+            sessions,
+            clock=self.clock,
+        )
 
     def list_sailors(self) -> list[AdminSailorResponse]:
         persisted_sailors = self.sailors.all()
@@ -79,6 +101,17 @@ class AdminReader:
             self.consent_events.for_sailor(sailor_id),
             key=lambda event: (event.timestamp, event.event_type.value),
         )
+        request_resolution = (
+            self.consent_requests.current_resolution_for_sailor(sailor_id)
+        )
+        request = request_resolution.request
+        request_states = {
+            ConsentRequestState.NOT_FOUND: "none",
+            ConsentRequestState.VALID: "valid",
+            ConsentRequestState.EXPIRED: "expired",
+            ConsentRequestState.ACCEPTED: "accepted",
+            ConsentRequestState.UNUSABLE: "unusable",
+        }
         return AdminSailorDetailResponse(
             **summary.model_dump(),
             consent_events=[
@@ -105,6 +138,27 @@ class AdminReader:
             ),
             welcome_email_sent_at=sailor.welcome_email_sent_at,
             welcome_email_last_error=sailor.welcome_email_last_error,
+            consent_request=AdminConsentRequestResponse(
+                state=request_states[request_resolution.state],
+                agreement_version=(
+                    request.agreement_version if request is not None else None
+                ),
+                created_at=request.created_at if request is not None else None,
+                expires_at=request.expires_at if request is not None else None,
+                automatic_delivery_attempted_at=(
+                    request.automatic_delivery_attempted_at
+                    if request is not None else None
+                ),
+                delivery_sent_at=(
+                    request.delivery_sent_at if request is not None else None
+                ),
+                delivery_last_error=(
+                    CONSENT_REQUEST_DELIVERY_FAILURE
+                    if request is not None
+                    and request.delivery_last_error is not None
+                    else None
+                ),
+            ),
         )
 
     def _validate_consent_event_sailors(self, sailor_ids: set[str]) -> None:
