@@ -18,6 +18,14 @@ class ConsentEventType(str, Enum):
     CONSENT_CYCLE_STARTED = "consent_cycle_started"
 
 
+class ConsentRequestState(str, Enum):
+    VALID = "VALID"
+    EXPIRED = "EXPIRED"
+    ACCEPTED = "ACCEPTED"
+    UNUSABLE = "UNUSABLE"
+    NOT_FOUND = "NOT_FOUND"
+
+
 @dataclass
 class Activity:
     source: str
@@ -79,6 +87,27 @@ class ConsentEvent:
     source: str
     sailor_id: str
     agreement_version: str | None = None
+
+
+@dataclass(frozen=True)
+class ConsentRequest:
+    id: str
+    sailor_id: str
+    token: str
+    agreement_version: str
+    consent_cycle_sequence: int
+    created_at: datetime
+    expires_at: datetime
+    automatic_delivery_attempted_at: datetime | None = None
+    delivery_sent_at: datetime | None = None
+    delivery_last_error: str | None = None
+    accepted_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ConsentRequestResolution:
+    state: ConsentRequestState
+    request: ConsentRequest | None = None
 
 
 @dataclass
