@@ -1,7 +1,7 @@
 # TackBar Pilot Participation Conditions
 # Condiciones de Participación en el Piloto TackBar
 
-**Agreement version / Versión del acuerdo: v0.5.0**
+**Agreement version / Versión del acuerdo: v0.6.5**
 
 ## Español
 
@@ -40,16 +40,16 @@ operación, soporte, mantenimiento, reprocesamiento y gestión del consentimient
 ### Canal de email
 
 `share@tackbar.eu` es actualmente el canal de email de la PoC para recibir
-tracks y enviar mensajes operativos. El flujo de consentimiento vigente sigue
-siendo manual: el Admin envía la solicitud, revisa tu respuesta explícita y
-confirma el consentimiento en TackBar Admin.
+tracks y enviar mensajes operativos. Enviar un track a este canal inicia el
+procesamiento técnico, pero no constituye consentimiento para participar.
 
 ### Cómo aceptar
 
-Puedes responder al email de consentimiento con esta frase exacta:
-
-> “Acepto participar en la prueba de TackBar y autorizo el tratamiento de mis
-> tracks de navegación en las condiciones indicadas.”
+Para aceptar estas condiciones y participar en el piloto debes realizar la
+acción explícita de confirmación en la página de consentimiento de la aplicación
+TackBar. Abrir el enlace de consentimiento, consultar esta página de condiciones
+o enviar un track no constituye consentimiento. Solo la confirmación afirmativa
+explícita activa tu participación.
 
 ## English
 
@@ -87,13 +87,13 @@ support, maintenance, reprocessing and consent management.
 ### Email channel
 
 `share@tackbar.eu` is currently the PoC email channel for receiving tracks and
-sending operational messages. The current consent workflow remains manual: the
-Admin sends the request, reviews your explicit reply and confirms consent in
-TackBar Admin.
+sending operational messages. Sending a track to this channel starts technical
+processing, but does not constitute consent to participate.
 
 ### How to accept
 
-You may reply to the consent email using this exact phrase:
-
-> “I agree to participate in the TackBar pilot and authorize the processing
-> of my sailing tracks under the conditions described.”
+To accept these conditions and participate in the pilot, you must use the
+explicit confirmation action on the TackBar application consent page. Opening
+the consent link, viewing this conditions page or sending a track does not
+constitute consent. Only explicit affirmative confirmation activates your
+participation.
