@@ -98,6 +98,7 @@ def test_issues_persisted_request_for_pending_sailor_with_fixed_lifetime(
     issued = service.issue_for_pending_sailor(SAILOR_ID)
     persisted = requests.get_by_id(issued.id)
 
+    assert CURRENT_CONSENT_AGREEMENT_VERSION == "v0.6.5"
     assert issued == persisted
     assert issued.sailor_id == SAILOR_ID
     assert issued.created_at == NOW

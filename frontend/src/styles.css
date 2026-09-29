@@ -1015,3 +1015,210 @@ input:focus-visible {
 }
 
 .personal-session__action:not(:disabled):hover { border-color: var(--color-blue); box-shadow: 0 0 0 1px var(--color-blue); }
+
+/* Public consent pages share one focused, bilingual application surface. */
+.consent-shell {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--color-background);
+}
+
+.app-header.consent-header {
+  padding-right: max(18px, calc((100% - 724px) / 2));
+  padding-left: max(18px, calc((100% - 724px) / 2));
+}
+
+.consent-page,
+.conditions-page {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.consent-card,
+.conditions-title,
+.conditions-language {
+  min-width: 0;
+  padding: 22px 18px;
+  border: 1px solid #d2e0e3;
+  border-radius: 16px;
+  background: var(--color-white);
+  box-shadow: 0 8px 22px rgb(25 62 70 / 8%);
+}
+
+.consent-card h1,
+.conditions-title h1 {
+  margin: 0;
+  color: var(--color-navy);
+  font-size: clamp(1.55rem, 7vw, 2.1rem);
+  line-height: 1.16;
+  letter-spacing: -0.035em;
+}
+
+.consent-card h1 span,
+.conditions-title h1 span {
+  font-size: 0.78em;
+  letter-spacing: -0.02em;
+}
+
+.consent-languages {
+  display: grid;
+  gap: 22px;
+  margin-top: 26px;
+}
+
+.consent-languages section + section {
+  padding-top: 22px;
+  border-top: 1px solid var(--color-pale);
+}
+
+.consent-languages h2,
+.conditions-language h2 {
+  margin: 0 0 14px;
+  color: var(--color-blue);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.consent-languages p,
+.consent-message p,
+.consent-confirmed p,
+.conditions-language p,
+.conditions-language li {
+  color: #17323a;
+  line-height: 1.6;
+}
+
+.consent-languages p {
+  margin: 10px 0 0;
+}
+
+.consent-status,
+.consent-message,
+.consent-confirmed {
+  display: grid;
+  gap: 8px;
+  margin: 24px 0 0;
+}
+
+.consent-status span,
+.consent-message p,
+.consent-confirmed p {
+  margin: 0;
+}
+
+.consent-version {
+  margin: 24px 0 0;
+  color: #647b82;
+  font-size: 0.78rem;
+}
+
+.consent-conditions-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 10px;
+  color: var(--color-blue);
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.consent-confirm,
+.consent-retry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 22px;
+  padding: 10px 16px;
+  border: 1px solid var(--color-navy);
+  border-radius: 10px;
+  color: var(--color-white);
+  background: var(--color-navy);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.consent-retry {
+  color: var(--color-navy);
+  background: var(--color-white);
+}
+
+.consent-confirm:disabled {
+  color: #61767d;
+  border-color: #cbdadd;
+  background: #edf3f4;
+  cursor: wait;
+}
+
+.consent-progress {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  color: #526d74;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.conditions-page {
+  display: grid;
+  gap: 18px;
+}
+
+.conditions-title p {
+  margin: 18px 0 0;
+  color: #526d74;
+}
+
+.conditions-language h3 {
+  margin: 28px 0 8px;
+  color: var(--color-navy);
+  font-size: 1.05rem;
+}
+
+.conditions-language h3:first-of-type {
+  margin-top: 0;
+}
+
+.conditions-language p {
+  margin: 8px 0 0;
+}
+
+.conditions-language ul {
+  margin: 10px 0 0;
+  padding-left: 22px;
+}
+
+.conditions-language code {
+  overflow-wrap: anywhere;
+  color: var(--color-navy);
+  font: inherit;
+  font-weight: 750;
+}
+
+@media (min-width: 700px) {
+  .consent-page,
+  .conditions-page {
+    padding-top: 36px;
+  }
+
+  .consent-card,
+  .conditions-title,
+  .conditions-language {
+    padding: 30px;
+  }
+
+  .consent-languages {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .consent-languages section + section {
+    padding-top: 0;
+    padding-left: 24px;
+    border-top: 0;
+    border-left: 1px solid var(--color-pale);
+  }
+}

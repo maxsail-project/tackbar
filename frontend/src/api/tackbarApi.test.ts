@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  acceptConsentRequest,
   ActivityTrackNotFoundError,
+  ConsentUnavailableError,
+  getConsentRequest,
   getSharedActivityTrack,
   getSharedSession,
   SessionNotFoundError,
@@ -11,6 +14,12 @@ const SESSION = {
   start_time: '2031-06-15T08:00:00Z',
   end_time: '2031-06-15T10:00:00Z',
   activities: [],
+}
+
+const CONSENT = {
+  status: 'ready',
+  agreement_version: 'v0.6.5',
+  expires_at: '2031-07-16T10:00:00Z',
 }
 
 afterEach(() => {
@@ -96,5 +105,68 @@ describe('TackBar Session API client', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError))
 
     await expect(getSharedActivityTrack('token', 'activity-1')).rejects.toBe(abortError)
+  })
+})
+
+describe('TackBar public consent API client', () => {
+  it('gets consent with an encoded token, GET only and AbortSignal support', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(CONSENT), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const controller = new AbortController()
+
+    await expect(
+      getConsentRequest('consent/token?private', controller.signal),
+    ).resolves.toEqual(CONSENT)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/consent/consent%2Ftoken%3Fprivate',
+      expect.objectContaining({ method: 'GET', signal: controller.signal }),
+    )
+  })
+
+  it('accepts consent with one encoded-token POST request', async () => {
+    const confirmed = { ...CONSENT, status: 'confirmed' }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(confirmed), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(acceptConsentRequest('consent/token?private')).resolves.toEqual(confirmed)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/consent/consent%2Ftoken%3Fprivate/accept',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('maps unavailable consent to its safe public error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response('{"detail":"private backend detail"}', { status: 404 }),
+    ))
+
+    await expect(getConsentRequest('missing')).rejects.toBeInstanceOf(
+      ConsentUnavailableError,
+    )
+    await expect(acceptConsentRequest('missing')).rejects.toThrow(
+      'Consent request unavailable.',
+    )
+  })
+
+  it('keeps network and server failures generic without exposing backend detail', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockRejectedValueOnce(new TypeError('private network detail'))
+      .mockResolvedValueOnce(new Response(
+        '{"detail":"private persisted detail"}',
+        { status: 500 },
+      )))
+
+    await expect(getConsentRequest('token')).rejects.toThrow(
+      'Unable to reach TackBar API.',
+    )
+    await expect(getConsentRequest('token')).rejects.toMatchObject({
+      message: 'TackBar API request failed.',
+      status: 500,
+    })
   })
 })

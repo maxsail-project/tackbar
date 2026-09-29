@@ -1,6 +1,7 @@
 import type { PersonalTackBar } from '../types/personal'
 import type { SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
+import type { PublicConsent } from '../types/consent'
 
 export class TackBarApiError extends Error {
   readonly status: number | null
@@ -17,6 +18,30 @@ export class PersonalTackBarNotFoundError extends TackBarApiError {
     super('Personal TackBar not found.', 404)
     this.name = 'PersonalTackBarNotFoundError'
   }
+}
+
+export class ConsentUnavailableError extends TackBarApiError {
+  constructor() {
+    super('Consent request unavailable.', 404)
+    this.name = 'ConsentUnavailableError'
+  }
+}
+
+export function getConsentRequest(token: string, signal?: AbortSignal) {
+  return requestJson<PublicConsent>(
+    `/api/consent/${encodeURIComponent(token)}`,
+    signal,
+    () => new ConsentUnavailableError(),
+  )
+}
+
+export function acceptConsentRequest(token: string) {
+  return requestJson<PublicConsent>(
+    `/api/consent/${encodeURIComponent(token)}/accept`,
+    undefined,
+    () => new ConsentUnavailableError(),
+    'POST',
+  )
 }
 
 export function getPersonalTackBar(token: string, signal?: AbortSignal) {
@@ -45,12 +70,13 @@ async function requestJson<T>(
   path: string,
   signal?: AbortSignal,
   notFoundError?: () => TackBarApiError,
+  method: 'GET' | 'POST' = 'GET',
 ): Promise<T> {
   let response: Response
 
   try {
     response = await fetch(path, {
-      method: 'GET',
+      method,
       headers: { Accept: 'application/json' },
       signal,
     })
