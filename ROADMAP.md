@@ -94,11 +94,18 @@ Reference: [requirements](docs/v0.5.1-pilot-fix-and-usability-requirements.md).
 
 ---
 
-## Current milestone — v0.6.0 Mahon — Pilot Operations
+## Mahon release family — v0.6.x
+
+The Mahon family progressed through six focused releases while preserving the
+same core Sailor → Activity → Session and collaborative debrief baseline.
+
+### v0.6.0 Mahon — Pilot Operations
+
+**Status:** Delivered / production validated
 
 Goal: publish the smallest coherent operational build needed for the Mahon pilot, consolidating the complete v0.6 work developed after v0.5.1 without expanding the product surface unnecessarily.
 
-Current release scope:
+Delivered scope:
 
 - Personal TackBar / My Sessions with stable personal capability access for ACTIVE Sailors;
 - personal Session participation history derived through the Sailor's Activities;
@@ -135,24 +142,59 @@ Explicitly outside v0.6.0:
 
 References: [requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md) and [decisions](docs/v0.6-decisions.md).
 
+### v0.6.1 Mahon — OVH Mailbox Ingestion
+
+**Status:** Delivered / production validated
+
+Replaced Gmail as the operational production mailbox with OVHcloud Zimbra at
+`share@tackbar.eu`, preserving the provider-independent ingestion pipeline and
+existing product semantics.
+
+Reference: [requirements](docs/v0.6.1-ovh-mailbox-ingestion-requirements.md).
+
+### v0.6.2 Mahon — Viewer & Admin Usability
+
+**Status:** Delivered / focused automated validation passed
+
+Added Individual Analysis and visual-only temporal zoom in the Session Viewer,
+and clarified Admin Ingestion and Session operational context without changing
+domain or access semantics.
+
+### v0.6.3 Mahon — Usability & Maintenance
+
+**Status:** Delivered / focused automated validation passed
+
+Stabilized temporal chart interaction on touch, stylus and mouse, refined Admin
+and Viewer microcopy/navigation and updated deployment workflow maintenance.
+
+### v0.6.4 Mahon — Sailor Activation Welcome Email
+
+**Status:** Release-ready / production validation pending
+
+Implemented the bilingual activation welcome email, OVH SMTP delivery boundary,
+safe delivery state and explicit Admin resend while keeping consent
+authoritative when delivery fails.
+
+Reference: [requirements](docs/v0.6.4-sailor-activation-welcome-email-requirements.md).
+
+### v0.6.5 Mahon — Simplified Pilot Onboarding & Web Consent
+
+**Status:** Implemented / production validation pending
+
+Completes track-first pilot onboarding with persisted Consent Requests,
+explicit bilingual web consent, one automatic request-email attempt per pending
+cycle and Admin resend/reissue plus manual-confirmation recovery. Production
+deployment and the real OVH SMTP end-to-end consent flow remain pending.
+
+Reference: [requirements](docs/v0.6.5-simplified-pilot-onboarding-requirements.md).
+
+Any additional v0.6.x work remains unassigned unless explicitly promoted.
+Pending work is tracked in `docs/product-backlog.md` rather than inferred from
+historical release documents.
+
 ---
 
-## Future 0.6.x
-
-Valid follow-up work in the v0.6 family that has not been assigned to a concrete release remains labelled **Future 0.6.x**.
-
-Current examples:
-
-- multi-provider email ingestion / OVHcloud adapter;
-- broader Session-maintenance usability.
-
-After v0.6.0 is published, patch numbers such as v0.6.1, v0.6.2 and later remain available for hot-fixes and corrective releases. They are not pre-reserved for feature work.
-
-A concrete version is assigned to Future 0.6.x work only when that scope is explicitly promoted.
-
----
-
-## Planned milestone — v0.7.0 Multi-Format Track Ingestion
+## Planned milestone — v0.7.0 Californian — Multi-Format Track Ingestion
 
 Extend the existing ingestion flow to additional file formats while preserving one canonical TackBar normalized track representation.
 
@@ -188,9 +230,13 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.4.0 | Collaborative Sailing Debrief PoC | Delivered |
 | v0.5.0 | Real Sailing Pilot | Delivered / validated |
 | v0.5.1 | Pilot Fix & Usability | Delivered |
-| v0.6.0 | Mahon — Pilot Operations | Current |
-| Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
-| v0.7.0 | Multi-Format Track Ingestion | Planned |
+| v0.6.0 | Mahon — Pilot Operations | Delivered / production validated |
+| v0.6.1 | Mahon — OVH Mailbox Ingestion | Delivered / production validated |
+| v0.6.2 | Mahon — Viewer & Admin Usability | Delivered / focused validation passed |
+| v0.6.3 | Mahon — Usability & Maintenance | Delivered / focused validation passed |
+| v0.6.4 | Mahon — Sailor Activation Welcome Email | Release-ready / production validation pending |
+| v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implemented / production validation pending |
+| v0.7.0 | Californian — Multi-Format Track Ingestion | Planned |
 
 ---
 
@@ -234,11 +280,18 @@ Entregado: mejor contexto operativo de Sessions, Sailors e ingestas en Admin, pr
 
 ---
 
-## Hito actual — v0.6.0 Mahon — Pilot Operations
+## Familia de releases Mahon — v0.6.x
+
+La familia Mahon avanzó mediante seis releases focalizadas, preservando la misma
+baseline Sailor → Activity → Session y de debriefing colaborativo.
+
+### v0.6.0 Mahon — Pilot Operations
+
+**Estado:** Entregado / validado en producción
 
 Objetivo: publicar la build operativa mínima y coherente para el piloto de Mahon, incluyendo todo el trabajo v0.6 desarrollado después de v0.5.1.
 
-Alcance actual:
+Alcance entregado:
 
 - Personal TackBar / My Sessions;
 - capability personal estable para Sailors ACTIVE;
@@ -262,22 +315,55 @@ Fuera de v0.6.0:
 - orientación automática del mapa por viento;
 - analytics avanzados.
 
+### v0.6.1 Mahon — OVH Mailbox Ingestion
+
+**Estado:** Entregado / validado en producción
+
+Sustituyó Gmail como buzón operativo de producción por OVHcloud Zimbra en
+`share@tackbar.eu`, preservando el pipeline de ingesta independiente del
+proveedor y las semánticas existentes del producto.
+
+### v0.6.2 Mahon — Viewer & Admin Usability
+
+**Estado:** Entregado / validación automatizada focalizada superada
+
+Añadió Individual Analysis y zoom temporal exclusivamente visual al Session
+Viewer, y aclaró el contexto operativo de Admin Ingestion y Session sin cambiar
+semánticas de dominio o acceso.
+
+### v0.6.3 Mahon — Usability & Maintenance
+
+**Estado:** Entregado / validación automatizada focalizada superada
+
+Estabilizó la interacción temporal de charts con toque, lápiz y ratón, refinó
+microcopy/navegación de Admin y Viewer y actualizó el mantenimiento del workflow
+de despliegue.
+
+### v0.6.4 Mahon — Sailor Activation Welcome Email
+
+**Estado:** Lista para release / validación de producción pendiente
+
+Implementó el correo bilingüe de bienvenida tras activación, el límite de
+entrega SMTP OVH, estado seguro de entrega y reenvío Admin explícito,
+manteniendo el consentimiento aunque falle la entrega.
+
+### v0.6.5 Mahon — Simplified Pilot Onboarding & Web Consent
+
+**Estado:** Implementado / validación de producción pendiente
+
+Completa el onboarding track-first del piloto con Consent Requests persistidas,
+consentimiento web bilingüe explícito, un intento automático de correo por ciclo
+pendiente y recuperación mediante reenvío/reemisión Admin más confirmación
+manual. El despliegue y el flujo end-to-end real mediante SMTP OVH siguen
+pendientes.
+
+Cualquier trabajo adicional v0.6.x permanece sin asignar salvo promoción
+explícita. El trabajo pendiente se mantiene en `docs/product-backlog.md` y no se
+infiere de documentos históricos de release.
+
 ---
 
-## Future 0.6.x
-
-El trabajo válido de la familia v0.6 que todavía no tiene release concreta se etiqueta **Future 0.6.x**.
-
-Actualmente incluye:
-
-- ingesta multi-proveedor / adapter OVHcloud;
-- mejoras amplias de usabilidad de mantenimiento de Sessions.
-
-Después de publicar v0.6.0, números como v0.6.1, v0.6.2 y siguientes quedan disponibles para hot-fixes y releases correctivas. No se reservan previamente para features.
-
----
-
-## Hito previsto — v0.7.0 Multi-Format Track Ingestion
+## Hito previsto — v0.7.0 Californian — Multi-Format Track Ingestion
 
 Ampliar la ingesta a otros formatos manteniendo un único track normalizado canónico.
 
@@ -297,6 +383,10 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.4.0 | Collaborative Sailing Debrief PoC | Entregado |
 | v0.5.0 | Real Sailing Pilot | Entregado / validado |
 | v0.5.1 | Pilot Fix & Usability | Entregado |
-| v0.6.0 | Mahon — Pilot Operations | Actual |
-| Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
-| v0.7.0 | Multi-Format Track Ingestion | Previsto |
+| v0.6.0 | Mahon — Pilot Operations | Entregado / validado en producción |
+| v0.6.1 | Mahon — OVH Mailbox Ingestion | Entregado / validado en producción |
+| v0.6.2 | Mahon — Viewer & Admin Usability | Entregado / validación focalizada superada |
+| v0.6.3 | Mahon — Usability & Maintenance | Entregado / validación focalizada superada |
+| v0.6.4 | Mahon — Sailor Activation Welcome Email | Lista para release / validación de producción pendiente |
+| v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implementado / validación de producción pendiente |
+| v0.7.0 | Californian — Multi-Format Track Ingestion | Previsto |

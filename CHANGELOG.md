@@ -2,7 +2,217 @@
 
 All notable changes to TackBar will be documented in this file.
 
-## v0.6.4 — Sailor Activation Welcome Email (Release-ready — production validation pending)
+## v0.6.5 Mahon — Simplified Pilot Onboarding & Web Consent (Release-ready — production validation pending)
+
+### English
+
+Implementation complete; production validation pending. v0.6.5 simplifies
+pilot onboarding by allowing the first supported track sent to
+`share@tackbar.eu` to initiate technical onboarding while keeping consent as a
+separate, explicit decision.
+
+### Added
+
+* Track-first pilot onboarding from successfully processed supported tracks.
+* Persisted, purpose-specific Consent Requests bound to their agreement version,
+  with high-entropy capability URLs that remain valid for exactly 28 days.
+* A bilingual consent decision at `/consent/<token>` and bilingual canonical
+  participation conditions at `/consent/conditions` in the TackBar app.
+* Explicit web activation from `PENDING` to `ACTIVE`, reusing the established
+  Sailor consent and activation path.
+* One automatic bilingual consent-request email attempt after successful
+  supported-track ingestion for an eligible pending consent cycle.
+* Consent Request operational status in Admin, including safe delivery state.
+* Explicit Admin resend for a valid request and reissue for an expired request.
+* The existing controlled manual Admin consent-confirmation fallback for every
+  `PENDING` Sailor.
+
+### Operational behavior
+
+* Activities belonging to `PENDING` Sailors may be ingested, persisted and
+  matched to Sessions while remaining excluded from shared Session responses.
+* Sending a track, opening a consent link or viewing the conditions is not
+  consent; an explicit affirmative confirmation is required.
+* Repeated submission of an accepted request is idempotent and does not create
+  another activation, consent grant or activation side effect.
+* Processing another track for an `ACTIVE` Sailor does not send another consent
+  request.
+* A valid supported track from a `REVOKED` Sailor starts a new `PENDING`
+  consent cycle without granting consent.
+* Admin resend reuses the current valid request and token without extending its
+  lifetime; expired reissue creates a new request and token while preserving
+  the previous request as history.
+* Consent-request email failure has no automatic retry. Recovery remains an
+  explicit Admin action.
+
+### Preserved
+
+* Existing Sailor → Activity → Session semantics and Session matching.
+* Backend-enforced `ACTIVE`-only shared Session visibility.
+* Personal TackBar and Session capability, expiration and renewal semantics.
+* v0.6.4 Mahon activation and welcome-email behavior.
+* Controlled manual Admin consent confirmation.
+* Current Vakaros CSV/CSV.GZ ingestion.
+* `tackbar-web` remains outside the consent lifecycle.
+
+### Failure isolation
+
+* Consent-request SMTP failure does not discard or fail an otherwise successful
+  Activity ingestion, activate consent, change Session matching or mutate
+  Personal or Session capabilities.
+* Welcome-email failure still does not roll back `ACTIVE` consent.
+* Failed request delivery remains visible through safe Admin operational state,
+  and explicit Admin recovery remains available without exposing the token or
+  provider details.
+
+### Fixed
+
+* Interrupted web-consent activation is now fully recoverable. When explicit
+  acceptance has already been persisted but Session capability creation,
+  Personal TackBar capability creation or another post-activation effect is
+  interrupted, TackBar safely completes the remaining activation work without
+  creating another consent grant, rotating existing capabilities or duplicating
+  a successfully delivered welcome email.
+* Public consent recovery no longer reports participation as confirmed while an
+  accepted activation remains incomplete. `GET` may complete only the
+  idempotent post-activation work of an already persisted explicit acceptance;
+  it never performs `PENDING` → `ACTIVE` or creates `CONSENT_GRANTED`.
+* Automatic consent-request delivery now respects any successful delivery in
+  the current pending consent cycle, including an explicit Admin send, avoiding
+  duplicate automatic emails.
+* An expired current Consent Request no longer causes later successful track
+  ingestion to fail during automatic consent-request orchestration. TackBar
+  leaves the request unchanged and recovery remains an explicit Admin reissue
+  operation.
+
+### Validation
+
+Focused backend and frontend consent, Admin, ingestion, capability and
+visibility checks passed, together with backend compile, frontend typecheck,
+frontend production build and `git diff --check`.
+
+Focused regression additionally covered interrupted web-consent activation
+recovery, preservation of consent/capability idempotency, Admin-first consent
+request delivery, expired Consent Requests and consent-cycle isolation for
+automatic delivery eligibility.
+
+Real production deployment, real OVH SMTP consent-request delivery and the
+complete v0.6.5 production flow remain pending. Production PASS is not claimed.
+
+---
+
+## v0.6.5 Mahon — Onboarding simplificado del piloto y consentimiento web (Lista para release — validación de producción pendiente)
+
+### Español
+
+Implementación completa; validación de producción pendiente. v0.6.5 simplifica
+el onboarding del piloto permitiendo que el primer track soportado enviado a
+`share@tackbar.eu` inicie el onboarding técnico, manteniendo el consentimiento
+como una decisión explícita y separada.
+
+### Añadido
+
+* Onboarding track-first del piloto a partir de tracks soportados procesados
+  correctamente.
+* Consent Requests persistidas, específicas para este propósito y vinculadas a
+  su versión de acuerdo, con capability URLs de alta entropía válidas durante
+  exactamente 28 días.
+* Decisión de consentimiento bilingüe en `/consent/<token>` y condiciones
+  canónicas bilingües en `/consent/conditions` dentro de la aplicación TackBar.
+* Activación web explícita de `PENDING` a `ACTIVE`, reutilizando el flujo
+  establecido de consentimiento y activación de Sailor.
+* Un intento automático de correo bilingüe de solicitud de consentimiento tras
+  la ingesta correcta de un track soportado para un ciclo pendiente elegible.
+* Estado operativo de Consent Request en Admin, incluido el estado seguro de
+  entrega.
+* Reenvío Admin explícito de una solicitud válida y reemisión de una solicitud
+  expirada.
+* El fallback existente de confirmación manual controlada desde Admin para
+  cualquier Sailor `PENDING`.
+
+### Comportamiento operativo
+
+* Las Activities de Sailors `PENDING` pueden ingerirse, persistirse y asociarse
+  a Sessions, pero permanecen excluidas de las respuestas de Sessions
+  compartidas.
+* Enviar un track, abrir un enlace de consentimiento o consultar las condiciones
+  no constituye consentimiento; se requiere una confirmación afirmativa
+  explícita.
+* El envío repetido de una solicitud ya aceptada es idempotente y no crea otra
+  activación, concesión de consentimiento ni efecto secundario de activación.
+* Procesar otro track de un Sailor `ACTIVE` no envía otra solicitud de
+  consentimiento.
+* Un track soportado válido de un Sailor `REVOKED` inicia un nuevo ciclo
+  `PENDING` sin conceder consentimiento.
+* El reenvío Admin reutiliza la solicitud y el token válidos actuales sin
+  ampliar su vigencia; la reemisión de una solicitud expirada crea una nueva
+  solicitud y token conservando la anterior como historial.
+* Un fallo del correo de solicitud de consentimiento no tiene reintento
+  automático. La recuperación sigue siendo una acción Admin explícita.
+
+### Preservado
+
+* Las semánticas existentes Sailor → Activity → Session y el Session matching.
+* La visibilidad compartida exclusiva para `ACTIVE`, aplicada en backend.
+* Las semánticas de Personal TackBar y de capability, expiración y renovación
+  de Session.
+* El comportamiento de activación y correo de bienvenida de v0.6.4 Mahon.
+* La confirmación manual controlada de consentimiento desde Admin.
+* La ingesta actual de Vakaros CSV/CSV.GZ.
+* `tackbar-web` permanece fuera del ciclo de consentimiento.
+
+### Aislamiento de fallos
+
+* Un fallo SMTP de la solicitud de consentimiento no descarta ni hace fallar
+  una ingesta de Activity correcta, no activa el consentimiento, no cambia el
+  Session matching y no modifica capabilities Personal o de Session.
+* Un fallo del correo de bienvenida sigue sin revertir el consentimiento
+  `ACTIVE`.
+* El fallo de entrega permanece visible mediante estado operativo seguro en
+  Admin, y la recuperación Admin explícita sigue disponible sin exponer el
+  token ni detalles del proveedor.
+
+### Corregido
+
+* La activación interrumpida del consentimiento web es ahora completamente
+  recuperable. Cuando la aceptación explícita ya quedó persistida pero se
+  interrumpe la creación de la capability de Session, la capability de Personal
+  TackBar u otro efecto posterior a la activación, TackBar completa de forma
+  segura el trabajo restante sin crear una nueva concesión de consentimiento,
+  rotar capabilities existentes ni duplicar un correo de bienvenida ya
+  entregado correctamente.
+* La recuperación pública del consentimiento ya no informa la participación
+  como confirmada mientras una activación aceptada siga incompleta. `GET` puede
+  completar únicamente el trabajo idempotente posterior a una aceptación
+  explícita ya persistida; nunca realiza `PENDING` → `ACTIVE` ni crea
+  `CONSENT_GRANTED`.
+* El envío automático de solicitudes de consentimiento respeta ahora cualquier
+  entrega correcta del ciclo `PENDING` actual, incluido un envío explícito desde
+  Admin, evitando correos automáticos duplicados.
+* Una Consent Request actual expirada ya no provoca que una ingesta de track
+  correctamente procesada falle durante la orquestación automática de la
+  solicitud de consentimiento. TackBar conserva la solicitud sin cambios y la
+  recuperación sigue siendo una operación explícita de reissue desde Admin.
+
+### Validación
+
+Pasaron las comprobaciones focalizadas backend y frontend de consentimiento,
+Admin, ingesta, capabilities y visibilidad, junto con compile del backend,
+typecheck frontend, build frontend de producción y `git diff --check`.
+
+La regresión focalizada cubrió además la recuperación de activaciones web de
+consentimiento interrumpidas, la preservación de la idempotencia de
+consentimiento/capabilities, los envíos Admin previos a la ingesta, las Consent
+Requests expiradas y el aislamiento entre ciclos para la elegibilidad del envío
+automático.
+
+El despliegue real en producción, la entrega real de la solicitud mediante SMTP
+OVH y el flujo completo de producción v0.6.5 siguen pendientes. No se afirma
+PASS de producción.
+
+---
+
+## v0.6.4 Mahon — Sailor Activation Welcome Email (Release-ready — production validation pending)
 
 ### English
 
@@ -49,7 +259,7 @@ SMTP/manual validation remains pending; production PASS is not claimed.
 
 ---
 
-## v0.6.4 — Correo de bienvenida tras la activación de Sailor (Lista para release — validación de producción pendiente)
+## v0.6.4 Mahon — Correo de bienvenida tras la activación de Sailor (Lista para release — validación de producción pendiente)
 
 ### Español
 
@@ -99,7 +309,7 @@ La validación SMTP/manual real de producción sigue pendiente; no se afirma PAS
 
 ---
 
-## v0.6.3 — Usability & Maintenance
+## v0.6.3 Mahon — Usability & Maintenance
 
 ### English
 
@@ -128,7 +338,7 @@ Focused temporal zoom and Individual Analysis checks passed, together with front
 
 ---
 
-## v0.6.3 — Usabilidad y mantenimiento
+## v0.6.3 Mahon — Usabilidad y mantenimiento
 
 ### Español
 
@@ -157,7 +367,7 @@ Pasaron las comprobaciones focalizadas de zoom temporal e Individual Analysis, a
 
 ---
 
-## v0.6.2 — Viewer & Admin Usability
+## v0.6.2 Mahon — Viewer & Admin Usability
 
 ### English
 
@@ -190,7 +400,7 @@ Focused regression checks for Individual Analysis, temporal chart zoom, Admin In
 
 ---
 
-## v0.6.2 — Usabilidad de Viewer y Admin
+## v0.6.2 Mahon — Usabilidad de Viewer y Admin
 
 ### Español
 
@@ -223,7 +433,7 @@ Pasaron las comprobaciones focalizadas de Individual Analysis, zoom temporal, Ad
 
 ---
 
-## v0.6.1 — OVH Mailbox Ingestion
+## v0.6.1 Mahon — OVH Mailbox Ingestion
 
 ### English
 
@@ -262,7 +472,7 @@ Manual production validation is recorded as `PASS` in `docs/v0.6.1-manual-valida
 
 ---
 
-## v0.6.1 — Ingesta de buzón OVH
+## v0.6.1 Mahon — Ingesta de buzón OVH
 
 ### Español
 
@@ -301,7 +511,7 @@ La validación manual de producción figura como `PASS` en `docs/v0.6.1-manual-v
 
 ---
 
-## v0.6.0 — Mahon — Pilot Operations
+## v0.6.0 Mahon — Pilot Operations
 
 ### English
 
@@ -356,7 +566,7 @@ Automated release validation confirmed:
 
 ---
 
-## v0.6.0 — Mahon — Pilot Operations
+## v0.6.0 Mahon — Pilot Operations
 
 ### Español
 

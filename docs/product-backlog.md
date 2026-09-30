@@ -129,10 +129,9 @@ Future design should consider provider adapters, polling interval, pagination, l
 **Status:** Future  
 **Release:** Unassigned
 
-The v0.6.4 Sailor activation welcome email is implemented, and the v0.6.5
-consent-request email is committed. Broader outbound flows remain Future /
-Unassigned, including processed Activity or Session notifications and other
-operational messages.
+The v0.6.4 Sailor activation welcome email and the v0.6.5 consent-request email
+are implemented. Broader outbound flows remain Future / Unassigned, including
+processed Activity or Session notifications and other operational messages.
 
 Each additional outbound-email workflow requires a separate explicit product
 decision before implementation.
