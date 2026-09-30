@@ -1,6 +1,6 @@
 from typing import Callable
 
-from app.models import ConsentRequest, ConsentStatus
+from app.models import ConsentRequest, ConsentRequestState, ConsentStatus
 from app.repositories.sailors import SailorRepository
 from app.services.consent_request_delivery import (
     ConsentRequestDeliveryError,
@@ -39,8 +39,20 @@ class AutomaticConsentRequestService:
             sailor_id
         ):
             return self.requests.find_current_for_sailor(sailor_id)
+        if self.requests.successful_delivery_exists_for_current_cycle(
+            sailor_id
+        ):
+            return self.requests.find_current_for_sailor(sailor_id)
 
-        request = self.requests.issue_for_pending_sailor(sailor_id)
+        resolution = self.requests.current_resolution_for_sailor(sailor_id)
+        if resolution.state == ConsentRequestState.NOT_FOUND:
+            request = self.requests.issue_for_pending_sailor(sailor_id)
+        elif resolution.state == ConsentRequestState.VALID:
+            request = resolution.request
+        else:
+            return resolution.request
+        if request is None:
+            raise ValueError("Consent request resolution is missing request")
         self.requests.mark_automatic_delivery_attempted(request.id)
         try:
             self.sender(sailor.email, request.token)

@@ -375,6 +375,66 @@ def test_reissue_does_not_allow_a_second_automatic_attempt_in_same_cycle(
         )
 
 
+def test_successful_delivery_query_is_isolated_to_current_consent_cycle(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    service, _, sailors, events = _service(
+        temporary_json_file,
+        tokens=iter([FIRST_TOKEN, SECOND_TOKEN]),
+    )
+    first = service.issue_for_pending_sailor(SAILOR_ID)
+    service.mark_delivery_succeeded(
+        first.id,
+        timestamp=NOW + timedelta(minutes=1),
+    )
+
+    assert service.successful_delivery_exists_for_current_cycle(
+        SAILOR_ID
+    ) is True
+
+    consent = SailorConsentService(
+        sailors,
+        events,
+        welcome_email_sender=lambda _email, _path: None,
+        delivery_clock=lambda: NOW + timedelta(minutes=2),
+    )
+    consent.mark_consent_requested(
+        SAILOR_ID,
+        source="admin_sent_consent_request",
+        timestamp=NOW + timedelta(minutes=1),
+    )
+    consent.confirm_consent(
+        SAILOR_ID,
+        source="web_consent",
+        timestamp=NOW + timedelta(minutes=2),
+    )
+    consent.revoke_consent(
+        SAILOR_ID,
+        source="revoked",
+        timestamp=NOW + timedelta(minutes=3),
+    )
+    consent.start_new_consent_cycle(
+        SAILOR_ID,
+        source="valid_track",
+        timestamp=NOW + timedelta(minutes=4),
+    )
+    second = service.issue_for_pending_sailor(SAILOR_ID)
+
+    assert second.consent_cycle_sequence == 1
+    assert service.successful_delivery_exists_for_current_cycle(
+        SAILOR_ID
+    ) is False
+
+    service.mark_delivery_succeeded(
+        second.id,
+        timestamp=NOW + timedelta(minutes=5),
+    )
+
+    assert service.successful_delivery_exists_for_current_cycle(
+        SAILOR_ID
+    ) is True
+
+
 def test_repository_round_trip_and_absent_file_compatibility(
     temporary_directory: Path,
 ) -> None:

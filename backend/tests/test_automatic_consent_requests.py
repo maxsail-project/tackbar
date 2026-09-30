@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -11,14 +12,22 @@ from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services import automatic_consent_requests
+from app.services.admin_consent_requests import (
+    ADMIN_CONSENT_REQUEST_SOURCE,
+    AdminConsentRequestService,
+)
 from app.services.consent_request_delivery import ConsentRequestDeliveryError
-from app.services.consent_requests import CONSENT_REQUEST_DELIVERY_FAILURE
+from app.services.consent_requests import (
+    CONSENT_REQUEST_DELIVERY_FAILURE,
+    ConsentRequestService,
+)
 from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_processing import (
     process_provider_email,
     reprocess_ingestion,
 )
 from app.services.mailbox_review import review_mailbox_now
+from app.services.sailor_consent import SailorConsentService
 
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
@@ -130,7 +139,15 @@ def test_invalid_track_does_not_issue_or_send_consent_request(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     repositories = _repositories(temporary_json_file)
-    sailors, boats, activities, sessions, history, events, requests = repositories
+    (
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+        events,
+        requests,
+    ) = repositories
     sent: list[tuple[str, str]] = []
     email = _email("invalid-track")
     email.attachment_bytes = b"not a valid gzip file"
@@ -160,7 +177,15 @@ def test_pending_cycle_sends_once_across_more_tracks_duplicates_and_reprocessing
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     repositories = _repositories(temporary_json_file)
-    sailors, boats, activities, sessions, history, events, requests = repositories
+    (
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+        events,
+        requests,
+    ) = repositories
     sent: list[tuple[str, str]] = []
     sender = lambda email, token: sent.append((email, token))
 
@@ -217,6 +242,96 @@ def test_pending_cycle_sends_once_across_more_tracks_duplicates_and_reprocessing
     assert len(events.for_sailor(SAILOR_ID)) == 1
     assert len(activities.all()) == 1
     assert len(history.records()) == 2
+
+
+def test_successful_admin_delivery_suppresses_later_automatic_delivery(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    repositories = _repositories(temporary_json_file)
+    sailors, boats, activities, sessions, history, events, requests = repositories
+    request_service = ConsentRequestService(requests, sailors, events, sessions)
+    admin_sent: list[tuple[str, str]] = []
+    admin = AdminConsentRequestService(
+        request_service,
+        sailors,
+        SailorConsentService(sailors, events),
+        sender=lambda email, token: admin_sent.append((email, token)),
+    )
+    delivered = admin.send(SAILOR_ID)
+    events_after_admin = events.for_sailor(SAILOR_ID)
+    automatic_sent: list[tuple[str, str]] = []
+
+    result = process_provider_email(
+        "ovh",
+        _email("admin-first-track"),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+        consent_events=events,
+        consent_request_sender=lambda email, token: automatic_sent.append(
+            (email, token)
+        ),
+    )
+
+    assert result is not None
+    assert history.records()[0]["status"] == "processed"
+    assert admin_sent == [("sailor-a@example.com", delivered.token)]
+    assert automatic_sent == []
+    assert requests.all() == [delivered]
+    assert delivered.delivery_sent_at is not None
+    assert delivered.automatic_delivery_attempted_at is None
+    assert events.for_sailor(SAILOR_ID) == events_after_admin
+    assert [event.event_type for event in events_after_admin] == [
+        ConsentEventType.CONSENT_REQUESTED
+    ]
+    assert events_after_admin[0].source == ADMIN_CONSENT_REQUEST_SOURCE
+    sailor = sailors.get_by_id(SAILOR_ID)
+    assert sailor is not None
+    assert sailor.consent_status == ConsentStatus.PENDING
+
+
+def test_expired_current_request_does_not_fail_or_mutate_later_ingestion(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    repositories = _repositories(temporary_json_file)
+    sailors, boats, activities, sessions, history, events, requests = repositories
+    issued_at = datetime.now(timezone.utc) - timedelta(days=29)
+    request_service = ConsentRequestService(
+        requests,
+        sailors,
+        events,
+        sessions,
+        clock=lambda: issued_at,
+        token_generator=lambda: "expired-request-" + "e" * 40,
+    )
+    expired = request_service.issue_for_pending_sailor(SAILOR_ID)
+    sent: list[tuple[str, str]] = []
+
+    result = process_provider_email(
+        "ovh",
+        _email("expired-request-track"),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+        consent_events=events,
+        consent_request_sender=lambda email, token: sent.append((email, token)),
+    )
+
+    assert result is not None
+    assert history.records()[0]["status"] == "processed"
+    assert len(activities.all()) == 1
+    assert sent == []
+    assert requests.all() == [expired]
+    assert expired.automatic_delivery_attempted_at is None
+    assert expired.delivery_sent_at is None
+    assert events.all() == []
+    sailor = sailors.get_by_id(SAILOR_ID)
+    assert sailor is not None
+    assert sailor.consent_status == ConsentStatus.PENDING
 
 
 def test_active_sailor_does_not_receive_consent_request(

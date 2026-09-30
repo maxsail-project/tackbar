@@ -109,6 +109,19 @@ class ConsentRequestService:
             for request in self.requests.for_sailor(sailor_id)
         )
 
+    def successful_delivery_exists_for_current_cycle(
+        self,
+        sailor_id: str,
+    ) -> bool:
+        if self.sailors.get_by_id(sailor_id) is None:
+            return False
+        cycle_sequence = self._cycle_sequence(sailor_id)
+        return any(
+            request.consent_cycle_sequence == cycle_sequence
+            and request.delivery_sent_at is not None
+            for request in self.requests.for_sailor(sailor_id)
+        )
+
     def resolve(self, token: str) -> ConsentRequestResolution:
         if not is_consent_request_token(token):
             return ConsentRequestResolution(ConsentRequestState.NOT_FOUND)

@@ -212,6 +212,7 @@ def test_controlled_failure_is_safe_and_explicit_retry_is_permitted(
 
     assert delivered.id == failed.id
     assert delivered.token == failed.token
+    assert delivered.automatic_delivery_attempted_at is None
     assert delivered.delivery_sent_at == retry_at
     assert delivered.delivery_last_error is None
     assert attempts == [
