@@ -59,7 +59,7 @@ def get_consent(token: str, response: Response) -> PublicConsentResponse:
         consent = _web_consent_service().get(token)
     except WebConsentUnavailableError as error:
         raise _consent_unavailable() from error
-    except ValueError as error:
+    except (SessionCapabilityIntegrityError, ValueError) as error:
         raise _consent_integrity_error() from error
     return PublicConsentResponse(
         status=consent.state.value,

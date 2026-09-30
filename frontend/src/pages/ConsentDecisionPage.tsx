@@ -9,7 +9,8 @@ import TackBarBrand from '../components/TackBarBrand'
 import type { PublicConsent } from '../types/consent'
 
 export type ConsentPageState =
-  | { status: 'loading' | 'unavailable' | 'error' }
+  | { status: 'loading' | 'unavailable' }
+  | { status: 'error'; retry: 'read' | 'accept' }
   | { status: 'ready' | 'submitting' | 'confirmed'; data: PublicConsent }
 
 export function consentStateFromResponse(data: PublicConsent): ConsentPageState {
@@ -24,6 +25,19 @@ export function createSingleFlight<T>(task: () => Promise<T>) {
     }
     return inFlight
   }
+}
+
+export function consentRetryOperation(state: ConsentPageState) {
+  return state.status === 'error' ? state.retry : 'read'
+}
+
+export function consentFailureState(
+  error: unknown,
+  retry: 'read' | 'accept',
+): ConsentPageState {
+  return error instanceof ConsentUnavailableError
+    ? { status: 'unavailable' }
+    : { status: 'error', retry }
 }
 
 export default function ConsentDecisionPage() {
@@ -47,9 +61,7 @@ function ConsentPage({ token }: { token: string }) {
       },
       (error: unknown) => {
         if (!controller.signal.aborted) {
-          setState({
-            status: error instanceof ConsentUnavailableError ? 'unavailable' : 'error',
-          })
+          setState(consentFailureState(error, 'read'))
         }
       },
     )
@@ -63,9 +75,7 @@ function ConsentPage({ token }: { token: string }) {
       const data = await acceptOnce()
       setState(consentStateFromResponse(data))
     } catch (error) {
-      setState({
-        status: error instanceof ConsentUnavailableError ? 'unavailable' : 'error',
-      })
+      setState(consentFailureState(error, 'accept'))
     }
   }
 
@@ -74,11 +84,29 @@ function ConsentPage({ token }: { token: string }) {
     setReadAttempt((attempt) => attempt + 1)
   }
 
+  async function retryAcceptance() {
+    setState({ status: 'loading' })
+    try {
+      const data = await acceptOnce()
+      setState(consentStateFromResponse(data))
+    } catch (error) {
+      setState(consentFailureState(error, 'accept'))
+    }
+  }
+
+  function retry() {
+    if (consentRetryOperation(state) === 'accept') {
+      void retryAcceptance()
+    } else {
+      retryRead()
+    }
+  }
+
   return (
     <ConsentDecisionContent
       state={state}
       onConfirm={() => { void confirmParticipation() }}
-      onRetry={retryRead}
+      onRetry={retry}
     />
   )
 }

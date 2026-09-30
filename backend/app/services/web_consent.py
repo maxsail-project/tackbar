@@ -55,12 +55,16 @@ class WebConsentService:
         sailor = self.sailors.get_by_id(request.sailor_id)
         if sailor is None or sailor.consent_status == ConsentStatus.REVOKED:
             raise WebConsentUnavailableError("Consent request unavailable")
-        state = (
-            PublicConsentState.CONFIRMED
-            if sailor.consent_status == ConsentStatus.ACTIVE
-            else PublicConsentState.READY
+        if sailor.consent_status == ConsentStatus.PENDING:
+            return _public_consent(PublicConsentState.READY, request)
+        if request.accepted_at is None:
+            raise ValueError("Accepted consent request is missing timestamp")
+        self.activation_factory(request.agreement_version).complete_activation(
+            sailor.id,
+            source=WEB_CONSENT_SOURCE,
+            timestamp=request.accepted_at,
         )
-        return _public_consent(state, request)
+        return _public_consent(PublicConsentState.CONFIRMED, request)
 
     def accept(self, token: str) -> PublicConsent:
         resolution = self.requests.resolve(token)

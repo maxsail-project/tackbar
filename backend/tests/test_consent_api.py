@@ -346,14 +346,22 @@ def test_get_after_activation_returns_truthful_confirmed_state(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _context(temporary_directory, monkeypatch)
+    context = _context(temporary_directory, monkeypatch)
     _accept(REQUEST_TOKEN)
+    sailor_before = context.sailors.get_by_id(SAILOR_ID)
+    session_before = context.sessions.get_by_id(SESSION_ID)
+    events_before = context.events.all()
+    sent_before = list(context.sent)
 
     response = _get(REQUEST_TOKEN)
 
     assert response.status_code == 200
     assert response.json["status"] == "confirmed"
     assert response.headers["cache-control"] == "no-store"
+    assert context.sailors.get_by_id(SAILOR_ID) == sailor_before
+    assert context.sessions.get_by_id(SESSION_ID) == session_before
+    assert context.events.all() == events_before
+    assert context.sent == sent_before
 
 
 def test_accepted_but_pending_get_stays_ready_and_post_retries_activation(
@@ -368,10 +376,17 @@ def test_accepted_but_pending_get_stays_ready_and_post_retries_activation(
     assert pending.consent_status == ConsentStatus.PENDING
 
     read = _get(REQUEST_TOKEN)
-    retried = _accept(REQUEST_TOKEN)
 
     assert read.status_code == 200
     assert read.json["status"] == "ready"
+    still_pending = context.sailors.get_by_id(SAILOR_ID)
+    assert still_pending is not None
+    assert still_pending.consent_status == ConsentStatus.PENDING
+    assert context.events.all() == []
+    assert context.sent == []
+
+    retried = _accept(REQUEST_TOKEN)
+
     assert retried.status_code == 200
     assert retried.json["status"] == "confirmed"
     active = context.sailors.get_by_id(SAILOR_ID)
@@ -421,7 +436,7 @@ def test_post_retry_recovers_when_acceptance_persisted_before_activation(
     assert len(context.sent) == 1
 
 
-def test_post_retry_completes_activation_interrupted_before_session_capability(
+def test_get_recovery_completes_activation_interrupted_before_session_capability(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -459,12 +474,13 @@ def test_post_retry_completes_activation_interrupted_before_session_capability(
     assert events[0].timestamp == NOW
     assert context.sent == []
 
-    recovered = _accept(REQUEST_TOKEN)
+    recovered = _get(REQUEST_TOKEN)
+    repeated = _get(REQUEST_TOKEN)
 
     recovered_sailor = context.sailors.get_by_id(SAILOR_ID)
     recovered_session = context.sessions.get_by_id(SESSION_ID)
-    assert recovered.status_code == 200
-    assert recovered.json["status"] == "confirmed"
+    assert recovered.status_code == repeated.status_code == 200
+    assert recovered.json["status"] == repeated.json["status"] == "confirmed"
     assert recovered_sailor is not None
     assert recovered_sailor.personal_capability_token == PERSONAL_TOKEN
     assert recovered_sailor.consent_granted_at == NOW
@@ -476,7 +492,49 @@ def test_post_retry_completes_activation_interrupted_before_session_capability(
     ]
 
 
-def test_post_retry_completes_personal_capability_without_regeneration(
+def test_get_never_reports_confirmed_while_accepted_activation_remains_incomplete(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+
+    def interrupt_session(_sailor_id: str):
+        raise ValueError("simulated persistent activation interruption")
+
+    monkeypatch.setattr(
+        context.session_capabilities,
+        "ensure_for_sailor",
+        interrupt_session,
+    )
+
+    interrupted = _accept(REQUEST_TOKEN)
+    reopened = _get(REQUEST_TOKEN)
+
+    assert interrupted.status_code == reopened.status_code == 500
+    assert reopened.json == {
+        "detail": "Persisted consent data is inconsistent"
+    }
+    assert reopened.headers["cache-control"] == "no-store"
+    sailor = context.sailors.get_by_id(SAILOR_ID)
+    session = context.sessions.get_by_id(SESSION_ID)
+    assert sailor is not None
+    assert sailor.consent_status == ConsentStatus.ACTIVE
+    assert sailor.personal_capability_token is None
+    assert session is not None and session.capability_token is None
+    assert len(context.events.for_sailor(SAILOR_ID)) == 1
+    assert context.sent == []
+    serialized = json.dumps(reopened.json)
+    assert all(value not in serialized for value in (
+        SAILOR_ID,
+        "private-sailor@example.com",
+        SESSION_ID,
+        REQUEST_TOKEN,
+        PERSONAL_TOKEN,
+        SESSION_TOKEN,
+    ))
+
+
+def test_get_recovery_completes_personal_capability_without_regeneration(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -509,8 +567,8 @@ def test_post_retry_completes_personal_capability_without_regeneration(
     assert len(events) == 1
     assert context.sent == []
 
-    recovered = _accept(REQUEST_TOKEN)
-    repeated = _accept(REQUEST_TOKEN)
+    recovered = _get(REQUEST_TOKEN)
+    repeated = _get(REQUEST_TOKEN)
 
     recovered_sailor = context.sailors.get_by_id(SAILOR_ID)
     recovered_session = context.sessions.get_by_id(SESSION_ID)
@@ -525,7 +583,7 @@ def test_post_retry_completes_personal_capability_without_regeneration(
     ]
 
 
-def test_post_retry_completes_welcome_attempt_interrupted_before_send(
+def test_get_recovery_completes_welcome_attempt_interrupted_before_send(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -560,8 +618,8 @@ def test_post_retry_completes_welcome_attempt_interrupted_before_send(
     assert len(events) == 1
     assert context.sent == []
 
-    recovered = _accept(REQUEST_TOKEN)
-    repeated = _accept(REQUEST_TOKEN)
+    recovered = _get(REQUEST_TOKEN)
+    repeated = _get(REQUEST_TOKEN)
 
     assert recovered.status_code == repeated.status_code == 200
     assert context.events.for_sailor(SAILOR_ID) == events
@@ -731,8 +789,13 @@ def test_accepted_request_cannot_recover_an_unrelated_active_grant(
     events_before = context.events.all()
     sent_before = list(context.sent)
 
+    read = _get(REQUEST_TOKEN)
     response = _accept(REQUEST_TOKEN)
 
+    assert read.status_code == 500
+    assert read.json == {
+        "detail": "Persisted consent data is inconsistent"
+    }
     assert response.status_code == 500
     assert response.json == {
         "detail": "Persisted consent data is inconsistent"
@@ -755,11 +818,13 @@ def test_welcome_delivery_failure_preserves_active_consent(
 
     response = _accept(REQUEST_TOKEN)
     events = context.events.for_sailor(SAILOR_ID)
+    recovered_read = _get(REQUEST_TOKEN)
     repeated = _accept(REQUEST_TOKEN)
 
     sailor = context.sailors.get_by_id(SAILOR_ID)
     assert response.status_code == 200
-    assert repeated.status_code == 200
+    assert recovered_read.status_code == repeated.status_code == 200
+    assert recovered_read.json["status"] == "confirmed"
     assert response.json["status"] == "confirmed"
     assert sailor is not None and sailor.consent_status == ConsentStatus.ACTIVE
     assert sailor.welcome_email_last_error == "Welcome email delivery failed"

@@ -1,10 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getConsentRequest } from '../api/tackbarApi'
+import { ConsentUnavailableError, getConsentRequest } from '../api/tackbarApi'
 import type { PublicConsent } from '../types/consent'
 import {
   ConsentDecisionContent,
+  consentFailureState,
+  consentRetryOperation,
   consentStateFromResponse,
   createSingleFlight,
   type ConsentPageState,
@@ -85,7 +87,19 @@ describe('public consent decision page', () => {
     await expect(first).resolves.toMatchObject({ status: 'confirmed' })
   })
 
-  it('renders an initial confirmed GET without POSTing or showing a consent action', async () => {
+  it('retries the affirmative POST after an acceptance failure and reads after a load failure', () => {
+    const failedAccept = consentFailureState(new Error('temporary'), 'accept')
+    const failedRead = consentFailureState(new Error('temporary'), 'read')
+
+    expect(consentRetryOperation(failedAccept)).toBe('accept')
+    expect(consentRetryOperation(failedRead)).toBe('read')
+    expect(consentRetryOperation({ status: 'loading' })).toBe('read')
+    expect(consentFailureState(new ConsentUnavailableError(), 'accept')).toEqual({
+      status: 'unavailable',
+    })
+  })
+
+  it('renders a server-confirmed reload without POSTing or exposing private context', async () => {
     const confirmed = { ...consent, status: 'confirmed' as const }
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(confirmed), { status: 200 }),
@@ -111,7 +125,7 @@ describe('public consent decision page', () => {
 
   it('keeps unavailable and temporary-error states bilingual and generic', () => {
     const unavailable = render({ status: 'unavailable' })
-    const error = render({ status: 'error' })
+    const error = render({ status: 'error', retry: 'read' })
 
     expect(unavailable).toContain('This participation link is unavailable or has expired.')
     expect(unavailable).toContain('Este enlace de participación no está disponible o ha caducado.')
