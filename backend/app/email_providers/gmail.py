@@ -89,8 +89,6 @@ class GmailAdapter:
             for header in payload.get("headers", [])
         }
         subject = headers.get("subject", "")
-        if not has_vakaros_csv_suffix(subject.strip()):
-            return []
 
         sender_header = headers.get("from", "")
         sender_email = parseaddr(sender_header)[1] or sender_header

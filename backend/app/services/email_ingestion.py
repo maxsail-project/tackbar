@@ -13,11 +13,6 @@ def process_inbound_email(email: InboundEmail) -> IngestionResult:
     if email.attachment_bytes is None or not email.attachment_filename:
         raise InboundEmailRejected("Inbound email has no attachment")
 
-    if not has_vakaros_csv_suffix(email.subject.strip()):
-        raise InboundEmailRejected(
-            "Inbound email subject must end with .csv or .csv.gz"
-        )
-
     if not has_vakaros_csv_suffix(email.attachment_filename):
         raise InboundEmailRejected(
             "Inbound email attachment filename must end with .csv or .csv.gz"

@@ -99,9 +99,11 @@ def test_first_valid_track_for_unknown_sailor_sends_and_records_consent_request(
     sailors, boats, activities, sessions, history, events, requests = repositories
     sent: list[tuple[str, str]] = []
 
+    email = _email("101:1", sender_email=" NEW@EXAMPLE.COM ")
+    email.subject = "Natural human-written subject"
     result = process_provider_email(
         "ovh",
-        _email("101:1", sender_email=" NEW@EXAMPLE.COM "),
+        email,
         sailors,
         boats,
         activities,

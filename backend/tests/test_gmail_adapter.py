@@ -3,6 +3,8 @@ import gzip
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.email_providers.gmail import GmailAdapter
 
 
@@ -26,7 +28,7 @@ def test_get_candidate_emails_from_gmail_response() -> None:
                 {"name": "From", "value": "Sailor A <sailor-a@example.com>"},
                 {
                     "name": "Subject",
-                    "value": "  vakaros-demo.CSV.GZ  ",
+                    "value": "A normal note from a sailor",
                 },
             ],
             "parts": [
@@ -54,7 +56,7 @@ def test_get_candidate_emails_from_gmail_response() -> None:
 
     assert len(emails) == 1
     assert emails[0].sender_email == "sailor-a@example.com"
-    assert emails[0].subject == "  vakaros-demo.CSV.GZ  "
+    assert emails[0].subject == "A normal note from a sailor"
     assert emails[0].attachment_filename == "vakaros-demo.csv.gz"
     assert emails[0].attachment_bytes == fixture_bytes
     assert emails[0].provider_message_id == "message-1"
@@ -94,7 +96,7 @@ def test_get_candidate_uncompressed_csv_from_gmail_response() -> None:
         "payload": {
             "headers": [
                 {"name": "From", "value": "Sailor A <sailor-a@example.com>"},
-                {"name": "Subject", "value": "vakaros-demo.CSV"},
+                {"name": "Subject", "value": "Training on Saturday"},
             ],
             "parts": [
                 {
@@ -114,7 +116,7 @@ def test_get_candidate_uncompressed_csv_from_gmail_response() -> None:
     messages.attachments.return_value.get.assert_not_called()
 
 
-def test_ignores_message_with_unsupported_subject() -> None:
+def test_ignores_unsupported_attachment_even_when_subject_ends_in_csv() -> None:
     service = MagicMock()
     messages = service.users.return_value.messages.return_value
     messages.list.return_value.execute.return_value = {
@@ -125,11 +127,11 @@ def test_ignores_message_with_unsupported_subject() -> None:
         "payload": {
             "headers": [
                 {"name": "From", "value": "sailor-a@example.com"},
-                {"name": "Subject", "value": "Training session"},
+                {"name": "Subject", "value": "activity.csv"},
             ],
             "parts": [
                 {
-                    "filename": "vakaros-demo.csv.gz",
+                    "filename": "photo.jpg",
                     "body": {"attachmentId": "attachment-1"},
                 }
             ],
@@ -138,3 +140,47 @@ def test_ignores_message_with_unsupported_subject() -> None:
 
     assert GmailAdapter(service=service).get_candidate_emails() == []
     messages.attachments.return_value.get.assert_not_called()
+
+
+def test_ignores_message_without_attachments() -> None:
+    service = MagicMock()
+    messages = service.users.return_value.messages.return_value
+    messages.list.return_value.execute.return_value = {
+        "messages": [{"id": "message-empty"}]
+    }
+    messages.get.return_value.execute.return_value = {
+        "id": "message-empty",
+        "payload": {
+            "headers": [
+                {"name": "From", "value": "sailor-a@example.com"},
+                {"name": "Subject", "value": "Training session"},
+            ],
+            "parts": [],
+        },
+    }
+
+    assert GmailAdapter(service=service).get_candidate_emails() == []
+
+
+def test_rejects_multiple_supported_attachments() -> None:
+    service = MagicMock()
+    messages = service.users.return_value.messages.return_value
+    messages.list.return_value.execute.return_value = {
+        "messages": [{"id": "message-multiple"}]
+    }
+    messages.get.return_value.execute.return_value = {
+        "id": "message-multiple",
+        "payload": {
+            "headers": [
+                {"name": "From", "value": "sailor-a@example.com"},
+                {"name": "Subject", "value": "Two tracks"},
+            ],
+            "parts": [
+                {"filename": "one.csv", "body": {"data": "b25l"}},
+                {"filename": "two.csv.gz", "body": {"data": "dHdv"}},
+            ],
+        },
+    }
+
+    with pytest.raises(ValueError, match="multiple supported attachments"):
+        GmailAdapter(service=service).get_candidate_emails()

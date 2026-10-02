@@ -41,13 +41,20 @@ class FakeIMAP:
         self.calls.append(("logout",))
 
 
-def _message(subject="vakaros-demo.csv.gz", attachments=None, date="Sat, 12 Sep 2026 09:30:00 +0200") -> bytes:
+def _message(
+    subject="vakaros-demo.csv.gz",
+    attachments=None,
+    date="Sat, 12 Sep 2026 09:30:00 +0200",
+    sender="Sailor A <sailor-a@example.com>",
+) -> bytes:
     message = EmailMessage()
-    message["From"] = "Sailor A <sailor-a@example.com>"
+    message["From"] = sender
     message["Subject"] = subject
     if date is not None:
         message["Date"] = date
-    for filename, content in attachments or [("vakaros-demo.csv.gz", FIXTURE.read_bytes())]:
+    if attachments is None:
+        attachments = [("vakaros-demo.csv.gz", FIXTURE.read_bytes())]
+    for filename, content in attachments:
         message.add_attachment(content, maintype="application", subtype="octet-stream", filename=filename)
     return message.as_bytes()
 
@@ -90,19 +97,54 @@ def test_ovh_extracts_one_message_using_read_only_uid_fetch(monkeypatch):
     assert email.received_at.astimezone(timezone.utc).isoformat() == "2026-09-12T07:30:00+00:00"
 
 
-def test_ovh_filters_subject_and_attachment_and_accepts_csv(monkeypatch):
+def test_ovh_candidate_eligibility_depends_only_on_supported_attachments(monkeypatch):
     csv = gzip.decompress(FIXTURE.read_bytes())
     messages = {
         b"1": _message(subject="Training notes"),
-        b"2": _message(attachments=[("notes.txt", b"notes")]),
-        b"3": _message(subject="vakaros-demo.CSV", attachments=[("vakaros-demo.CSV", csv)]),
+        b"2": _message(
+            subject="activity.csv",
+            attachments=[("notes.txt", b"notes")],
+        ),
+        b"3": _message(
+            subject="Completely unrelated text",
+            attachments=[("photo.jpg", b"photo"), ("vakaros-demo.CSV", csv)],
+        ),
+        b"4": _message(subject="No files", attachments=[]),
     }
     adapter, _, _ = _adapter(monkeypatch, messages)
 
     candidates = adapter.get_candidate_emails()
 
+    assert [candidate.provider_message_id for candidate in candidates] == [
+        "456:1",
+        "456:3",
+    ]
+    assert candidates[0].attachment_filename == "vakaros-demo.csv.gz"
+    assert candidates[1].attachment_filename == "vakaros-demo.CSV"
+    assert candidates[1].attachment_bytes == csv
+
+
+def test_ovh_accepts_real_pilot_shape_without_private_track_data(monkeypatch):
+    subject = "SHIMASAIL track ult. día track H. Reina."
+    filename = "SHIMASAIL 5-7-2026.csv"
+    csv = gzip.decompress(FIXTURE.read_bytes())
+    adapter, _, _ = _adapter(
+        monkeypatch,
+        {
+            b"5": _message(
+                subject=subject,
+                sender="aquaxsailing@gmail.com",
+                attachments=[(filename, csv)],
+            )
+        },
+    )
+
+    candidates = adapter.get_candidate_emails()
+
     assert len(candidates) == 1
-    assert candidates[0].provider_message_id == "456:3"
+    assert candidates[0].sender_email == "aquaxsailing@gmail.com"
+    assert candidates[0].subject == subject
+    assert candidates[0].attachment_filename == filename
     assert candidates[0].attachment_bytes == csv
 
 

@@ -67,8 +67,6 @@ def _header_text(value: str) -> str:
 def _extract_email(raw: bytes, provider_message_id: str) -> InboundEmail | None:
     message = BytesParser(policy=policy.default).parsebytes(raw)
     subject = _header_text(str(message.get("Subject", "")))
-    if not has_vakaros_csv_suffix(subject.strip()):
-        return None
 
     sender_header = _header_text(str(message.get("From", "")))
     sender_email = parseaddr(sender_header)[1] or sender_header

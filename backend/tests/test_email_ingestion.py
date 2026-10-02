@@ -29,7 +29,7 @@ def fixture_bytes() -> bytes:
 def test_process_valid_email(fixture_bytes: bytes) -> None:
     email = InboundEmail(
         sender_email="sailor-a@example.com",
-        subject=f"  {UPPERCASE_EXTENSION_FILENAME}  ",
+        subject="A normal note from a sailor",
         attachment_filename=UPPERCASE_EXTENSION_FILENAME,
         attachment_bytes=fixture_bytes,
     )
@@ -45,10 +45,10 @@ def test_process_valid_email(fixture_bytes: bytes) -> None:
 
 
 def test_process_valid_uncompressed_csv_email(fixture_bytes: bytes) -> None:
-    filename = "vakaros-demo.CSV"
+    filename = "SHIMASAIL 5-7-2026.csv"
     email = InboundEmail(
-        sender_email="sailor-a@example.com",
-        subject=f"  {filename}  ",
+        sender_email="aquaxsailing@gmail.com",
+        subject="SHIMASAIL track ult. día track H. Reina.",
         attachment_filename=filename,
         attachment_bytes=gzip.decompress(fixture_bytes),
     )
@@ -57,7 +57,8 @@ def test_process_valid_uncompressed_csv_email(fixture_bytes: bytes) -> None:
 
     assert result.attachment_filename == filename
     assert result.activity.original_filename == filename
-    assert result.activity.device_name == "vakaros-demo"
+    assert result.subject == email.subject
+    assert result.activity.device_name == "SHIMASAIL"
     assert len(result.activity.samples) == 3613
 
 
@@ -73,7 +74,7 @@ def test_rejects_email_without_attachment() -> None:
         process_inbound_email(email)
 
 
-def test_rejects_subject_without_supported_csv_suffix(
+def test_subject_suffix_is_informational(
     fixture_bytes: bytes,
 ) -> None:
     email = InboundEmail(
@@ -83,8 +84,10 @@ def test_rejects_subject_without_supported_csv_suffix(
         attachment_bytes=fixture_bytes,
     )
 
-    with pytest.raises(InboundEmailRejected, match="subject"):
-        process_inbound_email(email)
+    result = process_inbound_email(email)
+
+    assert result.subject == "Training session"
+    assert result.attachment_filename == VALID_FILENAME
 
 
 def test_rejects_attachment_without_supported_csv_suffix(
@@ -101,7 +104,9 @@ def test_rejects_attachment_without_supported_csv_suffix(
         process_inbound_email(email)
 
 
-def test_rejects_vkx_subject(fixture_bytes: bytes) -> None:
+def test_unsupported_subject_suffix_does_not_override_valid_attachment(
+    fixture_bytes: bytes,
+) -> None:
     email = InboundEmail(
         sender_email="sailor-a@example.com",
         subject="vakaros-demo.vkx.gz",
@@ -109,8 +114,10 @@ def test_rejects_vkx_subject(fixture_bytes: bytes) -> None:
         attachment_bytes=fixture_bytes,
     )
 
-    with pytest.raises(InboundEmailRejected, match="subject"):
-        process_inbound_email(email)
+    result = process_inbound_email(email)
+
+    assert result.subject == "vakaros-demo.vkx.gz"
+    assert result.attachment_filename == VALID_FILENAME
 
 
 def test_rejects_corrupted_attachment() -> None:

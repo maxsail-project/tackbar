@@ -109,10 +109,11 @@ def _email(
     sender_email: str = "sailor-a@example.com",
     provider_message_id: str = "gmail-message-1",
     filename: str = FILENAME,
+    subject: str | None = None,
 ) -> InboundEmail:
     return InboundEmail(
         sender_email=sender_email,
-        subject=filename,
+        subject=filename if subject is None else subject,
         attachment_filename=filename,
         attachment_bytes=attachment_bytes,
         provider_message_id=provider_message_id,
@@ -167,6 +168,45 @@ def test_provider_and_message_id_deduplicate_ingestion(
     assert archived_original.read_bytes() == email.attachment_bytes
     assert second is None
     assert history.records()[0]["disposition"] == "active"
+
+
+def test_arbitrary_subject_preserves_downstream_activity_and_session_flow(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    subject = "SHIMASAIL track ult. día track H. Reina."
+    filename = "SHIMASAIL 5-7-2026.csv"
+    pilot_sailor, _ = sailors.find_or_create_by_email("aquaxsailing@gmail.com")
+    sailors.replace(
+        replace(pilot_sailor, consent_status=ConsentStatus.ACTIVE)
+    )
+
+    result = process_provider_email(
+        "ovh",
+        _email(
+            gzip.decompress(FIXTURE_PATH.read_bytes()),
+            sender_email="aquaxsailing@gmail.com",
+            provider_message_id="456:pilot-message",
+            filename=filename,
+            subject=subject,
+        ),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    assert result.sailor.email == "aquaxsailing@gmail.com"
+    assert result.activity.original_filename == filename
+    assert result.activity.sample_count == 3613
+    assert result.activity.id in result.session_match.session.activity_ids
+    assert history.find_provider_message("ovh", "456:pilot-message")[
+        "status"
+    ] == "processed"
 
 
 def test_disposition_is_preserved_without_affecting_provider_deduplication(
