@@ -2,6 +2,65 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.6.6 Mahon — Attachment-driven Email Ingestion
+
+### English
+
+Small operational hotfix that removes the legacy requirement for the email
+Subject to end in `.csv` or `.csv.gz`.
+
+### Fixed
+
+* Track email eligibility is determined by the supported attachment rather than
+  by the email Subject.
+* Natural human-written Subjects are accepted when the message contains exactly
+  one supported `.csv` or `.csv.gz` attachment.
+* OVH and Gmail acquisition apply the same attachment-driven eligibility rule.
+* Unsupported attachments remain unsupported even when the Subject looks like a
+  track filename.
+* Existing Activity, Session, ingestion-history, deduplication and consent
+  semantics remain unchanged.
+
+### Validation
+
+Focused backend regression for provider acquisition and ingestion passed before
+release preparation.
+
+Production validation of a real arbitrary-subject email remains pending until
+deployment.
+
+---
+
+## v0.6.6 Mahon — Ingesta de email basada en adjuntos
+
+### Español
+
+Pequeño hotfix operativo que elimina el requisito heredado de que el Subject del
+email termine en `.csv` o `.csv.gz`.
+
+### Corregido
+
+* La elegibilidad de un email con track se determina por el adjunto soportado y
+  no por el Subject del email.
+* Se aceptan Subjects naturales escritos por personas cuando el mensaje contiene
+  exactamente un adjunto `.csv` o `.csv.gz` soportado.
+* La adquisición mediante OVH y Gmail aplica la misma regla de elegibilidad
+  basada en adjuntos.
+* Los adjuntos no soportados siguen sin estar soportados aunque el Subject parezca
+  el nombre de un archivo de track.
+* Las semánticas existentes de Activity, Session, historial de ingesta,
+  deduplicación y consentimiento permanecen sin cambios.
+
+### Validación
+
+La regresión backend focalizada de adquisición mediante proveedores e ingesta
+pasó antes de preparar la release.
+
+La validación en producción de un email real con Subject arbitrario permanece
+pendiente hasta el despliegue.
+
+---
+
 ## v0.6.5 Mahon — Simplified Pilot Onboarding & Web Consent (Release-ready — production validation pending)
 
 ### English

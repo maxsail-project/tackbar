@@ -96,7 +96,7 @@ Reference: [requirements](docs/v0.5.1-pilot-fix-and-usability-requirements.md).
 
 ## Mahon release family — v0.6.x
 
-The Mahon family progressed through six focused releases while preserving the
+The Mahon family progressed through seven focused releases while preserving the
 same core Sailor → Activity → Session and collaborative debrief baseline.
 
 ### v0.6.0 Mahon — Pilot Operations
@@ -188,6 +188,15 @@ deployment and the real OVH SMTP end-to-end consent flow remain pending.
 
 Reference: [requirements](docs/v0.6.5-simplified-pilot-onboarding-requirements.md).
 
+### v0.6.6 Mahon — Attachment-driven Email Ingestion
+
+**Status:** Implemented / focused backend validation passed; production validation pending
+
+Delivered a small operational hotfix so Gmail and OVH determine track-email
+eligibility from exactly one supported `.csv` or `.csv.gz` attachment rather
+than from the human-written Subject. Multi-format ingestion remains assigned to
+v0.7.0 Californian.
+
 Any additional v0.6.x work remains unassigned unless explicitly promoted.
 Pending work is tracked in `docs/product-backlog.md` rather than inferred from
 historical release documents.
@@ -236,6 +245,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.3 | Mahon — Usability & Maintenance | Delivered / focused validation passed |
 | v0.6.4 | Mahon — Sailor Activation Welcome Email | Release-ready / production validation pending |
 | v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implemented / production validation pending |
+| v0.6.6 | Mahon — Attachment-driven Email Ingestion | Implemented / focused validation passed; production validation pending |
 | v0.7.0 | Californian — Multi-Format Track Ingestion | Planned |
 
 ---
@@ -282,7 +292,7 @@ Entregado: mejor contexto operativo de Sessions, Sailors e ingestas en Admin, pr
 
 ## Familia de releases Mahon — v0.6.x
 
-La familia Mahon avanzó mediante seis releases focalizadas, preservando la misma
+La familia Mahon avanzó mediante siete releases focalizadas, preservando la misma
 baseline Sailor → Activity → Session y de debriefing colaborativo.
 
 ### v0.6.0 Mahon — Pilot Operations
@@ -357,6 +367,15 @@ pendiente y recuperación mediante reenvío/reemisión Admin más confirmación
 manual. El despliegue y el flujo end-to-end real mediante SMTP OVH siguen
 pendientes.
 
+### v0.6.6 Mahon — Ingesta de email basada en adjuntos
+
+**Estado:** Implementado / validación backend focalizada superada; validación de producción pendiente
+
+Entrega un pequeño hotfix operativo para que Gmail y OVH determinen la
+elegibilidad del email con track mediante exactamente un adjunto `.csv` o
+`.csv.gz` soportado, y no mediante el Subject escrito por la persona. La ingesta
+multi-formato permanece asignada a v0.7.0 Californian.
+
 Cualquier trabajo adicional v0.6.x permanece sin asignar salvo promoción
 explícita. El trabajo pendiente se mantiene en `docs/product-backlog.md` y no se
 infiere de documentos históricos de release.
@@ -389,4 +408,5 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.6.3 | Mahon — Usability & Maintenance | Entregado / validación focalizada superada |
 | v0.6.4 | Mahon — Sailor Activation Welcome Email | Lista para release / validación de producción pendiente |
 | v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implementado / validación de producción pendiente |
+| v0.6.6 | Mahon — Ingesta de email basada en adjuntos | Implementado / validación focalizada superada; validación de producción pendiente |
 | v0.7.0 | Californian — Multi-Format Track Ingestion | Previsto |
