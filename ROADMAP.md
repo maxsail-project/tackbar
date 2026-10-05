@@ -217,6 +217,12 @@ Implementation and validation order: **GPX → VKX → FIT**.
 
 Deferred v0.6 operational work is not automatically moved into v0.7.0.
 
+Across the **v0.7.x Californian** family, small corrective, technical-debt and
+operational-maintenance increments may also be delivered when justified by
+pilot/production evidence or concrete implementation needs. This maintenance
+track is intentionally open and evidence-driven; it does not expand the core
+v0.7.0 product scope or authorize unrelated refactors or product features.
+
 References: [requirements](docs/v0.7-multi-format-track-ingestion-requirements.md) and [decisions](docs/v0.7-decisions.md).
 
 ---
@@ -389,6 +395,14 @@ Ampliar la ingesta a otros formatos manteniendo un único track normalizado can�
 Orden: **GPX → VKX → FIT**.
 
 v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. El trabajo operativo diferido de v0.6 no se mueve automáticamente a v0.7.
+
+A lo largo de la familia **v0.7.x Californian** también podrán incorporarse
+incrementos pequeños de mantenimiento correctivo, deuda técnica y mantenimiento
+operacional cuando estén justificados por evidencia del piloto/producción o por
+necesidades concretas detectadas durante la implementación. Esta línea se
+mantiene deliberadamente abierta y guiada por evidencia; no amplía por sí sola
+el alcance funcional de v0.7.0 ni autoriza refactors o funcionalidades no
+relacionadas.
 
 ---
 
