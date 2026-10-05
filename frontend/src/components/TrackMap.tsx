@@ -58,6 +58,14 @@ export function boatMarkerRotation(cog: number | null) {
   return cog ?? 0
 }
 
+export function formatMapCogValue(cog: number | null) {
+  if (cog === null) return '—'
+
+  const roundedCog = Math.round(cog)
+  const normalizedCog = ((roundedCog % 360) + 360) % 360
+  return `${normalizedCog}°`
+}
+
 export function shouldRefitForActivityChange(
   previousFitActivityKey: string | null,
   fitActivityKey: string,
@@ -230,17 +238,18 @@ export default function TrackMap({
         <div className="map-status__time">
           <span>GPS time</span>
           <strong>{formatGpsTime(playbackTime)}</strong>
+          <span>UTC</span>
         </div>
         <div className="map-status__telemetry">
           <span className="map-status__telemetry-row">
             P · SOG {formatMetricValue('SOG', primarySog)} · COG{' '}
-            {formatMetricValue('COG', primaryCog)} · HEEL{' '}
+            {formatMapCogValue(primaryCog)} · HEEL{' '}
             {formatHeelValue(primaryHeel)}
           </span>
           {hasComparison && (
             <span className="map-status__telemetry-row">
               C · SOG {formatMetricValue('SOG', comparisonSog)} · COG{' '}
-              {formatMetricValue('COG', comparisonCog)} · HEEL{' '}
+              {formatMapCogValue(comparisonCog)} · HEEL{' '}
               {formatHeelValue(comparisonHeel)}
             </span>
           )}

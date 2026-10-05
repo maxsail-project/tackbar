@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   boatMarkerRotation,
+  formatMapCogValue,
   shouldRefitForActivityChange,
 } from './TrackMap'
 
@@ -14,6 +15,16 @@ describe('boat marker rotation', () => {
     [null, 0],
   ])('uses COG %s as the north-up marker rotation', (cog, expected) => {
     expect(boatMarkerRotation(cog)).toBe(expected)
+  })
+})
+
+describe('map COG presentation', () => {
+  it.each([
+    [120.4, '120°'],
+    [359.9, '0°'],
+    [null, '—'],
+  ])('formats map COG %s as %s', (cog, expected) => {
+    expect(formatMapCogValue(cog)).toBe(expected)
   })
 })
 
