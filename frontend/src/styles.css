@@ -361,10 +361,29 @@ input:focus-visible {
 }
 
 .boat-marker__hull {
+  display: block;
+  position: relative;
   width: 30px;
   height: 30px;
-  overflow: visible;
   transform-origin: center;
+}
+
+.boat-marker__hull::before,
+.boat-marker__hull::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  -webkit-mask: url('./assets/sail-boat.svg') center / contain no-repeat;
+  mask: url('./assets/sail-boat.svg') center / contain no-repeat;
+}
+
+.boat-marker__hull::before {
+  background: #fff;
+}
+
+.boat-marker__hull::after {
+  background: currentcolor;
+  transform: scale(0.88);
 }
 
 .content-section,

@@ -76,20 +76,14 @@ function BoatMarker({
 }) {
   return (
     <div className="boat-marker" role="img" aria-label={label}>
-      <svg
+      <span
         aria-hidden="true"
         className="boat-marker__hull"
-        viewBox="0 0 32 32"
-        style={{ transform: `rotate(${boatMarkerRotation(cog)}deg)` }}
-      >
-        <path
-          d="M16 2 25 25 16 30 7 25Z"
-          fill={color}
-          stroke="#fff"
-          strokeWidth="3"
-          strokeLinejoin="round"
-        />
-      </svg>
+        style={{
+          color,
+          transform: `rotate(${boatMarkerRotation(cog)}deg)`,
+        }}
+      />
     </div>
   )
 }
