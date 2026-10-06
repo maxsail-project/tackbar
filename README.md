@@ -45,8 +45,8 @@ Consent controls shared visibility, not technical ingestion or Session matching.
 Only Activities of currently `ACTIVE` Sailors appear in shared Sessions.
 Access uses a valid Session capability URL, without a general Sailor login.
 
-GPX, VKX and FIT are planned formats, not current support. Generalized
-multi-provider ingestion remains future work.
+GPX, VKX and FIT are Future / Unassigned, not current support or committed
+v0.7.x scope. Generalized multi-provider ingestion remains future work.
 
 ---
 
@@ -260,16 +260,20 @@ Valid operational follow-up remains unassigned until explicitly promoted to a
 concrete patch release. Current examples are additional mailbox providers and
 broader operational work.
 
-### v0.7.0 — Multi-Format Track Ingestion
+### v0.7.x Californian — Collaborative Debrief Analytics
 
-Planned: preserve CSV/CSV.GZ and add **GPX → VKX → FIT**, validating each in
-that order. All formats will converge on one canonical TackBar normalized
-track, with deterministic, Sailor-scoped post-normalization logical duplicate
-resolution. The fingerprint contract remains to be finalized using representative
-multi-format data.
+Planned: use existing Vakaros-derived canonical Activities for maneuver-oriented
+collaborative debrief. Neutral event summaries extend the existing Session
+Viewer and navigate its shared `playbackTime`. Metrics are provisional and
+evidence-driven; real sailing validation may add, remove or adjust them within
+focused scope. Maneuver does not automatically mean tack/gybe.
 
-See the [v0.7 requirements](docs/v0.7-multi-format-track-ingestion-requirements.md)
-and [ROADMAP](ROADMAP.md) for further context.
+Existing Activity/Session and Viewer semantics remain preserved. GPX/VKX/FIT,
+cross-format normalization and logical deduplication are Future / Unassigned;
+Garmin Connect remains separate future work. No later release is assigned.
+
+See the [v0.7 requirements](docs/v0.7-collaborative-debrief-analytics-requirements.md),
+[decisions](docs/v0.7-decisions.md) and [ROADMAP](ROADMAP.md).
 
 ## Public website
 
@@ -337,7 +341,8 @@ el Session matching. Sólo las Activities de Sailors actualmente `ACTIVE`
 aparecen en Sessions compartidas. El acceso utiliza una capability URL de
 Session válida, sin un sistema general de login de Sailor.
 
-GPX, VKX y FIT son formatos previstos, no soporte actual. La ingesta OVHcloud /
+GPX, VKX y FIT quedan Future / Unassigned, sin soporte actual ni compromiso
+v0.7.x. La ingesta OVHcloud /
 multi-proveedor generalizada queda diferida a **Future 0.6.x** y está
 explícitamente fuera de v0.6.0 Mahon.
 
@@ -556,16 +561,22 @@ El seguimiento operativo válido permanece sin versión concreta hasta que se
 promueva explícitamente. Entre los ejemplos actuales están proveedores de buzón
 adicionales y trabajo operativo más amplio.
 
-### v0.7.0 — Multi-Format Track Ingestion
+### v0.7.x Californian — Collaborative Debrief Analytics
 
-Previsto: conservar CSV/CSV.GZ y añadir **GPX → VKX → FIT**, validando cada
-formato en ese orden. Todos convergerán en un único track normalizado canónico
-de TackBar, con resolución determinista de duplicados lógicos por Sailor tras
-la normalización. El contrato de fingerprint queda pendiente de cerrar con
-datos representativos de varios formatos.
+Previsto: usar Activities canónicas ya derivadas de Vakaros para debrief
+colaborativo orientado inicialmente a maniobras. Los eventos neutrales se
+resumen en una sección adicional del Session Viewer y permiten navegar mediante
+su `playbackTime` compartido. Las métricas son provisionales y guiadas por
+evidencia; pueden añadirse, retirarse o ajustarse al validar datos reales dentro
+del alcance focalizado. Una maniobra no equivale automáticamente a virada o
+trasluchada.
 
-Consulta los [requisitos v0.7](docs/v0.7-multi-format-track-ingestion-requirements.md)
-y el [ROADMAP](ROADMAP.md) para más contexto.
+Se preservan las semánticas de Activity/Session y Viewer. GPX/VKX/FIT,
+normalización entre formatos y deduplicación lógica quedan Future / Unassigned;
+Garmin Connect permanece separado. No se asigna ninguna release posterior.
+
+Consulta los [requisitos v0.7](docs/v0.7-collaborative-debrief-analytics-requirements.md),
+[decisiones](docs/v0.7-decisions.md) y [ROADMAP](ROADMAP.md).
 
 ## Web pública
 

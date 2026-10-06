@@ -90,12 +90,16 @@ This remains separate from ACTIVE-only shared visibility and from administrative
 
 # Ingestion & email operations
 
-## Canonical track fingerprint
+## Cross-format canonical normalization and logical fingerprint
 
-**Status:** Planned  
-**Release:** v0.7.0
+**Status:** Future\
+**Release:** Unassigned
 
-Define logical duplicate detection after TackBar track normalization as part of multi-format ingestion, while retaining existing raw attachment SHA-256 for exact-file deduplication.
+Future shared work for GPX/VKX/FIT ingestion: canonical cross-format
+normalization and logical duplicate detection after normalization, retaining
+raw attachment SHA-256 for exact-file deduplication. This is the single shared
+normalization/identity item; format entries below cover their own extraction.
+It is not committed to v0.7.x or any other release.
 
 Direction:
 
@@ -151,12 +155,18 @@ Provider-specific acquisition must preserve the common ingestion boundary.
 
 # Activity sources & formats
 
+Long-term direction: TackBar may become source-format independent, with each
+source converging on canonical Activities and the existing Session/Viewer flow.
+GPX, VKX, FIT and shared cross-format normalization/logical deduplication are
+Future / Unassigned; no v0.7.x or later numbered release is assigned.
+
 ## GPX ingestion
 
-**Status:** Planned  
-**Release:** v0.7.0
+**Status:** Future\
+**Release:** Unassigned
 
-Add GPX as the first new file format in the multi-format ingestion release.
+Consider GPX ingestion when multi-format work is explicitly promoted. No
+format order or release is currently committed.
 
 GPX must converge on the same provider-independent TackBar Activity and normalized track model.
 
@@ -164,10 +174,11 @@ GPX must converge on the same provider-independent TackBar Activity and normaliz
 
 ## VKX ingestion
 
-**Status:** Planned  
-**Release:** v0.7.0
+**Status:** Future\
+**Release:** Unassigned
 
-Add VKX after GPX has been integrated and validated.
+Consider VKX ingestion when multi-format work is explicitly promoted. No
+dependency on a committed GPX delivery or release is implied.
 
 VKX must converge on the same canonical TackBar track model without automatically expanding analytics scope.
 
@@ -175,10 +186,11 @@ VKX must converge on the same canonical TackBar track model without automaticall
 
 ## FIT ingestion
 
-**Status:** Planned  
-**Release:** v0.7.0
+**Status:** Future\
+**Release:** Unassigned
 
-Add FIT after VKX has been integrated and validated.
+Consider FIT ingestion when multi-format work is explicitly promoted. No
+dependency on a committed VKX delivery or release is implied.
 
 FIT file support remains separate from future Garmin Connect integration.
 
@@ -227,6 +239,28 @@ Add concrete entries when one becomes an actual product candidate.
 
 # Sailing analytics
 
+## Vakaros-based maneuver-oriented collaborative debrief
+
+**Status:** Planned / real-sailing validation pending\
+**Release:** v0.7.x Californian\
+**Origin:** [requirements](v0.7-collaborative-debrief-analytics-requirements.md)
+
+Use telemetry already available in canonical Vakaros-derived Activities to
+identify neutral maneuver events and summarize useful moments in an additional
+section of the existing Session Viewer. Selecting an event moves the shared
+`playbackTime`; existing Activity/Session, Analysis Window, map, charts and
+Summary semantics remain preserved.
+
+The metric set is evidence-driven, provisional and expected to evolve. Metrics
+may be added, removed or adjusted after real sailing validation under the
+requirements' bounded refinement policy. Candidate metrics are examples,
+not a mandatory schema. Maneuver does not automatically mean tack/gybe.
+
+This entry covers the initial maneuver-oriented portion of automatic useful
+moment identification; broader detection remains separately future below.
+
+---
+
 ## Start analysis
 
 **Status:** Future  
@@ -268,7 +302,10 @@ Provide meaningful gained/lost comparison between boats over a selected period. 
 **Status:** Future  
 **Release:** Unassigned
 
-Detect moments that may deserve attention during post-sailing debrief, evolving from validated sailing-domain rules rather than speculative feature depth.
+Broader useful-moment detection beyond the maneuver-oriented v0.7.x entry
+above remains Future / Unassigned. Promote concrete additional event types only
+after validated sailing-domain evidence and explicit scope review; this entry
+does not duplicate or defer the initial maneuver capability.
 
 ---
 

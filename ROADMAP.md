@@ -194,8 +194,7 @@ Reference: [requirements](docs/v0.6.5-simplified-pilot-onboarding-requirements.m
 
 Delivered a small operational hotfix so Gmail and OVH determine track-email
 eligibility from exactly one supported `.csv` or `.csv.gz` attachment rather
-than from the human-written Subject. Multi-format ingestion remains assigned to
-v0.7.0 Californian.
+than from the human-written Subject. Multi-format ingestion is Future / Unassigned.
 
 Any additional v0.6.x work remains unassigned unless explicitly promoted.
 Pending work is tracked in `docs/product-backlog.md` rather than inferred from
@@ -203,27 +202,30 @@ historical release documents.
 
 ---
 
-## Planned milestone — v0.7.0 Californian — Multi-Format Track Ingestion
+## Planned release family — v0.7.x Californian — Collaborative Debrief Analytics
 
-Extend the existing ingestion flow to additional file formats while preserving one canonical TackBar normalized track representation.
+Focus on useful post-sailing insights from telemetry already available in
+Vakaros-derived canonical TackBar Activities. Maneuver-oriented analysis is
+the first direction: neutral detected events, an additional compact summary
+section in the existing Session Viewer, and event selection through the shared
+`playbackTime`.
 
-Implementation and validation order: **GPX → VKX → FIT**.
+Metrics remain evidence-driven and provisional: real sailing validation may
+add, remove or adjust them within the focused debrief objective. A maneuver is
+not automatically a tack/gybe. Existing Activity/Session, Analysis Window,
+map/replay, charts and Summary semantics remain preserved.
 
-- preserve existing Vakaros CSV/CSV.GZ support;
-- keep provider and source-format ingestion boundaries independent;
-- converge all formats on the same canonical normalized track;
-- derive SOG/COG deterministically when required by source data;
-- introduce deterministic, Sailor-scoped logical duplicate resolution after normalization, with the fingerprint contract finalized using representative multi-format data before persistence.
+GPX/VKX/FIT ingestion, cross-format normalization and canonical logical
+fingerprint/deduplication are **Future / Unassigned**, with no v0.8.x or other
+release commitment. Long-term source-format independence remains a direction;
+Garmin Connect remains separate future work. Advanced analytics remain bounded
+by the explicit non-goals in the requirements.
 
-Deferred v0.6 operational work is not automatically moved into v0.7.0.
+Small focused corrective, technical-debt and operational maintenance may remain
+within v0.7.x when evidence justifies it, preserving backward compatibility
+unless explicitly changed. This does not authorize unrelated feature expansion.
 
-Across the **v0.7.x Californian** family, small corrective, technical-debt and
-operational-maintenance increments may also be delivered when justified by
-pilot/production evidence or concrete implementation needs. This maintenance
-track is intentionally open and evidence-driven; it does not expand the core
-v0.7.0 product scope or authorize unrelated refactors or product features.
-
-References: [requirements](docs/v0.7-multi-format-track-ingestion-requirements.md) and [decisions](docs/v0.7-decisions.md).
+References: [requirements](docs/v0.7-collaborative-debrief-analytics-requirements.md) and [decisions](docs/v0.7-decisions.md).
 
 ---
 
@@ -252,7 +254,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.4 | Mahon — Sailor Activation Welcome Email | Release-ready / production validation pending |
 | v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implemented / production validation pending |
 | v0.6.6 | Mahon — Attachment-driven Email Ingestion | Implemented / focused validation passed; production validation pending |
-| v0.7.0 | Californian — Multi-Format Track Ingestion | Planned |
+| v0.7.x | Californian — Collaborative Debrief Analytics | Planned |
 
 ---
 
@@ -380,7 +382,7 @@ pendientes.
 Entrega un pequeño hotfix operativo para que Gmail y OVH determinen la
 elegibilidad del email con track mediante exactamente un adjunto `.csv` o
 `.csv.gz` soportado, y no mediante el Subject escrito por la persona. La ingesta
-multi-formato permanece asignada a v0.7.0 Californian.
+multi-formato queda Future / Unassigned.
 
 Cualquier trabajo adicional v0.6.x permanece sin asignar salvo promoción
 explícita. El trabajo pendiente se mantiene en `docs/product-backlog.md` y no se
@@ -388,21 +390,29 @@ infiere de documentos históricos de release.
 
 ---
 
-## Hito previsto — v0.7.0 Californian — Multi-Format Track Ingestion
+## Familia prevista — v0.7.x Californian — Collaborative Debrief Analytics
 
-Ampliar la ingesta a otros formatos manteniendo un único track normalizado canónico.
+Priorizar insights útiles tras navegar a partir de la telemetría ya disponible
+en Activities canónicas derivadas de Vakaros. La primera dirección es el
+análisis de maniobras: eventos neutrales, una sección compacta adicional en el
+Session Viewer existente y selección del evento mediante el `playbackTime`
+compartido.
 
-Orden: **GPX → VKX → FIT**.
+Las métricas son provisionales y guiadas por evidencia: pueden añadirse,
+retirarse o ajustarse al validar datos reales dentro del objetivo de debrief.
+Una maniobra no equivale automáticamente a virada/trasluchada. Se preservan
+Activity/Session, Analysis Window, mapa/replay, gráficos y Summary.
 
-v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. El trabajo operativo diferido de v0.6 no se mueve automáticamente a v0.7.
+GPX/VKX/FIT, normalización entre formatos y fingerprint/deduplicación lógica
+quedan **Future / Unassigned**, sin asignación a v0.8.x ni a otra release.
+Se conserva la dirección futura de independencia de formatos; Garmin Connect
+sigue siendo trabajo futuro separado. Los no objetivos explícitos limitan la
+analítica avanzada.
 
-A lo largo de la familia **v0.7.x Californian** también podrán incorporarse
-incrementos pequeños de mantenimiento correctivo, deuda técnica y mantenimiento
-operacional cuando estén justificados por evidencia del piloto/producción o por
-necesidades concretas detectadas durante la implementación. Esta línea se
-mantiene deliberadamente abierta y guiada por evidencia; no amplía por sí sola
-el alcance funcional de v0.7.0 ni autoriza refactors o funcionalidades no
-relacionadas.
+Se mantiene el mantenimiento pequeño y focalizado con evidencia concreta y
+compatibilidad preservada salvo cambio explícito, sin expansión no relacionada.
+
+Referencias: [requisitos](docs/v0.7-collaborative-debrief-analytics-requirements.md) y [decisiones](docs/v0.7-decisions.md).
 
 ---
 
@@ -423,4 +433,4 @@ relacionadas.
 | v0.6.4 | Mahon — Sailor Activation Welcome Email | Lista para release / validación de producción pendiente |
 | v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implementado / validación de producción pendiente |
 | v0.6.6 | Mahon — Ingesta de email basada en adjuntos | Implementado / validación focalizada superada; validación de producción pendiente |
-| v0.7.0 | Californian — Multi-Format Track Ingestion | Previsto |
+| v0.7.x | Californian — Collaborative Debrief Analytics | Previsto |

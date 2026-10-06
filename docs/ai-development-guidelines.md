@@ -189,7 +189,8 @@ TackBar should rethink each concept according to its own collaborative, mobile-f
 Reusable TackBar sailing-analysis logic should evolve as an independent Python
 analytics/domain layer or library when demonstrated needs require it. This
 direction does not imply that a mature standalone analytics library is already
-delivered and does not expand the current release into advanced analytics.
+delivered and does not by itself authorize advanced analytics. The focused
+v0.7.x analytics scope is governed by its requirements and decisions.
 
 ---
 
@@ -494,12 +495,22 @@ the Analysis Window. Any later visual sampling must remain presentation-only.
 
 Do not implement advanced MaxSail Analytics features unless explicitly requested.
 
-Examples currently out of scope:
+For v0.7.x Californian, read
+`docs/v0.7-collaborative-debrief-analytics-requirements.md` and
+`docs/v0.7-decisions.md`. Neutral maneuver-oriented analysis is the first
+direction in the existing Session Viewer. Analytical metrics are provisional
+and evidence-driven; they may be added, removed or adjusted after real sailing
+validation under the bounded refinement policy. Preserve the existing shared
+Analysis Window, `playbackTime`, map, charts and Summary. This does not promote
+unrelated or advanced analytics.
+
+Examples outside the initial analytical scope:
 
 - TWA;
 - VMG;
 - SOGS smoothing;
-- maneuver detection;
+- advanced tack/gybe classification, except when reliably validated and
+  explicitly promoted under the v0.7.x requirements;
 - COG roses;
 - histograms;
 - efficiency metrics;
@@ -608,6 +619,12 @@ When a bug is found in real sailing data, prefer adding a regression test before
 ---
 
 ## 16. Source/provider independence
+
+Current ingestion supports Vakaros CSV/CSV.GZ. GPX, VKX, FIT, related
+cross-format normalization and canonical logical fingerprint/deduplication
+remain Future / Unassigned, outside v0.7.x. Garmin Connect is separate future
+work. Long-term source-format independence remains a direction, not a release
+commitment.
 
 Initial and future sources may include:
 

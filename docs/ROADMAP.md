@@ -1,5 +1,9 @@
 # TackBar Roadmap
 
+The canonical roadmap is [ROADMAP.md](../ROADMAP.md). This companion
+retains its historical release summaries; current v0.7.x planning follows
+the canonical roadmap and the requirements/decisions linked below.
+
 TackBar evolves incrementally by validating each product step with real sailing activities before adding more complexity.
 
 The roadmap is intentionally high-level. Detailed release requirements and future backlog are maintained separately.
@@ -84,13 +88,13 @@ Delivered direction:
 - Session capability URLs, expiration and renewal;
 - controlled real-sailing pilot validation with the existing Session Viewer.
 
-References: [requirements](docs/v0.5-real-sailing-pilot-requirements.md) and [CHANGELOG](CHANGELOG.md).
+References: [requirements](v0.5-real-sailing-pilot-requirements.md) and [CHANGELOG](../CHANGELOG.md).
 
 ### v0.5.1 — Pilot Fix & Usability
 
 Delivered: clearer Admin Session operational context, Sailor participation/history visibility and ingestion track context, preserving the validated v0.5.0 product flow.
 
-Reference: [requirements](docs/v0.5.1-pilot-fix-and-usability-requirements.md).
+Reference: [requirements](v0.5.1-pilot-fix-and-usability-requirements.md).
 
 ### v0.6.0 — Mahon — Pilot Operations
 
@@ -98,7 +102,7 @@ Delivered: Personal TackBar, Admin ingestion maintenance, deterministic Session 
 
 The release preserved Gmail as the operational mailbox provider and explicitly deferred OVHcloud ingestion.
 
-References: [requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md), [decisions](docs/v0.6-decisions.md) and [CHANGELOG](CHANGELOG.md).
+References: [requirements](v0.6-personal-tackbar-pilot-operations-requirements.md), [decisions](v0.6-decisions.md) and [CHANGELOG](../CHANGELOG.md).
 
 ### v0.6.1 — OVH Mailbox Ingestion
 
@@ -121,7 +125,7 @@ Manual production validation confirmed the real end-to-end flow:
 
 `real email → share@tackbar.eu → OVH IMAP adapter → InboundEmail → ingestion → Activity → Session → Viewer`
 
-References: [requirements](docs/v0.6.1-ovh-mailbox-ingestion-requirements.md), [decisions](docs/v0.6.1-decisions.md) and [manual validation](docs/v0.6.1-manual-validation.md).
+References: [requirements](v0.6.1-ovh-mailbox-ingestion-requirements.md), [decisions](v0.6.1-decisions.md) and [manual validation](v0.6.1-manual-validation.md).
 
 ### v0.6.2 — Viewer & Admin Usability
 
@@ -180,27 +184,36 @@ A concrete version is assigned to Future 0.6.x work only when that scope is expl
 
 ---
 
-## Planned milestone — v0.7.0 Multi-Format Track Ingestion
+## Planned release family — v0.7.x Californian — Collaborative Debrief Analytics
 
-Extend the existing ingestion flow to additional file formats while preserving one canonical TackBar normalized track representation.
+Focus on useful post-sailing insights from telemetry already available in
+Vakaros-derived canonical TackBar Activities. Maneuver-oriented analysis is
+the first direction: neutral detected events, an additional compact summary
+section in the existing Session Viewer, and event selection through the shared
+`playbackTime`.
 
-Implementation and validation order: **GPX → VKX → FIT**.
+Metrics remain evidence-driven and provisional: real sailing validation may
+add, remove or adjust them within the focused debrief objective. A maneuver is
+not automatically a tack/gybe. Existing Activity/Session, Analysis Window,
+map/replay, charts and Summary semantics remain preserved.
 
-- preserve existing Vakaros CSV/CSV.GZ support;
-- keep provider and source-format ingestion boundaries independent;
-- converge all formats on the same canonical normalized track;
-- derive SOG/COG deterministically when required by source data;
-- introduce deterministic, Sailor-scoped logical duplicate resolution after normalization, with the fingerprint contract finalized using representative multi-format data before persistence.
+GPX/VKX/FIT ingestion, cross-format normalization and canonical logical
+fingerprint/deduplication are **Future / Unassigned**, with no v0.8.x or other
+release commitment. Long-term source-format independence remains a direction;
+Garmin Connect remains separate future work. Advanced analytics remain bounded
+by the explicit non-goals in the requirements.
 
-Deferred v0.6 operational work is not automatically moved into v0.7.0.
+Small focused corrective, technical-debt and operational maintenance may remain
+within v0.7.x when evidence justifies it, preserving backward compatibility
+unless explicitly changed. This does not authorize unrelated feature expansion.
 
-References: [requirements](docs/v0.7-multi-format-track-ingestion-requirements.md) and [decisions](docs/v0.7-decisions.md).
+References: [requirements](v0.7-collaborative-debrief-analytics-requirements.md) and [decisions](v0.7-decisions.md).
 
 ---
 
 ## Backlog relationship
 
-[docs/product-backlog.md](docs/product-backlog.md) remains the canonical inventory of unfinished future work.
+[docs/product-backlog.md](product-backlog.md) remains the canonical inventory of unfinished future work.
 
 Only scope explicitly committed in release requirements/decisions belongs to a concrete release. Other work remains Unassigned or Future 0.6.x as explicitly decided.
 
@@ -223,7 +236,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.4 | Sailor Activation Welcome Email | Implemented / production validation pending |
 | v0.6.5 | Simplified Pilot Onboarding & Web Consent | Committed / implementation pending |
 | Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
-| v0.7.0 | Multi-Format Track Ingestion | Planned |
+| v0.7.x | Californian — Collaborative Debrief Analytics | Planned |
 
 ---
 
@@ -290,7 +303,7 @@ La validación manual en producción confirmó el flujo real:
 
 `correo real → share@tackbar.eu → adapter IMAP OVH → InboundEmail → ingesta → Activity → Session → Viewer`
 
-Referencias: [requisitos](docs/v0.6.1-ovh-mailbox-ingestion-requirements.md), [decisiones](docs/v0.6.1-decisions.md) y [validación manual](docs/v0.6.1-manual-validation.md).
+Referencias: [requisitos](v0.6.1-ovh-mailbox-ingestion-requirements.md), [decisiones](v0.6.1-decisions.md) y [validación manual](v0.6.1-manual-validation.md).
 
 ### v0.6.2 — Usabilidad de Viewer y Admin
 
@@ -344,13 +357,29 @@ Actualmente incluye las mejoras amplias de usabilidad de mantenimiento de Sessio
 
 ---
 
-## Hito previsto — v0.7.0 Multi-Format Track Ingestion
+## Familia prevista — v0.7.x Californian — Collaborative Debrief Analytics
 
-Ampliar la ingesta a otros formatos manteniendo un único track normalizado canónico.
+Priorizar insights útiles tras navegar a partir de la telemetría ya disponible
+en Activities canónicas derivadas de Vakaros. La primera dirección es el
+análisis de maniobras: eventos neutrales, una sección compacta adicional en el
+Session Viewer existente y selección del evento mediante el `playbackTime`
+compartido.
 
-Orden: **GPX → VKX → FIT**.
+Las métricas son provisionales y guiadas por evidencia: pueden añadirse,
+retirarse o ajustarse al validar datos reales dentro del objetivo de debrief.
+Una maniobra no equivale automáticamente a virada/trasluchada. Se preservan
+Activity/Session, Analysis Window, mapa/replay, gráficos y Summary.
 
-v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. El trabajo operativo diferido de v0.6 no se mueve automáticamente a v0.7.
+GPX/VKX/FIT, normalización entre formatos y fingerprint/deduplicación lógica
+quedan **Future / Unassigned**, sin asignación a v0.8.x ni a otra release.
+Se conserva la dirección futura de independencia de formatos; Garmin Connect
+sigue siendo trabajo futuro separado. Los no objetivos explícitos limitan la
+analítica avanzada.
+
+Se mantiene el mantenimiento pequeño y focalizado con evidencia concreta y
+compatibilidad preservada salvo cambio explícito, sin expansión no relacionada.
+
+Referencias: [requisitos](v0.7-collaborative-debrief-analytics-requirements.md) y [decisiones](v0.7-decisions.md).
 
 ---
 
@@ -371,4 +400,4 @@ v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. 
 | v0.6.4 | Correo de bienvenida tras la activación de Sailor | Implementado / validación de producción pendiente |
 | v0.6.5 | Onboarding simplificado del piloto y consentimiento web | Comprometido / implementación pendiente |
 | Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
-| v0.7.0 | Multi-Format Track Ingestion | Previsto |
+| v0.7.x | Californian — Collaborative Debrief Analytics | Previsto |

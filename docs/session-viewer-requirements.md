@@ -17,6 +17,19 @@ explicitly overrides them. In particular, a v0.4 requirement may supersede a
 historical architectural ownership decision while retaining the existing
 Analysis Window, comparison, replay and circular-angle behavior.
 
+## Current v0.7.x planning reference
+
+The historical release scope below remains unchanged. The later v0.7.x
+Californian direction is governed by
+[Collaborative Debrief Analytics requirements](v0.7-collaborative-debrief-analytics-requirements.md)
+and [decisions](v0.7-decisions.md): Vakaros-based analytics, initially neutral
+maneuver events and an additional analytical section in the existing Viewer.
+Its metrics are provisional/evidence-driven, not a permanent mandatory schema.
+Historical maneuver/analytics exclusions below apply to their stated release;
+they do not prohibit the explicitly scoped v0.7.x extension. Shared Analysis
+Window, `playbackTime`, Activity/Session, map, charts and Summary remain preserved.
+GPX/VKX/FIT and cross-format logical deduplication remain Future / Unassigned.
+
 ---
 
 ## Delivered v0.4 override and delta

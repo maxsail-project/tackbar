@@ -70,12 +70,16 @@ both:
 - `docs/v0.6.5-simplified-pilot-onboarding-requirements.md`
 - `docs/v0.6.5-decisions.md`
 
-For v0.7.x Californian work involving multi-format ingestion, canonical
-normalization, logical deduplication, or maintenance increments carried within
-the v0.7.x release family, also read both:
+For v0.7.x Californian work involving Vakaros-based collaborative debrief
+analytics, maneuver/event detection, analytical summaries, event-to-replay
+navigation, or maintenance increments within the release family, also read both:
 
-- `docs/v0.7-multi-format-track-ingestion-requirements.md`
+- `docs/v0.7-collaborative-debrief-analytics-requirements.md`
 - `docs/v0.7-decisions.md`
+
+The v0.7.x metric set is provisional and evidence-driven; detected maneuvers
+are not automatically tacks/gybes. Multi-format ingestion and canonical logical
+deduplication remain Future / Unassigned, not governing v0.7.x scope.
 
 The v0.7.x maintenance allowance is evidence-driven and does not authorize
 unrelated feature expansion or speculative refactoring.
