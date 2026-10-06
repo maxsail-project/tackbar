@@ -232,7 +232,7 @@ export default function TrackMap({
         )}
       </Map>
       <div
-        className="map-status"
+        className={`map-status${hasComparison ? ' map-status--comparison' : ''}`}
         aria-label="Current replay GPS time and SOG/COG/HEEL telemetry"
       >
         <div className="map-status__time">
@@ -240,20 +240,58 @@ export default function TrackMap({
           <strong>{formatGpsTime(playbackTime)}</strong>
           <span>UTC</span>
         </div>
-        <div className="map-status__telemetry">
-          <span className="map-status__telemetry-row">
-            P · SOG {formatMetricValue('SOG', primarySog)} · COG{' '}
-            {formatMapCogValue(primaryCog)} · HEEL{' '}
-            {formatHeelValue(primaryHeel)}
-          </span>
-          {hasComparison && (
-            <span className="map-status__telemetry-row">
-              C · SOG {formatMetricValue('SOG', comparisonSog)} · COG{' '}
-              {formatMapCogValue(comparisonCog)} · HEEL{' '}
-              {formatHeelValue(comparisonHeel)}
-            </span>
-          )}
-        </div>
+        <table
+          className="map-status__telemetry"
+          aria-label="Instantaneous boat telemetry"
+        >
+          <colgroup>
+            <col className="map-status__metric-column" />
+            <col />
+            {hasComparison && <col />}
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col" aria-label="Metric" />
+              <th scope="col">
+                <span
+                  aria-hidden="true"
+                  className="map-status__activity-indicator"
+                  style={{ backgroundColor: ACTIVITY_COLORS.primary }}
+                />
+                P
+              </th>
+              {hasComparison && (
+                <th scope="col">
+                  <span
+                    aria-hidden="true"
+                    className="map-status__activity-indicator"
+                    style={{ backgroundColor: ACTIVITY_COLORS.comparison }}
+                  />
+                  C
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">SOG</th>
+              <td>{formatMetricValue('SOG', primarySog)}</td>
+              {hasComparison && (
+                <td>{formatMetricValue('SOG', comparisonSog)}</td>
+              )}
+            </tr>
+            <tr>
+              <th scope="row">COG</th>
+              <td>{formatMapCogValue(primaryCog)}</td>
+              {hasComparison && <td>{formatMapCogValue(comparisonCog)}</td>}
+            </tr>
+            <tr>
+              <th scope="row">HEEL</th>
+              <td>{formatHeelValue(primaryHeel)}</td>
+              {hasComparison && <td>{formatHeelValue(comparisonHeel)}</td>}
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
   )
