@@ -10,8 +10,8 @@ import { ACTIVITY_COLORS } from '../config/activityColors'
 import { MAP_STYLE_URL } from '../config/map'
 import type { TrackSample } from '../types/track'
 import {
-  formatHeelValue,
   formatMetricValue,
+  formatSignedDegreeValue,
 } from '../utils/metricPresentation'
 import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import { buildTrackGeometry, combineTrackBounds } from '../utils/trackGeometry'
@@ -27,9 +27,11 @@ interface TrackMapProps {
   primarySog: number | null
   primaryCog: number | null
   primaryHeel: number | null
+  primaryTrim: number | null
   comparisonSog?: number | null
   comparisonCog?: number | null
   comparisonHeel?: number | null
+  comparisonTrim?: number | null
 }
 
 const PRIMARY_TRACK_PAINT = {
@@ -107,9 +109,11 @@ export default function TrackMap({
   primarySog,
   primaryCog,
   primaryHeel,
+  primaryTrim,
   comparisonSog = null,
   comparisonCog = null,
   comparisonHeel = null,
+  comparisonTrim = null,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
   const fittedActivityKeyRef = useRef<string | null>(null)
@@ -233,7 +237,7 @@ export default function TrackMap({
       </Map>
       <div
         className={`map-status${hasComparison ? ' map-status--comparison' : ''}`}
-        aria-label="Current replay GPS time and SOG/COG/HEEL telemetry"
+        aria-label="Current replay GPS time and SOG/COG/HEEL/TRIM telemetry"
       >
         <div className="map-status__time">
           <span>GPS time</span>
@@ -287,8 +291,17 @@ export default function TrackMap({
             </tr>
             <tr>
               <th scope="row">HEEL</th>
-              <td>{formatHeelValue(primaryHeel)}</td>
-              {hasComparison && <td>{formatHeelValue(comparisonHeel)}</td>}
+              <td>{formatSignedDegreeValue(primaryHeel)}</td>
+              {hasComparison && (
+                <td>{formatSignedDegreeValue(comparisonHeel)}</td>
+              )}
+            </tr>
+            <tr>
+              <th scope="row">TRIM</th>
+              <td>{formatSignedDegreeValue(primaryTrim)}</td>
+              {hasComparison && (
+                <td>{formatSignedDegreeValue(comparisonTrim)}</td>
+              )}
             </tr>
           </tbody>
         </table>

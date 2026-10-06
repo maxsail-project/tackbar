@@ -7,6 +7,7 @@ export interface ReplayPresentation {
   sog: number | null
   cog: number | null
   heel: number | null
+  trim: number | null
 }
 
 export function resolveReplayPresentation(
@@ -14,7 +15,7 @@ export function resolveReplayPresentation(
   playbackTime: number,
 ): ReplayPresentation {
   if (samples.length === 0) {
-    return { position: null, sog: null, cog: null, heel: null }
+    return { position: null, sog: null, cog: null, heel: null, trim: null }
   }
 
   const sample = nearestSample(samples, playbackTime)
@@ -25,6 +26,9 @@ export function resolveReplayPresentation(
     cog: sample.cog !== null && Number.isFinite(sample.cog) ? sample.cog : null,
     heel: sample.heel !== null && Number.isFinite(sample.heel)
       ? sample.heel
+      : null,
+    trim: sample.trim !== null && Number.isFinite(sample.trim)
+      ? sample.trim
       : null,
   }
 }
@@ -40,7 +44,7 @@ export function formatMetricValue(
   return metric === 'SOG' ? `${value.toFixed(1)} kt` : `${value.toFixed(1)}°`
 }
 
-export function formatHeelValue(value: number | null): string {
+export function formatSignedDegreeValue(value: number | null): string {
   return value === null ? '—' : `${value.toFixed(1)}°`
 }
 

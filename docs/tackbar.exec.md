@@ -188,7 +188,7 @@ Admin obtiene/copia una capability activa
 → Session Viewer
 ```
 
-No hay “Recent Sessions” público. Compruebe Primary Activity, Compare Activity opcional, uno/dos tracks, telemetría GPS/SOG/COG/HEEL, Analysis Window, Replay x1/x2/x5/x10, gráficos SOG/COG/HEEL/TRIM y Summary Metrics.
+No hay “Recent Sessions” público. Compruebe Primary Activity, Compare Activity opcional, uno/dos tracks, telemetría GPS/SOG/COG/HEEL/TRIM, Analysis Window, Replay x1/x2/x5/x10, gráficos SOG/COG/HEEL/TRIM y Summary Metrics.
 
 ## 9. Gmail e ingestión
 

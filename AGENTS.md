@@ -119,7 +119,7 @@ Important current constraints:
 - Compared Activities use the same selected analytical/chart metric: SOG, COG, HEEL or TRIM.
 - Replay uses one shared GPS clock (`playbackTime`) for both Activities.
 - Replay speeds are x1, x2, x5, and x10.
-- Replay is a temporal control only. The map independently presents fixed instantaneous GPS time, SOG, COG and HEEL telemetry; TRIM is not map telemetry.
+- Replay is a temporal control only. The map independently presents fixed instantaneous GPS time, SOG, COG, HEEL and TRIM telemetry.
 - Consent controls shared visibility, not technical Activity ingestion or Session matching.
 - Shared Session responses must enforce ACTIVE-only visibility in the backend.
 - v0.5 Session access uses a capability URL and does not require Sailor login.

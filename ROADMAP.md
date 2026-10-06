@@ -65,7 +65,7 @@ Delivered baseline:
 - frontend connected to persisted backend data;
 - one/two-Activity comparison;
 - shared Analysis Window and Replay;
-- fixed map GPS/SOG/COG/HEEL telemetry;
+- fixed map GPS/SOG/COG/HEEL/TRIM telemetry;
 - refined Summary;
 - SOG/COG/HEEL/TRIM charts;
 - focused mobile/tablet validation.

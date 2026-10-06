@@ -3,16 +3,16 @@ import type { TrackSample } from '../types/track'
 import { filterSamplesByAnalysisWindow } from './analysisWindow'
 import {
   formatAverageSog,
-  formatHeelValue,
   formatMetricValue,
+  formatSignedDegreeValue,
   resolveReplayPresentation,
 } from './metricPresentation'
 import { timestampToMilliseconds } from './replay'
 
 const samples: TrackSample[] = [
   { utc: '2031-06-15T13:02:50Z', lat: 0, lon: 0, dist: 0, sog: 99, cog: 1, hdg: null, heel: null, trim: null },
-  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 1, sog: 4, cog: 100, hdg: null, heel: 7.2, trim: null },
-  { utc: '2031-06-15T13:03:10Z', lat: 12, lon: 24, dist: 1, sog: 8, cog: 120, hdg: null, heel: -6.3, trim: null },
+  { utc: '2031-06-15T13:03:00Z', lat: 10, lon: 20, dist: 1, sog: 4, cog: 100, hdg: null, heel: 7.2, trim: 2.4 },
+  { utc: '2031-06-15T13:03:10Z', lat: 12, lon: 24, dist: 1, sog: 8, cog: 120, hdg: null, heel: -6.3, trim: -1.8 },
   { utc: '2031-06-15T13:03:20Z', lat: 14, lon: 28, dist: 1, sog: 6, cog: 140, hdg: null, heel: null, trim: null },
   { utc: '2031-06-15T13:03:30Z', lat: 50, lon: 60, dist: 1, sog: 88, cog: 359, hdg: null, heel: null, trim: null },
 ]
@@ -21,7 +21,7 @@ const windowEnd = timestampToMilliseconds(samples[3].utc)
 const windowSamples = filterSamplesByAnalysisWindow(samples, windowStart, windowEnd)
 
 describe('replay presentation', () => {
-  it('resolves SOG, COG, and HEEL from the same nearest window sample', () => {
+  it('resolves SOG, COG, HEEL, and TRIM from the same nearest window sample', () => {
     const result = resolveReplayPresentation(
       windowSamples,
       windowStart + 8_000,
@@ -30,6 +30,7 @@ describe('replay presentation', () => {
     expect(result.sog).toBe(8)
     expect(result.cog).toBe(120)
     expect(result.heel).toBe(-6.3)
+    expect(result.trim).toBe(-1.8)
     expect(formatMetricValue('SOG', result.sog)).toBe('8.0 kt')
     expect(formatMetricValue('COG', result.cog)).toBe('120.0°')
   })
@@ -40,9 +41,40 @@ describe('replay presentation', () => {
       .toBe(-6.3)
     expect(resolveReplayPresentation(windowSamples, windowEnd).heel).toBeNull()
 
-    expect(formatHeelValue(7.2)).toBe('7.2°')
-    expect(formatHeelValue(-7.2)).toBe('-7.2°')
-    expect(formatHeelValue(null)).toBe('—')
+    expect(formatSignedDegreeValue(7.2)).toBe('7.2°')
+    expect(formatSignedDegreeValue(-7.2)).toBe('-7.2°')
+    expect(formatSignedDegreeValue(null)).toBe('—')
+  })
+
+  it('preserves valid and unavailable TRIM from the nearest sample', () => {
+    expect(resolveReplayPresentation(windowSamples, windowStart).trim).toBe(2.4)
+    expect(resolveReplayPresentation(windowSamples, windowStart + 10_000).trim)
+      .toBe(-1.8)
+    expect(resolveReplayPresentation(windowSamples, windowEnd).trim).toBeNull()
+  })
+
+  it('treats non-finite TRIM as unavailable', () => {
+    const nonFiniteTrimSamples: TrackSample[] = [
+      { ...samples[1], trim: Number.NaN },
+      { ...samples[2], trim: Number.POSITIVE_INFINITY },
+    ]
+
+    expect(resolveReplayPresentation(nonFiniteTrimSamples, windowStart).trim)
+      .toBeNull()
+    expect(resolveReplayPresentation(
+      nonFiniteTrimSamples,
+      windowStart + 10_000,
+    ).trim).toBeNull()
+  })
+
+  it('returns unavailable telemetry for an empty sample set', () => {
+    expect(resolveReplayPresentation([], windowStart)).toEqual({
+      position: null,
+      sog: null,
+      cog: null,
+      heel: null,
+      trim: null,
+    })
   })
 
   it('preserves nullable SOG and COG independently', () => {
@@ -59,15 +91,15 @@ describe('replay presentation', () => {
 
   it('resolves primary and comparison independently at one shared playbackTime', () => {
     const comparisonSamples: TrackSample[] = [
-      { utc: '2031-06-15T13:03:02Z', lat: 30, lon: 40, dist: 0, sog: 3, cog: 200, hdg: null, heel: null, trim: null },
-      { utc: '2031-06-15T13:03:12Z', lat: 32, lon: 44, dist: 1, sog: 7, cog: 220, hdg: null, heel: null, trim: null },
+      { utc: '2031-06-15T13:03:02Z', lat: 30, lon: 40, dist: 0, sog: 3, cog: 200, hdg: null, heel: null, trim: 1.1 },
+      { utc: '2031-06-15T13:03:12Z', lat: 32, lon: 44, dist: 1, sog: 7, cog: 220, hdg: null, heel: null, trim: -2.2 },
     ]
     const sharedPlaybackTime = windowStart + 10_000
 
     expect(resolveReplayPresentation(windowSamples, sharedPlaybackTime))
-      .toMatchObject({ sog: 8, cog: 120 })
+      .toMatchObject({ sog: 8, cog: 120, trim: -1.8 })
     expect(resolveReplayPresentation(comparisonSamples, sharedPlaybackTime))
-      .toMatchObject({ sog: 7, cog: 220 })
+      .toMatchObject({ sog: 7, cog: 220, trim: -2.2 })
   })
 
   it('uses exact Analysis Window boundary samples and ignores outside neighbors', () => {
@@ -79,12 +111,14 @@ describe('replay presentation', () => {
       sog: 4,
       cog: 100,
       heel: 7.2,
+      trim: 2.4,
     })
     expect(atEnd).toEqual({
       position: { lat: 14, lon: 28 },
       sog: 6,
       cog: 140,
       heel: null,
+      trim: null,
     })
   })
 
@@ -103,9 +137,9 @@ describe('replay presentation', () => {
 
     expect(narrowSamples).toEqual([samples[2]])
     expect(resolveReplayPresentation(narrowSamples, windowStart + 1_000))
-      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3 })
+      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3, trim: -1.8 })
     expect(resolveReplayPresentation(narrowSamples, windowEnd - 1_000))
-      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3 })
+      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3, trim: -1.8 })
   })
 
   it('uses kt for Avg SOG and preserves unavailable presentation', () => {

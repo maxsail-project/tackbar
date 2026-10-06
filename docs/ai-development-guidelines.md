@@ -308,9 +308,8 @@ These choices are PoC defaults, not permanent architectural commitments.
 The map is the primary visual element of the Session Viewer.
 
 The map provides track and boat-position context together with shared GPS time
-and fixed instantaneous SOG, COG and HEEL telemetry. This telemetry is
-independent from the selected analytical chart metric. TRIM is not currently
-map telemetry.
+and fixed instantaneous SOG, COG, HEEL and TRIM telemetry. This telemetry is
+independent from the selected analytical chart metric.
 
 Replay is a core PoC requirement.
 

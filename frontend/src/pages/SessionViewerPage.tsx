@@ -417,9 +417,11 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
           primarySog={primaryReplayPresentation.sog}
           primaryCog={primaryReplayPresentation.cog}
           primaryHeel={primaryReplayPresentation.heel}
+          primaryTrim={primaryReplayPresentation.trim}
           comparisonSog={comparisonReplayPresentation.sog}
           comparisonCog={comparisonReplayPresentation.cog}
           comparisonHeel={comparisonReplayPresentation.heel}
+          comparisonTrim={comparisonReplayPresentation.trim}
         />
       ) : (
         <section className="track-unavailable" aria-live="polite">

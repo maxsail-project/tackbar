@@ -29,9 +29,9 @@ without rewriting the historical v0.3.x baseline below:
   legacy migration and historical terminology.
 - The selectable time-series metrics are SOG, COG, HEEL and TRIM. The v0.3.x
   HEEL/TRIM deferral remains a historical v0.3 statement only.
-- The map presents shared GPS time and fixed instantaneous SOG, COG and HEEL
-  telemetry. Historical selected-metric map wording no longer governs v0.4,
-  and TRIM is not map telemetry.
+- The map presents shared GPS time and fixed instantaneous SOG, COG, HEEL and
+  TRIM telemetry. Historical selected-metric map wording no longer governs
+  current Viewer behavior.
 - Replay is temporal-only: play/pause, scrubber, current `playbackTime`, and
   x1/x2/x5/x10 speed. It does not duplicate the selected chart metric.
 - The delivered Summary rows are Distance, Avg SOG, Max SOG, Dominant COG,
