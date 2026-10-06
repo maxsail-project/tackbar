@@ -312,7 +312,7 @@ input:focus-visible {
   z-index: 3;
   display: grid;
   gap: 4px;
-  width: fit-content;
+  width: 8.625rem;
   max-width: calc(100% - 24px);
   min-width: 0;
   padding: 7px 6px;
@@ -349,8 +349,9 @@ input:focus-visible {
 
 .map-status__telemetry {
   justify-self: start;
-  width: auto;
+  width: 4.75rem;
   border-spacing: 0 1px;
+  table-layout: fixed;
   color: #fff;
   font-size: 0.7rem;
   line-height: 1.3;
@@ -361,8 +362,8 @@ input:focus-visible {
   width: 100%;
 }
 
-.map-status--comparison .map-status__metric-column {
-  width: 1%;
+.map-status__metric-column {
+  width: 1.75rem;
 }
 
 .map-status__telemetry th,
