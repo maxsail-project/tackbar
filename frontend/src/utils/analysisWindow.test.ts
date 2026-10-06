@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { TrackSample } from '../types/track'
 import { clampPlaybackTime, timestampToMilliseconds } from './replay'
 import {
+  commitSessionTimelineWindow,
   createFullAnalysisWindow,
   filterSamplesByAnalysisWindow,
   intersectAnalysisWindowRanges,
   reconcileAnalysisWindow,
+  resolveAnalysisWindowBrushRange,
   updateAnalysisWindow,
   updateSessionTimelineWindow,
 } from './analysisWindow'
@@ -197,5 +199,71 @@ describe('Analysis Window', () => {
     )
 
     expect(result.isPlaying).toBe(false)
+  })
+
+  it('normalizes and clamps a complete brush selection', () => {
+    const available = { start: activityStart, end: activityEnd }
+
+    expect(commitSessionTimelineWindow(
+      { start: activityEnd + 5_000, end: activityStart + 10_000 },
+      available,
+      activityStart,
+    )?.analysisWindow).toEqual({
+      start: activityStart + 10_000,
+      end: activityEnd,
+    })
+  })
+
+  it('resolves forward and reverse provisional drags only when completed', () => {
+    expect(resolveAnalysisWindowBrushRange(2_000, 4_000))
+      .toEqual({ start: 2_000, end: 4_000 })
+    expect(resolveAnalysisWindowBrushRange(4_000, 2_000))
+      .toEqual({ start: 2_000, end: 4_000 })
+    expect(resolveAnalysisWindowBrushRange(2_000, null)).toBeNull()
+    expect(resolveAnalysisWindowBrushRange(2_000, 2_000)).toBeNull()
+  })
+
+  it('rejects a zero-width brush selection', () => {
+    const available = { start: activityStart, end: activityEnd }
+
+    expect(commitSessionTimelineWindow(
+      { start: activityStart + 10_000, end: activityStart + 10_000 },
+      available,
+      activityStart,
+    )).toBeNull()
+  })
+
+  it('expands a non-zero brush selection to the existing minimum duration', () => {
+    const available = { start: activityStart, end: activityEnd }
+    const result = commitSessionTimelineWindow(
+      { start: activityEnd - 100, end: activityEnd },
+      available,
+      activityStart,
+    )
+
+    expect(result?.analysisWindow).toEqual({
+      start: activityEnd - 1_000,
+      end: activityEnd,
+    })
+  })
+
+  it.each([
+    [activityStart + 15_000, activityStart + 15_000],
+    [activityStart, activityStart + 10_000],
+    [activityEnd, activityEnd - 10_000],
+  ])('pauses replay and preserves or clamps playback after a complete commit', (
+    playbackTime,
+    expectedPlaybackTime,
+  ) => {
+    const result = commitSessionTimelineWindow(
+      { start: activityStart + 10_000, end: activityEnd - 10_000 },
+      { start: activityStart, end: activityEnd },
+      playbackTime,
+    )
+
+    expect(result).toMatchObject({
+      playbackTime: expectedPlaybackTime,
+      isPlaying: false,
+    })
   })
 })

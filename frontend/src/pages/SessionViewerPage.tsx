@@ -18,11 +18,12 @@ import TrackMap from '../components/TrackMap'
 import type { SailingMetric, SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import {
+  commitSessionTimelineWindow,
   createFullAnalysisWindow,
   filterSamplesByAnalysisWindow,
   intersectAnalysisWindowRanges,
   reconcileAnalysisWindow,
-  updateSessionTimelineWindow,
+  updateAnalysisWindow,
   type AnalysisWindowBoundary,
   type AnalysisWindowRange,
 } from '../utils/analysisWindow'
@@ -156,6 +157,26 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   )
   const windowStart = analysisWindow?.start ?? null
   const windowEnd = analysisWindow?.end ?? null
+  const primaryAvailableSamples = useMemo(
+    () => primaryTrack && availableRange
+      ? filterSamplesByAnalysisWindow(
+          primaryTrack.samples,
+          availableRange.start,
+          availableRange.end,
+        )
+      : [],
+    [availableRange, primaryTrack],
+  )
+  const comparisonAvailableSamples = useMemo(
+    () => comparisonTrack && availableRange
+      ? filterSamplesByAnalysisWindow(
+          comparisonTrack.samples,
+          availableRange.start,
+          availableRange.end,
+        )
+      : [],
+    [availableRange, comparisonTrack],
+  )
   const primaryWindowSamples = useMemo(
     () => primaryTrack && analysisWindow
       ? filterSamplesByAnalysisWindow(
@@ -304,28 +325,34 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     setPlaybackTime(clampedTime)
   }
 
-  function changeAnalysisWindow(
-    boundary: AnalysisWindowBoundary,
-    requestedTime: number,
-  ) {
-    if (
-      analysisWindow === null
-      || availableRange === null
-    ) return
-
-    const nextTimeline = updateSessionTimelineWindow(
-      analysisWindow,
-      boundary,
-      requestedTime,
+  function commitAnalysisWindowRange(requestedRange: AnalysisWindowRange) {
+    if (availableRange === null) return
+    const nextTimeline = commitSessionTimelineWindow(
+      requestedRange,
       availableRange,
       playbackTimeRef.current,
     )
+    if (nextTimeline === null) return
 
     setIsPlaying(nextTimeline.isPlaying)
     setAnalysisWindow(nextTimeline.analysisWindow)
     analysisWindowRef.current = nextTimeline.analysisWindow
     playbackTimeRef.current = nextTimeline.playbackTime
     setPlaybackTime(nextTimeline.playbackTime)
+  }
+
+  function changeAnalysisWindow(
+    boundary: AnalysisWindowBoundary,
+    requestedTime: number,
+  ) {
+    if (analysisWindow === null || availableRange === null) return
+    commitAnalysisWindowRange(updateAnalysisWindow(
+      analysisWindow,
+      boundary,
+      requestedTime,
+      availableRange.start,
+      availableRange.end,
+    ))
   }
 
   if (!primaryActivity) {
@@ -439,7 +466,10 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
       <AnalysisWindow
         availableRange={availableRange}
         analysisWindow={analysisWindow}
+        primarySamples={primaryAvailableSamples}
+        comparisonSamples={comparisonAvailableSamples}
         onWindowChange={changeAnalysisWindow}
+        onRangeChange={commitAnalysisWindowRange}
       />
       {canReplay && windowStart !== null && windowEnd !== null && (
         <ReplayControls

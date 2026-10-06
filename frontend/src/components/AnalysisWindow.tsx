@@ -1,17 +1,45 @@
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
+import { ACTIVITY_COLORS } from '../config/activityColors'
+import type { TrackSample } from '../types/track'
 import type {
   AnalysisWindowBoundary,
   AnalysisWindowRange,
 } from '../utils/analysisWindow'
-import { ANALYSIS_WINDOW_STEP_MS } from '../utils/analysisWindow'
+import {
+  ANALYSIS_WINDOW_STEP_MS,
+  resolveAnalysisWindowBrushRange,
+} from '../utils/analysisWindow'
+import {
+  resolveTemporalPointerTimestamp,
+  startTemporalPointerSelection,
+  updateTemporalPointerSelection,
+  type TemporalPointerSelection,
+} from '../utils/metricChartZoom'
 import { formatGpsTime } from '../utils/replay'
+import {
+  buildSogTimelinePath,
+  prepareSogTimelinePoints,
+  reduceSogTimelinePoints,
+} from '../utils/sogTimeline'
+
+const TIMELINE_POINT_BUDGET = 240
 
 interface AnalysisWindowProps {
   availableRange: AnalysisWindowRange | null
   analysisWindow: AnalysisWindowRange | null
+  primarySamples: TrackSample[]
+  comparisonSamples?: TrackSample[]
   onWindowChange: (
     boundary: AnalysisWindowBoundary,
     requestedTime: number,
   ) => void
+  onRangeChange: (requestedRange: AnalysisWindowRange) => void
 }
 
 function formatDuration(durationMilliseconds: number) {
@@ -27,10 +55,7 @@ function formatDuration(durationMilliseconds: number) {
   ].filter(Boolean).join(' ')
 }
 
-function positionPercent(
-  value: number,
-  availableRange: AnalysisWindowRange,
-) {
+function positionPercent(value: number, availableRange: AnalysisWindowRange) {
   const duration = availableRange.end - availableRange.start
   if (duration <= 0) return 0
   return Math.min(Math.max(
@@ -42,11 +67,89 @@ function positionPercent(
 export default function AnalysisWindow({
   availableRange,
   analysisWindow,
+  primarySamples,
+  comparisonSamples = [],
   onWindowChange,
+  onRangeChange,
 }: AnalysisWindowProps) {
-  const isAvailable = availableRange !== null && analysisWindow !== null
+  const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
+  const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
+  const primaryPoints = useMemo(
+    () => availableRange === null ? [] : reduceSogTimelinePoints(
+      prepareSogTimelinePoints(primarySamples, availableRange),
+      TIMELINE_POINT_BUDGET,
+    ),
+    [availableRange, primarySamples],
+  )
+  const comparisonPoints = useMemo(
+    () => availableRange === null ? [] : reduceSogTimelinePoints(
+      prepareSogTimelinePoints(comparisonSamples, availableRange),
+      TIMELINE_POINT_BUDGET,
+    ),
+    [availableRange, comparisonSamples],
+  )
+  const maximumSog = Math.max(
+    1,
+    ...primaryPoints.map((point) => point.sog ?? 0),
+    ...comparisonPoints.map((point) => point.sog ?? 0),
+  )
 
-  if (!isAvailable) {
+  useEffect(() => {
+    pointerSelectionRef.current = null
+    setPointerSelection(null)
+  }, [availableRange?.end, availableRange?.start])
+
+  function updatePointerSelection(nextSelection: TemporalPointerSelection | null) {
+    pointerSelectionRef.current = nextSelection
+    setPointerSelection(nextSelection)
+  }
+
+  function pointerTimestamp(event: ReactPointerEvent<HTMLDivElement>) {
+    if (availableRange === null) return null
+    const bounds = event.currentTarget.getBoundingClientRect()
+    return resolveTemporalPointerTimestamp(availableRange, event.clientX, bounds)
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return
+    const nextSelection = startTemporalPointerSelection(event.pointerId, pointerTimestamp(event))
+    if (nextSelection === null) return
+
+    event.currentTarget.setPointerCapture(event.pointerId)
+    updatePointerSelection(nextSelection)
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (pointerSelectionRef.current?.pointerId !== event.pointerId) return
+    updatePointerSelection(updateTemporalPointerSelection(
+      pointerSelectionRef.current,
+      event.pointerId,
+      pointerTimestamp(event),
+    ))
+  }
+
+  function handlePointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    if (pointerSelectionRef.current?.pointerId !== event.pointerId) return
+    const completed = updateTemporalPointerSelection(
+      pointerSelectionRef.current,
+      event.pointerId,
+      pointerTimestamp(event),
+    )
+    updatePointerSelection(null)
+    const requestedRange = resolveAnalysisWindowBrushRange(
+      completed?.start ?? null,
+      completed?.end ?? null,
+    )
+    if (requestedRange !== null) onRangeChange(requestedRange)
+  }
+
+  function cancelPointerSelection(event: ReactPointerEvent<HTMLDivElement>) {
+    if (pointerSelectionRef.current?.pointerId === event.pointerId) {
+      updatePointerSelection(null)
+    }
+  }
+
+  if (availableRange === null || analysisWindow === null) {
     return (
       <section className="content-section" aria-labelledby="analysis-window-title">
         <div className="section-heading">
@@ -60,29 +163,59 @@ export default function AnalysisWindow({
     )
   }
 
-  const windowStartPercent = positionPercent(analysisWindow.start, availableRange)
-  const windowEndPercent = positionPercent(analysisWindow.end, availableRange)
+  const displayedRange = pointerSelection === null
+    ? analysisWindow
+    : {
+        start: Math.min(pointerSelection.start, pointerSelection.end),
+        end: Math.max(pointerSelection.start, pointerSelection.end),
+      }
+  const windowStartPercent = positionPercent(displayedRange.start, availableRange)
+  const windowEndPercent = positionPercent(displayedRange.end, availableRange)
+  const committedStartPercent = positionPercent(analysisWindow.start, availableRange)
+  const committedEndPercent = positionPercent(analysisWindow.end, availableRange)
+  const primaryPath = buildSogTimelinePath(primaryPoints, availableRange, maximumSog)
+  const comparisonPath = buildSogTimelinePath(comparisonPoints, availableRange, maximumSog)
 
   return (
     <section className="content-section analysis-window" aria-labelledby="analysis-window-title">
       <div className="section-heading">
         <div>
           <p className="section-kicker" id="analysis-window-title">Analysis window</p>
-          <p className="section-description">Shared map, chart and summary interval</p>
+          <p className="section-description">Drag over SOG to select the shared interval</p>
         </div>
         <span className="duration-pill">
-          {formatDuration(analysisWindow.end - analysisWindow.start)}
+          {formatDuration(displayedRange.end - displayedRange.start)}
         </span>
+      </div>
+
+      <div
+        className="analysis-window__timeline"
+        aria-label="SOG timeline; drag horizontally to select the Analysis Window"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={cancelPointerSelection}
+        onPointerLeave={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) cancelPointerSelection(event)
+        }}
+        onLostPointerCapture={cancelPointerSelection}
+      >
+        <svg viewBox="0 0 1000 84" preserveAspectRatio="none" aria-hidden="true">
+          {primaryPath && <path className="analysis-window__sog-line" d={primaryPath} style={{ stroke: ACTIVITY_COLORS.primary }} />}
+          {comparisonPath && <path className="analysis-window__sog-line" d={comparisonPath} style={{ stroke: ACTIVITY_COLORS.comparison }} />}
+        </svg>
+        <div
+          className={`analysis-window__brush${pointerSelection ? ' analysis-window__brush--provisional' : ''}`}
+          style={{ left: `${windowStartPercent}%`, width: `${windowEndPercent - windowStartPercent}%` }}
+          aria-hidden="true"
+        />
       </div>
 
       <div className="analysis-window__stage">
         <div className="analysis-window__available-track" aria-hidden="true" />
         <div
           className="analysis-window__selected-track"
-          style={{
-            left: `${windowStartPercent}%`,
-            width: `${windowEndPercent - windowStartPercent}%`,
-          }}
+          style={{ left: `${committedStartPercent}%`, width: `${committedEndPercent - committedStartPercent}%` }}
           aria-hidden="true"
         />
         <input
@@ -110,8 +243,8 @@ export default function AnalysisWindow({
       </div>
 
       <div className="analysis-window__selected-times" aria-live="polite">
-        <span>{formatGpsTime(analysisWindow.start)} UTC</span>
-        <span>{formatGpsTime(analysisWindow.end)} UTC</span>
+        <span>{formatGpsTime(displayedRange.start)} UTC</span>
+        <span>{formatGpsTime(displayedRange.end)} UTC</span>
       </div>
     </section>
   )

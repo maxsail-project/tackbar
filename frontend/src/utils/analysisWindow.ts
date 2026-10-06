@@ -16,6 +16,24 @@ export interface SessionTimelineState {
 
 export const ANALYSIS_WINDOW_STEP_MS = 1_000
 
+export function resolveAnalysisWindowBrushRange(
+  selectionStart: number | null,
+  selectionEnd: number | null,
+): AnalysisWindowRange | null {
+  if (
+    selectionStart === null
+    || selectionEnd === null
+    || !Number.isFinite(selectionStart)
+    || !Number.isFinite(selectionEnd)
+    || selectionStart === selectionEnd
+  ) return null
+
+  return {
+    start: Math.min(selectionStart, selectionEnd),
+    end: Math.max(selectionStart, selectionEnd),
+  }
+}
+
 export function createFullAnalysisWindow(
   activityStart: number,
   activityEnd: number,
@@ -108,6 +126,42 @@ export function updateSessionTimelineWindow(
     available.start,
     available.end,
   )
+
+  return commitSessionTimelineWindow(analysisWindow, available, playbackTime)!
+}
+
+export function commitSessionTimelineWindow(
+  requested: AnalysisWindowRange,
+  available: AnalysisWindowRange,
+  playbackTime: number,
+): SessionTimelineState | null {
+  if (
+    !Number.isFinite(requested.start)
+    || !Number.isFinite(requested.end)
+    || available.end <= available.start
+  ) return null
+
+  let start = Math.max(
+    available.start,
+    Math.min(requested.start, requested.end),
+  )
+  let end = Math.min(
+    available.end,
+    Math.max(requested.start, requested.end),
+  )
+
+  if (start >= end) return null
+
+  const minimumDuration = Math.min(
+    ANALYSIS_WINDOW_STEP_MS,
+    available.end - available.start,
+  )
+  if (end - start < minimumDuration) {
+    end = Math.min(available.end, start + minimumDuration)
+    start = Math.max(available.start, end - minimumDuration)
+  }
+
+  const analysisWindow = { start, end }
 
   return {
     analysisWindow,
