@@ -2,6 +2,88 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.6.7 Mahon — Viewer Visual Polish
+
+### English
+
+Focused Session Viewer visual refinement for clearer, more stable map replay
+telemetry on mobile and tablet without changing Viewer, Activity or Session
+semantics.
+
+### Changed
+
+* Replaced the generic boat marker with a custom sailboat silhouette, retaining
+  COG rotation, the Primary/Comparison activity colors and a white outline for
+  map contrast.
+* Reworked the map overlay as a compact, neutral telemetry table with
+  de-emphasized GPS/UTC time and color indicators for Primary and Comparison.
+* Map COG is displayed as a circularly normalized, rounded whole degree while
+  existing chart and Summary formatting remain unchanged.
+* Fixed instantaneous map telemetry now presents SOG, COG, HEEL and TRIM from
+  the same nearest replay sample. Missing values remain unavailable, and signed
+  HEEL/TRIM values retain their sign without added interpretation.
+* Stabilized the overlay and telemetry-column dimensions so replay changes in
+  digits, signs or missing values do not resize the card or shift the Primary
+  and Comparison columns.
+
+### Validation
+
+Focused TrackMap and replay-presentation regression passed with 22 tests.
+
+The complete frontend release gate passed with 196 tests, TypeScript typecheck,
+the production build and `git diff --check`.
+
+Local headless-browser validation covered one-Activity and two-Activity
+layouts, positive, negative and unavailable HEEL/TRIM values, SOG/COG digit
+changes, and the mobile/tablet CSS breakpoints. The validated geometry remained
+stable at 138 px for the card, with 28 px metric and 48 px value columns.
+
+Production deployment and production Viewer validation remain pending.
+
+---
+
+## v0.6.7 Mahon — Pulido visual del Viewer
+
+### Español
+
+Refinamiento visual focalizado del Session Viewer para presentar telemetría de
+replay en el mapa con mayor claridad y estabilidad en móvil y tablet, sin
+cambiar las semánticas de Viewer, Activity o Session.
+
+### Cambiado
+
+* Se sustituyó el marcador genérico por una silueta personalizada de velero,
+  conservando la rotación COG, los colores de Activity para Primary/Comparison
+  y un contorno blanco para mantener el contraste sobre el mapa.
+* Se reorganizó el overlay del mapa como una tabla compacta y neutral de
+  telemetría, con la hora GPS/UTC en segundo plano visual e indicadores de color
+  para Primary y Comparison.
+* El COG del mapa se muestra como grado entero redondeado y normalizado
+  circularmente, sin modificar el formato existente de gráficos ni Summary.
+* La telemetría instantánea fija del mapa presenta ahora SOG, COG, HEEL y TRIM
+  de la misma muestra de replay más cercana. Los valores ausentes permanecen no
+  disponibles y HEEL/TRIM conservan su signo sin interpretación añadida.
+* Se estabilizaron las dimensiones del recuadro y de las columnas de telemetría
+  para que los cambios de dígitos, signos o valores ausentes durante el replay
+  no redimensionen la tarjeta ni desplacen las columnas Primary y Comparison.
+
+### Validación
+
+La regresión focalizada de TrackMap y presentación de replay pasó con 22 tests.
+
+El gate frontend completo pasó con 196 tests, typecheck de TypeScript, build de
+producción y `git diff --check`.
+
+La validación local con navegador headless cubrió layouts con una y dos
+Activities, valores HEEL/TRIM positivos, negativos y ausentes, cambios de
+dígitos en SOG/COG y los breakpoints CSS de móvil/tablet. La geometría validada
+se mantuvo estable en 138 px para el recuadro, con columnas de métrica de 28 px
+y de valores de 48 px.
+
+El despliegue y la validación del Viewer en producción permanecen pendientes.
+
+---
+
 ## v0.6.6 Mahon — Attachment-driven Email Ingestion
 
 ### English
