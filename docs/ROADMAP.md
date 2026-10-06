@@ -1,8 +1,8 @@
 # TackBar Roadmap
 
-The canonical roadmap is [ROADMAP.md](../ROADMAP.md). This companion
-retains its historical release summaries; current v0.7.x planning follows
-the canonical roadmap and the requirements/decisions linked below.
+> **Historical companion:** The canonical current roadmap is
+> [ROADMAP.md](../ROADMAP.md). This file preserves historical release and
+> planning state; it does not define current or future release scope.
 
 TackBar evolves incrementally by validating each product step with real sailing activities before adding more complexity.
 
@@ -184,30 +184,23 @@ A concrete version is assigned to Future 0.6.x work only when that scope is expl
 
 ---
 
-## Planned release family — v0.7.x Californian — Collaborative Debrief Analytics
+## Planned milestone — v0.7.0 Multi-Format Track Ingestion
 
-Focus on useful post-sailing insights from telemetry already available in
-Vakaros-derived canonical TackBar Activities. Maneuver-oriented analysis is
-the first direction: neutral detected events, an additional compact summary
-section in the existing Session Viewer, and event selection through the shared
-`playbackTime`.
+Extend the existing ingestion flow to additional file formats while preserving one canonical TackBar normalized track representation.
 
-Metrics remain evidence-driven and provisional: real sailing validation may
-add, remove or adjust them within the focused debrief objective. A maneuver is
-not automatically a tack/gybe. Existing Activity/Session, Analysis Window,
-map/replay, charts and Summary semantics remain preserved.
+Implementation and validation order: **GPX → VKX → FIT**.
 
-GPX/VKX/FIT ingestion, cross-format normalization and canonical logical
-fingerprint/deduplication are **Future / Unassigned**, with no v0.8.x or other
-release commitment. Long-term source-format independence remains a direction;
-Garmin Connect remains separate future work. Advanced analytics remain bounded
-by the explicit non-goals in the requirements.
+- preserve existing Vakaros CSV/CSV.GZ support;
+- keep provider and source-format ingestion boundaries independent;
+- converge all formats on the same canonical normalized track;
+- derive SOG/COG deterministically when required by source data;
+- introduce deterministic, Sailor-scoped logical duplicate resolution after normalization, with the fingerprint contract finalized using representative multi-format data before persistence.
 
-Small focused corrective, technical-debt and operational maintenance may remain
-within v0.7.x when evidence justifies it, preserving backward compatibility
-unless explicitly changed. This does not authorize unrelated feature expansion.
+Deferred v0.6 operational work is not automatically moved into v0.7.0.
 
-References: [requirements](v0.7-collaborative-debrief-analytics-requirements.md) and [decisions](v0.7-decisions.md).
+Historical note: this superseded plan was originally governed by a dedicated
+multi-format ingestion requirements document that has since been replaced.
+See the [canonical roadmap](../ROADMAP.md) for current planning.
 
 ---
 
@@ -236,7 +229,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.4 | Sailor Activation Welcome Email | Implemented / production validation pending |
 | v0.6.5 | Simplified Pilot Onboarding & Web Consent | Committed / implementation pending |
 | Future 0.6.x | Operational follow-up when explicitly promoted | Unassigned |
-| v0.7.x | Californian — Collaborative Debrief Analytics | Planned |
+| v0.7.0 | Multi-Format Track Ingestion | Planned |
 
 ---
 
@@ -357,29 +350,18 @@ Actualmente incluye las mejoras amplias de usabilidad de mantenimiento de Sessio
 
 ---
 
-## Familia prevista — v0.7.x Californian — Collaborative Debrief Analytics
+## Hito previsto — v0.7.0 Multi-Format Track Ingestion
 
-Priorizar insights útiles tras navegar a partir de la telemetría ya disponible
-en Activities canónicas derivadas de Vakaros. La primera dirección es el
-análisis de maniobras: eventos neutrales, una sección compacta adicional en el
-Session Viewer existente y selección del evento mediante el `playbackTime`
-compartido.
+Ampliar la ingesta a otros formatos manteniendo un único track normalizado canónico.
 
-Las métricas son provisionales y guiadas por evidencia: pueden añadirse,
-retirarse o ajustarse al validar datos reales dentro del objetivo de debrief.
-Una maniobra no equivale automáticamente a virada/trasluchada. Se preservan
-Activity/Session, Analysis Window, mapa/replay, gráficos y Summary.
+Orden: **GPX → VKX → FIT**.
 
-GPX/VKX/FIT, normalización entre formatos y fingerprint/deduplicación lógica
-quedan **Future / Unassigned**, sin asignación a v0.8.x ni a otra release.
-Se conserva la dirección futura de independencia de formatos; Garmin Connect
-sigue siendo trabajo futuro separado. Los no objetivos explícitos limitan la
-analítica avanzada.
+v0.7.0 también definirá la identidad lógica/fingerprint tras normalización. El trabajo operativo diferido de v0.6 no se mueve automáticamente a v0.7.
 
-Se mantiene el mantenimiento pequeño y focalizado con evidencia concreta y
-compatibilidad preservada salvo cambio explícito, sin expansión no relacionada.
-
-Referencias: [requisitos](v0.7-collaborative-debrief-analytics-requirements.md) y [decisiones](v0.7-decisions.md).
+Nota histórica: este plan sustituido estuvo regido originalmente por un
+documento específico de requisitos de ingesta multi-formato que ya fue
+reemplazado. Consulta el [roadmap canónico](../ROADMAP.md) para la planificación
+actual.
 
 ---
 
@@ -400,4 +382,4 @@ Referencias: [requisitos](v0.7-collaborative-debrief-analytics-requirements.md) 
 | v0.6.4 | Correo de bienvenida tras la activación de Sailor | Implementado / validación de producción pendiente |
 | v0.6.5 | Onboarding simplificado del piloto y consentimiento web | Comprometido / implementación pendiente |
 | Future 0.6.x | Seguimiento operativo cuando se promueva explícitamente | Sin asignar |
-| v0.7.x | Californian — Collaborative Debrief Analytics | Previsto |
+| v0.7.0 | Multi-Format Track Ingestion | Previsto |
