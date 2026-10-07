@@ -58,6 +58,19 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('No maneuvers detected in this Analysis Window.')
   })
 
+  it('shows the empty state when all selected analytics are available', () => {
+    const markup = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[]}
+        primaryStatus="available"
+        comparisonStatus="available"
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain('No maneuvers detected in this Analysis Window.')
+  })
+
   it('shows unavailable P without treating the Viewer as failed', () => {
     const markup = renderToStaticMarkup(
       <ManeuverEventTable
@@ -97,4 +110,21 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('Maneuver analytics unavailable for C.')
     expect(markup).toContain('08:47:59')
   })
+
+  it.each(['unavailable', 'error'] as const)(
+    'does not show the generic empty state when C analytics is %s',
+    (comparisonStatus) => {
+      const markup = renderToStaticMarkup(
+        <ManeuverEventTable
+          events={[]}
+          primaryStatus="available"
+          comparisonStatus={comparisonStatus}
+          onSelect={() => undefined}
+        />,
+      )
+
+      expect(markup).toContain('Maneuver analytics unavailable for C.')
+      expect(markup).not.toContain('No maneuvers detected')
+    },
+  )
 })

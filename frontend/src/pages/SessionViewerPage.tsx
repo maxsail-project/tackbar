@@ -117,6 +117,17 @@ interface ManeuverLoadState {
   analytics: ActivityManeuverAnalytics | null
 }
 
+export function resolveSelectedManeuverAnalytics(
+  state: ManeuverLoadState,
+  selectedActivityId: string | null,
+) {
+  return selectedActivityId !== null
+    && state.activityId === selectedActivityId
+    && state.status === 'ready'
+    ? state.analytics
+    : null
+}
+
 function useActivityManeuvers(
   token: string,
   activityId: string | null,
@@ -326,19 +337,23 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     ),
     [comparisonWindowSamples, playbackTime],
   )
+  const primaryManeuverAnalytics = resolveSelectedManeuverAnalytics(
+    primaryManeuverState,
+    primaryActivityId || null,
+  )
+  const comparisonManeuverAnalytics = resolveSelectedManeuverAnalytics(
+    comparisonManeuverState,
+    comparisonActivityId,
+  )
   const displayManeuvers = useMemo(
     () => analysisWindow === null
       ? []
       : deriveDisplayManeuvers(
-          primaryManeuverState.status === 'ready'
-            ? primaryManeuverState.analytics
-            : null,
-          comparisonManeuverState.status === 'ready'
-            ? comparisonManeuverState.analytics
-            : null,
+          primaryManeuverAnalytics,
+          comparisonManeuverAnalytics,
           analysisWindow,
         ),
-    [analysisWindow, comparisonManeuverState, primaryManeuverState],
+    [analysisWindow, comparisonManeuverAnalytics, primaryManeuverAnalytics],
   )
   useEffect(() => {
     speedRef.current = speed

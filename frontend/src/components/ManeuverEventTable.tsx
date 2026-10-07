@@ -63,8 +63,9 @@ export default function ManeuverEventTable({
   const statuses = [primaryStatus, comparisonStatus].filter(
     (status): status is ManeuverPresentationStatus => status !== undefined,
   )
-  const hasAvailableAnalytics = statuses.includes('available')
-  const hasLoadingAnalytics = statuses.includes('loading')
+  const allSelectedAnalyticsAvailable = statuses.every(
+    (status) => status === 'available',
+  )
 
   return (
     <section className="content-section maneuver-section" aria-labelledby="maneuver-title">
@@ -102,7 +103,7 @@ export default function ManeuverEventTable({
             </tbody>
           </table>
         </div>
-      ) : !hasLoadingAnalytics && hasAvailableAnalytics ? (
+      ) : allSelectedAnalyticsAvailable ? (
         <p className="maneuver-empty">No maneuvers detected in this Analysis Window.</p>
       ) : null}
     </section>
