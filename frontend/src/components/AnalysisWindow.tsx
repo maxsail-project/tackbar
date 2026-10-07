@@ -7,6 +7,7 @@ import {
 } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackSample } from '../types/track'
+import type { SummaryMetrics } from '../utils/summaryMetrics'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { resolveAnalysisWindowBrushRange } from '../utils/analysisWindow'
 import {
@@ -27,6 +28,7 @@ import {
   reduceSogTimelinePoints,
 } from '../utils/sogTimeline'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
+import { formatAverageSog } from '../utils/metricPresentation'
 
 const TIMELINE_POINT_BUDGET = 240
 const ANALYSIS_WINDOW_DRAG_THRESHOLD_PX = 6
@@ -49,22 +51,47 @@ interface AnalysisWindowProps {
   comparisonSamples?: TrackSample[]
   maneuvers?: DisplayManeuver[]
   hasComparison?: boolean
+  primaryMetrics?: SummaryMetrics | null
+  comparisonMetrics?: SummaryMetrics | null
   replay?: AnalysisWindowReplay | null
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
   onManeuverSelect?: (centerTimeMs: number) => void
 }
 
-function formatDuration(durationMilliseconds: number) {
+export function formatAnalysisWindowDuration(durationMilliseconds: number) {
   const totalSeconds = Math.max(0, Math.round(durationMilliseconds / 1_000))
   const hours = Math.floor(totalSeconds / 3_600)
   const minutes = Math.floor((totalSeconds % 3_600) / 60)
   const seconds = totalSeconds % 60
 
-  return [
-    hours > 0 ? `${hours}h` : null,
-    minutes > 0 ? `${minutes}m` : null,
-    seconds > 0 || totalSeconds === 0 ? `${seconds}s` : null,
-  ].filter(Boolean).join(' ')
+  if (hours > 0) {
+    return `${hours}h${String(minutes).padStart(2, '0')}m${String(seconds).padStart(2, '0')}s`
+  }
+  if (minutes > 0) {
+    return `${minutes}m${String(seconds).padStart(2, '0')}s`
+  }
+  return `${seconds}s`
+}
+
+export function AnalysisWindowCompactSummary({
+  activityRole,
+  metrics,
+}: {
+  activityRole: 'primary' | 'comparison'
+  metrics: SummaryMetrics | null
+}) {
+  const roleLabel = activityRole === 'primary' ? 'P' : 'C'
+  const averageSog = metrics === null ? '—' : formatAverageSog(metrics.avgSogKnots)
+  const distance = metrics === null ? '—' : `${Math.round(metrics.distanceMeters)} m`
+
+  return (
+    <span className={`analysis-window__compact-summary analysis-window__compact-summary--${activityRole}`}>
+      <strong style={{ color: ACTIVITY_COLORS[activityRole] }}>{roleLabel}</strong>
+      <span>{averageSog}</span>
+      <span aria-hidden="true">·</span>
+      <span>{distance}</span>
+    </span>
+  )
 }
 
 function positionPercent(value: number, availableRange: AnalysisWindowRange) {
@@ -205,6 +232,8 @@ export default function AnalysisWindow({
   comparisonSamples = [],
   maneuvers = [],
   hasComparison,
+  primaryMetrics = null,
+  comparisonMetrics = null,
   replay = null,
   onRangeChange,
   onManeuverSelect = () => undefined,
@@ -461,12 +490,25 @@ export default function AnalysisWindow({
         </div>
       </div>
 
-      <div className="analysis-window__selected-times" aria-live="polite">
-        <span>{formatGpsTime(selectedRange.start)} UTC</span>
-        <span className="duration-pill">
-          {formatDuration(selectedRange.end - selectedRange.start)}
+      <div
+        className={`analysis-window__summary-row${showsComparisonLane ? ' analysis-window__summary-row--comparison' : ''}`}
+        aria-live="polite"
+      >
+        <span className="analysis-window__start-time">{formatGpsTime(selectedRange.start)}</span>
+        <AnalysisWindowCompactSummary
+          activityRole="primary"
+          metrics={primaryMetrics}
+        />
+        <span className="analysis-window__duration">
+          {formatAnalysisWindowDuration(selectedRange.end - selectedRange.start)}
         </span>
-        <span>{formatGpsTime(selectedRange.end)} UTC</span>
+        {showsComparisonLane && (
+          <AnalysisWindowCompactSummary
+            activityRole="comparison"
+            metrics={comparisonMetrics}
+          />
+        )}
+        <span className="analysis-window__end-time">{formatGpsTime(selectedRange.end)}</span>
       </div>
     </section>
   )

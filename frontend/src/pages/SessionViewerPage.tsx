@@ -42,7 +42,7 @@ import {
 import {
   resolveReplayPresentation,
 } from '../utils/metricPresentation'
-import { calculateSummaryMetrics } from '../utils/summaryMetrics'
+import { calculateSummaryMetrics, type SummaryMetrics } from '../utils/summaryMetrics'
 import { formatActivityIdentity } from '../utils/activityLabel'
 import { formatSessionDuration, formatSessionRange } from '../utils/sessionPresentation'
 import { deriveDisplayManeuvers } from '../utils/maneuverEvents'
@@ -142,6 +142,17 @@ export function createAnalysisWindowReplay(
     speed,
     onTogglePlayback,
     onSpeedChange,
+  }
+}
+
+export function createAnalysisWindowSummaryMetrics(
+  primaryMetrics: SummaryMetrics | null,
+  hasComparison: boolean,
+  comparisonMetrics: SummaryMetrics | null,
+) {
+  return {
+    primaryMetrics,
+    comparisonMetrics: hasComparison ? comparisonMetrics : null,
   }
 }
 
@@ -611,6 +622,11 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         comparisonSamples={comparisonAvailableSamples}
         maneuvers={timelineManeuvers}
         hasComparison={comparisonActivityId !== null}
+        {...createAnalysisWindowSummaryMetrics(
+          primarySummaryMetrics,
+          comparisonActivityId !== null,
+          comparisonSummaryMetrics,
+        )}
         replay={createAnalysisWindowReplay(
           canReplay,
           playbackTime,

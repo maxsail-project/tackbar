@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from 'vitest'
 import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
+import type { SummaryMetrics } from '../utils/summaryMetrics'
 import AnalysisWindow, {
   ANALYSIS_WINDOW_SOG_PLOT_BAND,
   AnalysisWindowManeuverMarker,
   completeAnalysisWindowGesture,
+  formatAnalysisWindowDuration,
   isAnalysisWindowDrag,
   playbackCursorPositionPercent,
   requestAnalysisWindowReset,
@@ -67,6 +69,9 @@ function render({
   range = availableRange,
   window = selectedRange,
   replay = null,
+  hasComparison,
+  primaryMetrics = null,
+  comparisonMetrics = null,
 }: {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
@@ -74,6 +79,9 @@ function render({
   range?: AnalysisWindowRange
   window?: AnalysisWindowRange
   replay?: AnalysisWindowReplay | null
+  hasComparison?: boolean
+  primaryMetrics?: SummaryMetrics | null
+  comparisonMetrics?: SummaryMetrics | null
 }) {
   return renderToStaticMarkup(
     <AnalysisWindow
@@ -82,6 +90,9 @@ function render({
       primarySamples={primarySamples}
       comparisonSamples={comparisonSamples}
       maneuvers={maneuvers}
+      hasComparison={hasComparison}
+      primaryMetrics={primaryMetrics}
+      comparisonMetrics={comparisonMetrics}
       replay={replay}
       onRangeChange={() => undefined}
     />,
@@ -89,6 +100,18 @@ function render({
 }
 
 describe('Analysis Window SOG timeline', () => {
+  const summaryMetrics: SummaryMetrics = {
+    distanceMeters: 209.6,
+    distanceNm: 209.6 / 1_852,
+    avgSogKnots: 5.2,
+    maxSogKnots: 6,
+    dominantCogDegrees: 90,
+    avgPositiveHeelDegrees: null,
+    avgNegativeHeelDegrees: null,
+    avgPositiveTrimDegrees: null,
+    avgNegativeTrimDegrees: null,
+  }
+
   function replay(overrides: Partial<AnalysisWindowReplay> = {}): AnalysisWindowReplay {
     return {
       playbackTime: availableRange.start + 5_000,
@@ -117,8 +140,10 @@ describe('Analysis Window SOG timeline', () => {
 
     expect(markup).toContain('d="M0.00,56.80 L1000.00,32.00"')
     expect(markup).toContain('disabled=""')
-    expect(markup).toContain('10:00:00 UTC')
-    expect(markup).toContain('10:00:10 UTC')
+    expect(markup).toContain('>10:00:00</span>')
+    expect(markup).toContain('>10:00:10</span>')
+    expect(markup).not.toContain('10:00:00 UTC')
+    expect(markup).not.toContain('10:00:10 UTC')
   })
 
   it('renders only the selected Analysis Window across the full graph width', () => {
@@ -128,8 +153,71 @@ describe('Analysis Window SOG timeline', () => {
 
     expect(markup).toContain('d="M0.00,63.00 L1000.00,32.00"')
     expect(markup).not.toContain('disabled=""')
-    expect(markup).toContain('10:00:02 UTC')
-    expect(markup).toContain('10:00:08 UTC')
+    expect(markup).toContain('>10:00:02</span>')
+    expect(markup).toContain('>10:00:08</span>')
+    expect(markup).not.toContain('10:00:02 UTC')
+    expect(markup).not.toContain('10:00:08 UTC')
+  })
+
+  it.each([
+    [23 * 60 * 1_000 + 44_000, '23m44s'],
+    [4 * 60 * 1_000 + 2_000, '4m02s'],
+    [44_000, '44s'],
+    [60 * 60 * 1_000 + 3 * 60 * 1_000 + 7_000, '1h03m07s'],
+  ])('formats %sms as compact duration %s', (duration, expected) => {
+    expect(formatAnalysisWindowDuration(duration)).toBe(expected)
+  })
+
+  it('uses a dedicated neutral duration class', () => {
+    const markup = render({ primarySamples: [sample(2, 3), sample(8, 5)] })
+
+    expect(markup).toContain('class="analysis-window__duration"')
+    expect(markup).not.toContain('duration-pill')
+  })
+
+  it('renders Primary Avg SOG and rounded distance in metres', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      primaryMetrics: summaryMetrics,
+    })
+
+    expect(markup).toContain('analysis-window__compact-summary--primary')
+    expect(markup).toContain('color:#168097')
+    expect(markup).toContain('5.20 kt')
+    expect(markup).toContain('210 m')
+  })
+
+  it('renders Comparison metrics and identity only when Comparison is selected', () => {
+    const primaryOnly = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      primaryMetrics: summaryMetrics,
+    })
+    const compared = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      hasComparison: true,
+      primaryMetrics: summaryMetrics,
+      comparisonMetrics: {
+        ...summaryMetrics,
+        avgSogKnots: 4.95,
+        distanceMeters: 197.6,
+      },
+    })
+
+    expect(primaryOnly).not.toContain('analysis-window__compact-summary--comparison')
+    expect(compared).toContain('analysis-window__compact-summary--comparison')
+    expect(compared).toContain('color:#9a5aaf')
+    expect(compared).toContain('4.95 kt')
+    expect(compared).toContain('198 m')
+  })
+
+  it('renders unavailable Avg SOG without inventing a value', () => {
+    const markup = render({
+      primarySamples: [sample(2, null), sample(8, null)],
+      primaryMetrics: { ...summaryMetrics, avgSogKnots: null },
+    })
+
+    expect(markup).toContain('<span>—</span>')
+    expect(markup).toContain('210 m')
   })
 
   it('prepares the displayed range before applying the fixed visual point budget', () => {

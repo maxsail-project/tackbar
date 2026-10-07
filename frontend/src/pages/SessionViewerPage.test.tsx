@@ -2,11 +2,13 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createAnalysisWindowReplay,
+  createAnalysisWindowSummaryMetrics,
   resolveSelectedManeuverAnalytics,
   SharedSessionUnavailable,
 } from './SessionViewerPage'
 import { formatSessionDuration } from '../utils/sessionPresentation'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
+import type { SummaryMetrics } from '../utils/summaryMetrics'
 
 const analytics: ActivityManeuverAnalytics = {
   activity_id: 'activity-a',
@@ -76,6 +78,28 @@ describe('integrated Analysis Window replay', () => {
       speed: 5,
       onTogglePlayback,
       onSpeedChange,
+    })
+  })
+
+  it('passes the existing summary metric objects to the integrated Analysis Window', () => {
+    const primaryMetrics = { distanceMeters: 210 } as SummaryMetrics
+    const comparisonMetrics = { distanceMeters: 198 } as SummaryMetrics
+
+    const compared = createAnalysisWindowSummaryMetrics(
+      primaryMetrics,
+      true,
+      comparisonMetrics,
+    )
+    expect(compared.primaryMetrics).toBe(primaryMetrics)
+    expect(compared.comparisonMetrics).toBe(comparisonMetrics)
+
+    expect(createAnalysisWindowSummaryMetrics(
+      primaryMetrics,
+      false,
+      comparisonMetrics,
+    )).toEqual({
+      primaryMetrics,
+      comparisonMetrics: null,
     })
   })
 })
