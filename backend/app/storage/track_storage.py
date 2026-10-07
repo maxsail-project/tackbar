@@ -1,7 +1,6 @@
 import re
 from math import isfinite
 from pathlib import Path
-from uuid import UUID
 
 import pandas as pd
 
@@ -10,6 +9,7 @@ from app.normalization.track_normalizer import (
     OPTIONAL_SAMPLE_COLUMNS,
 )
 from app.runtime_paths import runtime_paths
+from app.storage.activity_ids import canonical_activity_id
 
 
 class TrackStorage:
@@ -47,7 +47,7 @@ class TrackStorage:
         return path
 
     def original_path(self, activity_id: str, original_filename: str) -> Path:
-        safe_activity_id = _canonical_activity_id(activity_id)
+        safe_activity_id = canonical_activity_id(activity_id)
         safe_filename = _safe_original_filename(original_filename)
         return self.originals_root / safe_activity_id / safe_filename
 
@@ -75,11 +75,11 @@ class TrackStorage:
         return relative_path
 
     def track_path(self, activity_id: str) -> Path:
-        safe_activity_id = _canonical_activity_id(activity_id)
+        safe_activity_id = canonical_activity_id(activity_id)
         return self.tracks_root / f"{safe_activity_id}.csv.gz"
 
     def track_relative_path(self, activity_id: str) -> str:
-        safe_activity_id = _canonical_activity_id(activity_id)
+        safe_activity_id = canonical_activity_id(activity_id)
         return f"tracks/{safe_activity_id}.csv.gz"
 
     def read_normalized_track(self, activity_id: str) -> pd.DataFrame:
@@ -104,18 +104,6 @@ class TrackStorage:
         for column in OPTIONAL_SAMPLE_COLUMNS:
             _validate_optional_number(track[column], column)
         return track
-
-
-def _canonical_activity_id(activity_id: str) -> str:
-    try:
-        canonical = str(UUID(activity_id))
-    except (ValueError, AttributeError) as error:
-        raise ValueError(
-            f"Invalid Activity id for track storage: {activity_id}"
-        ) from error
-    if activity_id.lower() != canonical:
-        raise ValueError(f"Invalid Activity id for track storage: {activity_id}")
-    return canonical
 
 
 def _safe_original_filename(original_filename: str) -> str:

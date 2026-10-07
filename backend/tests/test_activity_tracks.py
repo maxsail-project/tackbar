@@ -11,6 +11,7 @@ from app.repositories.sessions import SessionRepository
 from app.services.activity_reprocessing import reprocess_activity
 from app.services.activity_tracks import persist_activity_track
 from app.storage.track_storage import TrackStorage
+from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 
 
 FIXTURE_PATH = (
@@ -114,6 +115,16 @@ def test_reprocessing_restores_deleted_track_without_changing_identity_or_sessio
     sessions = SessionRepository(temporary_directory / "sessions.json")
     session = sessions.create(activity_id)
     track_path = storage.track_path(activity_id)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    stale_artifact = {
+        "activity_id": activity_id,
+        "algorithm_version": 1,
+        "track_sha256": "a" * 64,
+        "status": "available",
+        "maneuvers": [],
+    }
+    analytics.write(activity_id, stale_artifact)
+    artifact_before = analytics.artifact_path(activity_id).read_bytes()
     expected_track = pd.read_csv(track_path, compression="gzip")
     identity = (
         initial.id,
@@ -141,6 +152,7 @@ def test_reprocessing_restores_deleted_track_without_changing_identity_or_sessio
     assert len(repository.all()) == 1
     assert sessions.all() == [session]
     assert sessions.all()[0].activity_ids == [activity_id]
+    assert analytics.artifact_path(activity_id).read_bytes() == artifact_before
 
 
 def test_reprocessing_restores_track_from_archived_uncompressed_csv(

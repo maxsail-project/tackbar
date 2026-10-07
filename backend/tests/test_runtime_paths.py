@@ -72,6 +72,7 @@ def test_default_repositories_share_the_configured_root(
     assert ConsentEventRepository().path == paths.consent_events
     assert ConsentRequestRepository().path == paths.consent_requests
     assert TrackStorage().data_root == paths.root
+    assert paths.analytics == configured_root / "analytics"
 
 
 def test_real_ingestion_requires_explicit_private_root(

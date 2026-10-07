@@ -22,6 +22,7 @@ class RuntimePaths:
     consent_requests: Path
     originals: Path
     tracks: Path
+    analytics: Path
 
 
 def resolve_data_root(
@@ -55,6 +56,7 @@ def runtime_paths(data_root: str | Path | None = None) -> RuntimePaths:
         consent_requests=root / "consent_requests.json",
         originals=root / "originals",
         tracks=root / "tracks",
+        analytics=root / "analytics",
     )
 
 

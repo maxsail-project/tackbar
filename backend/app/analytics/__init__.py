@@ -1,0 +1,1 @@
+"""Derived sailing analytics."""
