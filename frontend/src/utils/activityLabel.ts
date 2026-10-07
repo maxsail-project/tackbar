@@ -13,13 +13,19 @@ function utcHourMinute(timestamp: string) {
 }
 
 export function formatActivityIdentity(activity: SessionActivity) {
-  return firstNonEmpty(
-    activity.boat?.sail_number,
-    activity.boat?.name,
-    activity.sailor.name,
-    activity.sailor.email,
-    activity.sailor.id,
-  ) ?? 'Activity'
+  const boatIdentity = firstNonEmpty(activity.boat?.sail_number, activity.boat?.name)
+  if (boatIdentity) return boatIdentity
+
+  const sailorName = firstNonEmpty(activity.sailor.name)
+  if (sailorName) return sailorName
+
+  const sailorEmail = firstNonEmpty(activity.sailor.email)
+  if (sailorEmail) {
+    const atIndex = sailorEmail.indexOf('@')
+    return atIndex >= 0 ? sailorEmail.slice(0, atIndex + 1) : sailorEmail
+  }
+
+  return firstNonEmpty(activity.sailor.id) ?? 'Activity'
 }
 
 export function formatActivityLabel(activity: SessionActivity) {
@@ -29,15 +35,7 @@ export function formatActivityLabel(activity: SessionActivity) {
 }
 
 export function formatActivitySelectorIdentity(activity: SessionActivity) {
-  const identity = formatActivityIdentity(activity)
-  const boatIdentity = firstNonEmpty(activity.boat?.sail_number, activity.boat?.name)
-  const sailorName = firstNonEmpty(activity.sailor.name)
-  const sailorEmail = firstNonEmpty(activity.sailor.email)
-
-  if (boatIdentity || sailorName || identity !== sailorEmail || !sailorEmail) return identity
-
-  const atIndex = sailorEmail.indexOf('@')
-  return atIndex >= 0 ? sailorEmail.slice(0, atIndex + 1) : identity
+  return formatActivityIdentity(activity)
 }
 
 export function formatActivitySelectorLabel(activity: SessionActivity) {

@@ -50,7 +50,7 @@ describe('Activity presentation labels', () => {
     expect(formatActivityIdentity(activity({ boat: null }))).toBe('Sailor A')
   })
 
-  it('falls back to Sailor email', () => {
+  it('falls back to Sailor email without displaying the domain', () => {
     expect(formatActivityIdentity(activity({
       boat: null,
       sailor: {
@@ -58,7 +58,7 @@ describe('Activity presentation labels', () => {
         name: null,
         email: 'sailor-a@example.com',
       },
-    }))).toBe('sailor-a@example.com')
+    }))).toBe('sailor-a@')
   })
 
   it('uses the internal Sailor id only when no human identity is available', () => {
@@ -75,7 +75,7 @@ describe('Activity presentation labels', () => {
     })
 
     expect(formatActivitySelectorLabel(emailActivity)).toBe('maxi@ · 08:03–10:42')
-    expect(formatActivityLabel(emailActivity)).toBe('maxi@example.com · 08:03–10:42')
+    expect(formatActivityLabel(emailActivity)).toBe('maxi@ · 08:03–10:42')
     expect(formatActivitySelectorLabel(activity({
       boat: null,
       sailor: { id: 'sailor-1', name: null, email: 'maxi+vakaros@example.com' },
