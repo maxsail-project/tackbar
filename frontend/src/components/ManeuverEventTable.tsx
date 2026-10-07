@@ -91,7 +91,7 @@ export default function ManeuverEventTable({
   comparisonStatus,
   onSelect,
 }: ManeuverEventTableProps) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const [sortDirection, setSortDirection] = useState<ManeuverSortDirection>('asc')
   const contentId = useId()
   const statuses = [primaryStatus, comparisonStatus].filter(

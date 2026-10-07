@@ -40,7 +40,7 @@ function eventAt(
 }
 
 describe('ManeuverEventTable', () => {
-  it('renders the compact columns and an accessible event action', () => {
+  it('starts collapsed with its header visible', () => {
     const markup = renderToStaticMarkup(
       <ManeuverEventTable
         events={[event]}
@@ -55,20 +55,39 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('−91°')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
-    expect(markup).toContain('aria-expanded="true"')
-    expect(markup).toContain('Collapse')
+    expect(markup).toContain('Maneuvers')
+    expect(markup).toContain('aria-expanded="false"')
+    expect(markup).toContain('Expand')
+    expect(markup).toContain('hidden=""')
+  })
+
+  it('retains compact columns, default ASC sorting, and event actions when expanded', () => {
+    const markup = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[event]}
+        primaryStatus="available"
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain('Time')
+    expect(markup).toContain('Activity')
+    expect(markup).toContain('\u0394HDG')
+    expect(markup).toContain('08:47:59')
+    expect(markup).toContain('\u221291\u00b0')
+    expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
     expect(markup).toContain('aria-sort="ascending"')
     expect(markup).toContain('Time ASC')
   })
 
-  it('can collapse and expand again without selecting an event', () => {
+  it('can expand and collapse again without selecting an event', () => {
     const onSelect = vi.fn()
 
-    const collapsed = toggledExpandedState(true)
-    const expandedAgain = toggledExpandedState(collapsed)
+    const expanded = toggledExpandedState(false)
+    const collapsedAgain = toggledExpandedState(expanded)
 
-    expect(collapsed).toBe(false)
-    expect(expandedAgain).toBe(true)
+    expect(expanded).toBe(true)
+    expect(collapsedAgain).toBe(false)
     expect(onSelect).not.toHaveBeenCalled()
   })
 
