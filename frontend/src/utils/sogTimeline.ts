@@ -24,23 +24,20 @@ export function prepareSogTimelinePoints(
     .sort((first, second) => first.time - second.time)
 }
 
-function bucketRepresentatives(points: SogTimelinePoint[]) {
+function bucketRepresentative(points: SogTimelinePoint[]) {
   const nullPoint = points.find((point) => point.sog === null)
+  if (nullPoint !== undefined) return { ...nullPoint }
+
   const finitePoints = points.filter(
     (point): point is SogTimelinePoint & { sog: number } => point.sog !== null,
   )
+  if (finitePoints.length === 0) return null
 
-  let minimum = finitePoints[0]
-  let maximum = finitePoints[0]
-  finitePoints.forEach((point) => {
-    if (minimum === undefined || point.sog < minimum.sog) minimum = point
-    if (maximum === undefined || point.sog > maximum.sog) maximum = point
-  })
-
-  return [nullPoint, minimum, maximum]
-    .filter((point): point is SogTimelinePoint => point !== undefined)
-    .filter((point, index, representatives) => representatives.indexOf(point) === index)
-    .sort((first, second) => first.time - second.time)
+  return {
+    time: finitePoints[Math.floor(finitePoints.length / 2)].time,
+    sog: finitePoints.reduce((total, point) => total + point.sog, 0)
+      / finitePoints.length,
+  }
 }
 
 export function reduceSogTimelinePoints(
@@ -52,18 +49,21 @@ export function reduceSogTimelinePoints(
 
   const first = points[0]
   const last = points[points.length - 1]
+  if (maximumPoints === 2) return [first, last]
+
   const interior = points.slice(1, -1)
   const representativeBudget = maximumPoints - 2
-  const bucketCount = Math.max(1, Math.floor(representativeBudget / 3))
+  const bucketCount = Math.max(1, representativeBudget)
   const reduced = [first]
 
   for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
     const start = Math.floor((bucketIndex * interior.length) / bucketCount)
     const end = Math.floor(((bucketIndex + 1) * interior.length) / bucketCount)
-    reduced.push(...bucketRepresentatives(interior.slice(start, end)))
+    const representative = bucketRepresentative(interior.slice(start, end))
+    if (representative !== null) reduced.push(representative)
   }
 
-  return reduced.slice(0, maximumPoints - 1).concat(last)
+  return reduced.concat(last)
 }
 
 export function buildSogTimelinePath(

@@ -27,6 +27,7 @@ import {
   prepareSogTimelinePoints,
   reduceSogTimelinePoints,
 } from '../utils/sogTimeline'
+import type { DisplayManeuver } from '../utils/maneuverEvents'
 
 const TIMELINE_POINT_BUDGET = 240
 
@@ -35,11 +36,13 @@ interface AnalysisWindowProps {
   analysisWindow: AnalysisWindowRange | null
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
+  maneuvers?: DisplayManeuver[]
   onWindowChange: (
     boundary: AnalysisWindowBoundary,
     requestedTime: number,
   ) => void
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
+  onManeuverSelect?: (centerTimeMs: number) => void
 }
 
 function formatDuration(durationMilliseconds: number) {
@@ -64,13 +67,56 @@ function positionPercent(value: number, availableRange: AnalysisWindowRange) {
   ), 100)
 }
 
+export function AnalysisWindowManeuverMarker({
+  event,
+  active,
+  position,
+  onSelect,
+}: {
+  event: DisplayManeuver
+  active: boolean
+  position: number
+  onSelect: (centerTimeMs: number) => void
+}) {
+  const roleLabel = event.activityRole === 'primary' ? 'P' : 'C'
+  const className = [
+    'analysis-window__maneuver-marker',
+    `analysis-window__maneuver-marker--${event.activityRole}`,
+    active ? 'analysis-window__maneuver-marker--active' : 'analysis-window__maneuver-marker--context',
+  ].join(' ')
+  const style = {
+    left: `${position}%`,
+    color: ACTIVITY_COLORS[event.activityRole],
+  }
+
+  if (!active) {
+    return <span className={className} style={style} aria-hidden="true" />
+  }
+
+  return (
+    <button
+      type="button"
+      className={className}
+      style={style}
+      onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
+      onClick={(clickEvent) => {
+        clickEvent.stopPropagation()
+        onSelect(event.centerTimeMs)
+      }}
+      aria-label={`Move replay to ${formatGpsTime(event.centerTimeMs)} UTC, Activity ${roleLabel}`}
+    />
+  )
+}
+
 export default function AnalysisWindow({
   availableRange,
   analysisWindow,
   primarySamples,
   comparisonSamples = [],
+  maneuvers = [],
   onWindowChange,
   onRangeChange,
+  onManeuverSelect = () => undefined,
 }: AnalysisWindowProps) {
   const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
   const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
@@ -204,6 +250,21 @@ export default function AnalysisWindow({
           {primaryPath && <path className="analysis-window__sog-line" d={primaryPath} style={{ stroke: ACTIVITY_COLORS.primary }} />}
           {comparisonPath && <path className="analysis-window__sog-line" d={comparisonPath} style={{ stroke: ACTIVITY_COLORS.comparison }} />}
         </svg>
+        <div className="analysis-window__maneuver-markers">
+          {maneuvers.map((event) => {
+            const active = event.centerTimeMs >= analysisWindow.start
+              && event.centerTimeMs <= analysisWindow.end
+            return (
+              <AnalysisWindowManeuverMarker
+                key={`${event.activityRole}:${event.maneuver.start_time}:${event.maneuver.center_time}:${event.maneuver.end_time}`}
+                event={event}
+                active={active}
+                position={positionPercent(event.centerTimeMs, availableRange)}
+                onSelect={onManeuverSelect}
+              />
+            )
+          })}
+        </div>
         <div
           className={`analysis-window__brush${pointerSelection ? ' analysis-window__brush--provisional' : ''}`}
           style={{ left: `${windowStartPercent}%`, width: `${windowEndPercent - windowStartPercent}%` }}

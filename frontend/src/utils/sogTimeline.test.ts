@@ -68,7 +68,7 @@ describe('SOG Analysis Window timeline', () => {
     expect(reduced).not.toBe(points)
   })
 
-  it('deterministically bounds output while preserving order, endpoints, extrema and source data', () => {
+  it('deterministically averages temporal buckets while preserving order, endpoints and source data', () => {
     const points: SogTimelinePoint[] = [
       { time: 0, sog: 5 },
       { time: 1, sog: 4 },
@@ -82,16 +82,23 @@ describe('SOG Analysis Window timeline', () => {
       { time: 9, sog: 5 },
     ]
     const original = points.map((point) => ({ ...point }))
-    const reduced = reduceSogTimelinePoints(points, 8)
+    const reduced = reduceSogTimelinePoints(points, 6)
 
-    expect(reduced.length).toBeLessThanOrEqual(8)
+    expect(reduced).toEqual([
+      points[0],
+      { time: 2, sog: 8 },
+      { time: 4, sog: 4.5 },
+      { time: 6, sog: 4 },
+      { time: 8, sog: 9.5 },
+      points[9],
+    ])
+    expect(reduced.length).toBeLessThanOrEqual(6)
     expect(reduced[0]).toEqual(points[0])
     expect(reduced[reduced.length - 1]).toEqual(points[points.length - 1])
     expect(reduced.map((point) => point.time)).toEqual(
       [...reduced].sort((first, second) => first.time - second.time).map((point) => point.time),
     )
-    expect(reduced.map((point) => point.sog)).toEqual(expect.arrayContaining([12, 1, 11]))
-    expect(reduceSogTimelinePoints(points, 8)).toEqual(reduced)
+    expect(reduceSogTimelinePoints(points, 6)).toEqual(reduced)
     expect(points).toEqual(original)
   })
 
@@ -101,6 +108,9 @@ describe('SOG Analysis Window timeline', () => {
       sog: index === 5 ? null : index,
     }))
 
-    expect(reduceSogTimelinePoints(points, 8).some((point) => point.sog === null)).toBe(true)
+    const reduced = reduceSogTimelinePoints(points, 6)
+
+    expect(reduced.some((point) => point.sog === null)).toBe(true)
+    expect(buildSogTimelinePath(reduced, { start: 0, end: 11 }, 11)).toContain(' M')
   })
 })

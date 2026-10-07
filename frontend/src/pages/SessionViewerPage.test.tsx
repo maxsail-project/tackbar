@@ -49,21 +49,21 @@ describe('Session summary presentation', () => {
 })
 
 describe('selected maneuver analytics alignment', () => {
-  it('does not reuse previously ready Primary analytics after P changes', () => {
+  it('does not expose stale Primary events or markers after P changes', () => {
     expect(resolveSelectedManeuverAnalytics(
       readyAnalyticsState('primary-old'),
       'primary-new',
     )).toBeNull()
   })
 
-  it('does not reuse previously ready Comparison analytics after C changes', () => {
+  it('does not expose stale Comparison events or markers after C changes', () => {
     expect(resolveSelectedManeuverAnalytics(
       readyAnalyticsState('comparison-old'),
       'comparison-new',
     )).toBeNull()
   })
 
-  it('removes ready Comparison analytics when Comparison is cleared', () => {
+  it('removes Comparison events and markers when Comparison is cleared', () => {
     expect(resolveSelectedManeuverAnalytics(
       readyAnalyticsState('comparison'),
       null,

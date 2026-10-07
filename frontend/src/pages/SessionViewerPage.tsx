@@ -355,6 +355,16 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         ),
     [analysisWindow, comparisonManeuverAnalytics, primaryManeuverAnalytics],
   )
+  const timelineManeuvers = useMemo(
+    () => availableRange === null
+      ? []
+      : deriveDisplayManeuvers(
+          primaryManeuverAnalytics,
+          comparisonManeuverAnalytics,
+          availableRange,
+        ),
+    [availableRange, comparisonManeuverAnalytics, primaryManeuverAnalytics],
+  )
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
@@ -596,8 +606,10 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         analysisWindow={analysisWindow}
         primarySamples={primaryAvailableSamples}
         comparisonSamples={comparisonAvailableSamples}
+        maneuvers={timelineManeuvers}
         onWindowChange={changeAnalysisWindow}
         onRangeChange={commitAnalysisWindowRange}
+        onManeuverSelect={scrubTo}
       />
       {canReplay && windowStart !== null && windowEnd !== null && (
         <ReplayControls

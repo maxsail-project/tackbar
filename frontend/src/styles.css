@@ -584,6 +584,61 @@ input:focus-visible {
   height: 100%;
 }
 
+.analysis-window__maneuver-markers {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.analysis-window__maneuver-marker {
+  position: absolute;
+  padding: 0;
+  transform: translateX(-50%);
+}
+
+.analysis-window__maneuver-marker--primary {
+  top: 6px;
+}
+
+.analysis-window__maneuver-marker--comparison {
+  top: 34px;
+}
+
+.analysis-window__maneuver-marker--active {
+  width: 24px;
+  height: 24px;
+  margin-top: -8px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.analysis-window__maneuver-marker--active::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  content: '';
+  background: currentcolor;
+  box-shadow: 0 1px 2px rgb(23 50 58 / 35%);
+  transform: translate(-50%, -50%);
+}
+
+.analysis-window__maneuver-marker--context {
+  width: 7px;
+  height: 7px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  background: currentcolor;
+  box-shadow: 0 1px 2px rgb(23 50 58 / 35%);
+  opacity: 0.28;
+}
+
 .analysis-window__sog-line {
   fill: none;
   stroke-width: 2.5;
