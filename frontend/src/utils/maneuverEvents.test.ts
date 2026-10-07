@@ -117,9 +117,9 @@ describe('maneuver event derivation', () => {
 
 describe('maneuver heading-change presentation', () => {
   it.each([
-    [83.6, '+84°'],
-    [-90.6, '−91°'],
-    [-0.1, '+0°'],
+    [83.6, '+84'],
+    [-90.6, '−91'],
+    [-0.1, '+0'],
   ])('formats %s compactly as %s', (value, expected) => {
     expect(formatHeadingChange(value)).toBe(expected)
   })
@@ -127,7 +127,7 @@ describe('maneuver heading-change presentation', () => {
 
 describe('maneuver debrief metric presentation', () => {
   it('formats compact units and unavailable values', () => {
-    expect(formatSeconds(12.4)).toBe('12s')
+    expect(formatSeconds(12.4)).toBe('12')
     expect(formatKnots(5.24)).toBe('5.2')
     expect(formatMetres(8.6)).toBe('9')
     expect(formatSeconds(null)).toBe('—')

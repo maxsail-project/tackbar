@@ -52,11 +52,11 @@ export function deriveDisplayManeuvers(
 
 export function formatHeadingChange(headingChangeDegrees: number) {
   const rounded = Math.round(headingChangeDegrees)
-  return rounded < 0 ? `−${Math.abs(rounded)}°` : `+${rounded}°`
+  return rounded < 0 ? `−${Math.abs(rounded)}` : `+${rounded}`
 }
 
 export function formatSeconds(value: number | null | undefined) {
-  return value == null ? '—' : `${Math.round(value)}s`
+  return value == null ? '—' : Math.round(value).toString()
 }
 
 export function formatKnots(value: number | null | undefined) {

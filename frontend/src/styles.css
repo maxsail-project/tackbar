@@ -844,18 +844,45 @@ input:focus-visible {
 }
 
 .maneuver-event-table-wrap {
+  isolation: isolate;
+  max-height: min(50vh, 360px);
   margin-top: 10px;
-  overflow-x: auto;
+  overflow: auto;
   border: 1px solid #d5e1e3;
   border-radius: 10px;
 }
 
 .maneuver-event-table {
-  width: max(100%, 760px);
+  width: 736px;
   border-collapse: collapse;
-  table-layout: auto;
+  table-layout: fixed;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+}
+
+.maneuver-event-table__time-column {
+  width: 88px;
+}
+
+.maneuver-event-table__activity-column {
+  width: 40px;
+}
+
+.maneuver-event-table__heading-column {
+  width: 72px;
+}
+
+.maneuver-event-table__duration-column,
+.maneuver-event-table__recovery-column {
+  width: 58px;
+}
+
+.maneuver-event-table__sog-column {
+  width: 90px;
+}
+
+.maneuver-event-table__loss-column {
+  width: 74px;
 }
 
 .maneuver-event-table th,
@@ -866,7 +893,20 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.maneuver-event-table th:nth-child(2),
+.maneuver-event-table td:nth-child(2) {
+  text-align: center;
+}
+
+.maneuver-event-table th:nth-child(n + 3),
+.maneuver-event-table td:nth-child(n + 3) {
+  text-align: right;
+}
+
 .maneuver-event-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   border-top: 0;
   color: #536c73;
   background: #f3f7f8;

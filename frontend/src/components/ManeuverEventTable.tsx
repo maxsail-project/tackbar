@@ -147,6 +147,15 @@ export default function ManeuverEventTable({
           {events.length > 0 ? (
             <div className="maneuver-event-table-wrap">
               <table className="maneuver-event-table" aria-label="Detected maneuvers">
+                <colgroup>
+                  <col className="maneuver-event-table__time-column" />
+                  <col className="maneuver-event-table__activity-column" />
+                  <col className="maneuver-event-table__heading-column" />
+                  <col className="maneuver-event-table__duration-column" />
+                  <col className="maneuver-event-table__sog-column" span={3} />
+                  <col className="maneuver-event-table__recovery-column" />
+                  <col className="maneuver-event-table__loss-column" span={2} />
+                </colgroup>
                 <thead>
                   <tr>
                     <th scope="col" aria-sort={sortDirection === 'asc' ? 'ascending' : 'descending'}>
@@ -160,14 +169,14 @@ export default function ManeuverEventTable({
                       </button>
                     </th>
                     <th scope="col">Act</th>
-                    <th scope="col">ΔHDG</th>
-                    <th scope="col">Dur</th>
-                    <th scope="col">SOG in</th>
-                    <th scope="col">Min</th>
-                    <th scope="col">SOG out</th>
-                    <th scope="col">Rec</th>
-                    <th scope="col">Loss m</th>
-                    <th scope="col">Loss s</th>
+                    <th scope="col">ΔHDG (°)</th>
+                    <th scope="col">Dur (s)</th>
+                    <th scope="col">SOG in (kt)</th>
+                    <th scope="col">SOG min (kt)</th>
+                    <th scope="col">SOG out (kt)</th>
+                    <th scope="col">Rec (s)</th>
+                    <th scope="col">Loss (m)</th>
+                    <th scope="col">Loss (s)</th>
                   </tr>
                 </thead>
                 <tbody>
