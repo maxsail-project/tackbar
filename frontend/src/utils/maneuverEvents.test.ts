@@ -7,6 +7,8 @@ import {
   formatKnots,
   formatMetres,
   formatSeconds,
+  maneuverSelectionKey,
+  retainDisplayedManeuverSelection,
 } from './maneuverEvents'
 
 const windowStart = timestampToMilliseconds('2031-06-15T08:00:00Z')
@@ -133,5 +135,53 @@ describe('maneuver debrief metric presentation', () => {
     expect(formatSeconds(null)).toBe('—')
     expect(formatKnots(undefined)).toBe('—')
     expect(formatMetres(null)).toBe('—')
+  })
+})
+
+describe('explicit maneuver selection identity', () => {
+  it('distinguishes roles and event boundaries instead of using center time alone', () => {
+    const primary = maneuver('2031-06-15T08:05:00Z')
+    const shiftedStart = {
+      ...primary,
+      start_time: '2031-06-15T08:04:59Z',
+    }
+
+    expect(maneuverSelectionKey({
+      activityRole: 'primary',
+      maneuver: primary,
+      centerTimeMs: timestampToMilliseconds(primary.center_time),
+    })).not.toBe(maneuverSelectionKey({
+      activityRole: 'comparison',
+      maneuver: primary,
+      centerTimeMs: timestampToMilliseconds(primary.center_time),
+    }))
+    expect(maneuverSelectionKey({
+      activityRole: 'primary',
+      maneuver: primary,
+      centerTimeMs: timestampToMilliseconds(primary.center_time),
+    })).not.toBe(maneuverSelectionKey({
+      activityRole: 'primary',
+      maneuver: shiftedStart,
+      centerTimeMs: timestampToMilliseconds(shiftedStart.center_time),
+    }))
+  })
+
+  it('retains selection only while its event remains displayed', () => {
+    const first = deriveDisplayManeuvers(
+      available([maneuver('2031-06-15T08:05:00Z')]),
+      null,
+      { start: windowStart, end: windowEnd },
+    )[0]
+    const second = deriveDisplayManeuvers(
+      available([maneuver('2031-06-15T08:07:00Z')]),
+      null,
+      { start: windowStart, end: windowEnd },
+    )[0]
+    const selected = maneuverSelectionKey(first)
+
+    expect(retainDisplayedManeuverSelection(selected, [first, second])).toBe(selected)
+    expect(retainDisplayedManeuverSelection(selected, [second])).toBeNull()
+    expect(retainDisplayedManeuverSelection(selected, [])).toBeNull()
+    expect(retainDisplayedManeuverSelection(null, [first])).toBeNull()
   })
 })

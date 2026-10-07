@@ -928,6 +928,19 @@ input:focus-visible {
   background: #f7fafb;
 }
 
+.maneuver-event-table__row--selected,
+.maneuver-event-table__row--selected:hover {
+  background: #edf5f6;
+}
+
+.maneuver-event-table__row--selected.maneuver-event-table__row--primary td:first-child {
+  box-shadow: inset 3px 0 #168097;
+}
+
+.maneuver-event-table__row--selected.maneuver-event-table__row--comparison td:first-child {
+  box-shadow: inset 3px 0 #9a5aaf;
+}
+
 .maneuver-event-table__button {
   min-height: 28px;
   padding: 0;

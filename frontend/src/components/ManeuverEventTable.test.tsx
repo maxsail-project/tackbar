@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
+import { maneuverSelectionKey } from '../utils/maneuverEvents'
 import ManeuverEventTable, {
   ManeuverEventRow,
   sortManeuverEvents,
@@ -150,15 +151,96 @@ describe('ManeuverEventTable', () => {
     ])
   })
 
-  it('activates an event with its center time', () => {
-    const onSelect = vi.fn()
-    const row = ManeuverEventRow({ event, onSelect }) as ReactElement<{
+  it('selects a row explicitly and exposes its center for replay navigation', () => {
+    let selectedKey: string | null = null
+    let playbackTime = 0
+    const onSelect = vi.fn((selectedEvent: DisplayManeuver) => {
+      selectedKey = maneuverSelectionKey(selectedEvent)
+      playbackTime = selectedEvent.centerTimeMs
+    })
+    const row = ManeuverEventRow({
+      event,
+      selected: false,
+      onSelect,
+    }) as ReactElement<{
       onClick: () => void
     }>
 
     row.props.onClick()
 
-    expect(onSelect).toHaveBeenCalledWith(event.centerTimeMs)
+    expect(onSelect).toHaveBeenCalledWith(event)
+    expect(selectedKey).toBe(maneuverSelectionKey(event))
+    expect(playbackTime).toBe(event.centerTimeMs)
+  })
+
+  it('marks only the explicitly selected P/C event at an equal time', () => {
+    const centerTimeMs = Date.parse('2031-06-15T08:05:00Z')
+    const primary = eventAt(centerTimeMs, 'primary')
+    const comparison = eventAt(centerTimeMs, 'comparison')
+    const markup = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[primary, comparison]}
+        primaryStatus="available"
+        comparisonStatus="available"
+        selectedManeuverKey={maneuverSelectionKey(comparison)}
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(markup.match(/aria-selected="true"/g)).toHaveLength(1)
+    expect(markup).toContain(
+      'maneuver-event-table__row--selected maneuver-event-table__row--comparison',
+    )
+    expect(markup).not.toContain(
+      'maneuver-event-table__row--selected maneuver-event-table__row--primary',
+    )
+  })
+
+  it('moves the highlight to a second selection and keeps identity through sorting', () => {
+    const early = eventAt(Date.parse('2031-06-15T08:01:00Z'))
+    const late = eventAt(Date.parse('2031-06-15T08:09:00Z'))
+    const selectedRow = (markup: string) => markup.match(
+      /<tr class="[^"]*maneuver-event-table__row--selected[^"]*"[^>]*>.*?<\/tr>/,
+    )?.[0]
+    const lateSelected = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[late, early]}
+        primaryStatus="available"
+        selectedManeuverKey={maneuverSelectionKey(late)}
+        onSelect={() => undefined}
+      />,
+    )
+    const earlySelected = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[late, early]}
+        primaryStatus="available"
+        selectedManeuverKey={maneuverSelectionKey(early)}
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(selectedRow(lateSelected)).toContain('08:09:00')
+    expect(selectedRow(earlySelected)).toContain('08:01:00')
+    expect(sortManeuverEvents([late, early], 'asc').find(
+      (item) => maneuverSelectionKey(item) === maneuverSelectionKey(late),
+    )).toBe(late)
+    expect(sortManeuverEvents([late, early], 'desc').find(
+      (item) => maneuverSelectionKey(item) === maneuverSelectionKey(early),
+    )).toBe(early)
+  })
+
+  it('does not highlight an event without an explicit selection key', () => {
+    const markup = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[event]}
+        primaryStatus="available"
+        selectedManeuverKey={null}
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain('aria-selected="false"')
+    expect(markup).not.toContain('maneuver-event-table__row--selected')
   })
 
   it('renders unavailable optional metrics as em dashes', () => {

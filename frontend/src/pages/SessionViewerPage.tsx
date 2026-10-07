@@ -50,6 +50,8 @@ import { formatActivityIdentity } from '../utils/activityLabel'
 import { formatSessionDuration, formatSessionRange } from '../utils/sessionPresentation'
 import {
   deriveDisplayManeuvers,
+  maneuverSelectionKey,
+  retainDisplayedManeuverSelection,
   type DisplayManeuver,
 } from '../utils/maneuverEvents'
 
@@ -367,6 +369,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     [comparisonWindowSamples],
   )
   const [playbackTime, setPlaybackTime] = useState(windowStart ?? 0)
+  const [selectedManeuverKey, setSelectedManeuverKey] = useState<string | null>(null)
   const playbackTimeRef = useRef(playbackTime)
   const mapFocusRequestIdRef = useRef(0)
   const [mapFocusRequest, setMapFocusRequest] = useState<MapFocusRequest | null>(null)
@@ -417,6 +420,12 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
+
+  useEffect(() => {
+    setSelectedManeuverKey((current) => (
+      retainDisplayedManeuverSelection(current, displayManeuvers)
+    ))
+  }, [displayManeuvers])
 
   useEffect(() => {
     if (primaryTrackState.status === 'loading') {
@@ -475,6 +484,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     if (!activityId) return
     setIsPlaying(false)
     setMapFocusRequest(null)
+    setSelectedManeuverKey(null)
     setPrimaryActivityId(activityId)
     if (activityId === comparisonActivityId) {
       setComparisonActivityId(null)
@@ -484,6 +494,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   function changeComparison(activityId: string | null) {
     setIsPlaying(false)
     setMapFocusRequest(null)
+    setSelectedManeuverKey(null)
     setComparisonActivityId(
       activityId === primaryActivityId ? null : activityId,
     )
@@ -515,14 +526,25 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     setPlaybackTime(nextReplay.playbackTime)
   }
 
-  function selectTimelineManeuver(event: DisplayManeuver) {
+  function selectManeuver(event: DisplayManeuver, focusMap: boolean) {
+    setSelectedManeuverKey(maneuverSelectionKey(event))
+    scrubTo(event.centerTimeMs)
+    if (!focusMap) return
+
     mapFocusRequestIdRef.current += 1
     const navigation = createTimelineManeuverNavigation(
       event,
       mapFocusRequestIdRef.current,
     )
-    scrubTo(navigation.playbackTime)
     setMapFocusRequest(navigation.focusRequest)
+  }
+
+  function selectTimelineManeuver(event: DisplayManeuver) {
+    selectManeuver(event, true)
+  }
+
+  function selectTableManeuver(event: DisplayManeuver) {
+    selectManeuver(event, false)
   }
 
   function commitAnalysisWindowRange(requestedRange: AnalysisWindowRange) {
@@ -696,7 +718,8 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
                 comparisonManeuverState,
                 comparisonActivityId,
               )}
-          onSelect={scrubTo}
+          selectedManeuverKey={selectedManeuverKey}
+          onSelect={selectTableManeuver}
         />
       )}
       <ComparisonTable

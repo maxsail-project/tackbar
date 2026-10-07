@@ -4,7 +4,9 @@ import { describe, expect, it, vi } from 'vitest'
 import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
+import { maneuverSelectionKey } from '../utils/maneuverEvents'
 import type { SummaryMetrics } from '../utils/summaryMetrics'
+import ManeuverEventTable from './ManeuverEventTable'
 import AnalysisWindow, {
   ANALYSIS_WINDOW_SOG_PLOT_BAND,
   AnalysisWindowManeuverMarker,
@@ -410,6 +412,33 @@ describe('Analysis Window SOG timeline', () => {
     expect(stopPropagation).toHaveBeenCalledOnce()
     expect(onSelect).toHaveBeenCalledWith(event)
     expect(marker.props).not.toHaveProperty('onPointerDown')
+  })
+
+  it('uses the selected marker identity to mark the matching table row', () => {
+    const event = maneuver(5, 'primary')
+    let selectedKey: string | null = null
+    const annotation = AnalysisWindowManeuverMarker({
+      event,
+      position: 50,
+      onSelect: (selectedEvent) => {
+        selectedKey = maneuverSelectionKey(selectedEvent)
+      },
+    }) as ReactElement<{ children: ReactElement[] }>
+    const marker = annotation.props.children[1] as ReactElement<{
+      onClick: (event: { stopPropagation: () => void }) => void
+    }>
+
+    marker.props.onClick({ stopPropagation: () => undefined })
+    const table = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[event]}
+        primaryStatus="available"
+        selectedManeuverKey={selectedKey}
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(table).toContain('aria-selected="true"')
   })
 
   it('allows marker pointer-down to reach range selection and suppresses selection after a drag', () => {

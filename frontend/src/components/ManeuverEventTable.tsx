@@ -6,6 +6,7 @@ import {
   formatKnots,
   formatMetres,
   formatSeconds,
+  maneuverSelectionKey,
 } from '../utils/maneuverEvents'
 import { formatGpsTime } from '../utils/replay'
 
@@ -19,7 +20,8 @@ interface ManeuverEventTableProps {
   events: DisplayManeuver[]
   primaryStatus: ManeuverPresentationStatus
   comparisonStatus?: ManeuverPresentationStatus
-  onSelect: (centerTimeMs: number) => void
+  selectedManeuverKey?: string | null
+  onSelect: (event: DisplayManeuver) => void
 }
 
 export type ManeuverSortDirection = 'asc' | 'desc'
@@ -58,17 +60,22 @@ function roleLabel(role: ManeuverActivityRole) {
 
 export function ManeuverEventRow({
   event,
+  selected,
   onSelect,
 }: {
   event: DisplayManeuver
-  onSelect: (centerTimeMs: number) => void
+  selected: boolean
+  onSelect: (event: DisplayManeuver) => void
 }) {
   const label = roleLabel(event.activityRole)
 
   return (
     <tr
-      className="maneuver-event-table__row"
-      onClick={() => onSelect(event.centerTimeMs)}
+      className={`maneuver-event-table__row${selected
+        ? ` maneuver-event-table__row--selected maneuver-event-table__row--${event.activityRole}`
+        : ''}`}
+      aria-selected={selected}
+      onClick={() => onSelect(event)}
     >
       <td>
         <button
@@ -101,6 +108,7 @@ export default function ManeuverEventTable({
   events,
   primaryStatus,
   comparisonStatus,
+  selectedManeuverKey = null,
   onSelect,
 }: ManeuverEventTableProps) {
   const [expanded, setExpanded] = useState(false)
@@ -184,6 +192,7 @@ export default function ManeuverEventTable({
                     <ManeuverEventRow
                       key={`${event.activityRole}:${event.maneuver.start_time}:${event.maneuver.center_time}:${event.maneuver.end_time}`}
                       event={event}
+                      selected={maneuverSelectionKey(event) === selectedManeuverKey}
                       onSelect={onSelect}
                     />
                   ))}

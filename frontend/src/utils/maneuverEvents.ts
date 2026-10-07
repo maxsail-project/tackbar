@@ -10,6 +10,25 @@ export interface DisplayManeuver {
   centerTimeMs: number
 }
 
+export function maneuverSelectionKey(event: DisplayManeuver) {
+  return [
+    event.activityRole,
+    event.maneuver.start_time,
+    event.maneuver.center_time,
+    event.maneuver.end_time,
+  ].join(':')
+}
+
+export function retainDisplayedManeuverSelection(
+  selectedKey: string | null,
+  events: DisplayManeuver[],
+) {
+  if (selectedKey === null) return null
+  return events.some((event) => maneuverSelectionKey(event) === selectedKey)
+    ? selectedKey
+    : null
+}
+
 function availableEvents(
   analytics: ActivityManeuverAnalytics | null,
   activityRole: ManeuverActivityRole,
