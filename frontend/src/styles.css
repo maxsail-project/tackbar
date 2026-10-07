@@ -789,6 +789,37 @@ input:focus-visible {
   padding-bottom: 18px;
 }
 
+.maneuver-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.maneuver-section__collapse,
+.maneuver-event-table__sort {
+  padding: 4px 7px;
+  border: 1px solid #c8d7da;
+  border-radius: 7px;
+  color: #31515a;
+  background: #f7fafb;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.maneuver-section__collapse:hover,
+.maneuver-event-table__sort:hover {
+  background: #edf4f5;
+}
+
+.maneuver-section__collapse:focus-visible,
+.maneuver-event-table__sort:focus-visible {
+  outline: 2px solid #28788a;
+  outline-offset: 2px;
+}
+
 .maneuver-statuses p,
 .maneuver-empty {
   margin: 10px 0 0;
@@ -828,6 +859,12 @@ input:focus-visible {
   background: #f3f7f8;
   font-size: 0.7rem;
   font-weight: 800;
+}
+
+.maneuver-event-table__sort {
+  margin: -4px -7px;
+  border-color: transparent;
+  background: transparent;
 }
 
 .maneuver-event-table th:nth-child(2),

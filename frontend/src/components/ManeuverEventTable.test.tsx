@@ -2,7 +2,12 @@ import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
-import ManeuverEventTable, { ManeuverEventRow } from './ManeuverEventTable'
+import ManeuverEventTable, {
+  ManeuverEventRow,
+  sortManeuverEvents,
+  toggledExpandedState,
+  toggledSortDirection,
+} from './ManeuverEventTable'
 
 const event: DisplayManeuver = {
   activityRole: 'primary',
@@ -15,6 +20,23 @@ const event: DisplayManeuver = {
     peak_turn_rate_deg_s: 12,
     peak_turn_rate_time: '2031-06-15T08:47:59Z',
   },
+}
+
+function eventAt(
+  centerTimeMs: number,
+  activityRole: DisplayManeuver['activityRole'] = 'primary',
+): DisplayManeuver {
+  const centerTime = new Date(centerTimeMs).toISOString()
+  return {
+    activityRole,
+    centerTimeMs,
+    maneuver: {
+      ...event.maneuver,
+      start_time: new Date(centerTimeMs - 1_000).toISOString(),
+      center_time: centerTime,
+      end_time: new Date(centerTimeMs + 1_000).toISOString(),
+    },
+  }
 }
 
 describe('ManeuverEventTable', () => {
@@ -33,6 +55,59 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('−91°')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
+    expect(markup).toContain('aria-expanded="true"')
+    expect(markup).toContain('Collapse')
+    expect(markup).toContain('aria-sort="ascending"')
+    expect(markup).toContain('Time ASC')
+  })
+
+  it('can collapse and expand again without selecting an event', () => {
+    const onSelect = vi.fn()
+
+    const collapsed = toggledExpandedState(true)
+    const expandedAgain = toggledExpandedState(collapsed)
+
+    expect(collapsed).toBe(false)
+    expect(expandedAgain).toBe(true)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('sorts ascending by default and can reverse by centerTimeMs', () => {
+    const early = eventAt(Date.parse('2031-06-15T08:01:00Z'))
+    const late = eventAt(Date.parse('2031-06-15T08:09:00Z'))
+    const markup = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[late, early]}
+        primaryStatus="available"
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(markup.indexOf('08:01:00')).toBeLessThan(markup.indexOf('08:09:00'))
+    expect(toggledSortDirection('asc')).toBe('desc')
+    expect(sortManeuverEvents([early, late], 'desc')).toEqual([late, early])
+  })
+
+  it('uses centerTimeMs and keeps equal-time P/C attribution deterministic', () => {
+    const centerTimeMs = Date.parse('2031-06-15T08:05:00Z')
+    const primary = eventAt(centerTimeMs, 'primary')
+    const comparison = eventAt(centerTimeMs, 'comparison')
+    primary.maneuver.center_time = '2031-06-15T09:30:00Z'
+
+    const descending = sortManeuverEvents(
+      [comparison, eventAt(centerTimeMs + 1_000), primary],
+      'desc',
+    )
+
+    expect(descending.map((item) => item.centerTimeMs)).toEqual([
+      centerTimeMs + 1_000,
+      centerTimeMs,
+      centerTimeMs,
+    ])
+    expect(descending.slice(1).map((item) => item.activityRole)).toEqual([
+      'primary',
+      'comparison',
+    ])
   })
 
   it('activates an event with its center time', () => {
