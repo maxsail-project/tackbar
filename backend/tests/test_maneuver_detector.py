@@ -9,6 +9,9 @@ from app.analytics.circular_angles import (
 )
 from app.analytics.maneuver_detector import (
     MAX_SAMPLE_GAP_SECONDS,
+    STABLE_TURN_RATE_DEG_S,
+    TURN_ENTRY_PERSISTENCE_SECONDS,
+    TURN_ENTRY_RATE_DEG_S,
     calculate_local_turn_rates,
     detect_maneuvers,
 )
@@ -138,6 +141,54 @@ def test_detects_stable_turn_stable_maneuver(rate: float, expected_sign: int) ->
     assert maneuver.heading_change_deg * expected_sign >= 45
     assert maneuver.start_time < maneuver.center_time < maneuver.end_time
     assert maneuver.peak_turn_rate_deg_s > 0
+
+
+def test_requires_entry_turn_rate_for_full_persistence_interval() -> None:
+    track = _track([(5, 0), (0.5, 30), (10, 5), (5, 0)])
+    rate_samples = calculate_local_turn_rates(track)
+    entry_index = next(
+        index
+        for index, sample in enumerate(rate_samples)
+        if sample.turn_rate_deg_s is not None
+        and abs(sample.turn_rate_deg_s) >= TURN_ENTRY_RATE_DEG_S
+    )
+    entry_sample = rate_samples[entry_index]
+
+    assert any(
+        sample.turn_rate_deg_s is not None
+        and STABLE_TURN_RATE_DEG_S
+        < abs(sample.turn_rate_deg_s)
+        < TURN_ENTRY_RATE_DEG_S
+        and sample.elapsed_seconds - entry_sample.elapsed_seconds
+        <= TURN_ENTRY_PERSISTENCE_SECONDS
+        for sample in rate_samples[entry_index + 1:]
+    )
+    assert detect_maneuvers(track).maneuvers == ()
+
+
+def test_confirmed_turn_continues_below_entry_threshold() -> None:
+    track = _track([(5, 0), (2, 15), (6, 5), (5, 0)])
+    rate_samples = calculate_local_turn_rates(track)
+
+    result = detect_maneuvers(track)
+
+    assert result.status == "available"
+    assert len(result.maneuvers) == 1
+    maneuver = result.maneuvers[0]
+    start_index = next(
+        index
+        for index, sample in enumerate(rate_samples)
+        if sample.timestamp == maneuver.start_time
+    )
+    assert any(
+        sample.turn_rate_deg_s is not None
+        and STABLE_TURN_RATE_DEG_S
+        < abs(sample.turn_rate_deg_s)
+        < TURN_ENTRY_RATE_DEG_S
+        for sample in rate_samples[start_index + 1:]
+        if sample.timestamp <= maneuver.end_time
+    )
+    assert maneuver.heading_change_deg >= 45
 
 
 def test_detects_north_crossing_without_optional_context() -> None:

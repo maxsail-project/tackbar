@@ -243,7 +243,7 @@ def _detect_segment_maneuvers(
 
         if turning_start is None:
             if entry_start is not None:
-                if rate_sign != entry_sign or absolute_rate <= STABLE_TURN_RATE_DEG_S:
+                if rate_sign != entry_sign or absolute_rate < TURN_ENTRY_RATE_DEG_S:
                     entry_start = None
                     stable_since = (
                         sample.elapsed_seconds
