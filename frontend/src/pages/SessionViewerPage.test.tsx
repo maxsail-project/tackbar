@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createAnalysisWindowReplay,
   createAnalysisWindowSummaryMetrics,
+  createTimelineManeuverNavigation,
   resolveSelectedManeuverAnalytics,
   SharedSessionUnavailable,
 } from './SessionViewerPage'
 import { formatSessionDuration } from '../utils/sessionPresentation'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { SummaryMetrics } from '../utils/summaryMetrics'
+import type { DisplayManeuver } from '../utils/maneuverEvents'
 
 const analytics: ActivityManeuverAnalytics = {
   activity_id: 'activity-a',
@@ -100,6 +102,39 @@ describe('integrated Analysis Window replay', () => {
     )).toEqual({
       primaryMetrics,
       comparisonMetrics: null,
+    })
+  })
+
+  it('creates repeatable one-shot map focus requests from the explicit maneuver role', () => {
+    const primaryEvent = {
+      activityRole: 'primary',
+      centerTimeMs: 123,
+    } as DisplayManeuver
+    const comparisonEvent = {
+      activityRole: 'comparison',
+      centerTimeMs: 456,
+    } as DisplayManeuver
+
+    expect(createTimelineManeuverNavigation(primaryEvent, 1)).toEqual({
+      playbackTime: 123,
+      focusRequest: {
+        activityRole: 'primary',
+        requestId: 1,
+      },
+    })
+    expect(createTimelineManeuverNavigation(comparisonEvent, 2)).toEqual({
+      playbackTime: 456,
+      focusRequest: {
+        activityRole: 'comparison',
+        requestId: 2,
+      },
+    })
+    expect(createTimelineManeuverNavigation(comparisonEvent, 3)).toEqual({
+      playbackTime: 456,
+      focusRequest: {
+        activityRole: 'comparison',
+        requestId: 3,
+      },
     })
   })
 })

@@ -20,7 +20,10 @@ import MetricSelector from '../components/MetricSelector'
 import ManeuverEventTable, {
   type ManeuverPresentationStatus,
 } from '../components/ManeuverEventTable'
-import TrackMap from '../components/TrackMap'
+import TrackMap, {
+  createMapFitContextKey,
+  type MapFocusRequest,
+} from '../components/TrackMap'
 import type { SailingMetric, SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
@@ -45,7 +48,10 @@ import {
 import { calculateSummaryMetrics, type SummaryMetrics } from '../utils/summaryMetrics'
 import { formatActivityIdentity } from '../utils/activityLabel'
 import { formatSessionDuration, formatSessionRange } from '../utils/sessionPresentation'
-import { deriveDisplayManeuvers } from '../utils/maneuverEvents'
+import {
+  deriveDisplayManeuvers,
+  type DisplayManeuver,
+} from '../utils/maneuverEvents'
 
 type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
 
@@ -153,6 +159,19 @@ export function createAnalysisWindowSummaryMetrics(
   return {
     primaryMetrics,
     comparisonMetrics: hasComparison ? comparisonMetrics : null,
+  }
+}
+
+export function createTimelineManeuverNavigation(
+  event: DisplayManeuver,
+  requestId: number,
+): { playbackTime: number, focusRequest: MapFocusRequest } {
+  return {
+    playbackTime: event.centerTimeMs,
+    focusRequest: {
+      activityRole: event.activityRole,
+      requestId,
+    },
   }
 }
 
@@ -349,6 +368,8 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   )
   const [playbackTime, setPlaybackTime] = useState(windowStart ?? 0)
   const playbackTimeRef = useRef(playbackTime)
+  const mapFocusRequestIdRef = useRef(0)
+  const [mapFocusRequest, setMapFocusRequest] = useState<MapFocusRequest | null>(null)
   const analysisWindowRef = useRef(analysisWindow)
   const speedRef = useRef(speed)
   const primaryReplayPresentation = useMemo(
@@ -415,6 +436,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
           nextWindow.end,
         )
     setIsPlaying(false)
+    setMapFocusRequest(null)
     setAnalysisWindow(nextWindow)
     analysisWindowRef.current = nextWindow
     setPlaybackTime(nextPlaybackTime)
@@ -452,6 +474,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   function changePrimary(activityId: string | null) {
     if (!activityId) return
     setIsPlaying(false)
+    setMapFocusRequest(null)
     setPrimaryActivityId(activityId)
     if (activityId === comparisonActivityId) {
       setComparisonActivityId(null)
@@ -460,6 +483,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
 
   function changeComparison(activityId: string | null) {
     setIsPlaying(false)
+    setMapFocusRequest(null)
     setComparisonActivityId(
       activityId === primaryActivityId ? null : activityId,
     )
@@ -491,6 +515,16 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     setPlaybackTime(nextReplay.playbackTime)
   }
 
+  function selectTimelineManeuver(event: DisplayManeuver) {
+    mapFocusRequestIdRef.current += 1
+    const navigation = createTimelineManeuverNavigation(
+      event,
+      mapFocusRequestIdRef.current,
+    )
+    scrubTo(navigation.playbackTime)
+    setMapFocusRequest(navigation.focusRequest)
+  }
+
   function commitAnalysisWindowRange(requestedRange: AnalysisWindowRange) {
     if (availableRange === null) return
     const nextTimeline = commitSessionTimelineWindow(
@@ -501,6 +535,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     if (nextTimeline === null) return
 
     setIsPlaying(nextTimeline.isPlaying)
+    setMapFocusRequest(null)
     setAnalysisWindow(nextTimeline.analysisWindow)
     analysisWindowRef.current = nextTimeline.analysisWindow
     playbackTimeRef.current = nextTimeline.playbackTime
@@ -588,7 +623,13 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         <TrackMap
           primaryVisibleSamples={primaryWindowSamples}
           comparisonVisibleSamples={comparisonWindowSamples}
-          fitActivityKey={`${primaryTrack.activity_id}:${comparisonTrack?.activity_id ?? ''}`}
+          fitContextKey={createMapFitContextKey(
+            primaryTrack.activity_id,
+            comparisonTrack?.activity_id ?? null,
+            windowStart,
+            windowEnd,
+          )}
+          focusRequest={mapFocusRequest}
           primaryBoatPosition={primaryReplayPresentation.position}
           comparisonBoatPosition={comparisonReplayPresentation.position}
           hasComparison={comparisonTrack !== null}
@@ -636,7 +677,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
           setSpeed,
         )}
         onRangeChange={commitAnalysisWindowRange}
-        onManeuverSelect={scrubTo}
+        onManeuverSelect={selectTimelineManeuver}
       />
       {analysisWindow !== null && (
         <ManeuverEventTable

@@ -407,7 +407,7 @@ describe('Analysis Window SOG timeline', () => {
     marker.props.onClick({ stopPropagation })
 
     expect(stopPropagation).toHaveBeenCalledOnce()
-    expect(onSelect).toHaveBeenCalledWith(event.centerTimeMs)
+    expect(onSelect).toHaveBeenCalledWith(event)
     expect(marker.props).not.toHaveProperty('onPointerDown')
   })
 
@@ -427,11 +427,11 @@ describe('Analysis Window SOG timeline', () => {
     expect(shouldCaptureAnalysisWindowPointer(true, 100, 106)).toBe(true)
     expect(shouldCaptureAnalysisWindowPointer(false, 100, 100)).toBe(true)
 
-    selectManeuverAfterPointerGesture(event.centerTimeMs, true, onSelect)
+    selectManeuverAfterPointerGesture(event, true, onSelect)
     expect(onSelect).not.toHaveBeenCalled()
 
-    selectManeuverAfterPointerGesture(event.centerTimeMs, false, onSelect)
-    expect(onSelect).toHaveBeenCalledWith(event.centerTimeMs)
+    selectManeuverAfterPointerGesture(event, false, onSelect)
+    expect(onSelect).toHaveBeenCalledWith(event)
   })
 
   it('remains selectable when every displayed SOG value is missing', () => {

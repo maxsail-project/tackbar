@@ -55,7 +55,7 @@ interface AnalysisWindowProps {
   comparisonMetrics?: SummaryMetrics | null
   replay?: AnalysisWindowReplay | null
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
-  onManeuverSelect?: (centerTimeMs: number) => void
+  onManeuverSelect?: (event: DisplayManeuver) => void
 }
 
 export function formatAnalysisWindowDuration(durationMilliseconds: number) {
@@ -145,11 +145,11 @@ export function completeAnalysisWindowGesture(
 }
 
 export function selectManeuverAfterPointerGesture(
-  centerTimeMs: number,
+  event: DisplayManeuver,
   pointerGestureWasDrag: boolean,
-  onSelect: (centerTimeMs: number) => void,
+  onSelect: (event: DisplayManeuver) => void,
 ) {
-  if (!pointerGestureWasDrag) onSelect(centerTimeMs)
+  if (!pointerGestureWasDrag) onSelect(event)
 }
 
 export function resolveAnalysisWindowPointerTimestamp(
@@ -174,7 +174,7 @@ export function AnalysisWindowManeuverMarker({
 }: {
   event: DisplayManeuver
   position: number
-  onSelect: (centerTimeMs: number) => void
+  onSelect: (event: DisplayManeuver) => void
 }) {
   const roleLabel = event.activityRole === 'primary' ? 'P' : 'C'
   const className = [
@@ -198,7 +198,7 @@ export function AnalysisWindowManeuverMarker({
         className={className}
         onClick={(clickEvent) => {
           clickEvent.stopPropagation()
-          onSelect(event.centerTimeMs)
+          onSelect(event)
         }}
         aria-label={`Move replay to ${formatGpsTime(event.centerTimeMs)} UTC, Activity ${roleLabel}`}
       />
@@ -469,9 +469,9 @@ export default function AnalysisWindow({
                   key={`${event.activityRole}:${event.maneuver.start_time}:${event.maneuver.center_time}:${event.maneuver.end_time}`}
                   event={event}
                   position={positionPercent(event.centerTimeMs, analysisWindow)}
-                  onSelect={(centerTimeMs) => {
+                  onSelect={(selectedEvent) => {
                     selectManeuverAfterPointerGesture(
-                      centerTimeMs,
+                      selectedEvent,
                       completedGestureWasDragRef.current,
                       onManeuverSelect,
                     )

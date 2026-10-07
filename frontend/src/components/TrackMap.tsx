@@ -14,12 +14,23 @@ import {
   formatSignedDegreeValue,
 } from '../utils/metricPresentation'
 import { formatGpsTime, type TrackPosition } from '../utils/replay'
-import { buildTrackGeometry, combineTrackBounds } from '../utils/trackGeometry'
+import type { ManeuverActivityRole } from '../utils/maneuverEvents'
+import {
+  buildTrackGeometry,
+  combineTrackBounds,
+  type TrackBounds,
+} from '../utils/trackGeometry'
+
+export interface MapFocusRequest {
+  activityRole: ManeuverActivityRole
+  requestId: number
+}
 
 interface TrackMapProps {
   primaryVisibleSamples: TrackSample[]
   comparisonVisibleSamples?: TrackSample[]
-  fitActivityKey: string
+  fitContextKey: string
+  focusRequest?: MapFocusRequest | null
   primaryBoatPosition: TrackPosition | null
   comparisonBoatPosition?: TrackPosition | null
   hasComparison?: boolean
@@ -68,11 +79,48 @@ export function formatMapCogValue(cog: number | null) {
   return `${normalizedCog}°`
 }
 
-export function shouldRefitForActivityChange(
-  previousFitActivityKey: string | null,
-  fitActivityKey: string,
+export function createMapFitContextKey(
+  primaryActivityId: string,
+  comparisonActivityId: string | null,
+  windowStart: number | null,
+  windowEnd: number | null,
 ) {
-  return previousFitActivityKey !== fitActivityKey
+  return [
+    primaryActivityId,
+    comparisonActivityId ?? '',
+    windowStart ?? '',
+    windowEnd ?? '',
+  ].join(':')
+}
+
+export function shouldRefitForContextChange(
+  previousFitContextKey: string | null,
+  fitContextKey: string,
+) {
+  return previousFitContextKey !== fitContextKey
+}
+
+export function currentVisibleTrackBounds(
+  primaryBounds: TrackBounds | null,
+  comparisonBounds: TrackBounds | null,
+) {
+  const bounds = [primaryBounds, comparisonBounds]
+    .filter((candidate): candidate is TrackBounds => candidate !== null)
+  return bounds.length > 0 ? combineTrackBounds(bounds) : null
+}
+
+export function resolveMapFocusPosition(
+  focusRequest: MapFocusRequest,
+  primaryBoatPosition: TrackPosition | null,
+  comparisonBoatPosition: TrackPosition | null,
+) {
+  return focusRequest.activityRole === 'primary'
+    ? primaryBoatPosition
+    : comparisonBoatPosition
+}
+
+export function maneuverFocusCameraOptions(position: TrackPosition) {
+  return { center: [position.lon, position.lat] as [number, number] }
 }
 
 function BoatMarker({
@@ -101,7 +149,8 @@ function BoatMarker({
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
-  fitActivityKey,
+  fitContextKey,
+  focusRequest = null,
   primaryBoatPosition,
   comparisonBoatPosition = null,
   hasComparison = false,
@@ -116,7 +165,8 @@ export default function TrackMap({
   comparisonTrim = null,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
-  const fittedActivityKeyRef = useRef<string | null>(null)
+  const fittedContextKeyRef = useRef<string | null>(null)
+  const handledFocusRequestIdRef = useRef<number | null>(null)
   const primaryGeometry = useMemo(
     () => primaryVisibleSamples.length >= 2
       ? buildTrackGeometry(primaryVisibleSamples)
@@ -129,11 +179,13 @@ export default function TrackMap({
       : null,
     [comparisonVisibleSamples],
   )
-  const combinedBounds = useMemo(() => {
-    const bounds = [primaryGeometry?.bounds, comparisonGeometry?.bounds]
-      .filter((candidate) => candidate !== undefined)
-    return bounds.length > 0 ? combineTrackBounds(bounds) : null
-  }, [comparisonGeometry, primaryGeometry])
+  const combinedBounds = useMemo(
+    () => currentVisibleTrackBounds(
+      primaryGeometry?.bounds ?? null,
+      comparisonGeometry?.bounds ?? null,
+    ),
+    [comparisonGeometry, primaryGeometry],
+  )
   const windowFocus = primaryVisibleSamples[0]
   const fitTrack = useCallback(() => {
     if (!mapRef.current || !windowFocus) return
@@ -150,14 +202,32 @@ export default function TrackMap({
   }, [combinedBounds, windowFocus])
 
   useEffect(() => {
-    if (!shouldRefitForActivityChange(
-      fittedActivityKeyRef.current,
-      fitActivityKey,
+    if (!shouldRefitForContextChange(
+      fittedContextKeyRef.current,
+      fitContextKey,
     )) return
 
-    fittedActivityKeyRef.current = fitActivityKey
+    fittedContextKeyRef.current = fitContextKey
     fitTrack()
-  }, [fitActivityKey, fitTrack])
+  }, [fitContextKey, fitTrack])
+
+  useEffect(() => {
+    if (
+      focusRequest === null
+      || handledFocusRequestIdRef.current === focusRequest.requestId
+      || mapRef.current === null
+    ) return
+
+    handledFocusRequestIdRef.current = focusRequest.requestId
+    const focusPosition = resolveMapFocusPosition(
+      focusRequest,
+      primaryBoatPosition,
+      comparisonBoatPosition,
+    )
+    if (focusPosition === null) return
+
+    mapRef.current.easeTo(maneuverFocusCameraOptions(focusPosition))
+  }, [comparisonBoatPosition, focusRequest, primaryBoatPosition])
 
   if (!windowFocus) return null
 
