@@ -10,7 +10,7 @@ from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
 
 
-MANEUVER_ALGORITHM_VERSION = 3
+MANEUVER_ALGORITHM_VERSION = 4
 
 _MANEUVER_FIELDS = {
     "start_time",

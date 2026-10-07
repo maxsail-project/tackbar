@@ -15,16 +15,20 @@ SMOOTHING_HALF_WINDOW_SECONDS = 1.0
 TURN_RATE_HALF_WINDOW_SECONDS = 1.0
 CANDIDATE_SEED_TURN_RATE_DEG_S = 4.0
 CANDIDATE_CONTINUATION_TURN_RATE_DEG_S = 0.5
-MAX_CANDIDATE_INTERRUPTION_SECONDS = 1.5
+MAX_CANDIDATE_INTERRUPTION_SECONDS = 3.0
+MAX_STABLE_INTERRUPTION_SECONDS = 1.5
 STABLE_TURN_RATE_DEG_S = 3.0
 SUPPORT_CONTEXT_SECONDS = 2.0
-MIN_HEADING_CHANGE_DEG = 45.0
+MIN_HEADING_CHANGE_DEG = 30.0
+MIN_CORRECTED_CORE_HEADING_CHANGE_DEG = 35.0
+STANDARD_HEADING_CHANGE_DEG = 45.0
 MIN_MANEUVER_DURATION_SECONDS = 3.0
 MAX_MANEUVER_DURATION_SECONDS = 30.0
 MAX_SAMPLE_GAP_SECONDS = 1.5
 MIN_VALID_HDG_SAMPLES = 20
 MIN_DIRECTION_COHERENCE = 0.55
 SUPPORTED_DIRECTION_COHERENCE = 0.60
+MULTISENSOR_DIRECTION_COHERENCE = 0.65
 STRONG_DIRECTION_COHERENCE = 0.80
 STRONG_HEADING_CHANGE_DEG = 60.0
 STRONG_PEAK_TURN_RATE_DEG_S = 8.0
@@ -34,6 +38,7 @@ MIN_DIRECTIONAL_ROTATION_SAMPLES = 4
 MAX_ADJACENT_HEADING_CHANGE_DEG = 90.0
 MIN_COG_SUPPORT_CHANGE_DEG = 20.0
 MIN_COG_SUPPORT_COHERENCE = 0.35
+MIN_MULTISENSOR_COG_COHERENCE = 0.30
 MIN_COG_SUPPORT_SAMPLES = 5
 MIN_HEEL_EXCURSION_DEG = 5.0
 MIN_HEEL_TRANSITION_DEG = 3.0
@@ -80,6 +85,7 @@ class TurnRateSample:
     cog: float | None
     heel: float | None
     sog: float | None
+    trim: float | None
 
 
 @dataclass(frozen=True)
@@ -91,8 +97,10 @@ class ManeuverCandidateAssessment:
     end_time: str
     heading_change_deg: float
     directional_coherence: float
+    candidate_directional_coherence: float
     peak_turn_rate_deg_s: float
     cog_change_deg: float | None
+    cog_directional_coherence: float | None
     cog_support: bool
     heel_excursion_deg: float | None
     heel_transition_deg: float | None
@@ -100,15 +108,19 @@ class ManeuverCandidateAssessment:
     sog_local_range_knots: float | None
     sog_transition_knots: float | None
     sog_support: bool
+    trim_excursion_deg: float | None
+    trim_transition_deg: float | None
     prior_stability_support: bool
     accepted: bool
     reason: str
+    acceptance_rule: str | None
 
 
 RawSegmentSample = tuple[
     float,
     str,
     float,
+    float | None,
     float | None,
     float | None,
     float | None,
@@ -203,16 +215,18 @@ def _valid_heading_segments(
     cogs = _optional_numbers(track, "cog")
     heels = _optional_numbers(track, "heel")
     sogs = _optional_numbers(track, "sog")
+    trims = _optional_numbers(track, "trim")
     segments: list[list[RawSegmentSample]] = []
     current: list[RawSegmentSample] = []
     valid_heading_count = 0
 
-    for timestamp, heading, cog, heel, sog in zip(
+    for timestamp, heading, cog, heel, sog, trim in zip(
         timestamps,
         headings,
         cogs,
         heels,
         sogs,
+        trims,
     ):
         if pd.isna(timestamp) or pd.isna(heading) or not isfinite(float(heading)):
             if current:
@@ -235,6 +249,7 @@ def _valid_heading_segments(
             _optional_finite(cog),
             _optional_finite(heel),
             _optional_finite(sog),
+            _optional_finite(trim),
         ))
         valid_heading_count += 1
 
@@ -252,6 +267,7 @@ def _calculate_segment_turn_rates(
     cogs = [sample[3] for sample in segment]
     heels = [sample[4] for sample in segment]
     sogs = [sample[5] for sample in segment]
+    trims = [sample[6] for sample in segment]
     sine_prefix = [0.0]
     cosine_prefix = [0.0]
     time_prefix = [0.0]
@@ -304,8 +320,18 @@ def _calculate_segment_turn_rates(
             ) / duration
 
     return [
-        TurnRateSample(timestamp, time, raw_heading, heading, rate, cog, heel, sog)
-        for timestamp, time, raw_heading, heading, rate, cog, heel, sog in zip(
+        TurnRateSample(
+            timestamp,
+            time,
+            raw_heading,
+            heading,
+            rate,
+            cog,
+            heel,
+            sog,
+            trim,
+        )
+        for timestamp, time, raw_heading, heading, rate, cog, heel, sog, trim in zip(
             timestamps,
             times,
             headings,
@@ -314,6 +340,7 @@ def _calculate_segment_turn_rates(
             cogs,
             heels,
             sogs,
+            trims,
         )
     ]
 
@@ -345,23 +372,35 @@ def _detect_segment_maneuvers(
 
         end_index = index
         last_directional_index = index
+        stable_start_time: float | None = None
         probe_index = index + 1
         while probe_index < len(samples):
             probe_rate = samples[probe_index].turn_rate_deg_s
             if probe_rate is None:
                 break
-            if (
+            if abs(probe_rate) <= CANDIDATE_CONTINUATION_TURN_RATE_DEG_S:
+                if stable_start_time is None:
+                    stable_start_time = samples[probe_index].elapsed_seconds
+                elif (
+                    samples[probe_index].elapsed_seconds - stable_start_time
+                    >= MAX_STABLE_INTERRUPTION_SECONDS
+                ):
+                    break
+            elif (
                 probe_rate * direction
                 >= CANDIDATE_CONTINUATION_TURN_RATE_DEG_S
             ):
                 end_index = probe_index
                 last_directional_index = probe_index
+                stable_start_time = None
             elif (
                 samples[probe_index].elapsed_seconds
                 - samples[last_directional_index].elapsed_seconds
                 > MAX_CANDIDATE_INTERRUPTION_SECONDS
             ):
                 break
+            else:
+                stable_start_time = None
             probe_index += 1
 
         if end_index > start_index:
@@ -369,6 +408,7 @@ def _detect_segment_maneuvers(
                 samples,
                 start_index,
                 end_index,
+                direction,
             )
             assessments.append(assessment)
             if maneuver is not None:
@@ -464,11 +504,109 @@ def _center_index_for_rotation(
     return center_index
 
 
+def _directional_core_bounds(
+    samples: list[TurnRateSample],
+    candidate_start_index: int,
+    candidate_end_index: int,
+    direction: int,
+) -> tuple[int, int]:
+    """Return the dominant coherent rotation inside one candidate region."""
+    deltas = [
+        signed_angular_difference(first.smoothed_heading, second.smoothed_heading)
+        for first, second in zip(
+            samples[candidate_start_index:candidate_end_index],
+            samples[candidate_start_index + 1:candidate_end_index + 1],
+        )
+    ]
+    candidate_duration = (
+        samples[candidate_end_index].elapsed_seconds
+        - samples[candidate_start_index].elapsed_seconds
+    )
+    continuously_directional = all(
+        sample.turn_rate_deg_s is not None
+        and sample.turn_rate_deg_s * direction
+        >= CANDIDATE_CONTINUATION_TURN_RATE_DEG_S
+        for sample in samples[candidate_start_index:candidate_end_index + 1]
+    )
+    if (
+        candidate_duration > MAX_MANEUVER_DURATION_SECONDS
+        and continuously_directional
+    ):
+        return candidate_start_index, candidate_end_index
+
+    signed_prefix = [0.0]
+    absolute_prefix = [0.0]
+    for delta in deltas:
+        signed_prefix.append(signed_prefix[-1] + delta)
+        absolute_prefix.append(absolute_prefix[-1] + abs(delta))
+
+    best_bounds: tuple[int, int] | None = None
+    best_score: tuple[float, float, float, int] | None = None
+    for start_offset in range(len(deltas)):
+        core_start_index = candidate_start_index + start_offset
+        for end_offset in range(start_offset + 1, len(deltas) + 1):
+            core_end_index = candidate_start_index + end_offset
+            duration = (
+                samples[core_end_index].elapsed_seconds
+                - samples[core_start_index].elapsed_seconds
+            )
+            if duration < MIN_MANEUVER_DURATION_SECONDS:
+                continue
+            if duration > MAX_MANEUVER_DURATION_SECONDS:
+                break
+
+            heading_change = (
+                signed_prefix[end_offset] - signed_prefix[start_offset]
+            )
+            if heading_change * direction <= 0:
+                continue
+            total_rotation = (
+                absolute_prefix[end_offset] - absolute_prefix[start_offset]
+            )
+            if total_rotation == 0:
+                continue
+            coherence = abs(heading_change) / total_rotation
+            if coherence < MIN_DIRECTION_COHERENCE:
+                continue
+
+            score = (
+                abs(heading_change),
+                coherence,
+                -duration,
+                -core_start_index,
+            )
+            if best_score is None or score > best_score:
+                best_score = score
+                best_bounds = core_start_index, core_end_index
+
+    return best_bounds or (candidate_start_index, candidate_end_index)
+
+
 def _assess_candidate(
     samples: list[TurnRateSample],
-    start_index: int,
-    end_index: int,
+    candidate_start_index: int,
+    candidate_end_index: int,
+    direction: int,
 ) -> tuple[Maneuver | None, ManeuverCandidateAssessment]:
+    candidate_deltas = [
+        signed_angular_difference(first.smoothed_heading, second.smoothed_heading)
+        for first, second in zip(
+            samples[candidate_start_index:candidate_end_index],
+            samples[candidate_start_index + 1:candidate_end_index + 1],
+        )
+    ]
+    candidate_change = sum(candidate_deltas)
+    candidate_rotation = sum(abs(delta) for delta in candidate_deltas)
+    candidate_coherence = (
+        abs(candidate_change) / candidate_rotation
+        if candidate_rotation else 0.0
+    )
+    start_index, end_index = _directional_core_bounds(
+        samples,
+        candidate_start_index,
+        candidate_end_index,
+        direction,
+    )
     duration = (
         samples[end_index].elapsed_seconds
         - samples[start_index].elapsed_seconds
@@ -499,7 +637,6 @@ def _assess_candidate(
             samples[start_index + 1:end_index + 1],
         )
     ]
-    direction = 1 if heading_change > 0 else -1
     directional_samples = sum(
         delta * direction >= 1.0 for delta in raw_deltas
     )
@@ -514,12 +651,12 @@ def _assess_candidate(
         for first, second in zip(cog_values, cog_values[1:])
     )
     cog_values_present = cog_sample_count > 0
-    cog_support = (
+    cog_agreement = (
         cog_sample_count >= MIN_COG_SUPPORT_SAMPLES
         and cog_pair_count >= MIN_COG_SUPPORT_SAMPLES - 1
         and cog_change * direction >= MIN_COG_SUPPORT_CHANGE_DEG
-        and cog_coherence >= MIN_COG_SUPPORT_COHERENCE
     )
+    cog_support = cog_agreement and cog_coherence >= MIN_COG_SUPPORT_COHERENCE
 
     start_time = samples[start_index].elapsed_seconds
     end_time = samples[end_index].elapsed_seconds
@@ -586,6 +723,24 @@ def _assess_candidate(
         )
     )
 
+    trim_values = _context_values(
+        samples,
+        start_time - SUPPORT_CONTEXT_SECONDS,
+        end_time + SUPPORT_CONTEXT_SECONDS,
+        "trim",
+    )
+    trim_bounds = _robust_bounds(trim_values)
+    trim_excursion = (
+        trim_bounds[1] - trim_bounds[0]
+        if trim_bounds is not None else None
+    )
+    trim_transition = _transition_magnitude(
+        samples,
+        start_index,
+        end_index,
+        "trim",
+    )
+
     prior_rates = [
         abs(sample.turn_rate_deg_s)
         for sample in samples
@@ -604,6 +759,7 @@ def _assess_candidate(
     ))
 
     reason = "accepted"
+    acceptance_rule: str | None = None
     if not MIN_MANEUVER_DURATION_SECONDS <= duration <= MAX_MANEUVER_DURATION_SECONDS:
         reason = "duration"
     elif abs(heading_change) < MIN_HEADING_CHANGE_DEG:
@@ -617,6 +773,18 @@ def _assess_candidate(
     elif not start_index < center_index < end_index:
         reason = "center_time"
     else:
+        multisensor_direction = (
+            abs(heading_change) < STANDARD_HEADING_CHANGE_DEG
+            and (
+                coherence >= MULTISENSOR_DIRECTION_COHERENCE
+                or abs(heading_change) >= MIN_CORRECTED_CORE_HEADING_CHANGE_DEG
+            )
+            and peak_rate >= STRONG_PEAK_TURN_RATE_DEG_S
+            and cog_agreement
+            and cog_coherence >= MIN_MULTISENSOR_COG_COHERENCE
+            and heel_support
+            and sog_support
+        )
         very_strong_direction = (
             abs(heading_change) >= VERY_STRONG_HEADING_CHANGE_DEG
             and coherence >= VERY_STRONG_DIRECTION_COHERENCE
@@ -632,12 +800,30 @@ def _assess_candidate(
             and support_count >= 2
         )
         relaxed_direction = support_count >= 3
-        if not (
-            very_strong_direction
-            or (strong_direction and support_count >= 1)
-            or supported_direction
-            or relaxed_direction
+        if multisensor_direction:
+            acceptance_rule = "multisensor_direction"
+        elif (
+            abs(heading_change) >= STANDARD_HEADING_CHANGE_DEG
+            and very_strong_direction
         ):
+            acceptance_rule = "very_strong_direction"
+        elif (
+            abs(heading_change) >= STANDARD_HEADING_CHANGE_DEG
+            and strong_direction
+            and support_count >= 1
+        ):
+            acceptance_rule = "strong_direction_with_support"
+        elif (
+            abs(heading_change) >= STANDARD_HEADING_CHANGE_DEG
+            and supported_direction
+        ):
+            acceptance_rule = "supported_direction"
+        elif (
+            abs(heading_change) >= STANDARD_HEADING_CHANGE_DEG
+            and relaxed_direction
+        ):
+            acceptance_rule = "combined_support"
+        else:
             reason = "insufficient_support"
 
     accepted = reason == "accepted"
@@ -647,8 +833,12 @@ def _assess_candidate(
         end_time=samples[end_index].timestamp,
         heading_change_deg=round(heading_change, 3),
         directional_coherence=round(coherence, 3),
+        candidate_directional_coherence=round(candidate_coherence, 3),
         peak_turn_rate_deg_s=round(peak_rate, 3),
         cog_change_deg=round(cog_change, 3) if cog_values_present else None,
+        cog_directional_coherence=(
+            round(cog_coherence, 3) if cog_values_present else None
+        ),
         cog_support=cog_support,
         heel_excursion_deg=(
             round(heel_excursion, 3) if heel_excursion is not None else None
@@ -664,9 +854,16 @@ def _assess_candidate(
             round(sog_transition, 3) if sog_transition is not None else None
         ),
         sog_support=sog_support,
+        trim_excursion_deg=(
+            round(trim_excursion, 3) if trim_excursion is not None else None
+        ),
+        trim_transition_deg=(
+            round(trim_transition, 3) if trim_transition is not None else None
+        ),
         prior_stability_support=prior_stability_support,
         accepted=accepted,
         reason=reason,
+        acceptance_rule=acceptance_rule,
     )
     if not accepted:
         return None, assessment

@@ -24,6 +24,7 @@ def _track(
     heel: float | None = None,
     cog: float | None = None,
     sog: float | None = None,
+    trim: float | None = None,
 ) -> pd.DataFrame:
     start = datetime(2031, 1, 1, 10, 0, tzinfo=timezone.utc)
     elapsed = 0.0
@@ -38,6 +39,7 @@ def _track(
                 "heel": heel,
                 "cog": cog,
                 "sog": sog,
+                "trim": trim,
             })
             elapsed += step_seconds
             heading += rate * step_seconds
@@ -47,6 +49,7 @@ def _track(
         "heel": heel,
         "cog": cog,
         "sog": sog,
+        "trim": trim,
     })
     return pd.DataFrame(rows)
 
@@ -211,6 +214,83 @@ def test_candidate_below_old_coherence_threshold_survives_strong_support() -> No
     assert accepted[0].sog_support
 
 
+def test_directional_core_ignores_irrelevant_correction() -> None:
+    track = _with_multisensor_support(
+        _track([(5, 0), (2, 12), (2, -20), (6, 10), (5, 0)])
+    )
+
+    accepted = [
+        item for item in analyze_maneuver_candidates(track)
+        if item.accepted
+    ]
+
+    assert len(accepted) == 1
+    assert accepted[0].candidate_directional_coherence < 0.55
+    assert accepted[0].directional_coherence > 0.9
+    assert accepted[0].heading_change_deg >= 45
+
+
+def test_sub_forty_five_degree_core_requires_full_multisensor_support() -> None:
+    supported = _with_multisensor_support(
+        _track([(5, 0), (4, 9), (5, 0)])
+    )
+    unsupported = _track([(5, 0), (4, 9), (5, 0)])
+
+    accepted = next(
+        item for item in analyze_maneuver_candidates(supported)
+        if item.accepted
+    )
+
+    assert 30 <= abs(accepted.heading_change_deg) < 45
+    assert accepted.acceptance_rule == "multisensor_direction"
+    assert detect_maneuvers(unsupported).maneuvers == ()
+
+
+def test_directional_core_does_not_bridge_a_material_stable_pause() -> None:
+    track = _track([
+        (5, 0),
+        (7, 10),
+        (4.5, 0),
+        (7, 10),
+        (5, 0),
+    ])
+
+    maneuvers = detect_maneuvers(track).maneuvers
+
+    assert len(maneuvers) == 2
+    assert all(60 <= maneuver.heading_change_deg <= 80 for maneuver in maneuvers)
+    assert maneuvers[0].end_time < maneuvers[1].start_time
+
+
+def test_subthreshold_turns_do_not_merge_across_a_stable_pause() -> None:
+    track = _with_multisensor_support(_track([
+        (5, 0),
+        (3, 8),
+        (4.5, 0),
+        (3, 8),
+        (5, 0),
+    ]))
+
+    assert detect_maneuvers(track).maneuvers == ()
+
+
+def test_low_coherence_cog_cannot_unlock_a_small_directional_core() -> None:
+    track = _with_multisensor_support(
+        _track([(5, 0), (4, 9), (5, 0)])
+    )
+    track["cog"] = [0.0 if index % 2 == 0 else 100.0 for index in range(len(track))]
+
+    relevant = max(
+        analyze_maneuver_candidates(track),
+        key=lambda item: abs(item.heading_change_deg),
+    )
+
+    assert relevant.cog_directional_coherence is not None
+    assert relevant.cog_directional_coherence < 0.3
+    assert not relevant.cog_support
+    assert not relevant.accepted
+
+
 def test_heel_supports_direction_but_cannot_create_a_maneuver() -> None:
     supported = _with_multisensor_support(_track([(5, 0), (7, 10), (5, 0)]))
     heel_only = _with_multisensor_support(_track([(17, 0)]))
@@ -260,6 +340,24 @@ def test_sog_loss_and_acceleration_are_both_compatible_support(
 
     assert assessment.sog_support
     assert len(detect_maneuvers(track).maneuvers) == 1
+
+
+def test_sog_loss_and_recovery_supports_an_event() -> None:
+    track = _with_multisensor_support(_track([(5, 0), (7, 10), (5, 0)]))
+    midpoint = len(track) // 2
+    track["sog"] = [
+        7.0 - 3.0 * index / midpoint
+        if index <= midpoint
+        else 4.0 + 3.0 * (index - midpoint) / (len(track) - 1 - midpoint)
+        for index in range(len(track))
+    ]
+
+    accepted = next(
+        item for item in analyze_maneuver_candidates(track)
+        if item.accepted
+    )
+
+    assert accepted.sog_support
 
 
 def test_stable_sog_does_not_veto_a_strong_directional_maneuver() -> None:
@@ -374,6 +472,29 @@ def test_two_isolated_cog_samples_do_not_create_support() -> None:
     assert not relevant.accepted
 
 
+def test_trim_is_diagnostic_only_and_missing_trim_does_not_matter() -> None:
+    without_trim = _track([(5, 0), (7, 15), (5, 0)])
+    with_trim = without_trim.copy()
+    with_trim["trim"] = [
+        -12.0 + 24.0 * index / (len(with_trim) - 1)
+        for index in range(len(with_trim))
+    ]
+    trim_only = _track([(17, 0)])
+    trim_only["trim"] = with_trim["trim"]
+
+    without_result = detect_maneuvers(without_trim)
+    with_result = detect_maneuvers(with_trim)
+    assessment = next(
+        item for item in analyze_maneuver_candidates(with_trim)
+        if item.accepted
+    )
+
+    assert without_result.maneuvers == with_result.maneuvers
+    assert assessment.trim_excursion_deg is not None
+    assert assessment.trim_excursion_deg > 0
+    assert detect_maneuvers(trim_only).maneuvers == ()
+
+
 def test_center_time_uses_heading_midpoint_not_temporal_midpoint() -> None:
     track = _track([(5, 0), (2, 30), (8, 5), (5, 0)])
 
@@ -480,3 +601,11 @@ def test_detected_maneuvers_do_not_overlap() -> None:
             maneuver.center_time,
             maneuver.end_time,
         } <= timestamps
+
+
+def test_detection_is_deterministic() -> None:
+    track = _with_multisensor_support(
+        _track([(5, 0), (2, 12), (2, -20), (6, 10), (5, 0)])
+    )
+
+    assert detect_maneuvers(track) == detect_maneuvers(track.copy())

@@ -51,7 +51,7 @@ def test_generates_available_artifact_without_mutating_canonical_track(
         temporary_directory / "analytics" / f"{ACTIVITY_ID}.maneuvers.json"
     )
     assert artifact["activity_id"] == ACTIVITY_ID
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 3
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 4
     assert artifact["track_sha256"] == hashlib.sha256(canonical_before).hexdigest()
     assert artifact["status"] == "available"
     assert len(artifact["maneuvers"]) == 1
@@ -124,7 +124,7 @@ def test_missing_artifact_is_generated_and_persisted(
     assert analytics.read(ACTIVITY_ID) == artifact
 
 
-def test_version_two_artifact_is_regenerated_for_signature_v3(
+def test_version_three_artifact_is_regenerated_for_signature_v4(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -133,7 +133,7 @@ def test_version_two_artifact_is_regenerated_for_signature_v3(
     tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
     stale = generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
     expected_track_sha = stale["track_sha256"]
-    stale["algorithm_version"] = 2
+    stale["algorithm_version"] = 3
     analytics.write(ACTIVITY_ID, stale)
 
     detector_calls = 0
@@ -155,7 +155,7 @@ def test_version_two_artifact_is_regenerated_for_signature_v3(
         analytics,
     )
 
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 3
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 4
     assert artifact["track_sha256"] == expected_track_sha
     assert detector_calls == 1
     assert analytics.read(ACTIVITY_ID) == artifact
