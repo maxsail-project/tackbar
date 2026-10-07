@@ -2,8 +2,10 @@ import TackBarBrand from '../components/TackBarBrand'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
+  ActivityManeuverAnalyticsNotFoundError,
   ActivityTrackNotFoundError,
   getSharedActivityTrack,
+  getSharedActivityManeuvers,
   getSharedSession,
   SessionNotFoundError,
 } from '../api/tackbarApi'
@@ -13,10 +15,14 @@ import ComparisonTable from '../components/ComparisonTable'
 import IndividualAnalysis from '../components/IndividualAnalysis'
 import MetricChart from '../components/MetricChart'
 import MetricSelector from '../components/MetricSelector'
+import ManeuverEventTable, {
+  type ManeuverPresentationStatus,
+} from '../components/ManeuverEventTable'
 import ReplayControls from '../components/ReplayControls'
 import TrackMap from '../components/TrackMap'
 import type { SailingMetric, SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
+import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import {
   commitSessionTimelineWindow,
   createFullAnalysisWindow,
@@ -30,6 +36,7 @@ import {
 import {
   advancePlaybackTime,
   clampPlaybackTime,
+  selectReplayTime,
   timestampToMilliseconds,
   type PlaybackSpeed,
 } from '../utils/replay'
@@ -39,6 +46,7 @@ import {
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
 import { formatActivityIdentity } from '../utils/activityLabel'
 import { formatSessionDuration, formatSessionRange } from '../utils/sessionPresentation'
+import { deriveDisplayManeuvers } from '../utils/maneuverEvents'
 
 type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
 
@@ -101,6 +109,86 @@ function useActivityTrack(
   return state
 }
 
+type ManeuverLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
+
+interface ManeuverLoadState {
+  activityId: string | null
+  status: ManeuverLoadStatus
+  analytics: ActivityManeuverAnalytics | null
+}
+
+function useActivityManeuvers(
+  token: string,
+  activityId: string | null,
+  cache: Map<string, ActivityManeuverAnalytics>,
+): ManeuverLoadState {
+  const [state, setState] = useState<ManeuverLoadState>({
+    activityId: null,
+    status: 'idle',
+    analytics: null,
+  })
+
+  useEffect(() => {
+    if (activityId === null) {
+      setState({ activityId: null, status: 'idle', analytics: null })
+      return
+    }
+
+    const cachedAnalytics = cache.get(activityId)
+    if (cachedAnalytics) {
+      setState({ activityId, status: 'ready', analytics: cachedAnalytics })
+      return
+    }
+
+    const controller = new AbortController()
+    let isCurrent = true
+    setState({ activityId, status: 'loading', analytics: null })
+
+    getSharedActivityManeuvers(token, activityId, controller.signal).then((analytics) => {
+      if (!isCurrent) return
+      if (analytics.activity_id !== activityId) {
+        setState({ activityId, status: 'error', analytics: null })
+        return
+      }
+      cache.set(activityId, analytics)
+      setState({ activityId, status: 'ready', analytics })
+    }).catch((error: unknown) => {
+      if (!isCurrent || (error instanceof DOMException && error.name === 'AbortError')) return
+      setState({
+        activityId,
+        status: error instanceof ActivityManeuverAnalyticsNotFoundError
+          ? 'not-found'
+          : 'error',
+        analytics: null,
+      })
+    })
+
+    return () => {
+      isCurrent = false
+      controller.abort()
+    }
+  }, [activityId, cache, token])
+
+  return state
+}
+
+function maneuverPresentationStatus(
+  state: ManeuverLoadState,
+  selectedActivityId: string | null,
+): ManeuverPresentationStatus {
+  if (
+    selectedActivityId !== null
+    && (
+      state.activityId !== selectedActivityId
+      || state.status === 'loading'
+      || state.status === 'idle'
+    )
+  ) return 'loading'
+
+  if (state.status !== 'ready' || state.analytics === null) return 'error'
+  return state.analytics.status
+}
+
 function activityTrackRange(track: ActivityTrack | null) {
   if (!track || track.samples.length === 0) return null
   return createFullAnalysisWindow(
@@ -118,6 +206,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   const [isPlaying, setIsPlaying] = useState(false)
   const [speed, setSpeed] = useState<PlaybackSpeed>(1)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
+  const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
 
   const primaryActivity = session.activities.find(
     (activity) => activity.id === primaryActivityId,
@@ -130,6 +219,16 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   )
   const primaryTrackState = useActivityTrack(token, primaryActivityId || null, trackCache)
   const comparisonTrackState = useActivityTrack(token, comparisonActivityId, trackCache)
+  const primaryManeuverState = useActivityManeuvers(
+    token,
+    primaryActivityId || null,
+    maneuverCache,
+  )
+  const comparisonManeuverState = useActivityManeuvers(
+    token,
+    comparisonActivityId,
+    maneuverCache,
+  )
   const primaryTrack = primaryTrackState.activityId === primaryActivityId
     && primaryTrackState.status === 'ready'
     ? primaryTrackState.track
@@ -227,6 +326,20 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     ),
     [comparisonWindowSamples, playbackTime],
   )
+  const displayManeuvers = useMemo(
+    () => analysisWindow === null
+      ? []
+      : deriveDisplayManeuvers(
+          primaryManeuverState.status === 'ready'
+            ? primaryManeuverState.analytics
+            : null,
+          comparisonManeuverState.status === 'ready'
+            ? comparisonManeuverState.analytics
+            : null,
+          analysisWindow,
+        ),
+    [analysisWindow, comparisonManeuverState, primaryManeuverState],
+  )
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
@@ -315,14 +428,14 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
 
   function scrubTo(nextPlaybackTime: number) {
     if (windowStart === null || windowEnd === null) return
-    const clampedTime = clampPlaybackTime(
+    const nextReplay = selectReplayTime(
       nextPlaybackTime,
       windowStart,
       windowEnd,
     )
-    setIsPlaying(false)
-    playbackTimeRef.current = clampedTime
-    setPlaybackTime(clampedTime)
+    setIsPlaying(nextReplay.isPlaying)
+    playbackTimeRef.current = nextReplay.playbackTime
+    setPlaybackTime(nextReplay.playbackTime)
   }
 
   function commitAnalysisWindowRange(requestedRange: AnalysisWindowRange) {
@@ -482,6 +595,22 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
           onScrub={scrubTo}
           onScrubStart={() => setIsPlaying(false)}
           onSpeedChange={setSpeed}
+        />
+      )}
+      {analysisWindow !== null && (
+        <ManeuverEventTable
+          events={displayManeuvers}
+          primaryStatus={maneuverPresentationStatus(
+            primaryManeuverState,
+            primaryActivityId || null,
+          )}
+          comparisonStatus={comparisonActivityId === null
+            ? undefined
+            : maneuverPresentationStatus(
+                comparisonManeuverState,
+                comparisonActivityId,
+              )}
+          onSelect={scrubTo}
         />
       )}
       <ComparisonTable

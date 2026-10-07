@@ -2,6 +2,7 @@ import type { PersonalTackBar } from '../types/personal'
 import type { SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import type { PublicConsent } from '../types/consent'
+import type { ActivityManeuverAnalytics } from '../types/maneuver'
 
 export class TackBarApiError extends Error {
   readonly status: number | null
@@ -66,6 +67,13 @@ export class ActivityTrackNotFoundError extends TackBarApiError {
   }
 }
 
+export class ActivityManeuverAnalyticsNotFoundError extends TackBarApiError {
+  constructor() {
+    super('Activity maneuver analytics not found.', 404)
+    this.name = 'ActivityManeuverAnalyticsNotFoundError'
+  }
+}
+
 async function requestJson<T>(
   path: string,
   signal?: AbortSignal,
@@ -120,5 +128,17 @@ export function getSharedActivityTrack(
     `/api/shared/sessions/${encodeURIComponent(token)}/activities/${encodeURIComponent(activityId)}/track`,
     signal,
     () => new ActivityTrackNotFoundError(),
+  )
+}
+
+export function getSharedActivityManeuvers(
+  token: string,
+  activityId: string,
+  signal?: AbortSignal,
+) {
+  return requestJson<ActivityManeuverAnalytics>(
+    `/api/shared/sessions/${encodeURIComponent(token)}/activities/${encodeURIComponent(activityId)}/maneuvers`,
+    signal,
+    () => new ActivityManeuverAnalyticsNotFoundError(),
   )
 }

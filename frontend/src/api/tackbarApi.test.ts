@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   acceptConsentRequest,
+  ActivityManeuverAnalyticsNotFoundError,
   ActivityTrackNotFoundError,
   ConsentUnavailableError,
   getConsentRequest,
+  getSharedActivityManeuvers,
   getSharedActivityTrack,
   getSharedSession,
   SessionNotFoundError,
@@ -82,6 +84,48 @@ describe('TackBar Session API client', () => {
     await expect(getSharedActivityTrack('token', 'missing')).rejects.not.toBeInstanceOf(
       SessionNotFoundError,
     )
+  })
+
+  it('gets maneuver analytics through encoded capability and Activity ids', async () => {
+    const analytics = {
+      activity_id: 'activity/id',
+      status: 'available',
+      maneuvers: [],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(analytics), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getSharedActivityManeuvers('token/value', 'activity/id'),
+    ).resolves.toEqual(analytics)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/shared/sessions/token%2Fvalue/activities/activity%2Fid/maneuvers',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
+
+  it('controls a missing maneuver response independently of track loading', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+
+    await expect(
+      getSharedActivityManeuvers('token', 'missing'),
+    ).rejects.toBeInstanceOf(ActivityManeuverAnalyticsNotFoundError)
+    await expect(
+      getSharedActivityManeuvers('token', 'missing'),
+    ).rejects.not.toBeInstanceOf(ActivityTrackNotFoundError)
+  })
+
+  it('keeps a maneuver server failure local as a controlled API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 503 })))
+
+    await expect(
+      getSharedActivityManeuvers('token', 'activity'),
+    ).rejects.toMatchObject({
+      name: 'TackBarApiError',
+      status: 503,
+    })
   })
 
   it('reports other non-success responses as controlled API errors', async () => {

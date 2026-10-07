@@ -9,6 +9,7 @@ import {
   nearestSample,
   parsePlaybackSpeed,
   PLAYBACK_SPEEDS,
+  selectReplayTime,
   timestampToMilliseconds,
 } from './replay'
 
@@ -59,6 +60,19 @@ describe('playback clock', () => {
 
   it('formats playbackTime as GPS HH:MM:SS', () => {
     expect(formatGpsTime(start)).toBe('13:03:00')
+  })
+
+  it('selects a maneuver time on the shared clock, pauses, and preserves the window', () => {
+    const analysisWindow = { start, end }
+    const originalWindow = { ...analysisWindow }
+    const centerTime = start + 10_000
+
+    expect(selectReplayTime(
+      centerTime,
+      analysisWindow.start,
+      analysisWindow.end,
+    )).toEqual({ isPlaying: false, playbackTime: centerTime })
+    expect(analysisWindow).toEqual(originalWindow)
   })
 })
 

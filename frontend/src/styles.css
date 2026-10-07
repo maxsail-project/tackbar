@@ -729,6 +729,79 @@ input:focus-visible {
   font-weight: 700;
 }
 
+.maneuver-section {
+  padding-top: 16px;
+  padding-bottom: 18px;
+}
+
+.maneuver-statuses p,
+.maneuver-empty {
+  margin: 10px 0 0;
+  color: #526d74;
+  font-size: 0.82rem;
+}
+
+.maneuver-statuses:empty {
+  display: none;
+}
+
+.maneuver-event-table-wrap {
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid #d5e1e3;
+  border-radius: 10px;
+}
+
+.maneuver-event-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.maneuver-event-table th,
+.maneuver-event-table td {
+  padding: 8px 12px;
+  border-top: 1px solid #e4ecee;
+  text-align: left;
+}
+
+.maneuver-event-table th {
+  border-top: 0;
+  color: #536c73;
+  background: #f3f7f8;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.maneuver-event-table th:nth-child(2),
+.maneuver-event-table td:nth-child(2) {
+  width: 64px;
+}
+
+.maneuver-event-table__row {
+  cursor: pointer;
+}
+
+.maneuver-event-table__row:hover {
+  background: #f7fafb;
+}
+
+.maneuver-event-table__button {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  color: #17323a;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.maneuver-event-table__activity {
+  font-weight: 900;
+}
+
 .comparison-table-wrap {
   width: 100%;
   margin-top: 12px;

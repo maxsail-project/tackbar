@@ -35,6 +35,17 @@ export function clampPlaybackTime(
   return Math.min(Math.max(playbackTime, replayStart), replayEnd)
 }
 
+export function selectReplayTime(
+  requestedTime: number,
+  replayStart: number,
+  replayEnd: number,
+) {
+  return {
+    isPlaying: false as const,
+    playbackTime: clampPlaybackTime(requestedTime, replayStart, replayEnd),
+  }
+}
+
 export function advancePlaybackTime(
   playbackTime: number,
   realElapsedMilliseconds: number,
