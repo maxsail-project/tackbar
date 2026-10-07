@@ -73,6 +73,13 @@ class ManeuverResponse(BaseModel):
     heading_change_deg: float
     peak_turn_rate_deg_s: float
     peak_turn_rate_time: str
+    duration_s: float
+    sog_entry_kn: float | None = None
+    sog_min_kn: float | None = None
+    sog_exit_kn: float | None = None
+    recovery_time_s: float | None = None
+    speed_loss_distance_m: float | None = None
+    speed_loss_time_s: float | None = None
 
 
 class ActivityManeuverAnalyticsResponse(BaseModel):

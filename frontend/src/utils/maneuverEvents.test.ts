@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { ActivityManeuverAnalytics, Maneuver } from '../types/maneuver'
 import { timestampToMilliseconds } from './replay'
-import { deriveDisplayManeuvers, formatHeadingChange } from './maneuverEvents'
+import {
+  deriveDisplayManeuvers,
+  formatHeadingChange,
+  formatKnots,
+  formatMetres,
+  formatSeconds,
+} from './maneuverEvents'
 
 const windowStart = timestampToMilliseconds('2031-06-15T08:00:00Z')
 const windowEnd = timestampToMilliseconds('2031-06-15T08:10:00Z')
@@ -19,6 +25,13 @@ function maneuver(
     heading_change_deg: headingChange,
     peak_turn_rate_deg_s: 12,
     peak_turn_rate_time: centerTime,
+    duration_s: 0,
+    sog_entry_kn: null,
+    sog_min_kn: null,
+    sog_exit_kn: null,
+    recovery_time_s: null,
+    speed_loss_distance_m: null,
+    speed_loss_time_s: null,
   }
 }
 
@@ -109,5 +122,16 @@ describe('maneuver heading-change presentation', () => {
     [-0.1, '+0°'],
   ])('formats %s compactly as %s', (value, expected) => {
     expect(formatHeadingChange(value)).toBe(expected)
+  })
+})
+
+describe('maneuver debrief metric presentation', () => {
+  it('formats compact units and unavailable values', () => {
+    expect(formatSeconds(12.4)).toBe('12s')
+    expect(formatKnots(5.24)).toBe('5.2')
+    expect(formatMetres(8.6)).toBe('9')
+    expect(formatSeconds(null)).toBe('—')
+    expect(formatKnots(undefined)).toBe('—')
+    expect(formatMetres(null)).toBe('—')
   })
 })

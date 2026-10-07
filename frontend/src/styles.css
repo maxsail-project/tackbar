@@ -845,24 +845,25 @@ input:focus-visible {
 
 .maneuver-event-table-wrap {
   margin-top: 10px;
-  overflow: hidden;
+  overflow-x: auto;
   border: 1px solid #d5e1e3;
   border-radius: 10px;
 }
 
 .maneuver-event-table {
-  width: 100%;
+  width: max(100%, 760px);
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
 }
 
 .maneuver-event-table th,
 .maneuver-event-table td {
-  padding: 8px 12px;
+  padding: 8px 9px;
   border-top: 1px solid #e4ecee;
   text-align: left;
+  white-space: nowrap;
 }
 
 .maneuver-event-table th {
@@ -877,11 +878,6 @@ input:focus-visible {
   margin: -4px -7px;
   border-color: transparent;
   background: transparent;
-}
-
-.maneuver-event-table th:nth-child(2),
-.maneuver-event-table td:nth-child(2) {
-  width: 64px;
 }
 
 .maneuver-event-table__row {

@@ -5,12 +5,13 @@ from math import isfinite
 from typing import Any
 
 from app.analytics.maneuver_detector import detect_maneuvers
+from app.analytics.maneuver_metrics import calculate_maneuver_metrics
 from app.storage.activity_ids import canonical_activity_id
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
 
 
-MANEUVER_ALGORITHM_VERSION = 4
+MANEUVER_ALGORITHM_VERSION = 5
 
 _MANEUVER_FIELDS = {
     "start_time",
@@ -19,6 +20,21 @@ _MANEUVER_FIELDS = {
     "heading_change_deg",
     "peak_turn_rate_deg_s",
     "peak_turn_rate_time",
+    "duration_s",
+    "sog_entry_kn",
+    "sog_min_kn",
+    "sog_exit_kn",
+    "recovery_time_s",
+    "speed_loss_distance_m",
+    "speed_loss_time_s",
+}
+_OPTIONAL_METRIC_FIELDS = {
+    "sog_entry_kn",
+    "sog_min_kn",
+    "sog_exit_kn",
+    "recovery_time_s",
+    "speed_loss_distance_m",
+    "speed_loss_time_s",
 }
 _UNAVAILABLE_REASONS = {"missing_hdg", "insufficient_hdg"}
 
@@ -72,9 +88,8 @@ def _generate_maneuver_analytics(
     track_storage: TrackStorage,
     analytics_storage: ManeuverAnalyticsStorage,
 ) -> dict[str, Any]:
-    result = detect_maneuvers(
-        track_storage.read_normalized_track(activity_id)
-    )
+    track = track_storage.read_normalized_track(activity_id)
+    result = detect_maneuvers(track)
 
     artifact: dict[str, Any] = {
         "activity_id": activity_id,
@@ -84,9 +99,11 @@ def _generate_maneuver_analytics(
     }
     if result.reason is not None:
         artifact["reason"] = result.reason
-    artifact["maneuvers"] = [
-        maneuver.to_dict() for maneuver in result.maneuvers
-    ]
+    artifact["maneuvers"] = []
+    for maneuver in result.maneuvers:
+        serialized = maneuver.to_dict()
+        serialized.update(calculate_maneuver_metrics(track, maneuver).to_dict())
+        artifact["maneuvers"].append(serialized)
     analytics_storage.write(activity_id, artifact)
     return artifact
 
@@ -148,7 +165,14 @@ def _is_valid_maneuver(value: object) -> bool:
         return False
     return all(
         _is_finite_number(value[field])
-        for field in ("heading_change_deg", "peak_turn_rate_deg_s")
+        for field in (
+            "heading_change_deg",
+            "peak_turn_rate_deg_s",
+            "duration_s",
+        )
+    ) and all(
+        value[field] is None or _is_finite_number(value[field])
+        for field in _OPTIONAL_METRIC_FIELDS
     )
 
 

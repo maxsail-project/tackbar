@@ -19,6 +19,13 @@ const event: DisplayManeuver = {
     heading_change_deg: -90.6,
     peak_turn_rate_deg_s: 12,
     peak_turn_rate_time: '2031-06-15T08:47:59Z',
+    duration_s: 10,
+    sog_entry_kn: 5.2,
+    sog_min_kn: 3.1,
+    sog_exit_kn: 5.1,
+    recovery_time_s: 12.4,
+    speed_loss_distance_m: 8.6,
+    speed_loss_time_s: 3.3,
   },
 }
 
@@ -50,7 +57,7 @@ describe('ManeuverEventTable', () => {
     )
 
     expect(markup).toContain('Time')
-    expect(markup).toContain('Activity')
+    expect(markup).toContain('Act')
     expect(markup).toContain('ΔHDG')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('−91°')
@@ -71,13 +78,22 @@ describe('ManeuverEventTable', () => {
     )
 
     expect(markup).toContain('Time')
-    expect(markup).toContain('Activity')
+    expect(markup).toContain('Act')
     expect(markup).toContain('\u0394HDG')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('\u221291\u00b0')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
     expect(markup).toContain('aria-sort="ascending"')
     expect(markup).toContain('Time ASC')
+    expect(markup).toContain('SOG in')
+    expect(markup).toContain('Loss m')
+    expect(markup).toContain('10s')
+    expect(markup).toContain('5.2')
+    expect(markup).toContain('3.1')
+    expect(markup).toContain('5.1')
+    expect(markup).toContain('12s')
+    expect(markup).toContain('>9<')
+    expect(markup).toContain('>3s<')
   })
 
   it('can expand and collapse again without selecting an event', () => {
@@ -138,6 +154,30 @@ describe('ManeuverEventTable', () => {
     row.props.onClick()
 
     expect(onSelect).toHaveBeenCalledWith(event.centerTimeMs)
+  })
+
+  it('renders unavailable optional metrics as em dashes', () => {
+    const unavailable = {
+      ...event,
+      maneuver: {
+        ...event.maneuver,
+        sog_entry_kn: null,
+        sog_min_kn: null,
+        sog_exit_kn: null,
+        recovery_time_s: null,
+        speed_loss_distance_m: null,
+        speed_loss_time_s: null,
+      },
+    }
+    const markup = renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[unavailable]}
+        primaryStatus="available"
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(markup.match(/—/g)).toHaveLength(6)
   })
 
   it('shows the empty Analysis Window state for available analytics', () => {

@@ -58,6 +58,7 @@ function maneuver(
       heading_change_deg: 90,
       peak_turn_rate_deg_s: 12,
       peak_turn_rate_time: centerTime,
+      duration_s: 0,
     },
   }
 }

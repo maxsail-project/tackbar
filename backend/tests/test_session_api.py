@@ -226,7 +226,9 @@ def test_shared_maneuvers_returns_public_analytics_contract(
         "heading_change_deg",
         "peak_turn_rate_deg_s",
         "peak_turn_rate_time",
+        "duration_s",
     }
+    assert response.json["maneuvers"][0]["duration_s"] > 0
     assert "algorithm_version" not in json.dumps(response.json)
     assert "track_sha256" not in json.dumps(response.json)
     persisted = json.loads(
@@ -236,6 +238,53 @@ def test_shared_maneuvers_returns_public_analytics_contract(
     )
     assert persisted["algorithm_version"] == MANEUVER_ALGORITHM_VERSION
     assert "track_sha256" in persisted
+
+
+def test_shared_maneuvers_serializes_complementary_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+
+    def analytics_with_metrics(*_args: object) -> dict[str, object]:
+        return {
+            "activity_id": ACTIVITY_A,
+            "algorithm_version": MANEUVER_ALGORITHM_VERSION,
+            "track_sha256": "a" * 64,
+            "status": "available",
+            "maneuvers": [{
+                "start_time": "2031-06-01T08:00:05Z",
+                "center_time": "2031-06-01T08:00:10Z",
+                "end_time": "2031-06-01T08:00:15Z",
+                "heading_change_deg": 82.0,
+                "peak_turn_rate_deg_s": 12.0,
+                "peak_turn_rate_time": "2031-06-01T08:00:10Z",
+                "duration_s": 10.0,
+                "sog_entry_kn": 5.2,
+                "sog_min_kn": 3.1,
+                "sog_exit_kn": 5.1,
+                "recovery_time_s": 12.0,
+                "speed_loss_distance_m": 8.6,
+                "speed_loss_time_s": 3.3,
+            }],
+        }
+
+    monkeypatch.setattr(
+        "app.services.shared_session_reader.get_or_generate_maneuver_analytics",
+        analytics_with_metrics,
+    )
+
+    response = _get(_maneuver_path(TOKEN, ACTIVITY_A))
+
+    assert response.status_code == 200
+    maneuver = response.json["maneuvers"][0]
+    assert maneuver["duration_s"] == 10.0
+    assert maneuver["sog_entry_kn"] == 5.2
+    assert maneuver["sog_min_kn"] == 3.1
+    assert maneuver["sog_exit_kn"] == 5.1
+    assert maneuver["recovery_time_s"] == 12.0
+    assert maneuver["speed_loss_distance_m"] == 8.6
+    assert maneuver["speed_loss_time_s"] == 3.3
 
 
 @pytest.mark.parametrize(

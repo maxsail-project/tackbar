@@ -54,3 +54,15 @@ export function formatHeadingChange(headingChangeDegrees: number) {
   const rounded = Math.round(headingChangeDegrees)
   return rounded < 0 ? `−${Math.abs(rounded)}°` : `+${rounded}°`
 }
+
+export function formatSeconds(value: number | null | undefined) {
+  return value == null ? '—' : `${Math.round(value)}s`
+}
+
+export function formatKnots(value: number | null | undefined) {
+  return value == null ? '—' : value.toFixed(1)
+}
+
+export function formatMetres(value: number | null | undefined) {
+  return value == null ? '—' : Math.round(value).toString()
+}

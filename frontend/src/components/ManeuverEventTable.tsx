@@ -1,7 +1,12 @@
 import { useId, useMemo, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { DisplayManeuver, ManeuverActivityRole } from '../utils/maneuverEvents'
-import { formatHeadingChange } from '../utils/maneuverEvents'
+import {
+  formatHeadingChange,
+  formatKnots,
+  formatMetres,
+  formatSeconds,
+} from '../utils/maneuverEvents'
 import { formatGpsTime } from '../utils/replay'
 
 export type ManeuverPresentationStatus =
@@ -81,6 +86,13 @@ export function ManeuverEventRow({
         {label}
       </td>
       <td>{formatHeadingChange(event.maneuver.heading_change_deg)}</td>
+      <td>{formatSeconds(event.maneuver.duration_s)}</td>
+      <td>{formatKnots(event.maneuver.sog_entry_kn)}</td>
+      <td>{formatKnots(event.maneuver.sog_min_kn)}</td>
+      <td>{formatKnots(event.maneuver.sog_exit_kn)}</td>
+      <td>{formatSeconds(event.maneuver.recovery_time_s)}</td>
+      <td>{formatMetres(event.maneuver.speed_loss_distance_m)}</td>
+      <td>{formatSeconds(event.maneuver.speed_loss_time_s)}</td>
     </tr>
   )
 }
@@ -147,8 +159,15 @@ export default function ManeuverEventTable({
                         Time {sortDirection.toUpperCase()}
                       </button>
                     </th>
-                    <th scope="col">Activity</th>
+                    <th scope="col">Act</th>
                     <th scope="col">ΔHDG</th>
+                    <th scope="col">Dur</th>
+                    <th scope="col">SOG in</th>
+                    <th scope="col">Min</th>
+                    <th scope="col">SOG out</th>
+                    <th scope="col">Rec</th>
+                    <th scope="col">Loss m</th>
+                    <th scope="col">Loss s</th>
                   </tr>
                 </thead>
                 <tbody>
