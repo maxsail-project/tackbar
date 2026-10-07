@@ -31,6 +31,8 @@ interface TrackMapProps {
   comparisonVisibleSamples?: TrackSample[]
   fitContextKey: string
   focusRequest?: MapFocusRequest | null
+  primaryActivityIdentity: string
+  comparisonActivityIdentity?: string | null
   primaryBoatPosition: TrackPosition | null
   comparisonBoatPosition?: TrackPosition | null
   hasComparison?: boolean
@@ -43,6 +45,21 @@ interface TrackMapProps {
   comparisonCog?: number | null
   comparisonHeel?: number | null
   comparisonTrim?: number | null
+}
+
+interface MapTelemetryOverlayProps {
+  hasComparison: boolean
+  primaryActivityIdentity: string
+  comparisonActivityIdentity: string | null
+  playbackTime: number
+  primarySog: number | null
+  primaryCog: number | null
+  primaryHeel: number | null
+  primaryTrim: number | null
+  comparisonSog: number | null
+  comparisonCog: number | null
+  comparisonHeel: number | null
+  comparisonTrim: number | null
 }
 
 const PRIMARY_TRACK_PAINT = {
@@ -146,11 +163,113 @@ function BoatMarker({
   )
 }
 
+export function MapTelemetryOverlay({
+  hasComparison,
+  primaryActivityIdentity,
+  comparisonActivityIdentity,
+  playbackTime,
+  primarySog,
+  primaryCog,
+  primaryHeel,
+  primaryTrim,
+  comparisonSog,
+  comparisonCog,
+  comparisonHeel,
+  comparisonTrim,
+}: MapTelemetryOverlayProps) {
+  const gpsTime = formatGpsTime(playbackTime)
+
+  return (
+    <div className="map-status" aria-label="Current replay GPS time and SOG/COG/HEEL/TRIM telemetry">
+      <table
+        className="map-status__telemetry"
+        aria-label="Instantaneous boat telemetry"
+      >
+        <colgroup>
+          <col className="map-status__activity-column" />
+          <col />
+          <col />
+          <col />
+          <col />
+        </colgroup>
+        <thead>
+          <tr>
+            <th
+              scope="col"
+              className="map-status__gps-time"
+              aria-label={`GPS time ${gpsTime} UTC`}
+            >
+              <span aria-hidden="true">
+                <span>GPS</span>
+                <strong>{gpsTime}</strong>
+              </span>
+            </th>
+            <th scope="col">SOG</th>
+            <th scope="col">COG</th>
+            <th scope="col">HEEL</th>
+            <th scope="col">TRIM</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">
+              <span className="map-status__activity-identity">
+                <span
+                  aria-hidden="true"
+                  className="map-status__activity-indicator"
+                  style={{ backgroundColor: ACTIVITY_COLORS.primary }}
+                />
+                <span className="map-status__activity-role">P</span>
+                <span
+                  className="map-status__activity-name"
+                  title={primaryActivityIdentity}
+                >
+                  {primaryActivityIdentity}
+                </span>
+              </span>
+            </th>
+            <td>{formatMetricValue('SOG', primarySog)}</td>
+            <td>{formatMapCogValue(primaryCog)}</td>
+            <td>{formatSignedDegreeValue(primaryHeel)}</td>
+            <td>{formatSignedDegreeValue(primaryTrim)}</td>
+          </tr>
+          {hasComparison && (
+            <tr>
+              <th scope="row">
+                <span className="map-status__activity-identity">
+                  <span
+                    aria-hidden="true"
+                    className="map-status__activity-indicator"
+                    style={{ backgroundColor: ACTIVITY_COLORS.comparison }}
+                  />
+                  <span className="map-status__activity-role">C</span>
+                  <span
+                    className="map-status__activity-name"
+                    title={comparisonActivityIdentity ?? ''}
+                  >
+                    {comparisonActivityIdentity}
+                  </span>
+                </span>
+              </th>
+              <td>{formatMetricValue('SOG', comparisonSog)}</td>
+              <td>{formatMapCogValue(comparisonCog)}</td>
+              <td>{formatSignedDegreeValue(comparisonHeel)}</td>
+              <td>{formatSignedDegreeValue(comparisonTrim)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
   fitContextKey,
   focusRequest = null,
+  primaryActivityIdentity,
+  comparisonActivityIdentity = null,
   primaryBoatPosition,
   comparisonBoatPosition = null,
   hasComparison = false,
@@ -305,77 +424,20 @@ export default function TrackMap({
           </Marker>
         )}
       </Map>
-      <div
-        className={`map-status${hasComparison ? ' map-status--comparison' : ''}`}
-        aria-label="Current replay GPS time and SOG/COG/HEEL/TRIM telemetry"
-      >
-        <div className="map-status__time">
-          <span>GPS time</span>
-          <strong>{formatGpsTime(playbackTime)}</strong>
-          <span>UTC</span>
-        </div>
-        <table
-          className="map-status__telemetry"
-          aria-label="Instantaneous boat telemetry"
-        >
-          <colgroup>
-            <col className="map-status__metric-column" />
-            <col />
-            {hasComparison && <col />}
-          </colgroup>
-          <thead>
-            <tr>
-              <th scope="col" aria-label="Metric" />
-              <th scope="col">
-                <span
-                  aria-hidden="true"
-                  className="map-status__activity-indicator"
-                  style={{ backgroundColor: ACTIVITY_COLORS.primary }}
-                />
-                P
-              </th>
-              {hasComparison && (
-                <th scope="col">
-                  <span
-                    aria-hidden="true"
-                    className="map-status__activity-indicator"
-                    style={{ backgroundColor: ACTIVITY_COLORS.comparison }}
-                  />
-                  C
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">SOG</th>
-              <td>{formatMetricValue('SOG', primarySog)}</td>
-              {hasComparison && (
-                <td>{formatMetricValue('SOG', comparisonSog)}</td>
-              )}
-            </tr>
-            <tr>
-              <th scope="row">COG</th>
-              <td>{formatMapCogValue(primaryCog)}</td>
-              {hasComparison && <td>{formatMapCogValue(comparisonCog)}</td>}
-            </tr>
-            <tr>
-              <th scope="row">HEEL</th>
-              <td>{formatSignedDegreeValue(primaryHeel)}</td>
-              {hasComparison && (
-                <td>{formatSignedDegreeValue(comparisonHeel)}</td>
-              )}
-            </tr>
-            <tr>
-              <th scope="row">TRIM</th>
-              <td>{formatSignedDegreeValue(primaryTrim)}</td>
-              {hasComparison && (
-                <td>{formatSignedDegreeValue(comparisonTrim)}</td>
-              )}
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <MapTelemetryOverlay
+        hasComparison={hasComparison}
+        primaryActivityIdentity={primaryActivityIdentity}
+        comparisonActivityIdentity={comparisonActivityIdentity}
+        playbackTime={playbackTime}
+        primarySog={primarySog}
+        primaryCog={primaryCog}
+        primaryHeel={primaryHeel}
+        primaryTrim={primaryTrim}
+        comparisonSog={comparisonSog}
+        comparisonCog={comparisonCog}
+        comparisonHeel={comparisonHeel}
+        comparisonTrim={comparisonTrim}
+      />
     </section>
   )
 }

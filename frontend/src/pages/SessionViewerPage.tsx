@@ -630,6 +630,10 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
             windowEnd,
           )}
           focusRequest={mapFocusRequest}
+          primaryActivityIdentity={formatActivityIdentity(primaryActivity)}
+          comparisonActivityIdentity={comparisonActivity
+            ? formatActivityIdentity(comparisonActivity)
+            : null}
           primaryBoatPosition={primaryReplayPresentation.position}
           comparisonBoatPosition={comparisonReplayPresentation.position}
           hasComparison={comparisonTrack !== null}

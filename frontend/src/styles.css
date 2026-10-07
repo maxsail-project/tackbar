@@ -308,90 +308,103 @@ input:focus-visible {
   position: absolute;
   right: auto;
   bottom: 28px;
-  left: 12px;
+  left: 10px;
   z-index: 3;
-  display: grid;
-  gap: 4px;
-  width: 8.625rem;
-  max-width: calc(100% - 24px);
+  width: min(21.5rem, calc(100% - 20px));
+  max-width: calc(100% - 20px);
   min-width: 0;
-  padding: 7px 6px;
-  border: 1px solid rgb(255 255 255 / 30%);
-  border-radius: 10px;
+  padding: 4px 7px 5px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 8px;
   color: #fff;
-  background: rgb(38 50 56 / 90%);
-  box-shadow: 0 8px 24px rgb(7 31 37 / 22%);
+  background: rgb(31 44 49 / 78%);
+  box-shadow: 0 4px 14px rgb(7 31 37 / 16%);
   font-variant-numeric: tabular-nums;
 }
 
-.map-status--comparison {
-  width: 12rem;
-}
-
-.map-status span {
-  font-size: 0.7rem;
-  font-weight: 400;
-  text-transform: uppercase;
-}
-
-.map-status__time {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  white-space: nowrap;
-}
-
-.map-status__time > span {
-  font-size: 0.68rem;
-  opacity: 0.72;
-}
-
-.map-status__time strong {
-  font-size: 0.8rem;
-  font-weight: 400;
-}
-
 .map-status__telemetry {
-  justify-self: start;
-  width: 4.75rem;
-  border-spacing: 0 1px;
+  width: 100%;
+  border-spacing: 0;
   table-layout: fixed;
   color: #fff;
-  font-size: 0.7rem;
-  line-height: 1.3;
+  font-size: 0.65rem;
+  line-height: 1.25;
 }
 
-.map-status--comparison .map-status__telemetry {
-  justify-self: stretch;
-  width: 100%;
-}
-
-.map-status__metric-column {
-  width: 1.75rem;
+.map-status__activity-column {
+  width: 5.5rem;
 }
 
 .map-status__telemetry th,
 .map-status__telemetry td {
-  padding: 0;
+  padding: 1px 2px;
   font-weight: 400;
   text-align: center;
   white-space: nowrap;
 }
 
-.map-status__telemetry th:not(:first-child),
-.map-status__telemetry td:not(:first-child) {
-  padding-left: 9px;
+.map-status__telemetry thead th {
+  color: rgb(255 255 255 / 70%);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+.map-status__telemetry .map-status__gps-time {
+  padding-left: 0;
+  text-align: left;
+}
+
+.map-status__gps-time > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: rgb(255 255 255 / 62%);
+  font-size: 0.5rem;
+}
+
+.map-status__gps-time strong {
+  color: rgb(255 255 255 / 88%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .map-status__telemetry th[scope='row'] {
   text-align: left;
 }
 
+.map-status__activity-identity {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.map-status__activity-role {
+  min-width: max-content;
+}
+
+.map-status__activity-name {
+  min-width: 0;
+  overflow: hidden;
+  color: rgb(255 255 255 / 78%);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-status__telemetry td {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
 .map-status__activity-indicator {
   display: inline-block;
   width: 0.45rem;
   height: 0.45rem;
-  margin-right: 4px;
+  margin-right: 0;
   border-radius: 50%;
   vertical-align: 0.02rem;
 }

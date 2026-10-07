@@ -1,14 +1,72 @@
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackBounds } from '../utils/trackGeometry'
 import {
   boatMarkerRotation,
   createMapFitContextKey,
   currentVisibleTrackBounds,
   formatMapCogValue,
+  MapTelemetryOverlay,
   maneuverFocusCameraOptions,
   resolveMapFocusPosition,
   shouldRefitForContextChange,
 } from './TrackMap'
+
+function renderTelemetry(hasComparison: boolean) {
+  return renderToStaticMarkup(MapTelemetryOverlay({
+    hasComparison,
+    primaryActivityIdentity: 'Maxima Sailing Team',
+    comparisonActivityIdentity: 'Juan Carlos',
+    playbackTime: Date.UTC(2031, 0, 1, 12, 9, 49),
+    primarySog: 2.5,
+    primaryCog: 16,
+    primaryHeel: -2.6,
+    primaryTrim: -2.9,
+    comparisonSog: 3.1,
+    comparisonCog: 22,
+    comparisonHeel: -1.8,
+    comparisonTrim: -1.5,
+  }))
+}
+
+describe('compact map telemetry overlay', () => {
+  it('renders GPS time, metric headers, Primary values, and Primary identity', () => {
+    const markup = renderTelemetry(false)
+
+    expect(markup).toContain('class="map-status__gps-time"')
+    expect(markup).toContain('aria-label="GPS time 12:09:49 UTC"')
+    expect(markup).toContain('<span>GPS</span><strong>12:09:49</strong>')
+    expect(markup).not.toContain('class="map-status__time"')
+    expect(markup).not.toContain('>UTC<')
+    expect(markup).toContain('>SOG</th>')
+    expect(markup).toContain('>COG</th>')
+    expect(markup).toContain('>HEEL</th>')
+    expect(markup).toContain('>TRIM</th>')
+    expect(markup).toContain('map-status__activity-role">P</span>')
+    expect(markup).toContain('map-status__activity-name" title="Maxima Sailing Team"')
+    expect(markup).toContain('2.5 kt')
+    expect(markup).toContain('16°')
+    expect(markup).toContain('-2.6°')
+    expect(markup).toContain('-2.9°')
+    expect(markup).toContain(`background-color:${ACTIVITY_COLORS.primary}`)
+    expect(markup).not.toContain('map-status__activity-role">C</span>')
+    expect(markup).not.toContain('Juan Carlos')
+    expect(markup).not.toContain(`background-color:${ACTIVITY_COLORS.comparison}`)
+  })
+
+  it('adds the Comparison row with its values and identity color', () => {
+    const markup = renderTelemetry(true)
+
+    expect(markup).toContain('map-status__activity-role">C</span>')
+    expect(markup).toContain('map-status__activity-name" title="Juan Carlos"')
+    expect(markup).toContain('3.1 kt')
+    expect(markup).toContain('22°')
+    expect(markup).toContain('-1.8°')
+    expect(markup).toContain('-1.5°')
+    expect(markup).toContain(`background-color:${ACTIVITY_COLORS.comparison}`)
+  })
+})
 
 describe('boat marker rotation', () => {
   it.each([
