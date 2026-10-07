@@ -7,14 +7,8 @@ import {
 } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackSample } from '../types/track'
-import type {
-  AnalysisWindowBoundary,
-  AnalysisWindowRange,
-} from '../utils/analysisWindow'
-import {
-  ANALYSIS_WINDOW_STEP_MS,
-  resolveAnalysisWindowBrushRange,
-} from '../utils/analysisWindow'
+import type { AnalysisWindowRange } from '../utils/analysisWindow'
+import { resolveAnalysisWindowBrushRange } from '../utils/analysisWindow'
 import {
   resolveTemporalPointerTimestamp,
   startTemporalPointerSelection,
@@ -37,10 +31,6 @@ interface AnalysisWindowProps {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
   maneuvers?: DisplayManeuver[]
-  onWindowChange: (
-    boundary: AnalysisWindowBoundary,
-    requestedTime: number,
-  ) => void
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
   onManeuverSelect?: (centerTimeMs: number) => void
 }
@@ -67,14 +57,27 @@ function positionPercent(value: number, availableRange: AnalysisWindowRange) {
   ), 100)
 }
 
+export function resolveAnalysisWindowPointerTimestamp(
+  displayRange: AnalysisWindowRange,
+  clientX: number,
+  bounds: Pick<DOMRect, 'left' | 'right'>,
+) {
+  return resolveTemporalPointerTimestamp(displayRange, clientX, bounds)
+}
+
+export function requestAnalysisWindowReset(
+  availableRange: AnalysisWindowRange,
+  onRangeChange: (requestedRange: AnalysisWindowRange) => void,
+) {
+  onRangeChange(availableRange)
+}
+
 export function AnalysisWindowManeuverMarker({
   event,
-  active,
   position,
   onSelect,
 }: {
   event: DisplayManeuver
-  active: boolean
   position: number
   onSelect: (centerTimeMs: number) => void
 }) {
@@ -82,15 +85,11 @@ export function AnalysisWindowManeuverMarker({
   const className = [
     'analysis-window__maneuver-marker',
     `analysis-window__maneuver-marker--${event.activityRole}`,
-    active ? 'analysis-window__maneuver-marker--active' : 'analysis-window__maneuver-marker--context',
+    'analysis-window__maneuver-marker--active',
   ].join(' ')
   const style = {
     left: `${position}%`,
     color: ACTIVITY_COLORS[event.activityRole],
-  }
-
-  if (!active) {
-    return <span className={className} style={style} aria-hidden="true" />
   }
 
   return (
@@ -108,31 +107,50 @@ export function AnalysisWindowManeuverMarker({
   )
 }
 
+export function AnalysisWindowResetButton({
+  disabled,
+  onReset,
+}: {
+  disabled: boolean
+  onReset: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="analysis-window__reset"
+      disabled={disabled}
+      onClick={onReset}
+    >
+      Reset
+    </button>
+  )
+}
+
 export default function AnalysisWindow({
   availableRange,
   analysisWindow,
   primarySamples,
   comparisonSamples = [],
   maneuvers = [],
-  onWindowChange,
   onRangeChange,
   onManeuverSelect = () => undefined,
 }: AnalysisWindowProps) {
   const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
   const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
+  const displayRange = analysisWindow
   const primaryPoints = useMemo(
-    () => availableRange === null ? [] : reduceSogTimelinePoints(
-      prepareSogTimelinePoints(primarySamples, availableRange),
+    () => displayRange === null ? [] : reduceSogTimelinePoints(
+      prepareSogTimelinePoints(primarySamples, displayRange),
       TIMELINE_POINT_BUDGET,
     ),
-    [availableRange, primarySamples],
+    [displayRange, primarySamples],
   )
   const comparisonPoints = useMemo(
-    () => availableRange === null ? [] : reduceSogTimelinePoints(
-      prepareSogTimelinePoints(comparisonSamples, availableRange),
+    () => displayRange === null ? [] : reduceSogTimelinePoints(
+      prepareSogTimelinePoints(comparisonSamples, displayRange),
       TIMELINE_POINT_BUDGET,
     ),
-    [availableRange, comparisonSamples],
+    [comparisonSamples, displayRange],
   )
   const maximumSog = Math.max(
     1,
@@ -143,7 +161,7 @@ export default function AnalysisWindow({
   useEffect(() => {
     pointerSelectionRef.current = null
     setPointerSelection(null)
-  }, [availableRange?.end, availableRange?.start])
+  }, [displayRange?.end, displayRange?.start])
 
   function updatePointerSelection(nextSelection: TemporalPointerSelection | null) {
     pointerSelectionRef.current = nextSelection
@@ -151,9 +169,9 @@ export default function AnalysisWindow({
   }
 
   function pointerTimestamp(event: ReactPointerEvent<HTMLDivElement>) {
-    if (availableRange === null) return null
+    if (displayRange === null) return null
     const bounds = event.currentTarget.getBoundingClientRect()
-    return resolveTemporalPointerTimestamp(availableRange, event.clientX, bounds)
+    return resolveAnalysisWindowPointerTimestamp(displayRange, event.clientX, bounds)
   }
 
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
@@ -209,18 +227,18 @@ export default function AnalysisWindow({
     )
   }
 
-  const displayedRange = pointerSelection === null
+  const selectedRange = pointerSelection === null
     ? analysisWindow
     : {
         start: Math.min(pointerSelection.start, pointerSelection.end),
         end: Math.max(pointerSelection.start, pointerSelection.end),
       }
-  const windowStartPercent = positionPercent(displayedRange.start, availableRange)
-  const windowEndPercent = positionPercent(displayedRange.end, availableRange)
-  const committedStartPercent = positionPercent(analysisWindow.start, availableRange)
-  const committedEndPercent = positionPercent(analysisWindow.end, availableRange)
-  const primaryPath = buildSogTimelinePath(primaryPoints, availableRange, maximumSog)
-  const comparisonPath = buildSogTimelinePath(comparisonPoints, availableRange, maximumSog)
+  const windowStartPercent = positionPercent(selectedRange.start, analysisWindow)
+  const windowEndPercent = positionPercent(selectedRange.end, analysisWindow)
+  const primaryPath = buildSogTimelinePath(primaryPoints, analysisWindow, maximumSog)
+  const comparisonPath = buildSogTimelinePath(comparisonPoints, analysisWindow, maximumSog)
+  const isFullRange = analysisWindow.start === availableRange.start
+    && analysisWindow.end === availableRange.end
 
   return (
     <section className="content-section analysis-window" aria-labelledby="analysis-window-title">
@@ -229,9 +247,15 @@ export default function AnalysisWindow({
           <p className="section-kicker" id="analysis-window-title">Analysis window</p>
           <p className="section-description">Drag over SOG to select the shared interval</p>
         </div>
-        <span className="duration-pill">
-          {formatDuration(displayedRange.end - displayedRange.start)}
-        </span>
+        <div className="analysis-window__header-actions">
+          <AnalysisWindowResetButton
+            disabled={isFullRange}
+            onReset={() => requestAnalysisWindowReset(availableRange, onRangeChange)}
+          />
+          <span className="duration-pill">
+            {formatDuration(selectedRange.end - selectedRange.start)}
+          </span>
+        </div>
       </div>
 
       <div
@@ -251,61 +275,30 @@ export default function AnalysisWindow({
           {comparisonPath && <path className="analysis-window__sog-line" d={comparisonPath} style={{ stroke: ACTIVITY_COLORS.comparison }} />}
         </svg>
         <div className="analysis-window__maneuver-markers">
-          {maneuvers.map((event) => {
-            const active = event.centerTimeMs >= analysisWindow.start
-              && event.centerTimeMs <= analysisWindow.end
-            return (
+          {maneuvers
+            .filter((event) => event.centerTimeMs >= analysisWindow.start
+              && event.centerTimeMs <= analysisWindow.end)
+            .map((event) => (
               <AnalysisWindowManeuverMarker
                 key={`${event.activityRole}:${event.maneuver.start_time}:${event.maneuver.center_time}:${event.maneuver.end_time}`}
                 event={event}
-                active={active}
-                position={positionPercent(event.centerTimeMs, availableRange)}
+                position={positionPercent(event.centerTimeMs, analysisWindow)}
                 onSelect={onManeuverSelect}
               />
-            )
-          })}
+            ))}
         </div>
-        <div
-          className={`analysis-window__brush${pointerSelection ? ' analysis-window__brush--provisional' : ''}`}
-          style={{ left: `${windowStartPercent}%`, width: `${windowEndPercent - windowStartPercent}%` }}
-          aria-hidden="true"
-        />
-      </div>
-
-      <div className="analysis-window__stage">
-        <div className="analysis-window__available-track" aria-hidden="true" />
-        <div
-          className="analysis-window__selected-track"
-          style={{ left: `${committedStartPercent}%`, width: `${committedEndPercent - committedStartPercent}%` }}
-          aria-hidden="true"
-        />
-        <input
-          className="analysis-window__input analysis-window__input--start"
-          type="range"
-          min={availableRange.start}
-          max={availableRange.end}
-          step={ANALYSIS_WINDOW_STEP_MS}
-          value={analysisWindow.start}
-          onChange={(event) => onWindowChange('start', Number(event.target.value))}
-          aria-label="Analysis Window start UTC"
-          aria-valuetext={`${formatGpsTime(analysisWindow.start)} UTC`}
-        />
-        <input
-          className="analysis-window__input analysis-window__input--end"
-          type="range"
-          min={availableRange.start}
-          max={availableRange.end}
-          step={ANALYSIS_WINDOW_STEP_MS}
-          value={analysisWindow.end}
-          onChange={(event) => onWindowChange('end', Number(event.target.value))}
-          aria-label="Analysis Window end UTC"
-          aria-valuetext={`${formatGpsTime(analysisWindow.end)} UTC`}
-        />
+        {pointerSelection && (
+          <div
+            className="analysis-window__brush analysis-window__brush--provisional"
+            style={{ left: `${windowStartPercent}%`, width: `${windowEndPercent - windowStartPercent}%` }}
+            aria-hidden="true"
+          />
+        )}
       </div>
 
       <div className="analysis-window__selected-times" aria-live="polite">
-        <span>{formatGpsTime(displayedRange.start)} UTC</span>
-        <span>{formatGpsTime(displayedRange.end)} UTC</span>
+        <span>{formatGpsTime(selectedRange.start)} UTC</span>
+        <span>{formatGpsTime(selectedRange.end)} UTC</span>
       </div>
     </section>
   )

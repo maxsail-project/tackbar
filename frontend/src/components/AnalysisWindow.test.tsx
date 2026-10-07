@@ -2,12 +2,21 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TrackSample } from '../types/track'
+import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
-import AnalysisWindow, { AnalysisWindowManeuverMarker } from './AnalysisWindow'
+import AnalysisWindow, {
+  AnalysisWindowManeuverMarker,
+  requestAnalysisWindowReset,
+  resolveAnalysisWindowPointerTimestamp,
+} from './AnalysisWindow'
 
 const availableRange = {
   start: Date.UTC(2031, 0, 1, 10, 0, 0),
   end: Date.UTC(2031, 0, 1, 10, 0, 10),
+}
+const selectedRange = {
+  start: availableRange.start + 2_000,
+  end: availableRange.end - 2_000,
 }
 
 function sample(seconds: number, sog: number | null): TrackSample {
@@ -44,97 +53,129 @@ function maneuver(
   }
 }
 
-function render(
-  primarySamples: TrackSample[],
-  comparisonSamples?: TrackSample[],
-  maneuvers: DisplayManeuver[] = [],
-) {
+function render({
+  primarySamples,
+  comparisonSamples,
+  maneuvers = [],
+  range = availableRange,
+  window = selectedRange,
+}: {
+  primarySamples: TrackSample[]
+  comparisonSamples?: TrackSample[]
+  maneuvers?: DisplayManeuver[]
+  range?: AnalysisWindowRange
+  window?: AnalysisWindowRange
+}) {
   return renderToStaticMarkup(
     <AnalysisWindow
-      availableRange={availableRange}
-      analysisWindow={{ start: availableRange.start + 2_000, end: availableRange.end - 2_000 }}
+      availableRange={range}
+      analysisWindow={window}
       primarySamples={primarySamples}
       comparisonSamples={comparisonSamples}
       maneuvers={maneuvers}
-      onWindowChange={() => undefined}
       onRangeChange={() => undefined}
     />,
   )
 }
 
 describe('Analysis Window SOG timeline', () => {
-  it('renders one SOG curve and retains both fine-adjustment range inputs', () => {
-    const markup = render([sample(0, 3), sample(10, 5)])
+  it('removes the native range inputs and lower slider stage', () => {
+    const markup = render({ primarySamples: [sample(2, 3), sample(8, 5)] })
 
-    expect(markup.match(/analysis-window__sog-line/g)).toHaveLength(1)
-    expect(markup).toContain('Analysis Window start UTC')
-    expect(markup).toContain('Analysis Window end UTC')
+    expect(markup).not.toContain('type="range"')
+    expect(markup).not.toContain('analysis-window__stage')
+    expect(markup).not.toContain('Analysis Window start UTC')
+    expect(markup).not.toContain('Analysis Window end UTC')
   })
 
-  it('renders separate Primary and Comparison SOG curves', () => {
-    const markup = render(
-      [sample(0, 3), sample(10, 5)],
-      [sample(0, 4), sample(10, 6)],
-    )
+  it('initially renders the full available range across the graph', () => {
+    const markup = render({
+      primarySamples: [sample(0, 3), sample(10, 5)],
+      window: availableRange,
+    })
 
-    expect(markup.match(/analysis-window__sog-line/g)).toHaveLength(2)
-    expect(markup).toContain('stroke:#168097')
-    expect(markup).toContain('stroke:#9a5aaf')
+    expect(markup).toContain('d="M0.00,35.20 L1000.00,8.00"')
+    expect(markup).toContain('disabled=""')
+    expect(markup).toContain('10:00:00 UTC')
+    expect(markup).toContain('10:00:10 UTC')
   })
 
-  it('keeps the selection controls usable when every SOG value is missing', () => {
-    const markup = render([sample(0, null), sample(10, null)])
+  it('renders only the selected Analysis Window across the full graph width', () => {
+    const markup = render({
+      primarySamples: [sample(0, 100), sample(2, 3), sample(8, 6), sample(10, 100)],
+    })
 
-    expect(markup).not.toContain('analysis-window__sog-line')
-    expect(markup).toContain('SOG timeline; drag horizontally')
-    expect(markup.match(/type="range"/g)).toHaveLength(2)
+    expect(markup).toContain('d="M0.00,42.00 L1000.00,8.00"')
+    expect(markup).not.toContain('disabled=""')
+    expect(markup).toContain('10:00:02 UTC')
+    expect(markup).toContain('10:00:08 UTC')
   })
 
-  it('renders an active Primary marker at its absolute timeline position', () => {
-    const markup = render(
-      [sample(0, 3), sample(10, 5)],
-      undefined,
-      [maneuver(5, 'primary')],
-    )
+  it('prepares the displayed range before applying the fixed visual point budget', () => {
+    const longRange = {
+      start: availableRange.start,
+      end: availableRange.start + 1_000_000,
+    }
+    const zoomedRange = {
+      start: availableRange.start + 400_000,
+      end: availableRange.start + 600_000,
+    }
+    const samples = Array.from({ length: 1_001 }, (_, seconds) => sample(seconds, seconds % 10))
+    const markup = render({ primarySamples: samples, range: longRange, window: zoomedRange })
+    const path = markup.match(/class="analysis-window__sog-line" d="([^"]+)"/)?.[1] ?? ''
 
-    expect(markup).toContain('analysis-window__maneuver-marker--primary')
-    expect(markup).toContain('analysis-window__maneuver-marker--active')
+    expect(path.match(/[ML]/g)?.length).toBeLessThanOrEqual(240)
+    expect(path).toMatch(/^M0\.00,/)
+    expect(path).toMatch(/L1000\.00,[\d.]+$/)
+  })
+
+  it('maps a second drag to a narrower interval inside the zoomed range', () => {
+    const bounds = { left: 100, right: 500 }
+    const secondStart = resolveAnalysisWindowPointerTimestamp(selectedRange, 200, bounds)
+    const secondEnd = resolveAnalysisWindowPointerTimestamp(selectedRange, 400, bounds)
+
+    expect(secondStart).toBe(availableRange.start + 3_500)
+    expect(secondEnd).toBe(availableRange.start + 6_500)
+  })
+
+  it('Reset requests the complete available range', () => {
+    const onRangeChange = vi.fn()
+
+    requestAnalysisWindowReset(availableRange, onRangeChange)
+
+    expect(onRangeChange).toHaveBeenCalledWith(availableRange)
+  })
+
+  it('positions visible maneuvers relative to the displayed range', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      maneuvers: [maneuver(2, 'primary'), maneuver(5, 'comparison'), maneuver(8, 'primary')],
+    })
+
+    expect(markup).toContain('left:0%')
     expect(markup).toContain('left:50%')
-    expect(markup).toContain('Activity P')
-  })
-
-  it('renders Primary and Comparison markers on separate color roles', () => {
-    const markup = render(
-      [sample(0, 3), sample(10, 5)],
-      [sample(0, 4), sample(10, 6)],
-      [maneuver(4, 'primary'), maneuver(6, 'comparison')],
-    )
-
-    expect(markup).toContain('analysis-window__maneuver-marker--primary')
-    expect(markup).toContain('analysis-window__maneuver-marker--comparison')
+    expect(markup).toContain('left:100%')
     expect(markup).toContain('color:#168097')
     expect(markup).toContain('color:#9a5aaf')
   })
 
-  it('keeps an out-of-window marker visible but non-interactive', () => {
-    const markup = render(
-      [sample(0, 3), sample(10, 5)],
-      undefined,
-      [maneuver(1, 'primary')],
-    )
+  it('does not render maneuvers outside the displayed range', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      maneuvers: [maneuver(1, 'primary'), maneuver(5, 'primary'), maneuver(9, 'comparison')],
+    })
 
-    expect(markup).toContain('analysis-window__maneuver-marker--context')
-    expect(markup).toContain('left:10%')
+    expect(markup).toContain('Move replay to 10:00:05 UTC')
     expect(markup).not.toContain('Move replay to 10:00:01 UTC')
+    expect(markup).not.toContain('Move replay to 10:00:09 UTC')
   })
 
-  it('selects an active marker through the supplied replay callback', () => {
+  it('selects a visible marker through the supplied replay callback', () => {
     const event = maneuver(5, 'primary')
     const onSelect = vi.fn()
     const stopPropagation = vi.fn()
     const marker = AnalysisWindowManeuverMarker({
       event,
-      active: true,
       position: 50,
       onSelect,
     }) as ReactElement<{
@@ -147,10 +188,31 @@ describe('Analysis Window SOG timeline', () => {
     expect(onSelect).toHaveBeenCalledWith(event.centerTimeMs)
   })
 
-  it('renders safely without maneuver analytics', () => {
-    const markup = render([sample(0, 3), sample(10, 5)])
+  it('remains selectable when every displayed SOG value is missing', () => {
+    const markup = render({ primarySamples: [sample(2, null), sample(8, null)] })
 
-    expect(markup).toContain('analysis-window__maneuver-markers')
-    expect(markup).not.toContain('analysis-window__maneuver-marker--active')
+    expect(markup).not.toContain('analysis-window__sog-line')
+    expect(markup).toContain('SOG timeline; drag horizontally')
+    expect(markup).toContain('Reset')
+  })
+
+  it('renders Primary and Comparison SOG independently', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      comparisonSamples: [sample(2, 4), sample(8, 6)],
+    })
+
+    expect(markup.match(/analysis-window__sog-line/g)).toHaveLength(2)
+    expect(markup).toContain('stroke:#168097')
+    expect(markup).toContain('stroke:#9a5aaf')
+  })
+
+  it('preserves null SOG as a visible path gap', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(5, null), sample(8, 5)],
+    })
+    const path = markup.match(/class="analysis-window__sog-line" d="([^"]+)"/)?.[1] ?? ''
+
+    expect(path).toContain(' M')
   })
 })

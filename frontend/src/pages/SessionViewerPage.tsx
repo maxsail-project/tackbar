@@ -29,8 +29,6 @@ import {
   filterSamplesByAnalysisWindow,
   intersectAnalysisWindowRanges,
   reconcileAnalysisWindow,
-  updateAnalysisWindow,
-  type AnalysisWindowBoundary,
   type AnalysisWindowRange,
 } from '../utils/analysisWindow'
 import {
@@ -479,20 +477,6 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     setPlaybackTime(nextTimeline.playbackTime)
   }
 
-  function changeAnalysisWindow(
-    boundary: AnalysisWindowBoundary,
-    requestedTime: number,
-  ) {
-    if (analysisWindow === null || availableRange === null) return
-    commitAnalysisWindowRange(updateAnalysisWindow(
-      analysisWindow,
-      boundary,
-      requestedTime,
-      availableRange.start,
-      availableRange.end,
-    ))
-  }
-
   if (!primaryActivity) {
     return <p className="empty-state">This Session has no Activities.</p>
   }
@@ -607,7 +591,6 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         primarySamples={primaryAvailableSamples}
         comparisonSamples={comparisonAvailableSamples}
         maneuvers={timelineManeuvers}
-        onWindowChange={changeAnalysisWindow}
         onRangeChange={commitAnalysisWindowRange}
         onManeuverSelect={scrubTo}
       />
