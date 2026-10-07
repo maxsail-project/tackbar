@@ -5,13 +5,18 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from app.normalization.track_normalizer import normalize_track
 from app.parsers.vakaros_csv import parse_vakaros_csv
 from app.repositories.activities import ActivityRepository
 from app.repositories.sessions import SessionRepository
 from app.services.activity_reprocessing import reprocess_activity
 from app.services.activity_tracks import persist_activity_track
-from app.storage.track_storage import TrackStorage
+from app.services.maneuver_analytics import (
+    generate_maneuver_analytics,
+    get_or_generate_maneuver_analytics,
+)
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
+from app.storage.track_storage import TrackStorage
 
 
 FIXTURE_PATH = (
@@ -203,6 +208,53 @@ def test_reprocessing_restores_track_from_archived_uncompressed_csv(
     ).read_bytes() == original_bytes
     pd.testing.assert_frame_equal(restored_track, expected_track)
     assert len(repository.all()) == 1
+
+
+def test_reprocessed_track_lazily_regenerates_stale_maneuver_analytics(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository, storage, original_bytes, activity_id = _create_activity(
+        temporary_directory
+    )
+    parsed = parse_vakaros_csv(FIXTURE_PATH)
+    stored = repository.get_by_id(activity_id)
+    assert stored is not None
+    persist_activity_track(
+        stored,
+        parsed,
+        original_bytes,
+        repository,
+        storage,
+    )
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    stale = generate_maneuver_analytics(activity_id, storage, analytics)
+
+    def changed_normalization(activity_id: str, samples: list[dict]):
+        normalized = normalize_track(activity_id, samples)
+        present = normalized["hdg"].notna()
+        assert present.any()
+        normalized.loc[present, "hdg"] = (
+            normalized.loc[present, "hdg"] + 1.0
+        ) % 360.0
+        return normalized
+
+    monkeypatch.setattr(
+        "app.services.activity_reprocessing.normalize_track",
+        changed_normalization,
+    )
+
+    reprocess_activity(activity_id, repository, storage)
+    assert analytics.read(activity_id) == stale
+
+    refreshed = get_or_generate_maneuver_analytics(
+        activity_id,
+        storage,
+        analytics,
+    )
+
+    assert refreshed["track_sha256"] != stale["track_sha256"]
+    assert analytics.read(activity_id) == refreshed
 
 
 def test_reprocessing_reports_unknown_activity(

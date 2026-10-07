@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, Response
 from app.admin_routes import router as admin_router
 from app.consent_api_models import PublicConsentResponse
 from app.api_models import (
+    ActivityManeuverAnalyticsResponse,
     ActivityTrackResponse,
     SharedSessionDetailResponse,
 )
@@ -24,7 +25,11 @@ from app.services.session_capabilities import (
     SessionCapabilityIntegrityError,
     SessionCapabilityService,
 )
-from app.services.shared_session_reader import SharedSessionReader
+from app.services.shared_session_reader import (
+    ManeuverAnalyticsDataIntegrityError,
+    SharedSessionReader,
+)
+from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
 from app.personal_api_models import PersonalTackBarResponse
 from app.services.personal_capabilities import PersonalCapabilityService
@@ -146,6 +151,32 @@ def get_shared_activity_track(token: str, activity_id: str) -> ActivityTrackResp
     return track
 
 
+@app.get(
+    "/api/shared/sessions/{token}/activities/{activity_id}/maneuvers",
+    response_model=ActivityManeuverAnalyticsResponse,
+    response_model_exclude_none=True,
+)
+def get_shared_activity_maneuvers(
+    token: str,
+    activity_id: str,
+) -> ActivityManeuverAnalyticsResponse:
+    try:
+        analytics = _shared_session_reader().get_maneuvers(token, activity_id)
+    except (
+        ManeuverAnalyticsDataIntegrityError,
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Persisted maneuver analytics data is inconsistent",
+        ) from error
+    if analytics is None:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return analytics
+
+
 def _session_reader() -> SessionReader:
     return SessionReader(
         SessionRepository(),
@@ -167,10 +198,13 @@ def _shared_session_reader() -> SharedSessionReader:
     sessions = SessionRepository()
     activities = ActivityRepository()
     sailors = SailorRepository()
+    track_storage = TrackStorage()
     return SharedSessionReader(
         SessionCapabilityService(sessions, activities, sailors),
         SessionReader(sessions, activities, sailors, BoatRepository()),
-        ActivityTrackReader(activities, sailors, TrackStorage()),
+        ActivityTrackReader(activities, sailors, track_storage),
+        track_storage,
+        ManeuverAnalyticsStorage(),
     )
 
 

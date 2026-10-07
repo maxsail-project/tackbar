@@ -9,6 +9,7 @@ from app.normalization.track_normalizer import normalize_track
 from app.services.maneuver_analytics import (
     MANEUVER_ALGORITHM_VERSION,
     generate_maneuver_analytics,
+    get_or_generate_maneuver_analytics,
 )
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
@@ -49,7 +50,7 @@ def test_generates_available_artifact_without_mutating_canonical_track(
         temporary_directory / "analytics" / f"{ACTIVITY_ID}.maneuvers.json"
     )
     assert artifact["activity_id"] == ACTIVITY_ID
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 1
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 2
     assert artifact["track_sha256"] == hashlib.sha256(canonical_before).hexdigest()
     assert artifact["status"] == "available"
     assert len(artifact["maneuvers"]) == 1
@@ -75,6 +76,174 @@ def test_generates_unavailable_artifact_when_hdg_is_missing(
     assert artifact["status"] == "unavailable"
     assert artifact["reason"] == "missing_hdg"
     assert artifact["maneuvers"] == []
+
+
+def test_current_artifact_is_reused_without_recalculation(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
+    expected = generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+    artifact_before = analytics.artifact_path(ACTIVITY_ID).read_bytes()
+
+    def fail_detection(_track: object) -> None:
+        raise AssertionError("current artifact should not be recalculated")
+
+    monkeypatch.setattr(
+        "app.services.maneuver_analytics.detect_maneuvers",
+        fail_detection,
+    )
+
+    actual = get_or_generate_maneuver_analytics(
+        ACTIVITY_ID,
+        tracks,
+        analytics,
+    )
+
+    assert actual == expected
+    assert analytics.artifact_path(ACTIVITY_ID).read_bytes() == artifact_before
+
+
+def test_missing_artifact_is_generated_and_persisted(
+    temporary_directory: Path,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
+
+    artifact = get_or_generate_maneuver_analytics(
+        ACTIVITY_ID,
+        tracks,
+        analytics,
+    )
+
+    assert artifact["status"] == "available"
+    assert analytics.read(ACTIVITY_ID) == artifact
+
+
+def test_old_algorithm_version_is_regenerated(
+    temporary_directory: Path,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
+    stale = generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+    stale["algorithm_version"] = 1
+    analytics.write(ACTIVITY_ID, stale)
+
+    artifact = get_or_generate_maneuver_analytics(
+        ACTIVITY_ID,
+        tracks,
+        analytics,
+    )
+
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 2
+    assert analytics.read(ACTIVITY_ID) == artifact
+
+
+def test_track_sha_mismatch_is_regenerated(
+    temporary_directory: Path,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
+    stale = generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+    updated_track = _canonical_track(ACTIVITY_ID)
+    updated_track.loc[updated_track["hdg"].notna(), "hdg"] += 1.0
+    tracks.write_normalized_track(ACTIVITY_ID, updated_track)
+
+    artifact = get_or_generate_maneuver_analytics(
+        ACTIVITY_ID,
+        tracks,
+        analytics,
+    )
+
+    assert artifact["track_sha256"] != stale["track_sha256"]
+    assert artifact["track_sha256"] == hashlib.sha256(
+        tracks.track_path(ACTIVITY_ID).read_bytes()
+    ).hexdigest()
+
+
+@pytest.mark.parametrize(
+    "serialized",
+    [
+        "{not-json\n",
+        json.dumps({"activity_id": ACTIVITY_ID}),
+    ],
+)
+def test_malformed_or_corrupt_artifact_is_regenerated(
+    temporary_directory: Path,
+    serialized: str,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
+    path = analytics.artifact_path(ACTIVITY_ID)
+    path.parent.mkdir(parents=True)
+    path.write_text(serialized, encoding="utf-8")
+
+    artifact = get_or_generate_maneuver_analytics(
+        ACTIVITY_ID,
+        tracks,
+        analytics,
+    )
+
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION
+    assert analytics.read(ACTIVITY_ID) == artifact
+
+
+def test_current_unavailable_artifact_is_reused(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(
+        ACTIVITY_ID,
+        _canonical_track(ACTIVITY_ID, with_hdg=False),
+    )
+    expected = generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+
+    def fail_detection(_track: object) -> None:
+        raise AssertionError("current unavailable artifact should be reused")
+
+    monkeypatch.setattr(
+        "app.services.maneuver_analytics.detect_maneuvers",
+        fail_detection,
+    )
+
+    artifact = get_or_generate_maneuver_analytics(
+        ACTIVITY_ID,
+        tracks,
+        analytics,
+    )
+
+    assert artifact == expected
+    assert artifact["status"] == "unavailable"
+
+
+def test_stale_artifact_does_not_hide_canonical_track_corruption(
+    temporary_directory: Path,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
+    generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+    malformed_track = _canonical_track(ACTIVITY_ID).drop(columns=["hdg"])
+    malformed_track.to_csv(
+        tracks.track_path(ACTIVITY_ID),
+        index=False,
+        compression={"method": "gzip", "mtime": 0},
+    )
+
+    with pytest.raises(ValueError, match="columns must exactly match"):
+        get_or_generate_maneuver_analytics(
+            ACTIVITY_ID,
+            tracks,
+            analytics,
+        )
 
 
 def test_atomic_write_replaces_artifact_deterministically(

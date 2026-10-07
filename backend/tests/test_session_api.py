@@ -1,14 +1,20 @@
 import asyncio
 import json
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from app.main import app
-from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
+from app.normalization.track_normalizer import (
+    CANONICAL_TRACK_COLUMNS,
+    normalize_track,
+)
 from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
+from app.services.maneuver_analytics import MANEUVER_ALGORITHM_VERSION
+from app.storage.track_storage import TrackStorage
 
 SESSION_ID = "20000000-0000-4000-8000-000000000001"
 OTHER_SESSION_ID = "20000000-0000-4000-8000-000000000002"
@@ -92,6 +98,31 @@ def _set_status(root: Path, sailor_id: str, status: str) -> None:
     _write_json(root / "sailors.json", sailors)
 
 
+def _maneuver_track(*, with_hdg: bool = True) -> pd.DataFrame:
+    start = datetime(2031, 6, 1, 8, 0, tzinfo=timezone.utc)
+    heading = 40.0
+    samples = []
+    for index in range(35):
+        if 10 <= index < 24:
+            heading += 7.5
+        samples.append({
+            "utc": (
+                start + timedelta(seconds=index * 0.5)
+            ).isoformat(timespec="milliseconds"),
+            "lat": 0.25,
+            "lon": -30.75,
+            "hdg": heading if with_hdg else None,
+        })
+    return normalize_track(ACTIVITY_A, samples)
+
+
+def _maneuver_path(token: str, activity_id: str) -> str:
+    return (
+        f"/api/shared/sessions/{token}/activities/"
+        f"{activity_id}/maneuvers"
+    )
+
+
 def test_capability_session_exposes_active_subset_without_internal_id(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
     _use_runtime(monkeypatch, temporary_directory)
     response = _get(f"/api/shared/sessions/{TOKEN}")
@@ -172,6 +203,110 @@ def test_capability_track_is_scoped_to_visible_member(monkeypatch: pytest.Monkey
     assert visible.json["activity_id"] == ACTIVITY_A
     assert hidden.status_code == other.status_code == 404
     assert hidden.json == other.json == {"detail": "Activity not found"}
+
+
+def test_shared_maneuvers_returns_public_analytics_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    TrackStorage(root).write_normalized_track(ACTIVITY_A, _maneuver_track())
+
+    response = _get(_maneuver_path(TOKEN, ACTIVITY_A))
+
+    assert response.status_code == 200
+    assert set(response.json) == {"activity_id", "status", "maneuvers"}
+    assert response.json["activity_id"] == ACTIVITY_A
+    assert response.json["status"] == "available"
+    assert len(response.json["maneuvers"]) == 1
+    assert set(response.json["maneuvers"][0]) == {
+        "start_time",
+        "center_time",
+        "end_time",
+        "heading_change_deg",
+        "peak_turn_rate_deg_s",
+        "peak_turn_rate_time",
+    }
+    assert "algorithm_version" not in json.dumps(response.json)
+    assert "track_sha256" not in json.dumps(response.json)
+    persisted = json.loads(
+        (
+            root / "analytics" / f"{ACTIVITY_A}.maneuvers.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert persisted["algorithm_version"] == MANEUVER_ALGORITHM_VERSION
+    assert "track_sha256" in persisted
+
+
+@pytest.mark.parametrize(
+    ("token", "activity_id"),
+    [
+        (TOKEN, ACTIVITY_B),
+        (TOKEN, ACTIVITY_OTHER),
+        ("unknown-capability", ACTIVITY_A),
+    ],
+)
+def test_shared_maneuvers_requires_visible_session_activity(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    token: str,
+    activity_id: str,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+
+    response = _get(_maneuver_path(token, activity_id))
+
+    assert response.status_code == 404
+    assert response.json == {"detail": "Activity not found"}
+
+
+def test_shared_maneuvers_returns_unavailable_hdg_as_success(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    TrackStorage(root).write_normalized_track(
+        ACTIVITY_A,
+        _maneuver_track(with_hdg=False),
+    )
+
+    response = _get(_maneuver_path(TOKEN, ACTIVITY_A))
+
+    assert response.status_code == 200
+    assert response.json == {
+        "activity_id": ACTIVITY_A,
+        "status": "unavailable",
+        "reason": "missing_hdg",
+        "maneuvers": [],
+    }
+
+
+def test_maneuver_failure_does_not_change_session_or_track_endpoints(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+
+    def fail_analytics(*_args: object) -> None:
+        raise OSError("simulated analytics failure")
+
+    monkeypatch.setattr(
+        "app.services.shared_session_reader.get_or_generate_maneuver_analytics",
+        fail_analytics,
+    )
+
+    analytics = _get(_maneuver_path(TOKEN, ACTIVITY_A))
+    session = _get(f"/api/shared/sessions/{TOKEN}")
+    track = _get(
+        f"/api/shared/sessions/{TOKEN}/activities/{ACTIVITY_A}/track"
+    )
+
+    assert analytics.status_code == 500
+    assert analytics.json == {
+        "detail": "Persisted maneuver analytics data is inconsistent"
+    }
+    assert session.status_code == 200
+    assert track.status_code == 200
 
 
 def test_old_public_routes_do_not_bypass_capability(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

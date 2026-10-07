@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -63,3 +64,19 @@ class TrackSampleResponse(BaseModel):
 class ActivityTrackResponse(BaseModel):
     activity_id: str
     samples: list[TrackSampleResponse]
+
+
+class ManeuverResponse(BaseModel):
+    start_time: str
+    center_time: str
+    end_time: str
+    heading_change_deg: float
+    peak_turn_rate_deg_s: float
+    peak_turn_rate_time: str
+
+
+class ActivityManeuverAnalyticsResponse(BaseModel):
+    activity_id: str
+    status: Literal["available", "unavailable"]
+    reason: str | None = None
+    maneuvers: list[ManeuverResponse]
