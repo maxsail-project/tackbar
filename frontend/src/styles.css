@@ -517,13 +517,17 @@ input:focus-visible {
 
 .analysis-window__timeline {
   position: relative;
-  height: 86px;
+  height: 106px;
   overflow: hidden;
   border: 1px solid #c9d9dc;
   border-radius: 10px;
   background: linear-gradient(180deg, #f8fbfb, #edf4f5);
   cursor: crosshair;
   touch-action: pan-y;
+}
+
+.analysis-window__timeline--comparison {
+  height: 132px;
 }
 
 .analysis-window__replay-row {
@@ -539,7 +543,7 @@ input:focus-visible {
 }
 
 .analysis-window__play-button {
-  min-height: 86px;
+  min-height: 106px;
 }
 
 .analysis-window__timeline svg {
@@ -551,32 +555,59 @@ input:focus-visible {
 .analysis-window__maneuver-markers {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  pointer-events: none;
+}
+
+.analysis-window__maneuver-annotation {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
   pointer-events: none;
 }
 
 .analysis-window__maneuver-marker {
   position: absolute;
+  left: -12px;
+  z-index: 3;
   padding: 0;
-  transform: translateX(-50%);
 }
 
-.analysis-window__maneuver-marker--primary {
-  top: 6px;
+.analysis-window__maneuver-annotation--primary .analysis-window__maneuver-marker {
+  top: 2px;
 }
 
-.analysis-window__maneuver-marker--comparison {
-  top: 34px;
+.analysis-window__maneuver-annotation--comparison .analysis-window__maneuver-marker {
+  bottom: 2px;
 }
 
 .analysis-window__maneuver-marker--active {
   width: 24px;
   height: 24px;
-  margin-top: -8px;
   border: 0;
   background: transparent;
   cursor: pointer;
   pointer-events: auto;
+}
+
+.analysis-window__maneuver-guide {
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  z-index: 1;
+  background: currentcolor;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.analysis-window__maneuver-annotation--primary .analysis-window__maneuver-guide {
+  top: 14px;
+  height: 80px;
+}
+
+.analysis-window__maneuver-annotation--comparison .analysis-window__maneuver-guide {
+  top: 94px;
+  bottom: 14px;
 }
 
 .analysis-window__maneuver-marker--active::after {

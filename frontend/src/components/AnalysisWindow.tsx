@@ -30,6 +30,9 @@ import type { DisplayManeuver } from '../utils/maneuverEvents'
 
 const TIMELINE_POINT_BUDGET = 240
 const ANALYSIS_WINDOW_DRAG_THRESHOLD_PX = 6
+export const ANALYSIS_WINDOW_SOG_PLOT_BAND = { top: 32, bottom: 94 } as const
+const SINGLE_ACTIVITY_TIMELINE_HEIGHT = 106
+const COMPARISON_TIMELINE_HEIGHT = 132
 
 export interface AnalysisWindowReplay {
   playbackTime: number
@@ -45,6 +48,7 @@ interface AnalysisWindowProps {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
   maneuvers?: DisplayManeuver[]
+  hasComparison?: boolean
   replay?: AnalysisWindowReplay | null
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
   onManeuverSelect?: (centerTimeMs: number) => void
@@ -85,6 +89,15 @@ export function isAnalysisWindowDrag(startClientX: number, endClientX: number) {
     && Math.abs(endClientX - startClientX) >= ANALYSIS_WINDOW_DRAG_THRESHOLD_PX
 }
 
+export function shouldCaptureAnalysisWindowPointer(
+  startedOnManeuverMarker: boolean,
+  startClientX: number,
+  currentClientX: number,
+) {
+  return !startedOnManeuverMarker
+    || isAnalysisWindowDrag(startClientX, currentClientX)
+}
+
 export function completeAnalysisWindowGesture(
   selection: TemporalPointerSelection | null,
   startClientX: number | null,
@@ -102,6 +115,14 @@ export function completeAnalysisWindowGesture(
     selection.end,
   )
   if (requestedRange !== null) onRangeChange(requestedRange)
+}
+
+export function selectManeuverAfterPointerGesture(
+  centerTimeMs: number,
+  pointerGestureWasDrag: boolean,
+  onSelect: (centerTimeMs: number) => void,
+) {
+  if (!pointerGestureWasDrag) onSelect(centerTimeMs)
 }
 
 export function resolveAnalysisWindowPointerTimestamp(
@@ -140,17 +161,21 @@ export function AnalysisWindowManeuverMarker({
   }
 
   return (
-    <button
-      type="button"
-      className={className}
+    <div
+      className={`analysis-window__maneuver-annotation analysis-window__maneuver-annotation--${event.activityRole}`}
       style={style}
-      onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
-      onClick={(clickEvent) => {
-        clickEvent.stopPropagation()
-        onSelect(event.centerTimeMs)
-      }}
-      aria-label={`Move replay to ${formatGpsTime(event.centerTimeMs)} UTC, Activity ${roleLabel}`}
-    />
+    >
+      <span className="analysis-window__maneuver-guide" aria-hidden="true" />
+      <button
+        type="button"
+        className={className}
+        onClick={(clickEvent) => {
+          clickEvent.stopPropagation()
+          onSelect(event.centerTimeMs)
+        }}
+        aria-label={`Move replay to ${formatGpsTime(event.centerTimeMs)} UTC, Activity ${roleLabel}`}
+      />
+    </div>
   )
 }
 
@@ -179,6 +204,7 @@ export default function AnalysisWindow({
   primarySamples,
   comparisonSamples = [],
   maneuvers = [],
+  hasComparison,
   replay = null,
   onRangeChange,
   onManeuverSelect = () => undefined,
@@ -186,6 +212,8 @@ export default function AnalysisWindow({
   const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
   const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
   const pointerStartClientXRef = useRef<number | null>(null)
+  const pointerStartedOnManeuverRef = useRef(false)
+  const completedGestureWasDragRef = useRef(false)
   const displayRange = analysisWindow
   const primaryPoints = useMemo(
     () => displayRange === null ? [] : reduceSogTimelinePoints(
@@ -210,6 +238,8 @@ export default function AnalysisWindow({
   useEffect(() => {
     pointerSelectionRef.current = null
     pointerStartClientXRef.current = null
+    pointerStartedOnManeuverRef.current = false
+    completedGestureWasDragRef.current = false
     setPointerSelection(null)
   }, [displayRange?.end, displayRange?.start])
 
@@ -229,13 +259,30 @@ export default function AnalysisWindow({
     const nextSelection = startTemporalPointerSelection(event.pointerId, pointerTimestamp(event))
     if (nextSelection === null) return
 
-    event.currentTarget.setPointerCapture(event.pointerId)
+    const startedOnManeuverMarker = event.target instanceof Element
+      && event.target.closest('.analysis-window__maneuver-marker') !== null
+    if (!startedOnManeuverMarker) {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    }
     pointerStartClientXRef.current = event.clientX
+    pointerStartedOnManeuverRef.current = startedOnManeuverMarker
+    completedGestureWasDragRef.current = false
     updatePointerSelection(nextSelection)
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     if (pointerSelectionRef.current?.pointerId !== event.pointerId) return
+    if (
+      pointerStartClientXRef.current !== null
+      && !event.currentTarget.hasPointerCapture(event.pointerId)
+      && shouldCaptureAnalysisWindowPointer(
+        pointerStartedOnManeuverRef.current,
+        pointerStartClientXRef.current,
+        event.clientX,
+      )
+    ) {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    }
     updatePointerSelection(updateTemporalPointerSelection(
       pointerSelectionRef.current,
       event.pointerId,
@@ -251,6 +298,9 @@ export default function AnalysisWindow({
       pointerTimestamp(event),
     )
     updatePointerSelection(null)
+    const gestureWasDrag = pointerStartClientXRef.current !== null
+      && isAnalysisWindowDrag(pointerStartClientXRef.current, event.clientX)
+    completedGestureWasDragRef.current = gestureWasDrag
     completeAnalysisWindowGesture(
       completed,
       pointerStartClientXRef.current,
@@ -258,11 +308,13 @@ export default function AnalysisWindow({
       onRangeChange,
     )
     pointerStartClientXRef.current = null
+    pointerStartedOnManeuverRef.current = false
   }
 
   function cancelPointerSelection(event: ReactPointerEvent<HTMLDivElement>) {
     if (pointerSelectionRef.current?.pointerId === event.pointerId) {
       pointerStartClientXRef.current = null
+      pointerStartedOnManeuverRef.current = false
       updatePointerSelection(null)
     }
   }
@@ -289,8 +341,25 @@ export default function AnalysisWindow({
       }
   const windowStartPercent = positionPercent(selectedRange.start, analysisWindow)
   const windowEndPercent = positionPercent(selectedRange.end, analysisWindow)
-  const primaryPath = buildSogTimelinePath(primaryPoints, analysisWindow, maximumSog)
-  const comparisonPath = buildSogTimelinePath(comparisonPoints, analysisWindow, maximumSog)
+  const comparisonPath = buildSogTimelinePath(
+    comparisonPoints,
+    analysisWindow,
+    maximumSog,
+    ANALYSIS_WINDOW_SOG_PLOT_BAND,
+  )
+  const showsComparisonLane = hasComparison ?? (
+    comparisonPoints.length > 0
+    || maneuvers.some((event) => event.activityRole === 'comparison')
+  )
+  const timelineHeight = showsComparisonLane
+    ? COMPARISON_TIMELINE_HEIGHT
+    : SINGLE_ACTIVITY_TIMELINE_HEIGHT
+  const centralPrimaryPath = buildSogTimelinePath(
+    primaryPoints,
+    analysisWindow,
+    maximumSog,
+    ANALYSIS_WINDOW_SOG_PLOT_BAND,
+  )
   const isFullRange = analysisWindow.start === availableRange.start
     && analysisWindow.end === availableRange.end
   const playbackCursorPosition = replay === null
@@ -340,7 +409,7 @@ export default function AnalysisWindow({
           </button>
         )}
         <div
-          className="analysis-window__timeline"
+          className={`analysis-window__timeline${showsComparisonLane ? ' analysis-window__timeline--comparison' : ''}`}
           aria-label="SOG timeline; drag horizontally to select the Analysis Window"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -351,8 +420,8 @@ export default function AnalysisWindow({
           }}
           onLostPointerCapture={cancelPointerSelection}
         >
-          <svg viewBox="0 0 1000 84" preserveAspectRatio="none" aria-hidden="true">
-            {primaryPath && <path className="analysis-window__sog-line" d={primaryPath} style={{ stroke: ACTIVITY_COLORS.primary }} />}
+          <svg viewBox={`0 0 1000 ${timelineHeight}`} preserveAspectRatio="none" aria-hidden="true">
+            {centralPrimaryPath && <path className="analysis-window__sog-line" d={centralPrimaryPath} style={{ stroke: ACTIVITY_COLORS.primary }} />}
             {comparisonPath && <path className="analysis-window__sog-line" d={comparisonPath} style={{ stroke: ACTIVITY_COLORS.comparison }} />}
           </svg>
           {playbackCursorPosition !== null && (
@@ -371,7 +440,14 @@ export default function AnalysisWindow({
                   key={`${event.activityRole}:${event.maneuver.start_time}:${event.maneuver.center_time}:${event.maneuver.end_time}`}
                   event={event}
                   position={positionPercent(event.centerTimeMs, analysisWindow)}
-                  onSelect={onManeuverSelect}
+                  onSelect={(centerTimeMs) => {
+                    selectManeuverAfterPointerGesture(
+                      centerTimeMs,
+                      completedGestureWasDragRef.current,
+                      onManeuverSelect,
+                    )
+                    completedGestureWasDragRef.current = false
+                  }}
                 />
               ))}
           </div>

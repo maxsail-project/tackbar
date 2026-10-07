@@ -56,6 +56,20 @@ describe('SOG Analysis Window timeline', () => {
     expect(buildSogTimelinePath(points, range, 6)).toContain(' M')
   })
 
+  it('maps SOG into a supplied central plot band', () => {
+    const points: SogTimelinePoint[] = [
+      { time: range.start, sog: 0 },
+      { time: range.end, sog: 6 },
+    ]
+
+    expect(buildSogTimelinePath(
+      points,
+      range,
+      6,
+      { top: 32, bottom: 94 },
+    )).toBe('M0.00,94.00 L1000.00,32.00')
+  })
+
   it('leaves small inputs intact as a new array', () => {
     const points: SogTimelinePoint[] = [
       { time: 1, sog: 2 },

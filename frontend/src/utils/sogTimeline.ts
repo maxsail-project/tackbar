@@ -7,6 +7,13 @@ export interface SogTimelinePoint {
   sog: number | null
 }
 
+export interface SogTimelinePlotBand {
+  top: number
+  bottom: number
+}
+
+const DEFAULT_PLOT_BAND: SogTimelinePlotBand = { top: 8, bottom: 76 }
+
 export function prepareSogTimelinePoints(
   samples: TrackSample[],
   availableRange: AnalysisWindowRange,
@@ -70,9 +77,11 @@ export function buildSogTimelinePath(
   points: SogTimelinePoint[],
   availableRange: AnalysisWindowRange,
   maximumSog: number,
+  plotBand: SogTimelinePlotBand = DEFAULT_PLOT_BAND,
 ) {
   const duration = availableRange.end - availableRange.start
-  if (duration <= 0) return ''
+  const plotHeight = plotBand.bottom - plotBand.top
+  if (duration <= 0 || plotHeight <= 0) return ''
 
   let path = ''
   let beginsSegment = true
@@ -83,7 +92,8 @@ export function buildSogTimelinePath(
     }
 
     const x = ((point.time - availableRange.start) / duration) * 1000
-    const y = 76 - ((Math.max(0, point.sog) / maximumSog) * 68)
+    const y = plotBand.bottom
+      - ((Math.max(0, point.sog) / maximumSog) * plotHeight)
     path += `${beginsSegment ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)} `
     beginsSegment = false
   })

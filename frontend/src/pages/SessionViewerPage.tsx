@@ -610,6 +610,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         primarySamples={primaryAvailableSamples}
         comparisonSamples={comparisonAvailableSamples}
         maneuvers={timelineManeuvers}
+        hasComparison={comparisonActivityId !== null}
         replay={createAnalysisWindowReplay(
           canReplay,
           playbackTime,

@@ -5,12 +5,15 @@ import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import AnalysisWindow, {
+  ANALYSIS_WINDOW_SOG_PLOT_BAND,
   AnalysisWindowManeuverMarker,
   completeAnalysisWindowGesture,
   isAnalysisWindowDrag,
   playbackCursorPositionPercent,
   requestAnalysisWindowReset,
   resolveAnalysisWindowPointerTimestamp,
+  selectManeuverAfterPointerGesture,
+  shouldCaptureAnalysisWindowPointer,
   type AnalysisWindowReplay,
 } from './AnalysisWindow'
 
@@ -112,7 +115,7 @@ describe('Analysis Window SOG timeline', () => {
       window: availableRange,
     })
 
-    expect(markup).toContain('d="M0.00,35.20 L1000.00,8.00"')
+    expect(markup).toContain('d="M0.00,56.80 L1000.00,32.00"')
     expect(markup).toContain('disabled=""')
     expect(markup).toContain('10:00:00 UTC')
     expect(markup).toContain('10:00:10 UTC')
@@ -123,7 +126,7 @@ describe('Analysis Window SOG timeline', () => {
       primarySamples: [sample(0, 100), sample(2, 3), sample(8, 6), sample(10, 100)],
     })
 
-    expect(markup).toContain('d="M0.00,42.00 L1000.00,8.00"')
+    expect(markup).toContain('d="M0.00,63.00 L1000.00,32.00"')
     expect(markup).not.toContain('disabled=""')
     expect(markup).toContain('10:00:02 UTC')
     expect(markup).toContain('10:00:08 UTC')
@@ -255,6 +258,38 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).toContain('color:#9a5aaf')
   })
 
+  it('places P above the central SOG band and C below it without reserving C space for P only', () => {
+    const primaryOnly = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      maneuvers: [maneuver(5, 'primary')],
+    })
+    const compared = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      comparisonSamples: [sample(2, 4), sample(8, 6)],
+      maneuvers: [maneuver(4, 'primary'), maneuver(6, 'comparison')],
+    })
+
+    expect(primaryOnly).toContain('analysis-window__maneuver-annotation--primary')
+    expect(primaryOnly).not.toContain('analysis-window__maneuver-annotation--comparison')
+    expect(primaryOnly).not.toContain('analysis-window__timeline--comparison')
+    expect(primaryOnly).toContain('viewBox="0 0 1000 106"')
+    expect(compared).toContain('analysis-window__maneuver-annotation--primary')
+    expect(compared).toContain('analysis-window__maneuver-annotation--comparison')
+    expect(compared).toContain('analysis-window__timeline--comparison')
+    expect(compared).toContain('viewBox="0 0 1000 132"')
+    expect(ANALYSIS_WINDOW_SOG_PLOT_BAND).toEqual({ top: 32, bottom: 94 })
+  })
+
+  it('renders one subtle guide for every visible maneuver', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      comparisonSamples: [sample(2, 4), sample(8, 6)],
+      maneuvers: [maneuver(4, 'primary'), maneuver(6, 'comparison')],
+    })
+
+    expect(markup.match(/analysis-window__maneuver-guide/g)).toHaveLength(2)
+  })
+
   it('does not render maneuvers outside the displayed range', () => {
     const markup = render({
       primarySamples: [sample(2, 3), sample(8, 5)],
@@ -270,17 +305,44 @@ describe('Analysis Window SOG timeline', () => {
     const event = maneuver(5, 'primary')
     const onSelect = vi.fn()
     const stopPropagation = vi.fn()
-    const marker = AnalysisWindowManeuverMarker({
+    const annotation = AnalysisWindowManeuverMarker({
       event,
       position: 50,
       onSelect,
     }) as ReactElement<{
+      children: ReactElement[]
+    }>
+    const marker = annotation.props.children[1] as ReactElement<{
       onClick: (clickEvent: { stopPropagation: () => void }) => void
     }>
 
     marker.props.onClick({ stopPropagation })
 
     expect(stopPropagation).toHaveBeenCalledOnce()
+    expect(onSelect).toHaveBeenCalledWith(event.centerTimeMs)
+    expect(marker.props).not.toHaveProperty('onPointerDown')
+  })
+
+  it('allows marker pointer-down to reach range selection and suppresses selection after a drag', () => {
+    const onSelect = vi.fn()
+    const event = maneuver(5, 'primary')
+    const annotation = AnalysisWindowManeuverMarker({
+      event,
+      position: 50,
+      onSelect,
+    }) as ReactElement<{ children: ReactElement[] }>
+    const marker = annotation.props.children[1]
+
+    expect(marker.props).not.toHaveProperty('onPointerDown')
+    expect(shouldCaptureAnalysisWindowPointer(true, 100, 100)).toBe(false)
+    expect(shouldCaptureAnalysisWindowPointer(true, 100, 105)).toBe(false)
+    expect(shouldCaptureAnalysisWindowPointer(true, 100, 106)).toBe(true)
+    expect(shouldCaptureAnalysisWindowPointer(false, 100, 100)).toBe(true)
+
+    selectManeuverAfterPointerGesture(event.centerTimeMs, true, onSelect)
+    expect(onSelect).not.toHaveBeenCalled()
+
+    selectManeuverAfterPointerGesture(event.centerTimeMs, false, onSelect)
     expect(onSelect).toHaveBeenCalledWith(event.centerTimeMs)
   })
 
