@@ -8,10 +8,9 @@ from app.analytics.circular_angles import (
     signed_angular_difference,
 )
 from app.analytics.maneuver_detector import (
+    CANDIDATE_SEED_TURN_RATE_DEG_S,
     MAX_SAMPLE_GAP_SECONDS,
-    STABLE_TURN_RATE_DEG_S,
-    TURN_ENTRY_PERSISTENCE_SECONDS,
-    TURN_ENTRY_RATE_DEG_S,
+    analyze_maneuver_candidates,
     calculate_local_turn_rates,
     detect_maneuvers,
 )
@@ -50,6 +49,24 @@ def _track(
         "sog": sog,
     })
     return pd.DataFrame(rows)
+
+
+def _with_multisensor_support(
+    track: pd.DataFrame,
+    *,
+    sog_start: float = 6.0,
+    sog_end: float = 4.0,
+) -> pd.DataFrame:
+    supported = track.copy()
+    denominator = max(len(supported) - 1, 1)
+    progress = [index / denominator for index in range(len(supported))]
+    supported["cog"] = supported["hdg"]
+    supported["heel"] = [-8.0 + 16.0 * value for value in progress]
+    supported["sog"] = [
+        sog_start + (sog_end - sog_start) * value
+        for value in progress
+    ]
+    return supported
 
 
 @pytest.mark.parametrize(
@@ -143,31 +160,10 @@ def test_detects_stable_turn_stable_maneuver(rate: float, expected_sign: int) ->
     assert maneuver.peak_turn_rate_deg_s > 0
 
 
-def test_requires_entry_turn_rate_for_full_persistence_interval() -> None:
-    track = _track([(5, 0), (0.5, 30), (10, 5), (5, 0)])
-    rate_samples = calculate_local_turn_rates(track)
-    entry_index = next(
-        index
-        for index, sample in enumerate(rate_samples)
-        if sample.turn_rate_deg_s is not None
-        and abs(sample.turn_rate_deg_s) >= TURN_ENTRY_RATE_DEG_S
+def test_gradual_entry_is_detected_with_multisensor_support() -> None:
+    track = _with_multisensor_support(
+        _track([(5, 0), (4, 5), (4, 7), (5, 0)])
     )
-    entry_sample = rate_samples[entry_index]
-
-    assert any(
-        sample.turn_rate_deg_s is not None
-        and STABLE_TURN_RATE_DEG_S
-        < abs(sample.turn_rate_deg_s)
-        < TURN_ENTRY_RATE_DEG_S
-        and sample.elapsed_seconds - entry_sample.elapsed_seconds
-        <= TURN_ENTRY_PERSISTENCE_SECONDS
-        for sample in rate_samples[entry_index + 1:]
-    )
-    assert detect_maneuvers(track).maneuvers == ()
-
-
-def test_confirmed_turn_continues_below_entry_threshold() -> None:
-    track = _track([(5, 0), (2, 15), (6, 5), (5, 0)])
     rate_samples = calculate_local_turn_rates(track)
 
     result = detect_maneuvers(track)
@@ -182,13 +178,154 @@ def test_confirmed_turn_continues_below_entry_threshold() -> None:
     )
     assert any(
         sample.turn_rate_deg_s is not None
-        and STABLE_TURN_RATE_DEG_S
-        < abs(sample.turn_rate_deg_s)
-        < TURN_ENTRY_RATE_DEG_S
+        and abs(sample.turn_rate_deg_s) < CANDIDATE_SEED_TURN_RATE_DEG_S
         for sample in rate_samples[start_index + 1:]
         if sample.timestamp <= maneuver.end_time
     )
     assert maneuver.heading_change_deg >= 45
+
+
+def test_sustained_four_point_five_degree_turn_can_become_a_candidate() -> None:
+    track = _with_multisensor_support(
+        _track([(5, 0), (10, 4.5), (5, 0)])
+    )
+
+    result = detect_maneuvers(track)
+
+    assert len(result.maneuvers) == 1
+    assert result.maneuvers[0].heading_change_deg >= 45
+
+
+def test_candidate_below_old_coherence_threshold_survives_strong_support() -> None:
+    track = _with_multisensor_support(
+        _track([(5, 0), (3, 15), (1, -38), (3, 15), (5, 0)])
+    )
+
+    assessments = analyze_maneuver_candidates(track)
+    accepted = [assessment for assessment in assessments if assessment.accepted]
+
+    assert len(accepted) == 1
+    assert 0.55 <= accepted[0].directional_coherence < 0.7
+    assert accepted[0].cog_support
+    assert accepted[0].heel_support
+    assert accepted[0].sog_support
+
+
+def test_heel_supports_direction_but_cannot_create_a_maneuver() -> None:
+    supported = _with_multisensor_support(_track([(5, 0), (7, 10), (5, 0)]))
+    heel_only = _with_multisensor_support(_track([(17, 0)]))
+
+    assessment = next(
+        item for item in analyze_maneuver_candidates(supported)
+        if item.accepted
+    )
+
+    assert assessment.heel_support
+    assert detect_maneuvers(heel_only).maneuvers == ()
+
+
+def test_heel_excursion_can_support_without_crossing_zero() -> None:
+    track = _track([(5, 0), (7, 10), (5, 0)], sog=5.0)
+    track["heel"] = [
+        2.0 + 8.0 * index / (len(track) - 1)
+        for index in range(len(track))
+    ]
+
+    assessment = next(
+        item for item in analyze_maneuver_candidates(track)
+        if item.accepted
+    )
+
+    assert assessment.heel_support
+
+
+@pytest.mark.parametrize(
+    ("sog_start", "sog_end"),
+    [(7.0, 4.0), (4.0, 7.0)],
+)
+def test_sog_loss_and_acceleration_are_both_compatible_support(
+    sog_start: float,
+    sog_end: float,
+) -> None:
+    track = _with_multisensor_support(
+        _track([(5, 0), (7, 10), (5, 0)]),
+        sog_start=sog_start,
+        sog_end=sog_end,
+    )
+
+    assessment = next(
+        item for item in analyze_maneuver_candidates(track)
+        if item.accepted
+    )
+
+    assert assessment.sog_support
+    assert len(detect_maneuvers(track).maneuvers) == 1
+
+
+def test_stable_sog_does_not_veto_a_strong_directional_maneuver() -> None:
+    track = _track([(5, 0), (7, 15), (5, 0)], sog=5.0)
+
+    assert len(detect_maneuvers(track).maneuvers) == 1
+
+
+def test_very_strong_direction_at_segment_start_needs_no_optional_support() -> None:
+    track = _track([(10, 15), (5, 0)], sog=5.0)
+
+    accepted = [
+        item for item in analyze_maneuver_candidates(track)
+        if item.accepted
+    ]
+
+    assert len(accepted) == 1
+    assert not accepted[0].prior_stability_support
+    assert not accepted[0].cog_support
+    assert not accepted[0].heel_support
+    assert not accepted[0].sog_support
+
+
+def test_prior_stability_is_supporting_evidence_not_a_veto() -> None:
+    track = _with_multisensor_support(
+        _track([(4, 6), (7, 10), (5, 0)])
+    )
+
+    accepted = [
+        item for item in analyze_maneuver_candidates(track)
+        if item.accepted
+    ]
+
+    assert len(accepted) == 1
+    assert not accepted[0].prior_stability_support
+    assert len(detect_maneuvers(track).maneuvers) == 1
+
+
+def test_noisy_directional_candidate_without_combined_support_is_rejected() -> None:
+    track = _track([(4, 6), (3, 15), (1, -38), (3, 15), (4, 6)])
+
+    assessments = analyze_maneuver_candidates(track)
+
+    assert any(
+        assessment.reason == "insufficient_support"
+        for assessment in assessments
+    )
+    assert detect_maneuvers(track).maneuvers == ()
+
+
+def test_single_heel_and_sog_outliers_do_not_create_support() -> None:
+    track = _track([(4, 6), (3, 15), (1, -35), (3, 15), (4, 6)])
+    track["heel"] = 0.0
+    track["sog"] = 5.0
+    track.loc[len(track) // 2, "heel"] = 30.0
+    track.loc[len(track) // 2, "sog"] = 12.0
+
+    assessments = analyze_maneuver_candidates(track)
+    relevant = max(
+        assessments,
+        key=lambda assessment: abs(assessment.heading_change_deg),
+    )
+
+    assert not relevant.heel_support
+    assert not relevant.sog_support
+    assert not relevant.accepted
 
 
 def test_detects_north_crossing_without_optional_context() -> None:
@@ -205,6 +342,36 @@ def test_detects_north_crossing_without_optional_context() -> None:
     assert result.status == "available"
     assert len(result.maneuvers) == 1
     assert 80 <= result.maneuvers[0].heading_change_deg <= 120
+
+
+def test_cog_agreement_is_circular_through_north() -> None:
+    track = _track([(5, 0), (7, 15), (5, 0)], initial_heading=330)
+    track["cog"] = track["hdg"]
+
+    assessment = next(
+        item for item in analyze_maneuver_candidates(track)
+        if item.accepted
+    )
+
+    assert assessment.cog_support
+    assert assessment.cog_change_deg is not None
+    assert 80 <= assessment.cog_change_deg <= 120
+
+
+def test_two_isolated_cog_samples_do_not_create_support() -> None:
+    track = _track([(7, 10), (5, 0)])
+    track["cog"] = None
+    track.loc[8, "cog"] = 0.0
+    track.loc[9, "cog"] = 30.0
+
+    relevant = max(
+        analyze_maneuver_candidates(track),
+        key=lambda item: abs(item.heading_change_deg),
+    )
+
+    assert relevant.cog_change_deg == 30.0
+    assert not relevant.cog_support
+    assert not relevant.accepted
 
 
 def test_center_time_uses_heading_midpoint_not_temporal_midpoint() -> None:
@@ -236,9 +403,15 @@ def test_center_time_uses_heading_midpoint_not_temporal_midpoint() -> None:
         )
     ]
     center_change = sum(changes[:center_index - start_index])
+    target_change = sum(changes) / 2
+    expected_center_offset = min(
+        range(1, len(changes)),
+        key=lambda offset: abs(sum(changes[:offset]) - target_change),
+    )
 
     assert center < temporal_midpoint - timedelta(seconds=1)
     assert center_change == pytest.approx(sum(changes) / 2, abs=5)
+    assert center_index == start_index + expected_center_offset
 
 
 @pytest.mark.parametrize(

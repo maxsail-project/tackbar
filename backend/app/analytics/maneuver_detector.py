@@ -1,30 +1,46 @@
-"""Deterministic HDG-based neutral maneuver detection."""
+"""Deterministic multisensor neutral maneuver detection."""
 
 from dataclasses import dataclass
 from math import atan2, cos, degrees, isfinite, radians, sin
+from statistics import median
 
 import pandas as pd
 
 from app.analytics.circular_angles import signed_angular_difference
 
 
-# Provisional detector parameters. These are centralized for real-sailing
+# Provisional detector parameters. These remain centralized for real-sailing
 # validation and are not product-level configuration or stable requirements.
 SMOOTHING_HALF_WINDOW_SECONDS = 1.0
 TURN_RATE_HALF_WINDOW_SECONDS = 1.0
+CANDIDATE_SEED_TURN_RATE_DEG_S = 4.0
+CANDIDATE_CONTINUATION_TURN_RATE_DEG_S = 0.5
+MAX_CANDIDATE_INTERRUPTION_SECONDS = 1.5
 STABLE_TURN_RATE_DEG_S = 3.0
-TURN_ENTRY_RATE_DEG_S = 8.0
-TURN_ENTRY_PERSISTENCE_SECONDS = 1.0
-TURN_EXIT_STABILITY_SECONDS = 1.5
-PRIOR_STABILITY_SECONDS = 1.5
+SUPPORT_CONTEXT_SECONDS = 2.0
 MIN_HEADING_CHANGE_DEG = 45.0
 MIN_MANEUVER_DURATION_SECONDS = 3.0
 MAX_MANEUVER_DURATION_SECONDS = 30.0
 MAX_SAMPLE_GAP_SECONDS = 1.5
 MIN_VALID_HDG_SAMPLES = 20
-MIN_DIRECTION_COHERENCE = 0.7
+MIN_DIRECTION_COHERENCE = 0.55
+SUPPORTED_DIRECTION_COHERENCE = 0.60
+STRONG_DIRECTION_COHERENCE = 0.80
+STRONG_HEADING_CHANGE_DEG = 60.0
+STRONG_PEAK_TURN_RATE_DEG_S = 8.0
+VERY_STRONG_DIRECTION_COHERENCE = 0.90
+VERY_STRONG_HEADING_CHANGE_DEG = 75.0
 MIN_DIRECTIONAL_ROTATION_SAMPLES = 4
 MAX_ADJACENT_HEADING_CHANGE_DEG = 90.0
+MIN_COG_SUPPORT_CHANGE_DEG = 20.0
+MIN_COG_SUPPORT_COHERENCE = 0.35
+MIN_COG_SUPPORT_SAMPLES = 5
+MIN_HEEL_EXCURSION_DEG = 5.0
+MIN_HEEL_TRANSITION_DEG = 3.0
+MIN_SOG_RANGE_KNOTS = 0.75
+MIN_SOG_TRANSITION_KNOTS = 0.5
+MIN_SUPPORT_SAMPLES = 5
+MIN_TRANSITION_SAMPLES = 3
 
 
 @dataclass(frozen=True)
@@ -61,9 +77,74 @@ class TurnRateSample:
     heading: float
     smoothed_heading: float
     turn_rate_deg_s: float | None
+    cog: float | None
+    heel: float | None
+    sog: float | None
+
+
+@dataclass(frozen=True)
+class ManeuverCandidateAssessment:
+    """Ephemeral detector evidence for tests and local expert validation."""
+
+    start_time: str
+    center_time: str
+    end_time: str
+    heading_change_deg: float
+    directional_coherence: float
+    peak_turn_rate_deg_s: float
+    cog_change_deg: float | None
+    cog_support: bool
+    heel_excursion_deg: float | None
+    heel_transition_deg: float | None
+    heel_support: bool
+    sog_local_range_knots: float | None
+    sog_transition_knots: float | None
+    sog_support: bool
+    prior_stability_support: bool
+    accepted: bool
+    reason: str
+
+
+RawSegmentSample = tuple[
+    float,
+    str,
+    float,
+    float | None,
+    float | None,
+    float | None,
+]
 
 
 def detect_maneuvers(track: pd.DataFrame) -> ManeuverDetectionResult:
+    prepared = _prepare_detection(track)
+    if isinstance(prepared, ManeuverDetectionResult):
+        return prepared
+
+    maneuvers: list[Maneuver] = []
+    for samples in prepared:
+        detected, _ = _detect_segment_maneuvers(samples)
+        maneuvers.extend(detected)
+    return ManeuverDetectionResult("available", tuple(maneuvers))
+
+
+def analyze_maneuver_candidates(
+    track: pd.DataFrame,
+) -> tuple[ManeuverCandidateAssessment, ...]:
+    """Return non-persisted candidate evidence for local expert review."""
+    prepared = _prepare_detection(track)
+    if isinstance(prepared, ManeuverDetectionResult):
+        return ()
+
+    assessments: list[ManeuverCandidateAssessment] = []
+    for samples in prepared:
+        _, segment_assessments = _detect_segment_maneuvers(samples)
+        assessments.extend(segment_assessments)
+    return tuple(assessments)
+
+
+def _prepare_detection(
+    track: pd.DataFrame,
+) -> list[list[TurnRateSample]] | ManeuverDetectionResult:
     if "hdg" not in track or "utc" not in track:
         return ManeuverDetectionResult("unavailable", (), "missing_hdg")
 
@@ -75,22 +156,15 @@ def detect_maneuvers(track: pd.DataFrame) -> ManeuverDetectionResult:
         segment
         for segment in segments
         if len(segment) >= MIN_VALID_HDG_SAMPLES
-        and segment[-1][0] - segment[0][0] >= (
-            PRIOR_STABILITY_SECONDS
-            + TURN_ENTRY_PERSISTENCE_SECONDS
-            + MIN_MANEUVER_DURATION_SECONDS
-            + TURN_EXIT_STABILITY_SECONDS
-        )
+        and segment[-1][0] - segment[0][0] >= MIN_MANEUVER_DURATION_SECONDS
     ]
     if not eligible_segments:
         return ManeuverDetectionResult("unavailable", (), "insufficient_hdg")
 
-    maneuvers: list[Maneuver] = []
-    for segment in eligible_segments:
-        rate_samples = _calculate_segment_turn_rates(segment)
-        maneuvers.extend(_detect_segment_maneuvers(rate_samples))
-
-    return ManeuverDetectionResult("available", tuple(maneuvers))
+    return [
+        _calculate_segment_turn_rates(segment)
+        for segment in eligible_segments
+    ]
 
 
 def calculate_local_turn_rates(track: pd.DataFrame) -> list[TurnRateSample]:
@@ -103,9 +177,22 @@ def calculate_local_turn_rates(track: pd.DataFrame) -> list[TurnRateSample]:
     ]
 
 
+def _optional_numbers(track: pd.DataFrame, column: str) -> pd.Series:
+    if column not in track:
+        return pd.Series([None] * len(track), index=track.index, dtype="object")
+    return pd.to_numeric(track[column], errors="coerce")
+
+
+def _optional_finite(value: object) -> float | None:
+    if pd.isna(value):
+        return None
+    number = float(value)
+    return number if isfinite(number) else None
+
+
 def _valid_heading_segments(
     track: pd.DataFrame,
-) -> tuple[list[list[tuple[float, str, float]]], int]:
+) -> tuple[list[list[RawSegmentSample]], int]:
     timestamps = pd.to_datetime(
         track["utc"],
         utc=True,
@@ -113,11 +200,20 @@ def _valid_heading_segments(
         format="mixed",
     )
     headings = pd.to_numeric(track["hdg"], errors="coerce")
-    segments: list[list[tuple[float, str, float]]] = []
-    current: list[tuple[float, str, float]] = []
+    cogs = _optional_numbers(track, "cog")
+    heels = _optional_numbers(track, "heel")
+    sogs = _optional_numbers(track, "sog")
+    segments: list[list[RawSegmentSample]] = []
+    current: list[RawSegmentSample] = []
     valid_heading_count = 0
 
-    for timestamp, heading in zip(timestamps, headings):
+    for timestamp, heading, cog, heel, sog in zip(
+        timestamps,
+        headings,
+        cogs,
+        heels,
+        sogs,
+    ):
         if pd.isna(timestamp) or pd.isna(heading) or not isfinite(float(heading)):
             if current:
                 segments.append(current)
@@ -136,6 +232,9 @@ def _valid_heading_segments(
             elapsed_seconds,
             timestamp.isoformat().replace("+00:00", "Z"),
             float(heading) % 360.0,
+            _optional_finite(cog),
+            _optional_finite(heel),
+            _optional_finite(sog),
         ))
         valid_heading_count += 1
 
@@ -145,11 +244,14 @@ def _valid_heading_segments(
 
 
 def _calculate_segment_turn_rates(
-    segment: list[tuple[float, str, float]],
+    segment: list[RawSegmentSample],
 ) -> list[TurnRateSample]:
     times = [sample[0] for sample in segment]
     timestamps = [sample[1] for sample in segment]
     headings = [sample[2] for sample in segment]
+    cogs = [sample[3] for sample in segment]
+    heels = [sample[4] for sample in segment]
+    sogs = [sample[5] for sample in segment]
     sine_prefix = [0.0]
     cosine_prefix = [0.0]
     time_prefix = [0.0]
@@ -194,11 +296,7 @@ def _calculate_segment_turn_rates(
         while right < len(times) and times[right] < right_target:
             right += 1
 
-        if (
-            left < index
-            and right < len(times)
-            and times[left] <= left_target
-        ):
+        if left < index and right < len(times) and times[left] <= left_target:
             duration = smoothed_times[right] - smoothed_times[left]
             rates[index] = signed_angular_difference(
                 smoothed[left],
@@ -206,161 +304,151 @@ def _calculate_segment_turn_rates(
             ) / duration
 
     return [
-        TurnRateSample(timestamp, time, raw_heading, heading, rate)
-        for timestamp, time, raw_heading, heading, rate in zip(
+        TurnRateSample(timestamp, time, raw_heading, heading, rate, cog, heel, sog)
+        for timestamp, time, raw_heading, heading, rate, cog, heel, sog in zip(
             timestamps,
             times,
             headings,
             smoothed,
             rates,
+            cogs,
+            heels,
+            sogs,
         )
     ]
 
 
 def _detect_segment_maneuvers(
     samples: list[TurnRateSample],
-) -> list[Maneuver]:
+) -> tuple[list[Maneuver], list[ManeuverCandidateAssessment]]:
     maneuvers: list[Maneuver] = []
-    stable_since: float | None = None
-    stable_confirmed = False
-    entry_start: int | None = None
-    entry_sign = 0
-    turning_start: int | None = None
-    exit_start: int | None = None
+    assessments: list[ManeuverCandidateAssessment] = []
+    index = 0
 
-    for index, sample in enumerate(samples):
-        rate = sample.turn_rate_deg_s
-        if rate is None:
-            stable_since = None
-            stable_confirmed = False
-            entry_start = None
-            turning_start = None
-            exit_start = None
+    while index < len(samples):
+        rate = samples[index].turn_rate_deg_s
+        if rate is None or abs(rate) < CANDIDATE_SEED_TURN_RATE_DEG_S:
+            index += 1
             continue
 
-        absolute_rate = abs(rate)
-        rate_sign = 1 if rate > 0 else -1 if rate < 0 else 0
-
-        if turning_start is None:
-            if entry_start is not None:
-                if rate_sign != entry_sign or absolute_rate < TURN_ENTRY_RATE_DEG_S:
-                    entry_start = None
-                    stable_since = (
-                        sample.elapsed_seconds
-                        if absolute_rate <= STABLE_TURN_RATE_DEG_S
-                        else None
-                    )
-                    stable_confirmed = False
-                    continue
-                if (
-                    sample.elapsed_seconds
-                    - samples[entry_start].elapsed_seconds
-                    >= TURN_ENTRY_PERSISTENCE_SECONDS
-                ):
-                    turning_start = entry_start
-                    entry_start = None
-                    exit_start = None
-                continue
-
-            if absolute_rate <= STABLE_TURN_RATE_DEG_S:
-                if stable_since is None:
-                    stable_since = sample.elapsed_seconds
-                stable_confirmed = (
-                    sample.elapsed_seconds - stable_since
-                    >= PRIOR_STABILITY_SECONDS
-                )
-                continue
-
-            if absolute_rate >= TURN_ENTRY_RATE_DEG_S and stable_confirmed:
-                entry_start = index
-                entry_sign = rate_sign
-                stable_since = None
-                continue
-
-            stable_since = None
-            continue
-
-        if (
-            sample.elapsed_seconds
-            - samples[turning_start].elapsed_seconds
-            > MAX_MANEUVER_DURATION_SECONDS + TURN_EXIT_STABILITY_SECONDS
-        ):
-            turning_start = None
-            exit_start = None
-            stable_since = None
-            stable_confirmed = False
-            continue
-
-        if absolute_rate <= STABLE_TURN_RATE_DEG_S:
-            if exit_start is None:
-                exit_start = index
+        direction = 1 if rate > 0 else -1
+        start_index = index
+        while start_index > 0:
+            previous_rate = samples[start_index - 1].turn_rate_deg_s
             if (
-                sample.elapsed_seconds
-                - samples[exit_start].elapsed_seconds
-                >= TURN_EXIT_STABILITY_SECONDS
+                previous_rate is None
+                or previous_rate * direction
+                < CANDIDATE_CONTINUATION_TURN_RATE_DEG_S
             ):
-                maneuver = _build_maneuver(samples, turning_start, exit_start)
-                if maneuver is not None:
-                    maneuvers.append(maneuver)
-                stable_since = samples[exit_start].elapsed_seconds
-                stable_confirmed = True
-                turning_start = None
-                exit_start = None
-            continue
+                break
+            start_index -= 1
 
-        exit_start = None
+        end_index = index
+        last_directional_index = index
+        probe_index = index + 1
+        while probe_index < len(samples):
+            probe_rate = samples[probe_index].turn_rate_deg_s
+            if probe_rate is None:
+                break
+            if (
+                probe_rate * direction
+                >= CANDIDATE_CONTINUATION_TURN_RATE_DEG_S
+            ):
+                end_index = probe_index
+                last_directional_index = probe_index
+            elif (
+                samples[probe_index].elapsed_seconds
+                - samples[last_directional_index].elapsed_seconds
+                > MAX_CANDIDATE_INTERRUPTION_SECONDS
+            ):
+                break
+            probe_index += 1
 
-    return maneuvers
+        if end_index > start_index:
+            maneuver, assessment = _assess_candidate(
+                samples,
+                start_index,
+                end_index,
+            )
+            assessments.append(assessment)
+            if maneuver is not None:
+                maneuvers.append(maneuver)
+
+        index = max(index + 1, end_index + 1)
+
+    return maneuvers, assessments
 
 
-def _build_maneuver(
+def _angular_metrics(
+    values: list[float | None],
+) -> tuple[float, float, float]:
+    deltas = [
+        signed_angular_difference(first, second)
+        for first, second in zip(values, values[1:])
+        if first is not None and second is not None
+    ]
+    change = sum(deltas)
+    rotation = sum(abs(delta) for delta in deltas)
+    coherence = abs(change) / rotation if rotation else 0.0
+    return change, rotation, coherence
+
+
+def _context_values(
+    samples: list[TurnRateSample],
+    start_time: float,
+    end_time: float,
+    field: str,
+) -> list[float]:
+    return [
+        value
+        for sample in samples
+        if start_time <= sample.elapsed_seconds <= end_time
+        and (value := getattr(sample, field)) is not None
+    ]
+
+
+def _transition_magnitude(
     samples: list[TurnRateSample],
     start_index: int,
     end_index: int,
-) -> Maneuver | None:
-    duration = (
-        samples[end_index].elapsed_seconds
-        - samples[start_index].elapsed_seconds
+    field: str,
+) -> float | None:
+    start_time = samples[start_index].elapsed_seconds
+    end_time = samples[end_index].elapsed_seconds
+    before = _context_values(
+        samples,
+        start_time - SUPPORT_CONTEXT_SECONDS,
+        start_time,
+        field,
     )
-    if not MIN_MANEUVER_DURATION_SECONDS <= duration <= MAX_MANEUVER_DURATION_SECONDS:
-        return None
-
-    deltas = [
-        signed_angular_difference(first.smoothed_heading, second.smoothed_heading)
-        for first, second in zip(
-            samples[start_index:end_index],
-            samples[start_index + 1:end_index + 1],
-        )
-    ]
-    heading_change = sum(deltas)
-    total_rotation = sum(abs(delta) for delta in deltas)
+    after = _context_values(
+        samples,
+        end_time,
+        end_time + SUPPORT_CONTEXT_SECONDS,
+        field,
+    )
     if (
-        abs(heading_change) < MIN_HEADING_CHANGE_DEG
-        or total_rotation == 0
-        or abs(heading_change) / total_rotation < MIN_DIRECTION_COHERENCE
+        len(before) < MIN_TRANSITION_SAMPLES
+        or len(after) < MIN_TRANSITION_SAMPLES
     ):
         return None
+    return abs(median(after) - median(before))
 
-    direction = 1 if heading_change > 0 else -1
-    raw_deltas = [
-        signed_angular_difference(first.heading, second.heading)
-        for first, second in zip(
-            samples[start_index:end_index],
-            samples[start_index + 1:end_index + 1],
-        )
-    ]
-    if any(
-        abs(delta) > MAX_ADJACENT_HEADING_CHANGE_DEG
-        for delta in raw_deltas
-    ):
-        return None
-    directional_samples = sum(
-        delta * direction >= 1.0 for delta in raw_deltas
-    )
-    if directional_samples < MIN_DIRECTIONAL_ROTATION_SAMPLES:
-        return None
 
-    target_change = heading_change / 2.0
+def _robust_bounds(values: list[float]) -> tuple[float, float] | None:
+    if len(values) < MIN_SUPPORT_SAMPLES:
+        return None
+    ordered = sorted(values)
+    trim_count = max(1, len(ordered) // 10)
+    return ordered[trim_count], ordered[-trim_count - 1]
+
+
+def _center_index_for_rotation(
+    deltas: list[float],
+    start_index: int,
+    end_index: int,
+) -> int:
+    target_change = sum(deltas) / 2.0
     cumulative_change = 0.0
     center_index = start_index + 1
     closest_distance = float("inf")
@@ -373,20 +461,221 @@ def _build_maneuver(
         if distance < closest_distance:
             center_index = candidate_index
             closest_distance = distance
+    return center_index
 
+
+def _assess_candidate(
+    samples: list[TurnRateSample],
+    start_index: int,
+    end_index: int,
+) -> tuple[Maneuver | None, ManeuverCandidateAssessment]:
+    duration = (
+        samples[end_index].elapsed_seconds
+        - samples[start_index].elapsed_seconds
+    )
+    deltas = [
+        signed_angular_difference(first.smoothed_heading, second.smoothed_heading)
+        for first, second in zip(
+            samples[start_index:end_index],
+            samples[start_index + 1:end_index + 1],
+        )
+    ]
+    heading_change = sum(deltas)
+    total_rotation = sum(abs(delta) for delta in deltas)
+    coherence = abs(heading_change) / total_rotation if total_rotation else 0.0
+    center_index = _center_index_for_rotation(deltas, start_index, end_index)
     peak_index = max(
         range(start_index, end_index + 1),
-        key=lambda index: abs(samples[index].turn_rate_deg_s or 0.0),
+        key=lambda sample_index: abs(
+            samples[sample_index].turn_rate_deg_s or 0.0
+        ),
     )
-    peak_rate = samples[peak_index].turn_rate_deg_s or 0.0
-    if not start_index < center_index < end_index:
-        return None
+    peak_rate = abs(samples[peak_index].turn_rate_deg_s or 0.0)
+
+    raw_deltas = [
+        signed_angular_difference(first.heading, second.heading)
+        for first, second in zip(
+            samples[start_index:end_index],
+            samples[start_index + 1:end_index + 1],
+        )
+    ]
+    direction = 1 if heading_change > 0 else -1
+    directional_samples = sum(
+        delta * direction >= 1.0 for delta in raw_deltas
+    )
+
+    cog_values = [
+        sample.cog for sample in samples[start_index:end_index + 1]
+    ]
+    cog_change, _, cog_coherence = _angular_metrics(cog_values)
+    cog_sample_count = sum(value is not None for value in cog_values)
+    cog_pair_count = sum(
+        first is not None and second is not None
+        for first, second in zip(cog_values, cog_values[1:])
+    )
+    cog_values_present = cog_sample_count > 0
+    cog_support = (
+        cog_sample_count >= MIN_COG_SUPPORT_SAMPLES
+        and cog_pair_count >= MIN_COG_SUPPORT_SAMPLES - 1
+        and cog_change * direction >= MIN_COG_SUPPORT_CHANGE_DEG
+        and cog_coherence >= MIN_COG_SUPPORT_COHERENCE
+    )
+
+    start_time = samples[start_index].elapsed_seconds
+    end_time = samples[end_index].elapsed_seconds
+    heel_values = _context_values(
+        samples,
+        start_time - SUPPORT_CONTEXT_SECONDS,
+        end_time + SUPPORT_CONTEXT_SECONDS,
+        "heel",
+    )
+    heel_bounds = _robust_bounds(heel_values)
+    heel_excursion = (
+        heel_bounds[1] - heel_bounds[0]
+        if heel_bounds is not None else None
+    )
+    heel_transition = _transition_magnitude(
+        samples,
+        start_index,
+        end_index,
+        "heel",
+    )
+    heel_crossing = bool(
+        heel_bounds is not None
+        and heel_bounds[0] < 0 < heel_bounds[1]
+        and heel_excursion is not None
+        and heel_excursion >= MIN_HEEL_TRANSITION_DEG
+    )
+    heel_support = (
+        heel_excursion is not None
+        and (
+            heel_excursion >= MIN_HEEL_EXCURSION_DEG
+            or (
+                heel_transition is not None
+                and heel_transition >= MIN_HEEL_TRANSITION_DEG
+            )
+            or heel_crossing
+        )
+    )
+
+    sog_values = _context_values(
+        samples,
+        start_time - SUPPORT_CONTEXT_SECONDS,
+        end_time + SUPPORT_CONTEXT_SECONDS,
+        "sog",
+    )
+    sog_bounds = _robust_bounds(sog_values)
+    sog_range = (
+        sog_bounds[1] - sog_bounds[0]
+        if sog_bounds is not None else None
+    )
+    sog_transition = _transition_magnitude(
+        samples,
+        start_index,
+        end_index,
+        "sog",
+    )
+    sog_support = (
+        sog_range is not None
+        and (
+            sog_range >= MIN_SOG_RANGE_KNOTS
+            or (
+                sog_transition is not None
+                and sog_transition >= MIN_SOG_TRANSITION_KNOTS
+            )
+        )
+    )
+
+    prior_rates = [
+        abs(sample.turn_rate_deg_s)
+        for sample in samples
+        if sample.turn_rate_deg_s is not None
+        and start_time - SUPPORT_CONTEXT_SECONDS
+        <= sample.elapsed_seconds < start_time
+    ]
+    prior_stability_support = bool(
+        prior_rates and max(prior_rates) <= STABLE_TURN_RATE_DEG_S
+    )
+    support_count = sum((
+        cog_support,
+        heel_support,
+        sog_support,
+        prior_stability_support,
+    ))
+
+    reason = "accepted"
+    if not MIN_MANEUVER_DURATION_SECONDS <= duration <= MAX_MANEUVER_DURATION_SECONDS:
+        reason = "duration"
+    elif abs(heading_change) < MIN_HEADING_CHANGE_DEG:
+        reason = "directional_change"
+    elif total_rotation == 0 or coherence < MIN_DIRECTION_COHERENCE:
+        reason = "directional_coherence"
+    elif any(abs(delta) > MAX_ADJACENT_HEADING_CHANGE_DEG for delta in raw_deltas):
+        reason = "adjacent_heading_jump"
+    elif directional_samples < MIN_DIRECTIONAL_ROTATION_SAMPLES:
+        reason = "directional_samples"
+    elif not start_index < center_index < end_index:
+        reason = "center_time"
+    else:
+        very_strong_direction = (
+            abs(heading_change) >= VERY_STRONG_HEADING_CHANGE_DEG
+            and coherence >= VERY_STRONG_DIRECTION_COHERENCE
+            and peak_rate >= STRONG_PEAK_TURN_RATE_DEG_S
+        )
+        strong_direction = (
+            abs(heading_change) >= STRONG_HEADING_CHANGE_DEG
+            and coherence >= STRONG_DIRECTION_COHERENCE
+            and peak_rate >= STRONG_PEAK_TURN_RATE_DEG_S
+        )
+        supported_direction = (
+            coherence >= SUPPORTED_DIRECTION_COHERENCE
+            and support_count >= 2
+        )
+        relaxed_direction = support_count >= 3
+        if not (
+            very_strong_direction
+            or (strong_direction and support_count >= 1)
+            or supported_direction
+            or relaxed_direction
+        ):
+            reason = "insufficient_support"
+
+    accepted = reason == "accepted"
+    assessment = ManeuverCandidateAssessment(
+        start_time=samples[start_index].timestamp,
+        center_time=samples[center_index].timestamp,
+        end_time=samples[end_index].timestamp,
+        heading_change_deg=round(heading_change, 3),
+        directional_coherence=round(coherence, 3),
+        peak_turn_rate_deg_s=round(peak_rate, 3),
+        cog_change_deg=round(cog_change, 3) if cog_values_present else None,
+        cog_support=cog_support,
+        heel_excursion_deg=(
+            round(heel_excursion, 3) if heel_excursion is not None else None
+        ),
+        heel_transition_deg=(
+            round(heel_transition, 3) if heel_transition is not None else None
+        ),
+        heel_support=heel_support,
+        sog_local_range_knots=(
+            round(sog_range, 3) if sog_range is not None else None
+        ),
+        sog_transition_knots=(
+            round(sog_transition, 3) if sog_transition is not None else None
+        ),
+        sog_support=sog_support,
+        prior_stability_support=prior_stability_support,
+        accepted=accepted,
+        reason=reason,
+    )
+    if not accepted:
+        return None, assessment
 
     return Maneuver(
         start_time=samples[start_index].timestamp,
         center_time=samples[center_index].timestamp,
         end_time=samples[end_index].timestamp,
         heading_change_deg=round(heading_change, 3),
-        peak_turn_rate_deg_s=round(abs(peak_rate), 3),
+        peak_turn_rate_deg_s=round(peak_rate, 3),
         peak_turn_rate_time=samples[peak_index].timestamp,
-    )
+    ), assessment

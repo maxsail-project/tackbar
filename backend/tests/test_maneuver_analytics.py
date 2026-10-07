@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from app.analytics.maneuver_detector import detect_maneuvers
 from app.normalization.track_normalizer import normalize_track
 from app.services.maneuver_analytics import (
     MANEUVER_ALGORITHM_VERSION,
@@ -50,7 +51,7 @@ def test_generates_available_artifact_without_mutating_canonical_track(
         temporary_directory / "analytics" / f"{ACTIVITY_ID}.maneuvers.json"
     )
     assert artifact["activity_id"] == ACTIVITY_ID
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 2
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 3
     assert artifact["track_sha256"] == hashlib.sha256(canonical_before).hexdigest()
     assert artifact["status"] == "available"
     assert len(artifact["maneuvers"]) == 1
@@ -123,15 +124,30 @@ def test_missing_artifact_is_generated_and_persisted(
     assert analytics.read(ACTIVITY_ID) == artifact
 
 
-def test_old_algorithm_version_is_regenerated(
+def test_version_two_artifact_is_regenerated_for_signature_v3(
     temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tracks = TrackStorage(temporary_directory)
     analytics = ManeuverAnalyticsStorage(temporary_directory)
     tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
     stale = generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
-    stale["algorithm_version"] = 1
+    expected_track_sha = stale["track_sha256"]
+    stale["algorithm_version"] = 2
     analytics.write(ACTIVITY_ID, stale)
+
+    detector_calls = 0
+    original_detector = detect_maneuvers
+
+    def count_detection(track: object) -> object:
+        nonlocal detector_calls
+        detector_calls += 1
+        return original_detector(track)
+
+    monkeypatch.setattr(
+        "app.services.maneuver_analytics.detect_maneuvers",
+        count_detection,
+    )
 
     artifact = get_or_generate_maneuver_analytics(
         ACTIVITY_ID,
@@ -139,7 +155,9 @@ def test_old_algorithm_version_is_regenerated(
         analytics,
     )
 
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 2
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 3
+    assert artifact["track_sha256"] == expected_track_sha
+    assert detector_calls == 1
     assert analytics.read(ACTIVITY_ID) == artifact
 
 
