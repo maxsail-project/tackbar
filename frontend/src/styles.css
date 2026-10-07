@@ -853,7 +853,8 @@ input:focus-visible {
 }
 
 .maneuver-event-table {
-  width: 736px;
+  width: 100%;
+  min-width: 736px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.8rem;
