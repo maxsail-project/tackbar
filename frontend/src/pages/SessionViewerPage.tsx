@@ -10,7 +10,9 @@ import {
   SessionNotFoundError,
 } from '../api/tackbarApi'
 import ActivitySelector from '../components/ActivitySelector'
-import AnalysisWindow from '../components/AnalysisWindow'
+import AnalysisWindow, {
+  type AnalysisWindowReplay,
+} from '../components/AnalysisWindow'
 import ComparisonTable from '../components/ComparisonTable'
 import IndividualAnalysis from '../components/IndividualAnalysis'
 import MetricChart from '../components/MetricChart'
@@ -18,7 +20,6 @@ import MetricSelector from '../components/MetricSelector'
 import ManeuverEventTable, {
   type ManeuverPresentationStatus,
 } from '../components/ManeuverEventTable'
-import ReplayControls from '../components/ReplayControls'
 import TrackMap from '../components/TrackMap'
 import type { SailingMetric, SessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
@@ -124,6 +125,24 @@ export function resolveSelectedManeuverAnalytics(
     && state.status === 'ready'
     ? state.analytics
     : null
+}
+
+export function createAnalysisWindowReplay(
+  canReplay: boolean,
+  playbackTime: number,
+  isPlaying: boolean,
+  speed: PlaybackSpeed,
+  onTogglePlayback: () => void,
+  onSpeedChange: (speed: PlaybackSpeed) => void,
+): AnalysisWindowReplay | null {
+  if (!canReplay) return null
+  return {
+    playbackTime,
+    isPlaying,
+    speed,
+    onTogglePlayback,
+    onSpeedChange,
+  }
 }
 
 function useActivityManeuvers(
@@ -591,22 +610,17 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         primarySamples={primaryAvailableSamples}
         comparisonSamples={comparisonAvailableSamples}
         maneuvers={timelineManeuvers}
+        replay={createAnalysisWindowReplay(
+          canReplay,
+          playbackTime,
+          isPlaying,
+          speed,
+          togglePlayback,
+          setSpeed,
+        )}
         onRangeChange={commitAnalysisWindowRange}
         onManeuverSelect={scrubTo}
       />
-      {canReplay && windowStart !== null && windowEnd !== null && (
-        <ReplayControls
-          playbackTime={playbackTime}
-          replayStart={windowStart}
-          replayEnd={windowEnd}
-          isPlaying={isPlaying}
-          speed={speed}
-          onTogglePlayback={togglePlayback}
-          onScrub={scrubTo}
-          onScrubStart={() => setIsPlaying(false)}
-          onSpeedChange={setSpeed}
-        />
-      )}
       {analysisWindow !== null && (
         <ManeuverEventTable
           events={displayManeuvers}

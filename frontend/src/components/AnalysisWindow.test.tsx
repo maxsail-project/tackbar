@@ -6,8 +6,12 @@ import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import AnalysisWindow, {
   AnalysisWindowManeuverMarker,
+  completeAnalysisWindowGesture,
+  isAnalysisWindowDrag,
+  playbackCursorPositionPercent,
   requestAnalysisWindowReset,
   resolveAnalysisWindowPointerTimestamp,
+  type AnalysisWindowReplay,
 } from './AnalysisWindow'
 
 const availableRange = {
@@ -59,12 +63,14 @@ function render({
   maneuvers = [],
   range = availableRange,
   window = selectedRange,
+  replay = null,
 }: {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
   maneuvers?: DisplayManeuver[]
   range?: AnalysisWindowRange
   window?: AnalysisWindowRange
+  replay?: AnalysisWindowReplay | null
 }) {
   return renderToStaticMarkup(
     <AnalysisWindow
@@ -73,12 +79,24 @@ function render({
       primarySamples={primarySamples}
       comparisonSamples={comparisonSamples}
       maneuvers={maneuvers}
+      replay={replay}
       onRangeChange={() => undefined}
     />,
   )
 }
 
 describe('Analysis Window SOG timeline', () => {
+  function replay(overrides: Partial<AnalysisWindowReplay> = {}): AnalysisWindowReplay {
+    return {
+      playbackTime: availableRange.start + 5_000,
+      isPlaying: false,
+      speed: 1,
+      onTogglePlayback: () => undefined,
+      onSpeedChange: () => undefined,
+      ...overrides,
+    }
+  }
+
   it('removes the native range inputs and lower slider stage', () => {
     const markup = render({ primarySamples: [sample(2, 3), sample(8, 5)] })
 
@@ -136,6 +154,84 @@ describe('Analysis Window SOG timeline', () => {
 
     expect(secondStart).toBe(availableRange.start + 3_500)
     expect(secondEnd).toBe(availableRange.start + 6_500)
+  })
+
+  it('renders integrated Play and Pause controls when replay is available', () => {
+    const stoppedMarkup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      replay: replay(),
+    })
+    const playingMarkup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      replay: replay({ isPlaying: true }),
+    })
+
+    expect(stoppedMarkup).toContain('aria-label="Play replay"')
+    expect(stoppedMarkup).toContain('aria-pressed="false"')
+    expect(playingMarkup).toContain('aria-label="Pause replay"')
+    expect(playingMarkup).toContain('aria-pressed="true"')
+    expect(playingMarkup).not.toContain('replay-section')
+  })
+
+  it('shows the current speed and exactly x1, x2, x5, and x10', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      replay: replay({ speed: 5 }),
+    })
+
+    expect(markup).toContain('aria-label="Playback speed"')
+    expect(markup).toContain('<option value="1">x1</option>')
+    expect(markup).toContain('<option value="2">x2</option>')
+    expect(markup).toContain('<option value="5" selected="">x5</option>')
+    expect(markup).toContain('<option value="10">x10</option>')
+  })
+
+  it.each([
+    [selectedRange.start, 0],
+    [selectedRange.start + 3_000, 50],
+    [selectedRange.end, 100],
+    [selectedRange.start - 10_000, 0],
+    [selectedRange.end + 10_000, 100],
+  ])('positions and clamps the playback cursor for %s', (playbackTime, expectedPosition) => {
+    expect(playbackCursorPositionPercent(playbackTime, selectedRange)).toBe(expectedPosition)
+
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      replay: replay({ playbackTime }),
+    })
+    expect(markup).toContain(`analysis-window__playback-cursor" style="left:${expectedPosition}%`)
+  })
+
+  it('treats a free-space tap as a no-op and commits only a real drag', () => {
+    const onRangeChange = vi.fn()
+    const selection = {
+      pointerId: 1,
+      start: availableRange.start + 3_000,
+      end: availableRange.start + 7_000,
+    }
+
+    completeAnalysisWindowGesture(selection, 100, 104, onRangeChange)
+    expect(isAnalysisWindowDrag(100, 104)).toBe(false)
+    expect(onRangeChange).not.toHaveBeenCalled()
+
+    completeAnalysisWindowGesture(selection, 100, 106, onRangeChange)
+    expect(isAnalysisWindowDrag(100, 106)).toBe(true)
+    expect(onRangeChange).toHaveBeenCalledWith({
+      start: selection.start,
+      end: selection.end,
+    })
+  })
+
+  it('keeps replay and header controls outside the timeline selection surface', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      replay: replay(),
+    })
+    const timelineIndex = markup.indexOf('analysis-window__timeline')
+
+    expect(markup.indexOf('aria-label="Playback speed"')).toBeLessThan(timelineIndex)
+    expect(markup.indexOf('aria-label="Play replay"')).toBeLessThan(timelineIndex)
+    expect(markup.indexOf('>Reset</button>')).toBeLessThan(timelineIndex)
   })
 
   it('Reset requests the complete available range', () => {

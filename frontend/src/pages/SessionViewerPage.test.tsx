@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
+  createAnalysisWindowReplay,
   resolveSelectedManeuverAnalytics,
   SharedSessionUnavailable,
 } from './SessionViewerPage'
@@ -45,6 +46,37 @@ describe('Session summary presentation', () => {
       { sailor: { id: 'sailor-b' } },
     ]
     expect(new Set(activities.map((activity) => activity.sailor.id)).size).toBe(2)
+  })
+})
+
+describe('integrated Analysis Window replay', () => {
+  it('passes existing Viewer replay state and callbacks only when replay is available', () => {
+    const onTogglePlayback = vi.fn()
+    const onSpeedChange = vi.fn()
+
+    expect(createAnalysisWindowReplay(
+      false,
+      123,
+      false,
+      1,
+      onTogglePlayback,
+      onSpeedChange,
+    )).toBeNull()
+
+    expect(createAnalysisWindowReplay(
+      true,
+      123,
+      true,
+      5,
+      onTogglePlayback,
+      onSpeedChange,
+    )).toEqual({
+      playbackTime: 123,
+      isPlaying: true,
+      speed: 5,
+      onTogglePlayback,
+      onSpeedChange,
+    })
   })
 })
 
