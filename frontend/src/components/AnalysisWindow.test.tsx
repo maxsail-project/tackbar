@@ -178,7 +178,7 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).not.toContain('duration-pill')
   })
 
-  it('renders Primary Avg SOG and rounded distance in metres', () => {
+  it('renders Primary Avg SOG, rounded distance, and Dominant COG', () => {
     const markup = render({
       primarySamples: [sample(2, 3), sample(8, 5)],
       primaryMetrics: summaryMetrics,
@@ -188,6 +188,7 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).toContain('color:#168097')
     expect(markup).toContain('5.20 kt')
     expect(markup).toContain('210 m')
+    expect(markup).toContain('COG 90°')
   })
 
   it('renders Comparison metrics and identity only when Comparison is selected', () => {
@@ -203,6 +204,7 @@ describe('Analysis Window SOG timeline', () => {
         ...summaryMetrics,
         avgSogKnots: 4.95,
         distanceMeters: 197.6,
+        dominantCogDegrees: 270,
       },
     })
 
@@ -211,16 +213,32 @@ describe('Analysis Window SOG timeline', () => {
     expect(compared).toContain('color:#9a5aaf')
     expect(compared).toContain('4.95 kt')
     expect(compared).toContain('198 m')
+    expect(compared).toContain('COG 90°')
+    expect(compared).toContain('COG 270°')
   })
 
-  it('renders unavailable Avg SOG without inventing a value', () => {
+  it('renders unavailable Avg SOG and Dominant COG without inventing values', () => {
     const markup = render({
       primarySamples: [sample(2, null), sample(8, null)],
-      primaryMetrics: { ...summaryMetrics, avgSogKnots: null },
+      primaryMetrics: {
+        ...summaryMetrics,
+        avgSogKnots: null,
+        dominantCogDegrees: null,
+      },
     })
 
     expect(markup).toContain('<span>—</span>')
     expect(markup).toContain('210 m')
+    expect(markup).toContain('COG —')
+  })
+
+  it('uses the Summary Dominant COG whole-degree rounding', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      primaryMetrics: { ...summaryMetrics, dominantCogDegrees: 94.6 },
+    })
+
+    expect(markup).toContain('COG 95°')
   })
 
   it('prepares the displayed range before applying the fixed visual point budget', () => {

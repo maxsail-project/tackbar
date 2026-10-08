@@ -83,6 +83,10 @@ export function AnalysisWindowCompactSummary({
   const roleLabel = activityRole === 'primary' ? 'P' : 'C'
   const averageSog = metrics === null ? '—' : formatAverageSog(metrics.avgSogKnots)
   const distance = metrics === null ? '—' : `${Math.round(metrics.distanceMeters)} m`
+  const dominantCog = metrics?.dominantCogDegrees === null
+    || metrics?.dominantCogDegrees === undefined
+    ? '—'
+    : `${metrics.dominantCogDegrees.toFixed(0)}°`
 
   return (
     <span className={`analysis-window__compact-summary analysis-window__compact-summary--${activityRole}`}>
@@ -90,6 +94,13 @@ export function AnalysisWindowCompactSummary({
       <span>{averageSog}</span>
       <span aria-hidden="true">·</span>
       <span>{distance}</span>
+      <span
+        className="analysis-window__compact-summary-cog-separator"
+        aria-hidden="true"
+      >·</span>
+      <span className="analysis-window__compact-summary-cog">
+        {dominantCog}
+      </span>
     </span>
   )
 }
