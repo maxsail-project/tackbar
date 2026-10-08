@@ -709,8 +709,10 @@ input:focus-visible {
 
 .analysis-window__summary-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  grid-template-areas: "start primary duration end";
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas:
+    "start duration end"
+    "primary primary primary";
   align-items: center;
   gap: 5px;
   margin-top: 4px;
@@ -740,27 +742,43 @@ input:focus-visible {
 .analysis-window__duration {
   grid-area: duration;
   justify-self: center;
-  padding: 2px 6px;
-  border-radius: 999px;
-  color: #344b52;
-  background: #e9eef0;
-  font-weight: 800;
+  color: #829399;
+  font-size: 0.58rem;
+  font-weight: 650;
 }
 
 .analysis-window__compact-summary {
   display: inline-flex;
   grid-area: primary;
   align-items: center;
+  justify-self: start;
   gap: 3px;
   min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid rgb(22 128 151 / 24%);
+  border-radius: 8px;
+  color: #263f46;
+  background: rgb(22 128 151 / 7%);
+  box-shadow: 0 1px 3px rgb(7 31 37 / 8%);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .analysis-window__compact-summary--comparison {
   grid-area: comparison;
   justify-self: end;
+  border-color: rgb(154 90 175 / 24%);
+  background: rgb(154 90 175 / 7%);
 }
 
 @media (min-width: 560px) {
+  .analysis-window__summary-row {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "start primary duration end";
+    column-gap: 8px;
+  }
+
   .analysis-window__summary-row--comparison {
     grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
     grid-template-areas: "start primary duration comparison end";
