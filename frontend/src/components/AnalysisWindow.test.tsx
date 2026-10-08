@@ -47,6 +47,7 @@ function sample(seconds: number, sog: number | null): TrackSample {
 function maneuver(
   seconds: number,
   activityRole: DisplayManeuver['activityRole'],
+  metrics: Partial<DisplayManeuver['maneuver']> = {},
 ): DisplayManeuver {
   const centerTimeMs = availableRange.start + (seconds * 1_000)
   const centerTime = new Date(centerTimeMs).toISOString()
@@ -61,6 +62,7 @@ function maneuver(
       peak_turn_rate_deg_s: 12,
       peak_turn_rate_time: centerTime,
       duration_s: 0,
+      ...metrics,
     },
   }
 }
@@ -75,6 +77,7 @@ function render({
   hasComparison,
   primaryMetrics = null,
   comparisonMetrics = null,
+  selectedManeuver = null,
 }: {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
@@ -85,6 +88,7 @@ function render({
   hasComparison?: boolean
   primaryMetrics?: SummaryMetrics | null
   comparisonMetrics?: SummaryMetrics | null
+  selectedManeuver?: DisplayManeuver | null
 }) {
   return renderToStaticMarkup(
     <AnalysisWindow
@@ -96,6 +100,7 @@ function render({
       hasComparison={hasComparison}
       primaryMetrics={primaryMetrics}
       comparisonMetrics={comparisonMetrics}
+      selectedManeuver={selectedManeuver}
       replay={replay}
       onRangeChange={() => undefined}
     />,
@@ -178,7 +183,7 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).not.toContain('duration-pill')
   })
 
-  it('renders Primary Avg SOG, rounded distance, and Dominant COG', () => {
+  it('renders Primary Avg SOG, rounded distance, and degree-only Dominant COG', () => {
     const markup = render({
       primarySamples: [sample(2, 3), sample(8, 5)],
       primaryMetrics: summaryMetrics,
@@ -188,7 +193,8 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).toContain('color:#168097')
     expect(markup).toContain('5.20 kt')
     expect(markup).toContain('210 m')
-    expect(markup).toContain('COG 90°')
+    expect(markup).toContain('90°')
+    expect(markup).not.toContain('COG')
   })
 
   it('renders Comparison metrics and identity only when Comparison is selected', () => {
@@ -213,8 +219,9 @@ describe('Analysis Window SOG timeline', () => {
     expect(compared).toContain('color:#9a5aaf')
     expect(compared).toContain('4.95 kt')
     expect(compared).toContain('198 m')
-    expect(compared).toContain('COG 90°')
-    expect(compared).toContain('COG 270°')
+    expect(compared).toContain('90°')
+    expect(compared).toContain('270°')
+    expect(compared).not.toContain('COG')
   })
 
   it('renders unavailable Avg SOG and Dominant COG without inventing values', () => {
@@ -229,7 +236,7 @@ describe('Analysis Window SOG timeline', () => {
 
     expect(markup).toContain('<span>—</span>')
     expect(markup).toContain('210 m')
-    expect(markup).toContain('COG —')
+    expect(markup).not.toContain('COG')
   })
 
   it('uses the Summary Dominant COG whole-degree rounding', () => {
@@ -238,7 +245,97 @@ describe('Analysis Window SOG timeline', () => {
       primaryMetrics: { ...summaryMetrics, dominantCogDegrees: 94.6 },
     })
 
-    expect(markup).toContain('COG 95°')
+    expect(markup).toContain('95°')
+    expect(markup).not.toContain('COG')
+  })
+
+  it('shows selected Primary Loss and Recovery only under the P summary', () => {
+    const selectedManeuver = maneuver(5, 'primary', {
+      speed_loss_distance_m: 8.4,
+      speed_loss_time_s: 3.2,
+      recovery_time_s: 11.7,
+    })
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      hasComparison: true,
+      primaryMetrics: summaryMetrics,
+      comparisonMetrics: summaryMetrics,
+      selectedManeuver,
+    })
+
+    expect(markup).toContain('analysis-window__selected-maneuver--primary')
+    expect(markup).not.toContain('analysis-window__selected-maneuver--comparison')
+    expect(markup).toContain('<span>Loss 8 m</span>')
+    expect(markup).toContain('<span>3 s</span>')
+    expect(markup).toContain('<span>Rec 12 s</span>')
+  })
+
+  it('shows selected Comparison Loss and Recovery only under the C summary', () => {
+    const selectedManeuver = maneuver(5, 'comparison', {
+      speed_loss_distance_m: 7.6,
+      speed_loss_time_s: 2.6,
+      recovery_time_s: 12.4,
+    })
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      hasComparison: true,
+      primaryMetrics: summaryMetrics,
+      comparisonMetrics: summaryMetrics,
+      selectedManeuver,
+    })
+
+    expect(markup).toContain('analysis-window__selected-maneuver--comparison')
+    expect(markup).not.toContain('analysis-window__selected-maneuver--primary')
+    expect(markup).toContain('<span>Loss 8 m</span>')
+    expect(markup).toContain('<span>3 s</span>')
+    expect(markup).toContain('<span>Rec 12 s</span>')
+  })
+
+  it('uses table-compatible unavailable values and removes detail when selection clears', () => {
+    const selectedManeuver = maneuver(5, 'primary', {
+      speed_loss_distance_m: null,
+      speed_loss_time_s: null,
+      recovery_time_s: null,
+    })
+    const selected = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      primaryMetrics: summaryMetrics,
+      selectedManeuver,
+    })
+    const cleared = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      primaryMetrics: summaryMetrics,
+    })
+
+    expect(selected).toContain('<span>Loss —</span>')
+    expect(selected).toContain('<span>—</span>')
+    expect(selected).toContain('<span>Rec —</span>')
+    expect(selected).not.toContain('— m')
+    expect(selected).not.toContain('— s')
+    expect(cleared).not.toContain('analysis-window__selected-maneuver')
+  })
+
+  it('keeps selected maneuver detail independent from replay movement', () => {
+    const selectedManeuver = maneuver(5, 'primary', {
+      speed_loss_distance_m: 8,
+      speed_loss_time_s: 3,
+      recovery_time_s: 12,
+    })
+    const before = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      primaryMetrics: summaryMetrics,
+      selectedManeuver,
+      replay: replay({ playbackTime: selectedRange.start }),
+    })
+    const after = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      primaryMetrics: summaryMetrics,
+      selectedManeuver,
+      replay: replay({ playbackTime: selectedRange.end }),
+    })
+
+    expect(before).toContain('<span>Loss 8 m</span>')
+    expect(after).toContain('<span>Loss 8 m</span>')
   })
 
   it('prepares the displayed range before applying the fixed visual point budget', () => {

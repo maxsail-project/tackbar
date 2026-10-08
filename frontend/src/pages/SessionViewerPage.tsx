@@ -177,6 +177,16 @@ export function createTimelineManeuverNavigation(
   }
 }
 
+export function resolveSelectedDisplayManeuver(
+  selectedManeuverKey: string | null,
+  displayManeuvers: DisplayManeuver[],
+) {
+  if (selectedManeuverKey === null) return null
+  return displayManeuvers.find(
+    (event) => maneuverSelectionKey(event) === selectedManeuverKey,
+  ) ?? null
+}
+
 function useActivityManeuvers(
   token: string,
   activityId: string | null,
@@ -416,6 +426,10 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
           availableRange,
         ),
     [availableRange, comparisonManeuverAnalytics, primaryManeuverAnalytics],
+  )
+  const selectedManeuver = resolveSelectedDisplayManeuver(
+    selectedManeuverKey,
+    displayManeuvers,
   )
   useEffect(() => {
     speedRef.current = speed
@@ -688,6 +702,7 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
         primarySamples={primaryAvailableSamples}
         comparisonSamples={comparisonAvailableSamples}
         maneuvers={timelineManeuvers}
+        selectedManeuver={selectedManeuver}
         hasComparison={comparisonActivityId !== null}
         {...createAnalysisWindowSummaryMetrics(
           primarySummaryMetrics,

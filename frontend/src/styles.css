@@ -782,6 +782,24 @@ input:focus-visible {
   background: rgb(154 90 175 / 7%);
 }
 
+.analysis-window__selected-maneuver {
+  display: inline-flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding-top: 2px;
+  border-top: 1px solid currentcolor;
+  font-size: 0.62rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.analysis-window__compact-summary--comparison .analysis-window__selected-maneuver {
+  justify-content: flex-end;
+}
+
 @media (min-width: 560px) {
   .analysis-window__summary-row {
     grid-template-columns: auto minmax(0, 1fr) auto auto;

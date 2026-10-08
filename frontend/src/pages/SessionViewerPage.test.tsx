@@ -4,6 +4,7 @@ import {
   createAnalysisWindowReplay,
   createAnalysisWindowSummaryMetrics,
   createTimelineManeuverNavigation,
+  resolveSelectedDisplayManeuver,
   resolveSelectedManeuverAnalytics,
   SharedSessionUnavailable,
 } from './SessionViewerPage'
@@ -11,6 +12,7 @@ import { formatSessionDuration } from '../utils/sessionPresentation'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { SummaryMetrics } from '../utils/summaryMetrics'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
+import { maneuverSelectionKey } from '../utils/maneuverEvents'
 
 const analytics: ActivityManeuverAnalytics = {
   activity_id: 'activity-a',
@@ -140,6 +142,25 @@ describe('integrated Analysis Window replay', () => {
 })
 
 describe('selected maneuver analytics alignment', () => {
+  const primaryEvent = {
+    activityRole: 'primary',
+    centerTimeMs: 123,
+    maneuver: {
+      start_time: '2031-01-01T10:00:01Z',
+      center_time: '2031-01-01T10:00:02Z',
+      end_time: '2031-01-01T10:00:03Z',
+    },
+  } as DisplayManeuver
+  const comparisonEvent = {
+    activityRole: 'comparison',
+    centerTimeMs: 456,
+    maneuver: {
+      start_time: '2031-01-01T10:00:04Z',
+      center_time: '2031-01-01T10:00:05Z',
+      end_time: '2031-01-01T10:00:06Z',
+    },
+  } as DisplayManeuver
+
   it('does not expose stale Primary events or markers after P changes', () => {
     expect(resolveSelectedManeuverAnalytics(
       readyAnalyticsState('primary-old'),
@@ -167,5 +188,16 @@ describe('selected maneuver analytics alignment', () => {
     expect(resolveSelectedManeuverAnalytics(state, 'activity-a')).toBe(
       state.analytics,
     )
+  })
+
+  it('resolves the selected event only from maneuvers in the displayed window', () => {
+    const selectedKey = maneuverSelectionKey(comparisonEvent)
+
+    expect(resolveSelectedDisplayManeuver(
+      selectedKey,
+      [primaryEvent, comparisonEvent],
+    )).toBe(comparisonEvent)
+    expect(resolveSelectedDisplayManeuver(selectedKey, [primaryEvent])).toBeNull()
+    expect(resolveSelectedDisplayManeuver(null, [comparisonEvent])).toBeNull()
   })
 })

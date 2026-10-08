@@ -27,7 +27,11 @@ import {
   prepareSogTimelinePoints,
   reduceSogTimelinePoints,
 } from '../utils/sogTimeline'
-import type { DisplayManeuver } from '../utils/maneuverEvents'
+import {
+  formatMetres,
+  formatSeconds,
+  type DisplayManeuver,
+} from '../utils/maneuverEvents'
 import { formatAverageSog } from '../utils/metricPresentation'
 
 const TIMELINE_POINT_BUDGET = 240
@@ -53,6 +57,7 @@ interface AnalysisWindowProps {
   hasComparison?: boolean
   primaryMetrics?: SummaryMetrics | null
   comparisonMetrics?: SummaryMetrics | null
+  selectedManeuver?: DisplayManeuver | null
   replay?: AnalysisWindowReplay | null
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
   onManeuverSelect?: (event: DisplayManeuver) => void
@@ -76,17 +81,26 @@ export function formatAnalysisWindowDuration(durationMilliseconds: number) {
 export function AnalysisWindowCompactSummary({
   activityRole,
   metrics,
+  selectedManeuver = null,
 }: {
   activityRole: 'primary' | 'comparison'
   metrics: SummaryMetrics | null
+  selectedManeuver?: DisplayManeuver | null
 }) {
   const roleLabel = activityRole === 'primary' ? 'P' : 'C'
   const averageSog = metrics === null ? '—' : formatAverageSog(metrics.avgSogKnots)
   const distance = metrics === null ? '—' : `${Math.round(metrics.distanceMeters)} m`
   const dominantCog = metrics?.dominantCogDegrees === null
     || metrics?.dominantCogDegrees === undefined
-    ? 'COG —'
-    : `COG ${metrics.dominantCogDegrees.toFixed(0)}°`
+    ? '—'
+    : `${metrics.dominantCogDegrees.toFixed(0)}°`
+  const selectedActivityManeuver = selectedManeuver?.activityRole === activityRole
+    ? selectedManeuver.maneuver
+    : null
+
+  function formatMetricWithUnit(value: string, unit: string) {
+    return value === '—' ? value : `${value} ${unit}`
+  }
 
   return (
     <span className={`analysis-window__compact-summary analysis-window__compact-summary--${activityRole}`}>
@@ -101,6 +115,27 @@ export function AnalysisWindowCompactSummary({
       <span className="analysis-window__compact-summary-cog">
         {dominantCog}
       </span>
+      {selectedActivityManeuver && (
+        <span
+          className={`analysis-window__selected-maneuver analysis-window__selected-maneuver--${activityRole}`}
+          style={{ color: ACTIVITY_COLORS[activityRole] }}
+        >
+          <span>Loss {formatMetricWithUnit(
+            formatMetres(selectedActivityManeuver.speed_loss_distance_m),
+            'm',
+          )}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatMetricWithUnit(
+            formatSeconds(selectedActivityManeuver.speed_loss_time_s),
+            's',
+          )}</span>
+          <span aria-hidden="true">·</span>
+          <span>Rec {formatMetricWithUnit(
+            formatSeconds(selectedActivityManeuver.recovery_time_s),
+            's',
+          )}</span>
+        </span>
+      )}
     </span>
   )
 }
@@ -245,6 +280,7 @@ export default function AnalysisWindow({
   hasComparison,
   primaryMetrics = null,
   comparisonMetrics = null,
+  selectedManeuver = null,
   replay = null,
   onRangeChange,
   onManeuverSelect = () => undefined,
@@ -509,6 +545,7 @@ export default function AnalysisWindow({
         <AnalysisWindowCompactSummary
           activityRole="primary"
           metrics={primaryMetrics}
+          selectedManeuver={selectedManeuver}
         />
         <span className="analysis-window__duration">
           {formatAnalysisWindowDuration(selectedRange.end - selectedRange.start)}
@@ -517,6 +554,7 @@ export default function AnalysisWindow({
           <AnalysisWindowCompactSummary
             activityRole="comparison"
             metrics={comparisonMetrics}
+            selectedManeuver={selectedManeuver}
           />
         )}
         <span className="analysis-window__end-time">{formatGpsTime(selectedRange.end)}</span>
