@@ -86,11 +86,9 @@ def calculate_maneuver_metrics(
         and sog_exit is not None
     ):
         loss_distance = _speed_loss_distance(
-            samples, start, recovery_sample[0], sog_entry, sog_exit
+            samples, start, recovery_sample[0], sog_entry
         )
-        reference_speed_m_s = (
-            (sog_entry + sog_exit) / 2.0 * KNOTS_TO_METRES_PER_SECOND
-        )
+        reference_speed_m_s = sog_entry * KNOTS_TO_METRES_PER_SECOND
         if reference_speed_m_s > 0 and isfinite(reference_speed_m_s):
             if loss_distance is not None:
                 loss_time = loss_distance / reference_speed_m_s
@@ -145,21 +143,14 @@ def _speed_loss_distance(
     start: float,
     recovery: float,
     sog_entry: float,
-    sog_exit: float,
 ) -> float | None:
     actual = [sample for sample in samples if start <= sample[0] <= recovery]
     if len(actual) < 2:
         return None
-    reference_duration = recovery - start
 
     def deficit(sample: SogSample) -> float:
-        timestamp, sog = sample
-        fraction = (
-            (timestamp - start) / reference_duration
-            if reference_duration > 0 else 1.0
-        )
-        reference = sog_entry + (sog_exit - sog_entry) * fraction
-        return reference - sog
+        _, sog = sample
+        return sog_entry - sog
 
     knot_seconds = sum(
         _positive_linear_area(

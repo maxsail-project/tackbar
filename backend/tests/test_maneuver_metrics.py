@@ -55,6 +55,48 @@ def test_calculates_duration_sog_windows_recovery_and_irregular_loss() -> None:
     assert metrics.speed_loss_time_s == pytest.approx(19 / 5.2)
 
 
+def test_loss_uses_constant_entry_reference_and_actual_irregular_intervals(
+) -> None:
+    metrics = calculate_maneuver_metrics(_track([
+        (10, 6.0),
+        (20, 6.0),
+        (30, 6.0),
+        (35, 4.0),
+        (40, 4.5),
+        (46, 5.0),
+        (50, 5.2),
+        (65, 5.4),
+        (75, 5.4),
+    ]), _maneuver())
+
+    assert metrics.sog_entry_kn == 6.0
+    assert metrics.sog_exit_kn == 5.4
+    assert metrics.recovery_time_s == 10.0
+    assert metrics.speed_loss_distance_m == pytest.approx(24.85 * 0.514444)
+    assert metrics.speed_loss_time_s == pytest.approx(24.85 / 6.0)
+
+
+def test_sog_above_entry_does_not_create_negative_loss() -> None:
+    metrics = calculate_maneuver_metrics(_track([
+        (10, 5.0),
+        (20, 5.0),
+        (30, 5.0),
+        (35, 3.0),
+        (40, 6.0),
+        (65, 5.0),
+        (75, 5.0),
+    ]), _maneuver(end=35.0))
+
+    expected_knot_seconds = 5.0 + (10.0 / 3.0)
+    assert metrics.recovery_time_s == 5.0
+    assert metrics.speed_loss_distance_m == pytest.approx(
+        expected_knot_seconds * 0.514444
+    )
+    assert metrics.speed_loss_time_s == pytest.approx(
+        expected_knot_seconds / 5.0
+    )
+
+
 def test_non_comparable_speed_regime_suppresses_recovery_and_loss() -> None:
     metrics = calculate_maneuver_metrics(_track([
         (10, 5.2),

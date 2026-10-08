@@ -51,7 +51,7 @@ def test_generates_available_artifact_without_mutating_canonical_track(
         temporary_directory / "analytics" / f"{ACTIVITY_ID}.maneuvers.json"
     )
     assert artifact["activity_id"] == ACTIVITY_ID
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 5
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 6
     assert artifact["track_sha256"] == hashlib.sha256(canonical_before).hexdigest()
     assert artifact["status"] == "available"
     assert len(artifact["maneuvers"]) == 1
@@ -128,7 +128,7 @@ def test_missing_artifact_is_generated_and_persisted(
     assert analytics.read(ACTIVITY_ID) == artifact
 
 
-def test_version_four_artifact_is_regenerated_for_metrics_v5(
+def test_version_five_artifact_is_regenerated_for_entry_reference_v6(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -137,17 +137,9 @@ def test_version_four_artifact_is_regenerated_for_metrics_v5(
     tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
     stale = generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
     expected_track_sha = stale["track_sha256"]
-    stale["algorithm_version"] = 4
-    for field in (
-        "duration_s",
-        "sog_entry_kn",
-        "sog_min_kn",
-        "sog_exit_kn",
-        "recovery_time_s",
-        "speed_loss_distance_m",
-        "speed_loss_time_s",
-    ):
-        stale["maneuvers"][0].pop(field)
+    stale["algorithm_version"] = 5
+    stale["maneuvers"][0]["speed_loss_distance_m"] = 123.0
+    stale["maneuvers"][0]["speed_loss_time_s"] = 45.0
     analytics.write(ACTIVITY_ID, stale)
 
     detector_calls = 0
@@ -169,8 +161,10 @@ def test_version_four_artifact_is_regenerated_for_metrics_v5(
         analytics,
     )
 
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 5
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 6
     assert artifact["track_sha256"] == expected_track_sha
+    assert artifact["maneuvers"][0]["speed_loss_distance_m"] is None
+    assert artifact["maneuvers"][0]["speed_loss_time_s"] is None
     assert detector_calls == 1
     assert analytics.read(ACTIVITY_ID) == artifact
 
