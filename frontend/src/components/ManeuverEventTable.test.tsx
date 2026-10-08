@@ -47,6 +47,11 @@ function eventAt(
   }
 }
 
+function cellTexts(markup: string, tag: 'th' | 'td') {
+  return [...markup.matchAll(new RegExp(`<${tag}[^>]*>(.*?)</${tag}>`, 'g'))]
+    .map((match) => match[1].replace(/<[^>]+>/g, ''))
+}
+
 describe('ManeuverEventTable', () => {
   it('starts collapsed with its header visible', () => {
     const markup = renderToStaticMarkup(
@@ -86,20 +91,33 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
     expect(markup).toContain('aria-sort="ascending"')
     expect(markup).toContain('Time ASC')
-    expect(markup).toContain('Dur (s)')
-    expect(markup).toContain('SOG in (kt)')
-    expect(markup).toContain('SOG min (kt)')
-    expect(markup).toContain('SOG out (kt)')
-    expect(markup).toContain('Rec (s)')
-    expect(markup).toContain('Loss (m)')
-    expect(markup).toContain('Loss (s)')
-    expect(markup).toContain('>10<')
-    expect(markup).toContain('5.2')
-    expect(markup).toContain('3.1')
-    expect(markup).toContain('5.1')
-    expect(markup).toContain('>12<')
-    expect(markup).toContain('>9<')
-    expect(markup).toContain('>3<')
+    expect(cellTexts(markup, 'th')).toEqual([
+      'Time ASC',
+      'Act',
+      'Loss (m)',
+      'Loss (s)',
+      'Rec (s)',
+      'SOG in',
+      'SOG min',
+      'SOG out',
+      'ΔHDG (°)',
+      'Dur (s)',
+    ])
+    expect(cellTexts(markup, 'td')).toEqual([
+      '08:47:59',
+      'P',
+      '9',
+      '3',
+      '12',
+      '5.2',
+      '3.1',
+      '5.1',
+      '−91',
+      '10',
+    ])
+    expect(markup).toMatch(
+      /maneuver-event-table__time-column.*maneuver-event-table__activity-column.*maneuver-event-table__loss-column.*span="2".*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*span="3".*maneuver-event-table__heading-column.*maneuver-event-table__duration-column/,
+    )
   })
 
   it('can expand and collapse again without selecting an event', () => {

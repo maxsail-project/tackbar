@@ -92,14 +92,14 @@ export function ManeuverEventRow({
       >
         {label}
       </td>
-      <td>{formatHeadingChange(event.maneuver.heading_change_deg)}</td>
-      <td>{formatSeconds(event.maneuver.duration_s)}</td>
+      <td>{formatMetres(event.maneuver.speed_loss_distance_m)}</td>
+      <td>{formatSeconds(event.maneuver.speed_loss_time_s)}</td>
+      <td>{formatSeconds(event.maneuver.recovery_time_s)}</td>
       <td>{formatKnots(event.maneuver.sog_entry_kn)}</td>
       <td>{formatKnots(event.maneuver.sog_min_kn)}</td>
       <td>{formatKnots(event.maneuver.sog_exit_kn)}</td>
-      <td>{formatSeconds(event.maneuver.recovery_time_s)}</td>
-      <td>{formatMetres(event.maneuver.speed_loss_distance_m)}</td>
-      <td>{formatSeconds(event.maneuver.speed_loss_time_s)}</td>
+      <td>{formatHeadingChange(event.maneuver.heading_change_deg)}</td>
+      <td>{formatSeconds(event.maneuver.duration_s)}</td>
     </tr>
   )
 }
@@ -158,11 +158,11 @@ export default function ManeuverEventTable({
                 <colgroup>
                   <col className="maneuver-event-table__time-column" />
                   <col className="maneuver-event-table__activity-column" />
+                  <col className="maneuver-event-table__loss-column" span={2} />
+                  <col className="maneuver-event-table__recovery-column" />
+                  <col className="maneuver-event-table__sog-column" span={3} />
                   <col className="maneuver-event-table__heading-column" />
                   <col className="maneuver-event-table__duration-column" />
-                  <col className="maneuver-event-table__sog-column" span={3} />
-                  <col className="maneuver-event-table__recovery-column" />
-                  <col className="maneuver-event-table__loss-column" span={2} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -177,14 +177,14 @@ export default function ManeuverEventTable({
                       </button>
                     </th>
                     <th scope="col">Act</th>
-                    <th scope="col">ΔHDG (°)</th>
-                    <th scope="col">Dur (s)</th>
-                    <th scope="col">SOG in (kt)</th>
-                    <th scope="col">SOG min (kt)</th>
-                    <th scope="col">SOG out (kt)</th>
-                    <th scope="col">Rec (s)</th>
                     <th scope="col">Loss (m)</th>
                     <th scope="col">Loss (s)</th>
+                    <th scope="col">Rec (s)</th>
+                    <th scope="col">SOG in</th>
+                    <th scope="col">SOG min</th>
+                    <th scope="col">SOG out</th>
+                    <th scope="col">ΔHDG (°)</th>
+                    <th scope="col">Dur (s)</th>
                   </tr>
                 </thead>
                 <tbody>
