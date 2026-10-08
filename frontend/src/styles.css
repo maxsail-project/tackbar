@@ -620,7 +620,7 @@ input:focus-visible {
 }
 
 .analysis-window__maneuver-annotation--comparison .analysis-window__maneuver-guide {
-  top: 94px;
+  top: 32px;
   bottom: 14px;
 }
 
