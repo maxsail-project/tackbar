@@ -84,6 +84,8 @@ const FIT_OPTIONS = {
   duration: 0,
 }
 
+const MANEUVER_FOCUS_VERTICAL_OFFSET_RATIO = 0.125
+
 export function boatMarkerRotation(cog: number | null) {
   return cog ?? 0
 }
@@ -136,8 +138,21 @@ export function resolveMapFocusPosition(
     : comparisonBoatPosition
 }
 
-export function maneuverFocusCameraOptions(position: TrackPosition) {
-  return { center: [position.lon, position.lat] as [number, number] }
+export function maneuverFocusCameraOptions(
+  position: TrackPosition,
+  mapHeight?: number | null,
+) {
+  const verticalOffset = mapHeight !== null
+    && mapHeight !== undefined
+    && Number.isFinite(mapHeight)
+    && mapHeight > 0
+    ? -mapHeight * MANEUVER_FOCUS_VERTICAL_OFFSET_RATIO
+    : 0
+
+  return {
+    center: [position.lon, position.lat] as [number, number],
+    offset: [0, verticalOffset] as [number, number],
+  }
 }
 
 function BoatMarker({
@@ -345,7 +360,8 @@ export default function TrackMap({
     )
     if (focusPosition === null) return
 
-    mapRef.current.easeTo(maneuverFocusCameraOptions(focusPosition))
+    const mapHeight = mapRef.current.getContainer().clientHeight
+    mapRef.current.easeTo(maneuverFocusCameraOptions(focusPosition, mapHeight))
   }, [comparisonBoatPosition, focusRequest, primaryBoatPosition])
 
   if (!windowFocus) return null

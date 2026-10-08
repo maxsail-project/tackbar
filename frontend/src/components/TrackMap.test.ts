@@ -159,10 +159,30 @@ describe('maneuver map focus', () => {
     )).toBeNull()
   })
 
-  it('changes center without supplying a zoom', () => {
-    const cameraOptions = maneuverFocusCameraOptions(primaryPosition)
+  it('places the requested position above center using the rendered map height', () => {
+    const cameraOptions = maneuverFocusCameraOptions(primaryPosition, 400)
 
-    expect(cameraOptions).toEqual({ center: [-30.73, 0.25] })
+    expect(cameraOptions).toEqual({
+      center: [-30.73, 0.25],
+      offset: [0, -50],
+    })
     expect(cameraOptions).not.toHaveProperty('zoom')
+    expect(cameraOptions).not.toHaveProperty('bearing')
+    expect(cameraOptions).not.toHaveProperty('pitch')
+  })
+
+  it.each([undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'keeps the requested position centered for invalid map height %s',
+    (mapHeight) => {
+      expect(maneuverFocusCameraOptions(primaryPosition, mapHeight)).toEqual({
+        center: [-30.73, 0.25],
+        offset: [0, 0],
+      })
+    },
+  )
+
+  it('scales the focus offset when the rendered map height changes', () => {
+    expect(maneuverFocusCameraOptions(primaryPosition, 520).offset)
+      .toEqual([0, -65])
   })
 })
