@@ -2,6 +2,106 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.0 Californian — Collaborative Debrief Analytics (Release-ready — production validation pending)
+
+### English
+
+Adds neutral, Vakaros-based maneuver analytics to the existing collaborative
+Session Viewer without changing Activity, Session, consent or replay semantics.
+
+### Added
+
+* Backend-owned maneuver detection over complete canonical HDG telemetry, with
+  circular-angle handling, explicit gap/sample-quality rules and supporting
+  COG/HEEL/SOG context where available. Detected events remain neutral
+  maneuvers rather than automatic tack/gybe classifications.
+* Deterministic maneuver metrics for timestamps, duration, circular HDG change,
+  entry/minimum/exit SOG, recovery time and constant-entry-reference Loss in
+  metres and equivalent seconds. Missing inputs remain unavailable.
+* Strict per-Activity analytical artifacts with canonical-track SHA-256 and
+  algorithm-version invalidation, lazy regeneration and a capability-scoped
+  API that preserves ACTIVE-only shared visibility.
+* Primary/Comparison maneuver markers on the Analysis Window SOG timeline and
+  a collapsible, sortable Maneuvers table linked to the shared replay clock.
+
+### Changed
+
+* Selecting a timeline marker or table row now moves shared `playbackTime` to
+  the event center, highlights the row and focuses the relevant Activity in the
+  visible map area above the fixed telemetry overlay.
+* The compact Analysis Window summaries include clearly labelled Dominant COG
+  using the existing Summary value and whole-degree rounding.
+* The Maneuvers table prioritizes Loss and Recovery, uses compact numeric
+  alignment, keeps its header sticky within the table container and preserves
+  horizontal scrolling on narrow screens.
+* Analysis Window replay controls, marker guides, map telemetry and summary
+  hierarchy were refined for the mobile collaborative-debrief flow.
+
+### Validation
+
+The complete backend regression passed with 433 tests, including maneuver
+detection, metrics, persistence/version invalidation and shared API behavior.
+The complete frontend suite passed with 297 tests, together with TypeScript
+typecheck and the production build. Backend `compileall` and `git diff --check`
+also passed.
+
+The production build reports the existing advisory for a JavaScript chunk over
+500 kB; it does not fail the build. Production deployment, real production
+capability access and production Viewer validation remain pending.
+
+---
+
+## v0.7.0 Californian — Analítica para el debriefing colaborativo (Lista para release — validación de producción pendiente)
+
+### Español
+
+Añade analítica neutral de maniobras basada en Vakaros al Session Viewer
+colaborativo existente sin cambiar las semánticas de Activity, Session,
+consentimiento o replay.
+
+### Añadido
+
+* Detección backend de maniobras sobre la telemetría HDG canónica completa, con
+  tratamiento circular de ángulos, reglas explícitas de gaps/calidad de muestras
+  y contexto COG/HEEL/SOG cuando está disponible. Los eventos siguen siendo
+  maniobras neutrales y no clasificaciones automáticas de virada/trasluchada.
+* Métricas deterministas de timestamps, duración, cambio circular de HDG, SOG de
+  entrada/mínima/salida, recuperación y Loss con referencia constante a la SOG
+  de entrada en metros y segundos equivalentes. Los datos ausentes permanecen
+  no disponibles.
+* Artefactos analíticos estrictos por Activity con SHA-256 del track canónico,
+  invalidación por versión del algoritmo, regeneración lazy y una API limitada
+  por capability que conserva la visibilidad compartida solo para ACTIVE.
+* Marcadores de maniobra Primary/Comparison en la timeline SOG de Analysis
+  Window y una tabla colapsable y ordenable conectada al reloj compartido.
+
+### Cambiado
+
+* Seleccionar un marcador o fila mueve el `playbackTime` compartido al centro
+  del evento, destaca la fila y enfoca la Activity relevante en el área visible
+  del mapa por encima del overlay fijo de telemetría.
+* Los resúmenes compactos de Analysis Window incluyen Dominant COG claramente
+  etiquetado, reutilizando el valor y redondeo entero existentes de Summary.
+* La tabla de Maneuvers prioriza Loss y Recovery, alinea cifras de forma
+  compacta, mantiene el header sticky dentro de su contenedor y conserva el
+  scroll horizontal en pantallas estrechas.
+* Se refinaron controles de replay, guías de marcadores, telemetría de mapa y
+  jerarquía del resumen para el flujo móvil de debriefing colaborativo.
+
+### Validación
+
+La regresión backend completa pasó con 433 tests, incluida la detección de
+maniobras, métricas, persistencia/invalidación por versión y comportamiento de
+la API compartida. La suite frontend completa pasó con 297 tests, junto con el
+typecheck de TypeScript y la build de producción. También pasaron `compileall`
+del backend y `git diff --check`.
+
+La build de producción informa del aviso existente por un chunk JavaScript de
+más de 500 kB; no hace fallar la build. El despliegue, el acceso real mediante
+capability y la validación del Viewer en producción permanecen pendientes.
+
+---
+
 ## v0.6.7 Mahon — Viewer Visual Polish
 
 ### English

@@ -85,8 +85,8 @@ export function AnalysisWindowCompactSummary({
   const distance = metrics === null ? '—' : `${Math.round(metrics.distanceMeters)} m`
   const dominantCog = metrics?.dominantCogDegrees === null
     || metrics?.dominantCogDegrees === undefined
-    ? '—'
-    : `${metrics.dominantCogDegrees.toFixed(0)}°`
+    ? 'COG —'
+    : `COG ${metrics.dominantCogDegrees.toFixed(0)}°`
 
   return (
     <span className={`analysis-window__compact-summary analysis-window__compact-summary--${activityRole}`}>

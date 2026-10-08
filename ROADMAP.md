@@ -202,18 +202,28 @@ historical release documents.
 
 ---
 
-## Planned release family — v0.7.x Californian — Collaborative Debrief Analytics
+## v0.7.0 Californian — Collaborative Debrief Analytics
 
-Focus on useful post-sailing insights from telemetry already available in
-Vakaros-derived canonical TackBar Activities. Maneuver-oriented analysis is
-the first direction: neutral detected events, an additional compact summary
-section in the existing Session Viewer, and event selection through the shared
-`playbackTime`.
+**Status:** Release-ready / automated release validation passed; production validation pending
 
-Metrics remain evidence-driven and provisional: real sailing validation may
-add, remove or adjust them within the focused debrief objective. A maneuver is
-not automatically a tack/gybe. Existing Activity/Session, Analysis Window,
-map/replay, charts and Summary semantics remain preserved.
+Delivered useful post-sailing maneuver analytics from telemetry already
+available in Vakaros-derived canonical TackBar Activities. Neutral detected
+events are persisted with version/hash invalidation, exposed through the
+existing capability boundary and presented on the Analysis Window timeline and
+in a compact, sortable Maneuvers table. Selecting a marker or row moves shared
+`playbackTime` to the event center, highlights the row and focuses the relevant
+Activity on the visible map area without changing the Analysis Window.
+
+The delivered metrics are event time/duration, circular HDG change,
+entry/minimum/exit SOG, recovery time and constant-entry-reference Loss in
+metres and equivalent seconds. Values remain unavailable when inputs are
+insufficient. A maneuver is not automatically a tack/gybe, and existing
+Activity/Session, Analysis Window, map/replay, charts and Summary semantics are
+preserved.
+
+The Analysis Window compact summaries also expose existing Dominant COG as
+explicit directional context. Table/timeline and map refinements preserve the
+mobile collaborative-debrief flow.
 
 GPX/VKX/FIT ingestion, cross-format normalization and canonical logical
 fingerprint/deduplication are **Future / Unassigned**, with no v0.8.x or other
@@ -254,7 +264,7 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.4 | Mahon — Sailor Activation Welcome Email | Release-ready / production validation pending |
 | v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implemented / production validation pending |
 | v0.6.6 | Mahon — Attachment-driven Email Ingestion | Implemented / focused validation passed; production validation pending |
-| v0.7.x | Californian — Collaborative Debrief Analytics | Planned |
+| v0.7.0 | Californian — Collaborative Debrief Analytics | Release-ready / automated validation passed; production validation pending |
 
 ---
 
@@ -390,18 +400,28 @@ infiere de documentos históricos de release.
 
 ---
 
-## Familia prevista — v0.7.x Californian — Collaborative Debrief Analytics
+## v0.7.0 Californian — Collaborative Debrief Analytics
 
-Priorizar insights útiles tras navegar a partir de la telemetría ya disponible
-en Activities canónicas derivadas de Vakaros. La primera dirección es el
-análisis de maniobras: eventos neutrales, una sección compacta adicional en el
-Session Viewer existente y selección del evento mediante el `playbackTime`
-compartido.
+**Estado:** Lista para release / validación automatizada superada; validación de producción pendiente
 
-Las métricas son provisionales y guiadas por evidencia: pueden añadirse,
-retirarse o ajustarse al validar datos reales dentro del objetivo de debrief.
-Una maniobra no equivale automáticamente a virada/trasluchada. Se preservan
+Entrega analítica útil de maniobras a partir de la telemetría ya disponible en
+Activities canónicas derivadas de Vakaros. Los eventos neutrales se persisten
+con invalidación por versión/hash, se exponen mediante el límite de capability
+existente y aparecen en la timeline de Analysis Window y en una tabla compacta
+y ordenable de Maneuvers. Seleccionar un marcador o fila mueve el
+`playbackTime` compartido al centro del evento, destaca la fila y enfoca la
+Activity relevante en el área visible del mapa sin cambiar la Analysis Window.
+
+Las métricas entregadas son hora/duración, cambio circular de HDG, SOG de
+entrada/mínima/salida, tiempo de recuperación y Loss con referencia constante
+a la SOG de entrada en metros y segundos equivalentes. Los valores permanecen
+no disponibles cuando los datos son insuficientes. Una maniobra no equivale
+automáticamente a virada/trasluchada y se preservan las semánticas de
 Activity/Session, Analysis Window, mapa/replay, gráficos y Summary.
+
+Los resúmenes compactos de Analysis Window también muestran el Dominant COG
+existente como contexto direccional explícito. Los refinamientos de tabla,
+timeline y mapa preservan el flujo mobile-first de debriefing colaborativo.
 
 GPX/VKX/FIT, normalización entre formatos y fingerprint/deduplicación lógica
 quedan **Future / Unassigned**, sin asignación a v0.8.x ni a otra release.
@@ -433,4 +453,4 @@ Referencias: [requisitos](docs/v0.7-collaborative-debrief-analytics-requirements
 | v0.6.4 | Mahon — Sailor Activation Welcome Email | Lista para release / validación de producción pendiente |
 | v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implementado / validación de producción pendiente |
 | v0.6.6 | Mahon — Ingesta de email basada en adjuntos | Implementado / validación focalizada superada; validación de producción pendiente |
-| v0.7.x | Californian — Collaborative Debrief Analytics | Previsto |
+| v0.7.0 | Californian — Collaborative Debrief Analytics | Lista para release / validación automatizada superada; validación de producción pendiente |

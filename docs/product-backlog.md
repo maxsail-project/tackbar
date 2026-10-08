@@ -239,25 +239,28 @@ Add concrete entries when one becomes an actual product candidate.
 
 # Sailing analytics
 
-## Vakaros-based maneuver-oriented collaborative debrief
+## Individual normalized maneuver profiles
 
-**Status:** Planned / real-sailing validation pending\
-**Release:** v0.7.x Californian\
-**Origin:** [requirements](v0.7-collaborative-debrief-analytics-requirements.md)
+**Status:** Future\
+**Release:** Unassigned\
+**Origin:** GitHub issue #11
 
-Use telemetry already available in canonical Vakaros-derived Activities to
-identify neutral maneuver events and summarize useful moments in an additional
-section of the existing Session Viewer. Selecting an event moves the shared
-`playbackTime`; existing Activity/Session, Analysis Window, map, charts and
-Summary semantics remain preserved.
+Add normalized individual maneuver profiles only after their time basis,
+alignment, interpolation, telemetry availability and presentation have been
+validated. This is not part of the delivered v0.7.0 event table or timeline.
 
-The metric set is evidence-driven, provisional and expected to evolve. Metrics
-may be added, removed or adjusted after real sailing validation under the
-requirements' bounded refinement policy. Candidate metrics are examples,
-not a mandatory schema. Maneuver does not automatically mean tack/gybe.
+---
 
-This entry covers the initial maneuver-oriented portion of automatic useful
-moment identification; broader detection remains separately future below.
+## Aggregate Primary / Comparison maneuver profiles
+
+**Status:** Future\
+**Release:** Unassigned\
+**Origin:** GitHub issue #12
+
+Add aggregate Primary/Comparison maneuver comparison and typical profiles only
+after the individual profile contract is validated. Aggregation, eligibility,
+missing-data behavior and sailing interpretation require explicit promotion;
+v0.7.0 does not imply them.
 
 ---
 
@@ -302,10 +305,10 @@ Provide meaningful gained/lost comparison between boats over a selected period. 
 **Status:** Future  
 **Release:** Unassigned
 
-Broader useful-moment detection beyond the maneuver-oriented v0.7.x entry
-above remains Future / Unassigned. Promote concrete additional event types only
-after validated sailing-domain evidence and explicit scope review; this entry
-does not duplicate or defer the initial maneuver capability.
+Broader useful-moment detection beyond the delivered v0.7.0 maneuver capability
+remains Future / Unassigned. Promote concrete additional event types only after
+validated sailing-domain evidence and explicit scope review; this entry does
+not duplicate or defer that delivered capability.
 
 ---
 
