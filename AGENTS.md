@@ -280,6 +280,20 @@ Normal development staging, implementation commits, merges and pushes remain
 human-controlled unless explicitly requested. Coding agents must not commit or
 push unless explicitly authorized for those development operations.
 
+Release preparation is a narrow exception. An explicitly invoked Release
+Preparer may prepare one concrete, already-decided release and must follow the
+complete role and procedure in `agents/release-preparer.md`. An invocation such
+as `Prepare v0.7.1 Californian — Analysis Window Maneuver Metrics` constitutes
+authorization for the preparation operations defined there, including creating
+the preparation issue when needed, updating release documentation and
+`CHANGELOG.md`, staging exact intended preparation files, and committing and
+pushing that preparation to `main`.
+
+The Release Preparer has no authority to implement or fix product code, choose
+the version or release-family identity, publish Git tags or GitHub Releases,
+deploy production, or perform unrelated Git operations. It must not approve its
+own preparation.
+
 Release publication is a narrow exception. An explicitly invoked Release
 Publisher may publish an already-decided and already-prepared release, and must
 follow the complete role and procedure in `agents/release-publisher.md`.
