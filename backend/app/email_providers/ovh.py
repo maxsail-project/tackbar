@@ -5,15 +5,24 @@ from email import policy
 from email.header import decode_header, make_header
 from email.parser import BytesParser
 from email.utils import parseaddr, parsedate_to_datetime
+from enum import Enum
 
 from app.models import InboundEmail
 from app.parsers.vakaros_csv import has_vakaros_csv_suffix
+
+
+class OVHMessageOutcome(str, Enum):
+    SUPPORTED = "supported"
+    UNSUPPORTED = "unsupported"
+    MALFORMED = "malformed"
 
 
 @dataclass(frozen=True)
 class OVHExaminedMessage:
     uid: int
     candidate: InboundEmail | None
+    outcome: OVHMessageOutcome
+    error_class: str | None = None
 
 
 @dataclass(frozen=True)
@@ -114,9 +123,24 @@ class OVHAdapter:
                     candidate = _extract_email(
                         raw, f"{uidvalidity}:{uid}"
                     )
-                except Exception:
-                    candidate = None
-                examined.append(OVHExaminedMessage(uid, candidate))
+                except Exception as error:
+                    examined.append(
+                        OVHExaminedMessage(
+                            uid,
+                            None,
+                            OVHMessageOutcome.MALFORMED,
+                            type(error).__name__,
+                        )
+                    )
+                    continue
+                outcome = (
+                    OVHMessageOutcome.SUPPORTED
+                    if candidate is not None
+                    else OVHMessageOutcome.UNSUPPORTED
+                )
+                examined.append(
+                    OVHExaminedMessage(uid, candidate, outcome)
+                )
             return OVHAcquisitionBatch(uidvalidity, tuple(examined))
         finally:
             try:
@@ -159,7 +183,9 @@ def _extract_email(raw: bytes, provider_message_id: str) -> InboundEmail | None:
             attachments.append((filename, part.get_payload(decode=True)))
     if len(attachments) > 1:
         raise ValueError("OVH message contains multiple supported attachments")
-    if not attachments or attachments[0][1] is None:
+    if not attachments:
         return None
+    if attachments[0][1] is None:
+        raise ValueError("OVH supported attachment body is unavailable")
     filename, content = attachments[0]
     return InboundEmail(sender_email, subject, filename, content, provider_message_id, received_at)

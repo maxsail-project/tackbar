@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from app.email_providers.ovh import OVHAdapter, OVHUIDValidityMismatch
+from app.email_providers.ovh import (
+    OVHAdapter,
+    OVHMessageOutcome,
+    OVHUIDValidityMismatch,
+)
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
@@ -123,11 +127,22 @@ def test_ovh_candidate_eligibility_depends_only_on_supported_attachments(monkeyp
     }
     adapter, _, _ = _adapter(monkeypatch, messages)
 
-    candidates = adapter.get_candidate_emails()
+    batch = adapter.acquire_messages()
+    candidates = [
+        item.candidate
+        for item in batch.examined_messages
+        if item.candidate is not None
+    ]
 
     assert [candidate.provider_message_id for candidate in candidates] == [
         "456:1",
         "456:3",
+    ]
+    assert [item.outcome for item in batch.examined_messages] == [
+        OVHMessageOutcome.SUPPORTED,
+        OVHMessageOutcome.UNSUPPORTED,
+        OVHMessageOutcome.SUPPORTED,
+        OVHMessageOutcome.UNSUPPORTED,
     ]
     assert candidates[0].attachment_filename == "vakaros-demo.csv.gz"
     assert candidates[1].attachment_filename == "vakaros-demo.CSV"
@@ -183,7 +198,10 @@ def test_ovh_treats_malformed_message_as_examined_and_continues(monkeypatch):
 
     assert [item.uid for item in batch.examined_messages] == [4, 5]
     assert batch.examined_messages[0].candidate is None
+    assert batch.examined_messages[0].outcome == OVHMessageOutcome.MALFORMED
+    assert batch.examined_messages[0].error_class == "ValueError"
     assert batch.examined_messages[1].candidate is not None
+    assert batch.examined_messages[1].outcome == OVHMessageOutcome.SUPPORTED
     assert fake.calls[-2:] == [("close",), ("logout",)]
 
 
