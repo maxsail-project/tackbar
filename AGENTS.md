@@ -276,13 +276,33 @@ work, read:
 
 `docs/production-runbook.md`
 
-Do not commit or push unless explicitly requested.
+Normal development staging, implementation commits, merges and pushes remain
+human-controlled unless explicitly requested. Coding agents must not commit or
+push unless explicitly authorized for those development operations.
 
-Do not create tags, releases, or version bumps unless explicitly requested.
+Release publication is a narrow exception. An explicitly invoked Release
+Publisher may publish an already-decided and already-prepared release, and must
+follow the complete role and procedure in `agents/release-publisher.md`.
+Invoking it for a concrete version, for example `Publish v0.7.1`, constitutes
+authorization for the publication operations defined there; no additional
+confirmation is required for those operations.
 
-The human developer controls staging, commits, pushes, tags, and releases.
+The Release Publisher has no authority over normal implementation Git
+operations beyond its explicitly defined release actions. Release publication
+does not authorize production deployment, which remains a separate
+responsibility.
 
 Never stage broad repository changes with `git add .`, `git add -A`, or equivalent broad staging. Use exact intended paths when staging is explicitly authorized.
+
+Git tags contain only the semantic version. For the current v0.7.x release
+family, where `x` is the concrete patch number:
+
+- tag: `v0.7.x`;
+- GitHub Release name: `TackBar v0.7.x Californian — <short release description>`.
+
+`v0.7.1`, `v0.7.2` and later v0.7.x patch releases remain part of the
+Californian family. No v0.8.x family name has been decided and none may be
+inferred or invented.
 
 ## Scope discipline
 

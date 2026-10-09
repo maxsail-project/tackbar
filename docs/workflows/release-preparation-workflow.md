@@ -1,6 +1,7 @@
 # Release Preparation Workflow
 
-This document defines the reusable TackBar workflow for preparing a release for human approval.
+This document defines the reusable TackBar workflow for preparing a release for
+approval and publication handoff.
 
 It applies after the intended release functionality has been implemented. Release preparation is a review, documentation, validation and publication-preparation activity. It is not a feature-development phase.
 
@@ -137,7 +138,9 @@ Release notes should summarize the delivered product outcome rather than reprodu
 
 ## 8. Human approval gate
 
-Release preparation stops when the release is ready for human approval.
+Release preparation is complete when the release scope, version, name,
+reconciled documentation, `CHANGELOG.md` entry, required validation and
+publication metadata are ready for human approval.
 
 The final report must include:
 
@@ -150,7 +153,12 @@ The final report must include:
 7. proposed GitHub Release notes;
 8. unresolved decisions or blockers, if any.
 
-## 9. Actions that remain human-controlled
+After approval, publication may be handed off by explicitly invoking the
+[Release Publisher](../../agents/release-publisher.md) for the prepared version.
+For example, `Publish v0.7.1` constitutes authorization for the narrow
+publication operations defined by that agent.
+
+## 9. Actions outside release preparation
 
 Release preparation must not:
 
@@ -164,4 +172,11 @@ Release preparation must not:
 - close unrelated issues;
 - implement new functionality to make the release appear complete.
 
-After human approval, tag/release creation and production deployment follow the repository's Git and production-runbook rules.
+These restrictions apply to the release-preparation actor. An explicitly
+invoked Release Publisher may create and push the approved tag and create the
+corresponding GitHub Release only according to
+`agents/release-publisher.md`.
+
+Release publication does not authorize production deployment. Deployment
+remains a separate responsibility and follows the repository's Git and
+production-runbook rules under separate authority.
