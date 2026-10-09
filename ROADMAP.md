@@ -204,7 +204,7 @@ historical release documents.
 
 ## v0.7.0 Californian — Collaborative Debrief Analytics
 
-**Status:** Release-ready / automated release validation passed; production validation pending
+**Status:** Delivered / automated release validation passed; production validation pending
 
 Delivered useful post-sailing maneuver analytics from telemetry already
 available in Vakaros-derived canonical TackBar Activities. Neutral detected
@@ -237,6 +237,17 @@ unless explicitly changed. This does not authorize unrelated feature expansion.
 
 References: [requirements](docs/v0.7-collaborative-debrief-analytics-requirements.md) and [decisions](docs/v0.7-decisions.md).
 
+## v0.7.1 Californian — Analysis Window Maneuver Metrics
+
+**Status:** Release-ready / automated release validation passed; production validation pending
+
+Makes explicit maneuver selection more useful on narrow screens by showing
+Loss in metres, equivalent Loss time and Recovery time beneath the compact
+Primary or Comparison summary that owns the event. Dominant COG remains visible
+there without the redundant text label. Existing maneuver calculations,
+Activity/Session, Analysis Window, replay, Summary and map telemetry semantics
+remain unchanged.
+
 ---
 
 ## Backlog relationship
@@ -264,7 +275,8 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 | v0.6.4 | Mahon — Sailor Activation Welcome Email | Release-ready / production validation pending |
 | v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implemented / production validation pending |
 | v0.6.6 | Mahon — Attachment-driven Email Ingestion | Implemented / focused validation passed; production validation pending |
-| v0.7.0 | Californian — Collaborative Debrief Analytics | Release-ready / automated validation passed; production validation pending |
+| v0.7.0 | Californian — Collaborative Debrief Analytics | Delivered / automated validation passed; production validation pending |
+| v0.7.1 | Californian — Analysis Window Maneuver Metrics | Release-ready / automated validation passed; production validation pending |
 
 ---
 
@@ -402,7 +414,7 @@ infiere de documentos históricos de release.
 
 ## v0.7.0 Californian — Collaborative Debrief Analytics
 
-**Estado:** Lista para release / validación automatizada superada; validación de producción pendiente
+**Estado:** Entregado / validación automatizada superada; validación de producción pendiente
 
 Entrega analítica útil de maniobras a partir de la telemetría ya disponible en
 Activities canónicas derivadas de Vakaros. Los eventos neutrales se persisten
@@ -434,6 +446,17 @@ compatibilidad preservada salvo cambio explícito, sin expansión no relacionada
 
 Referencias: [requisitos](docs/v0.7-collaborative-debrief-analytics-requirements.md) y [decisiones](docs/v0.7-decisions.md).
 
+## v0.7.1 Californian — Métricas de maniobra en Analysis Window
+
+**Estado:** Lista para release / validación automatizada superada; validación de producción pendiente
+
+Hace más útil la selección explícita de maniobras en pantallas estrechas al
+mostrar Loss en metros, Loss equivalente en segundos y tiempo de recuperación
+bajo el resumen compacto Primary o Comparison propietario del evento. Dominant
+COG permanece visible sin la etiqueta de texto redundante. Las semánticas
+existentes de cálculo de maniobras, Activity/Session, Analysis Window, replay,
+Summary y telemetría del mapa permanecen sin cambios.
+
 ---
 
 ## Secuencia de releases
@@ -453,4 +476,5 @@ Referencias: [requisitos](docs/v0.7-collaborative-debrief-analytics-requirements
 | v0.6.4 | Mahon — Sailor Activation Welcome Email | Lista para release / validación de producción pendiente |
 | v0.6.5 | Mahon — Simplified Pilot Onboarding & Web Consent | Implementado / validación de producción pendiente |
 | v0.6.6 | Mahon — Ingesta de email basada en adjuntos | Implementado / validación focalizada superada; validación de producción pendiente |
-| v0.7.0 | Californian — Collaborative Debrief Analytics | Lista para release / validación automatizada superada; validación de producción pendiente |
+| v0.7.0 | Californian — Collaborative Debrief Analytics | Entregado / validación automatizada superada; validación de producción pendiente |
+| v0.7.1 | Californian — Analysis Window Maneuver Metrics | Lista para release / validación automatizada superada; validación de producción pendiente |

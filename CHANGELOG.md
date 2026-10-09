@@ -2,6 +2,89 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.1 Californian — Analysis Window Maneuver Metrics (Release-ready — production validation pending)
+
+### English
+
+Makes the most useful metrics for an explicitly selected maneuver visible in
+the compact Analysis Window context while preserving the v0.7.0 analytical,
+replay and Activity/Session semantics.
+
+### Changed
+
+* Selecting a Primary or Comparison maneuver now shows its Loss in metres,
+  equivalent Loss in seconds and Recovery time directly beneath the compact
+  summary for the Activity that owns the event.
+* Selected-maneuver detail uses the existing formatting and unavailable-value
+  behavior, remains tied to explicit selection, and disappears when selection
+  is cleared or no longer belongs to the displayed Analysis Window.
+* Compact summaries retain the existing whole-degree Dominant COG value while
+  omitting only the visible `COG` label to preserve narrow mobile space.
+* Added specialized Release Publisher and Release Preparer governance, with an
+  independent review gate and closed-issue traceability for new releases.
+
+### Issues
+
+- #20 — Show selected maneuver metrics in Analysis Window
+- #21 — Allow specialized Release Publisher to publish approved GitHub releases
+- #22 — Introduce specialized Release Preparer and CHANGELOG issue traceability
+
+### Validation
+
+The complete frontend suite passed with 302 tests across 25 test files,
+together with TypeScript typecheck and the production build. The product
+increment is frontend-only; backend analytics, API, persistence and domain
+behavior are unchanged.
+
+The production build reports the existing advisory for a JavaScript chunk over
+500 kB; it does not fail the build. Production deployment and production
+Viewer validation remain pending.
+
+---
+
+## v0.7.1 Californian — Métricas de maniobra en Analysis Window (Lista para release — validación de producción pendiente)
+
+### Español
+
+Hace visibles las métricas más útiles de una maniobra seleccionada
+explícitamente en el contexto compacto de Analysis Window, preservando las
+semánticas analíticas, de replay y de Activity/Session de v0.7.0.
+
+### Cambiado
+
+* Seleccionar una maniobra Primary o Comparison muestra ahora su Loss en
+  metros, Loss equivalente en segundos y tiempo de recuperación directamente
+  bajo el resumen compacto de la Activity propietaria del evento.
+* El detalle de la maniobra seleccionada reutiliza el formato y comportamiento
+  de valores no disponibles existentes, permanece ligado a la selección
+  explícita y desaparece cuando se borra o deja de pertenecer a la Analysis
+  Window mostrada.
+* Los resúmenes compactos conservan el Dominant COG existente redondeado a
+  grados enteros, omitiendo solo la etiqueta visible `COG` para preservar el
+  espacio móvil estrecho.
+* Se añadió la gobernanza especializada de Release Publisher y Release
+  Preparer, con revisión independiente y trazabilidad a issues cerradas para
+  nuevas releases.
+
+### Issues
+
+- #20 — Show selected maneuver metrics in Analysis Window
+- #21 — Allow specialized Release Publisher to publish approved GitHub releases
+- #22 — Introduce specialized Release Preparer and CHANGELOG issue traceability
+
+### Validación
+
+La suite frontend completa pasó con 302 tests en 25 archivos de tests, junto
+con el typecheck de TypeScript y la build de producción. El incremento de
+producto es solo frontend; la analítica backend, API, persistencia y
+comportamiento de dominio permanecen sin cambios.
+
+La build de producción informa del aviso existente por un chunk JavaScript de
+más de 500 kB; no hace fallar la build. El despliegue y la validación del Viewer
+en producción permanecen pendientes.
+
+---
+
 ## v0.7.0 Californian — Collaborative Debrief Analytics (Release-ready — production validation pending)
 
 ### English
