@@ -6,7 +6,9 @@
 
 TackBar evolves incrementally by validating each product step with real sailing activities before adding more complexity.
 
-The roadmap is intentionally high-level. Detailed release requirements and future backlog are maintained separately.
+The roadmap is intentionally high-level. Detailed release requirements are
+maintained separately; open GitHub Issues and the GitHub Project present pending
+work.
 
 ## Core product hypothesis
 
@@ -206,9 +208,12 @@ See the [canonical roadmap](../ROADMAP.md) for current planning.
 
 ## Backlog relationship
 
-[docs/product-backlog.md](product-backlog.md) remains the canonical inventory of unfinished future work.
+Open GitHub Issues are the canonical inventory of pending work. Each Issue is a
+backlog item; the GitHub Project provides its presentation and physical ordering.
 
-Only scope explicitly committed in release requirements/decisions belongs to a concrete release. Other work remains Unassigned or Future 0.6.x as explicitly decided.
+An open Issue is a proposal, not governing product semantics. Only scope
+explicitly committed in release requirements/decisions belongs to a concrete
+release. Other work remains Unassigned or Future 0.6.x as explicitly decided.
 
 ---
 
@@ -237,7 +242,9 @@ Only scope explicitly committed in release requirements/decisions belongs to a c
 
 TackBar evoluciona de forma incremental, validando cada etapa del producto con actividades reales de navegación antes de incorporar más complejidad.
 
-El roadmap se mantiene deliberadamente a alto nivel. Los requisitos detallados y el backlog futuro se mantienen por separado.
+El roadmap se mantiene deliberadamente a alto nivel. Los requisitos detallados
+se mantienen por separado; los Issues abiertos de GitHub y el GitHub Project
+presentan el trabajo pendiente.
 
 ## Hipótesis principal del producto
 

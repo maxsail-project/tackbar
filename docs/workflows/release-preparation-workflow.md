@@ -71,14 +71,22 @@ Record implementation/product decisions that are now closed and are important fo
 
 Do not add speculative rationale or decisions that were never made.
 
-### Product backlog
+### Pending-work Issues
 
-`docs/product-backlog.md` contains pending work only.
+Open GitHub Issues are the canonical inventory of pending work. Each Issue is a
+backlog item, while the GitHub Project provides presentation and physical
+ordering without a duplicate priority mechanism.
 
-- remove work that is now delivered;
-- preserve unfinished work;
-- do not promote or assign pending work to a release without an explicit decision;
-- merge or clarify entries only when release work made them demonstrably obsolete or duplicated.
+- reconcile Issue state and release traceability against delivered repository
+  evidence, including code, tests, requirements and decisions;
+- confirm that Issues listed as delivered are closed and actually contained in
+  the release;
+- preserve open Issues as pending/proposed work and do not present them as
+  delivered;
+- report stale, duplicated or inconsistent Issue state; do not change unrelated
+  Issues or promote pending work without explicit authority and a product
+  decision;
+- do not treat Project ordering as release scope or governing product semantics.
 
 ### Roadmap
 
@@ -142,7 +150,8 @@ The independent reviewer should verify that:
 - every listed issue is closed and actually contained in the release;
 - materially included closed issues are not omitted from traceability;
 - open or pending issues are not presented as delivered;
-- delivered work was removed from the backlog and pending work was preserved;
+- Issue state and traceability agree with delivered repository evidence, while
+  pending work remains represented by open Issues;
 - no new scope was introduced during release preparation;
 - validation is proportionate to release risk;
 - the preparation commit contains only intended release-preparation changes;

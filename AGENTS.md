@@ -229,45 +229,65 @@ When completing implementation work, summarize relevant changes in the task resu
 Use documents for distinct purposes:
 
 - `ROADMAP.md`: high-level product milestones and release direction.
+- GitHub Issues: canonical inventory of pending work; each open Issue is one
+  backlog item describing proposed or pending work.
+- GitHub Project: backlog presentation and physical ordering. Project order does
+  not create product semantics or require a duplicate priority field.
 - `docs/*-requirements.md`: requirements and acceptance criteria for a specific delivered/current product chapter.
 - `docs/*-decisions.md`: closed product/architecture decision rationale when preserving that rationale is useful.
-- `docs/product-backlog.md`: canonical inventory of future work that is valid but not committed to the current release.
 - `CHANGELOG.md`: delivered release changes.
+- code and tests: implemented behavior.
 
-Historical requirements may retain deferred ideas for context, but `docs/product-backlog.md` is the canonical place to track future work across releases.
+An open GitHub Issue is pending/proposed work. It does not automatically become
+a governing product decision, release commitment or implementation instruction,
+and it does not override current requirements or decisions. An Issue MAY
+intentionally propose behavior that conflicts with governing documentation.
+Before implementation instructions are generated for such an Issue, agents must
+surface the conflict and have it explicitly resolved through the applicable
+requirements/decision change. Current requirements and decisions remain
+authoritative for product behavior, under the instruction hierarchy above,
+until that deliberate change is made.
 
-Do not autonomously move, add, prioritize, or assign future work to a release merely because it appears in an older requirements document. If a task discovers a future item that should be tracked, report it and update the backlog only when documentation changes are explicitly requested.
+Do not autonomously create, prioritize, assign, close or otherwise change Issues
+merely because future work appears in an older requirements document or is
+discovered during implementation. Report the candidate future work, and create
+or update a GitHub Issue only when that issue-tracking change is explicitly
+authorized.
 
-## Backlog maintenance
+## Issue backlog governance
 
-`docs/product-backlog.md` is the canonical inventory of unfinished future work.
+Open GitHub Issues are the canonical inventory of unfinished future work. The
+GitHub Issue is the backlog item; the GitHub Project supplies physical ordering
+and presentation without a parallel priority mechanism.
 
-It must contain pending work only. Delivered items should be removed rather
-than retained as historical records; delivered history belongs in code,
-tests, requirements, CHANGELOG and release notes where applicable.
+Open Issues represent pending/proposed work only. Delivered history belongs in
+code, tests, governing requirements/decisions, closed Issues, `CHANGELOG.md` and
+GitHub Releases where applicable.
 
-Agents MAY update the backlog only when documentation changes are explicitly requested and one of the following applies:
+Agents MAY create or update backlog Issues only when issue changes are explicitly
+authorized and one of the following applies:
 
 - an explicitly requested implementation introduces a clear future follow-up;
-- an implementation completes an existing backlog item;
-- a documentation/release sanity-check task includes backlog reconciliation.
+- an implementation completes or changes the context of an existing Issue;
+- a documentation/release sanity-check task includes Issue reconciliation.
 
-When explicitly requested, backlog maintenance should normally happen during
+When explicitly requested, Issue reconciliation should normally happen during
 the final review or sanity check of an increment, not opportunistically during
 unrelated coding work.
 
-When reconciling the backlog, agents should:
+When reconciling pending and delivered work, agents should:
 
-- remove items that are now delivered;
-- add concrete future work discovered during implementation;
-- merge duplicates;
-- update items whose context or scope changed;
-- preserve links to source requirements when useful;
-- avoid inventing priority, release assignment or product commitments that
-  have not been decided.
+- compare Issue state and traceability with delivered repository evidence;
+- keep pending/proposed work open and represent delivered work through closed
+  Issues plus code/tests and release records as applicable;
+- identify duplicates or obsolete Issues without changing them unless explicitly
+  authorized;
+- preserve links to governing requirements and decisions when useful;
+- avoid inventing priority, release assignment or product commitments, and do
+  not duplicate the GitHub Project's physical ordering.
 
-If it is unclear whether something is a valid backlog item, report it instead
-of adding it automatically.
+If it is unclear whether something is a valid Issue, report it instead of
+creating or changing one automatically.
 
 ## Git and release safety
 
