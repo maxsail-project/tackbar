@@ -5,15 +5,23 @@ from pathlib import Path
 
 import pytest
 
-from app.email_providers.ovh import OVHAdapter
+from app.email_providers.ovh import OVHAdapter, OVHUIDValidityMismatch
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
 
 
 class FakeIMAP:
-    def __init__(self, messages: dict[bytes, bytes]) -> None:
+    def __init__(
+        self,
+        messages: dict[bytes, bytes],
+        *,
+        fail_uids: set[bytes] | None = None,
+        uidvalidity: bytes = b"456",
+    ) -> None:
         self.messages = messages
+        self.fail_uids = fail_uids or set()
+        self.uidvalidity = uidvalidity
         self.calls: list[tuple] = []
 
     def login(self, username, password):
@@ -26,12 +34,14 @@ class FakeIMAP:
 
     def response(self, code):
         self.calls.append(("response", code))
-        return "UIDVALIDITY", [b"456"]
+        return "UIDVALIDITY", [self.uidvalidity]
 
     def uid(self, command, *args):
         self.calls.append(("uid", command, *args))
         if command == "SEARCH":
             return "OK", [b" ".join(self.messages)]
+        if args[0] in self.fail_uids:
+            return "NO", []
         return "OK", [(b"1 (BODY[] {123})", self.messages[args[0]]), b")"]
 
     def close(self):
@@ -59,8 +69,8 @@ def _message(
     return message.as_bytes()
 
 
-def _adapter(monkeypatch, messages):
-    fake = FakeIMAP(messages)
+def _adapter(monkeypatch, messages, **fake_options):
+    fake = FakeIMAP(messages, **fake_options)
     calls = []
 
     def connect(host, port):
@@ -158,10 +168,72 @@ def test_ovh_decodes_filename_and_tolerates_bad_date(monkeypatch):
     assert candidates[0].received_at is None
 
 
-def test_ovh_rejects_multiple_supported_attachments_and_logs_out(monkeypatch):
-    adapter, fake, _ = _adapter(monkeypatch, {b"4": _message(attachments=[("one.csv", b"one"), ("two.csv.gz", b"two")])})
+def test_ovh_treats_malformed_message_as_examined_and_continues(monkeypatch):
+    adapter, fake, _ = _adapter(
+        monkeypatch,
+        {
+            b"4": _message(
+                attachments=[("one.csv", b"one"), ("two.csv.gz", b"two")]
+            ),
+            b"5": _message(),
+        },
+    )
 
-    with pytest.raises(ValueError, match="multiple supported attachments"):
-        adapter.get_candidate_emails()
+    batch = adapter.acquire_messages()
 
+    assert [item.uid for item in batch.examined_messages] == [4, 5]
+    assert batch.examined_messages[0].candidate is None
+    assert batch.examined_messages[1].candidate is not None
     assert fake.calls[-2:] == [("close",), ("logout",)]
+
+
+def test_ovh_incremental_search_fetches_only_uids_above_cursor(monkeypatch):
+    adapter, fake, _ = _adapter(
+        monkeypatch,
+        {b"17": _message(), b"19": _message(), b"18": _message()},
+    )
+
+    batch = adapter.acquire_messages(
+        last_seen_uid=17, expected_uidvalidity=456
+    )
+
+    assert [item.uid for item in batch.examined_messages] == [18, 19]
+    assert ("uid", "SEARCH", None, "UID 18:*") in fake.calls
+    assert ("uid", "FETCH", b"17", "(BODY.PEEK[])") not in fake.calls
+
+
+def test_ovh_no_new_uids_does_not_fetch_historical_messages(monkeypatch):
+    adapter, fake, _ = _adapter(monkeypatch, {b"17": _message()})
+
+    batch = adapter.acquire_messages(
+        last_seen_uid=17, expected_uidvalidity=456
+    )
+
+    assert batch.examined_messages == ()
+    assert ("uid", "SEARCH", None, "UID 18:*") in fake.calls
+    assert not any(call[:2] == ("uid", "FETCH") for call in fake.calls)
+
+
+def test_ovh_fetch_failure_stops_at_highest_examined_prefix(monkeypatch):
+    adapter, fake, _ = _adapter(
+        monkeypatch,
+        {b"100": _message(), b"101": _message(), b"102": _message()},
+        fail_uids={b"101"},
+    )
+
+    batch = adapter.acquire_messages()
+
+    assert batch.acquisition_failed
+    assert [item.uid for item in batch.examined_messages] == [100]
+    assert ("uid", "FETCH", b"102", "(BODY.PEEK[])") not in fake.calls
+
+
+def test_ovh_uidvalidity_mismatch_fails_before_search(monkeypatch):
+    adapter, fake, _ = _adapter(monkeypatch, {b"17": _message()})
+
+    with pytest.raises(OVHUIDValidityMismatch):
+        adapter.acquire_messages(
+            last_seen_uid=16, expected_uidvalidity=999
+        )
+
+    assert not any(call[:2] == ("uid", "SEARCH") for call in fake.calls)

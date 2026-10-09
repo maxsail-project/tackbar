@@ -1,4 +1,5 @@
 import imaplib
+from dataclasses import dataclass
 from datetime import timezone
 from email import policy
 from email.header import decode_header, make_header
@@ -9,6 +10,23 @@ from app.models import InboundEmail
 from app.parsers.vakaros_csv import has_vakaros_csv_suffix
 
 
+@dataclass(frozen=True)
+class OVHExaminedMessage:
+    uid: int
+    candidate: InboundEmail | None
+
+
+@dataclass(frozen=True)
+class OVHAcquisitionBatch:
+    uidvalidity: int
+    examined_messages: tuple[OVHExaminedMessage, ...]
+    acquisition_failed: bool = False
+
+
+class OVHUIDValidityMismatch(RuntimeError):
+    pass
+
+
 class OVHAdapter:
     def __init__(self, host: str, port: int, username: str, password: str) -> None:
         self.host = host
@@ -17,6 +35,20 @@ class OVHAdapter:
         self.password = password
 
     def get_candidate_emails(self) -> list[InboundEmail]:
+        batch = self.acquire_messages()
+        if batch.acquisition_failed:
+            raise RuntimeError("Could not fetch mailbox message")
+        return [
+            item.candidate
+            for item in batch.examined_messages
+            if item.candidate is not None
+        ]
+
+    def acquire_messages(
+        self,
+        last_seen_uid: int | None = None,
+        expected_uidvalidity: int | None = None,
+    ) -> OVHAcquisitionBatch:
         connection = imaplib.IMAP4_SSL(self.host, self.port)
         selected = False
         try:
@@ -28,27 +60,64 @@ class OVHAdapter:
             status, values = connection.response("UIDVALIDITY")
             if status != "UIDVALIDITY" or not values or not values[0]:
                 raise RuntimeError("Mailbox UIDVALIDITY is unavailable")
-            uidvalidity = values[0].decode("ascii") if isinstance(values[0], bytes) else str(values[0])
-            if not uidvalidity.isdecimal():
+            uidvalidity_text = values[0].decode("ascii") if isinstance(values[0], bytes) else str(values[0])
+            if not uidvalidity_text.isdecimal():
                 raise RuntimeError("Mailbox UIDVALIDITY is invalid")
+            uidvalidity = int(uidvalidity_text)
+            if uidvalidity <= 0:
+                raise RuntimeError("Mailbox UIDVALIDITY is invalid")
+            if (
+                expected_uidvalidity is not None
+                and uidvalidity != expected_uidvalidity
+            ):
+                raise OVHUIDValidityMismatch("Mailbox UIDVALIDITY changed")
 
-            status, values = connection.uid("SEARCH", None, "ALL")
+            search = (
+                "ALL"
+                if last_seen_uid is None
+                else f"UID {last_seen_uid + 1}:*"
+            )
+            status, values = connection.uid("SEARCH", None, search)
             if status != "OK":
                 raise RuntimeError("Could not search mailbox")
-            candidates = []
-            for uid in (values[0] if values else b"").split():
-                if not uid.isdigit():
-                    raise RuntimeError("Mailbox UID is invalid")
-                status, response = connection.uid("FETCH", uid, "(BODY.PEEK[])")
+            uid_values = (values[0] if values else b"").split()
+            if any(not uid.isdigit() for uid in uid_values):
+                raise RuntimeError("Mailbox UID is invalid")
+            uids = sorted({int(uid) for uid in uid_values})
+            if last_seen_uid is not None:
+                uids = [uid for uid in uids if uid > last_seen_uid]
+
+            examined = []
+            for uid in uids:
+                uid_bytes = str(uid).encode("ascii")
+                status, response = connection.uid(
+                    "FETCH", uid_bytes, "(BODY.PEEK[])"
+                )
                 if status != "OK":
-                    raise RuntimeError("Could not fetch mailbox message")
-                raw = next((part[1] for part in response if isinstance(part, tuple) and isinstance(part[1], bytes)), None)
+                    return OVHAcquisitionBatch(
+                        uidvalidity, tuple(examined), acquisition_failed=True
+                    )
+                raw = next(
+                    (
+                        part[1]
+                        for part in response
+                        if isinstance(part, tuple)
+                        and isinstance(part[1], bytes)
+                    ),
+                    None,
+                )
                 if raw is None:
-                    raise RuntimeError("Mailbox message body is unavailable")
-                candidate = _extract_email(raw, f"{uidvalidity}:{uid.decode('ascii')}")
-                if candidate is not None:
-                    candidates.append(candidate)
-            return candidates
+                    return OVHAcquisitionBatch(
+                        uidvalidity, tuple(examined), acquisition_failed=True
+                    )
+                try:
+                    candidate = _extract_email(
+                        raw, f"{uidvalidity}:{uid}"
+                    )
+                except Exception:
+                    candidate = None
+                examined.append(OVHExaminedMessage(uid, candidate))
+            return OVHAcquisitionBatch(uidvalidity, tuple(examined))
         finally:
             try:
                 if selected:

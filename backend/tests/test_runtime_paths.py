@@ -69,6 +69,9 @@ def test_default_repositories_share_the_configured_root(
     assert ActivityRepository().path == paths.activities
     assert SessionRepository().path == paths.sessions
     assert IngestionHistory().path == paths.ingestion_history
+    assert paths.ovh_mailbox_cursor == (
+        configured_root / "ovh_mailbox_cursor.json"
+    )
     assert ConsentEventRepository().path == paths.consent_events
     assert ConsentRequestRepository().path == paths.consent_requests
     assert TrackStorage().data_root == paths.root

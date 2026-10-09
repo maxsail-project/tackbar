@@ -11,6 +11,10 @@ from app.repositories.sessions import SessionRepository
 from app.runtime_paths import require_private_data_root
 from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_processing import process_provider_email
+from app.services.ovh_mailbox_cursor import (
+    OVHMailboxCursor,
+    OVHMailboxCursorStore,
+)
 from app.storage.track_storage import TrackStorage
 
 
@@ -54,10 +58,32 @@ def review_mailbox_now(provider: Any | None = None) -> MailboxReviewSummary:
     require_private_data_root()
     provider_key = _configured_provider_key()
     adapter = provider if provider is not None else _configured_provider(provider_key)
-    try:
-        candidates = adapter.get_candidate_emails()
-    except Exception as error:
-        raise MailboxReviewError("Mailbox review unavailable") from error
+    ovh_batch = None
+    cursor_store = None
+    if provider_key == "ovh" and hasattr(adapter, "acquire_messages"):
+        cursor_store = OVHMailboxCursorStore()
+        try:
+            cursor = cursor_store.load()
+            ovh_batch = adapter.acquire_messages(
+                last_seen_uid=(
+                    None if cursor is None else cursor.last_seen_uid
+                ),
+                expected_uidvalidity=(
+                    None if cursor is None else cursor.uidvalidity
+                ),
+            )
+            candidates = [
+                item.candidate
+                for item in ovh_batch.examined_messages
+                if item.candidate is not None
+            ]
+        except Exception as error:
+            raise MailboxReviewError("Mailbox review unavailable") from error
+    else:
+        try:
+            candidates = adapter.get_candidate_emails()
+        except Exception as error:
+            raise MailboxReviewError("Mailbox review unavailable") from error
 
     history = IngestionHistory()
     sailors, boats = SailorRepository(), BoatRepository()
@@ -81,4 +107,20 @@ def review_mailbox_now(provider: Any | None = None) -> MailboxReviewSummary:
             skipped += 1
         else:
             processed += 1
-    return MailboxReviewSummary(len(candidates), processed, skipped, known_failed, failed)
+    if ovh_batch is not None and cursor_store is not None:
+        last_seen_uid = (
+            ovh_batch.examined_messages[-1].uid
+            if ovh_batch.examined_messages
+            else (0 if cursor is None else cursor.last_seen_uid)
+        )
+        try:
+            cursor_store.write(
+                OVHMailboxCursor(ovh_batch.uidvalidity, last_seen_uid)
+            )
+        except Exception as error:
+            raise MailboxReviewError("Mailbox review unavailable") from error
+        if ovh_batch.acquisition_failed:
+            raise MailboxReviewError("Mailbox review unavailable")
+    return MailboxReviewSummary(
+        len(candidates), processed, skipped, known_failed, failed
+    )
