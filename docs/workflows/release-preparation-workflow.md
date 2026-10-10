@@ -264,3 +264,28 @@ release may be handed off by explicitly invoking the
 [Release Publisher](../../agents/release-publisher.md) for the prepared
 version. For example, `Publish v0.7.2` constitutes authorization only for the
 narrow publication operations defined by that agent.
+
+## 9. Actions outside release preparation
+
+Release preparation must not:
+
+- create, move or publish Git tags;
+- create or publish a GitHub Release;
+- deploy to production;
+- alter production runtime data or configuration;
+- close unrelated issues;
+- implement new functionality to make the release appear complete.
+
+An explicitly invoked Release Preparer may perform only the exact-path staging,
+preparation commit and `main` push defined in `agents/release-preparer.md` for
+the one requested release. It may close only that release-preparation issue and
+only after independent `PASS`. This does not authorize normal development Git
+operations or self-approval.
+
+An explicitly invoked Release Publisher may create and push the approved tag
+and create the corresponding GitHub Release only according to
+`agents/release-publisher.md`.
+
+Release publication does not authorize production deployment. Deployment
+remains a separate responsibility and follows the repository's Git and
+production-runbook rules under separate authority.
