@@ -164,15 +164,14 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. v0.7.1 Californian — Analysis Window Maneuver
-Metrics is the latest published release; v0.7.2 Californian — Pilot Operations
-& Reliability is prepared for independent review, with production validation
-pending.**
+**Controlled real-sailing pilot. v0.7.2 Californian — Pilot Operations &
+Reliability consolidates the current delivered scope, with production
+validation pending.**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
 TackBar, capability-based shared Session access and neutral maneuver analytics
-integrated into the collaborative Viewer. The v0.7.2 candidate adds incremental
+integrated into the collaborative Viewer. v0.7.2 adds incremental
 mailbox review, bounded operational diagnostics, periodic systemd review,
 runtime ownership/writability safeguards and best-effort outbound mail
 archival without changing existing product or analytics semantics.
@@ -194,7 +193,7 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ### v0.7.2 Californian — Pilot Operations & Reliability
 
-The release candidate improves the operation of the existing OVH-backed pilot:
+v0.7.2 improves the operation of the existing OVH-backed pilot:
 incremental and scheduled mailbox review, privacy-safe bounded diagnostics,
 runtime-data ownership/writability checks and best-effort archival of submitted
 outbound messages. Admin mailbox review remains available as a fallback, SMTP
@@ -400,16 +399,15 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Piloto controlado con navegaciones reales. v0.7.1 Californian — Analysis
-Window Maneuver Metrics es la última release publicada; v0.7.2 Californian —
-Pilot Operations & Reliability está preparada para revisión independiente, con
-validación de producción pendiente.**
+**Piloto controlado con navegaciones reales. v0.7.2 Californian — Pilot
+Operations & Reliability consolida el alcance entregado actual, con validación
+de producción pendiente.**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
 Personal TackBar, acceso compartido a Sessions mediante capability y analítica
-neutral de maniobras integrada en el Viewer colaborativo. La candidata v0.7.2
-añade revisión incremental del buzón, diagnósticos operativos acotados, revisión
+neutral de maniobras integrada en el Viewer colaborativo. v0.7.2 añade revisión
+incremental del buzón, diagnósticos operativos acotados, revisión
 periódica mediante systemd, protecciones de propiedad/escritura runtime y
 archivo best-effort del correo saliente sin cambiar las semánticas existentes
 de producto o analítica.
@@ -431,8 +429,8 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ### v0.7.2 Californian — Pilot Operations & Reliability
 
-La candidata de release mejora la operación del piloto existente basado en
-OVH: revisión incremental y programada del buzón, diagnósticos acotados seguros
+v0.7.2 mejora la operación del piloto existente basado en OVH: revisión
+incremental y programada del buzón, diagnósticos acotados seguros
 para la privacidad, comprobaciones de propiedad/escritura de datos runtime y
 archivo best-effort de mensajes salientes enviados. La revisión del buzón desde
 Admin sigue disponible como alternativa, SMTP continúa siendo la autoridad de
