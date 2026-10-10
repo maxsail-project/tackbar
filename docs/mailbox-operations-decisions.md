@@ -1,7 +1,9 @@
 # TackBar current mailbox operations decisions
 
-**Status:** Active operational decisions  
-**Date:** 10 October 2026  
+**Status:** Active operational decisions
+
+**Date:** 10 October 2026
+
 **Scope:** current single-VPS inbound mailbox acquisition and review
 
 This document records the current mailbox operating model. It does not rewrite

@@ -37,9 +37,11 @@ The debrief starts when the sailing stops.
 `Sail → share Vakaros activity → email ingestion → Sailor → Activity → Session → capability URL → shared Session Viewer → collaborative debrief`
 
 The current pilot accepts **Vakaros CSV and CSV.GZ** exports through the OVH mailbox `share@tackbar.eu`.
-Admin triggers mailbox review, manages consent and shares Session links.
-The normalized sender email resolves the Sailor; each received track becomes
-an Activity with optional Boat context and is automatically matched to a Session.
+TackBar reviews that mailbox automatically on the current single-VPS systemd
+schedule; Admin **Review mailbox now** remains the manual fallback. Admin also
+manages consent and shares Session links. The normalized sender email resolves
+the Sailor; each received track becomes an Activity with optional Boat context
+and is automatically matched to a Session.
 
 Consent controls shared visibility, not technical ingestion or Session matching.
 Only Activities of currently `ACTIVE` Sailors appear in shared Sessions.
@@ -162,25 +164,18 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot, with v0.6.3 — Usability & Maintenance as the current delivered release.**
+**Controlled real-sailing pilot. v0.7.1 Californian — Analysis Window Maneuver
+Metrics is the latest published release; v0.7.2 Californian — Pilot Operations
+& Reliability is prepared for independent review, with production validation
+pending.**
 
-**v0.5.0 — Real Sailing Pilot** is delivered and validated end-to-end with real
-Gmail messages, runtime persistence, explicit consent and capability-based
-shared Session access. **v0.5.1 — Pilot Fix & Usability** is delivered, adding
-clearer sailing and participation context to Admin.
-
-**v0.6.1 — OVH Mailbox Ingestion** replaced Gmail as the operational mailbox with
-`share@tackbar.eu` on OVHcloud Zimbra. **v0.6.3 — Usability & Maintenance** adds
-mobile/tablet Pointer Events support to local visual temporal chart zoom and a
-shorter Admin Session action label.
-
-**v0.6.4 — Sailor Activation Welcome Email** is implemented and release-ready;
-production SMTP and manual validation are pending. It adds the post-activation
-bilingual English-first / Spanish-second welcome email, authenticated OVH SMTP
-outbound delivery, persisted delivery state, Admin delivery status and resend
-controls, and the current Personal TackBar link in the message. It also includes the
-post-v0.6.3 Sailor history hierarchy fix and focused Session Viewer marker and
-map-viewport improvements without changing Viewer or Analysis Window semantics.
+The delivered baseline includes OVH mailbox ingestion through
+`share@tackbar.eu`, track-first onboarding and explicit consent, Personal
+TackBar, capability-based shared Session access and neutral maneuver analytics
+integrated into the collaborative Viewer. The v0.7.2 candidate adds incremental
+mailbox review, bounded operational diagnostics, periodic systemd review,
+runtime ownership/writability safeguards and best-effort outbound mail
+archival without changing existing product or analytics semantics.
 
 The delivered v0.5.x baseline includes Sailor / optional Boat context, automatic
 Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
@@ -197,83 +192,27 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ## Current release and next direction
 
-### v0.6.0 Mahon — Pilot Operations
+### v0.7.2 Californian — Pilot Operations & Reliability
 
-The delivered v0.6.0 release consolidated all v0.6 work developed after v0.5.1
-for the Mahon pilot. Its scope includes:
+The release candidate improves the operation of the existing OVH-backed pilot:
+incremental and scheduled mailbox review, privacy-safe bounded diagnostics,
+runtime-data ownership/writability checks and best-effort archival of submitted
+outbound messages. Admin mailbox review remains available as a fallback, SMTP
+remains authoritative for outbound delivery and the existing Activity, Session,
+consent, capability, Viewer and analytics semantics remain unchanged.
 
-- Personal TackBar / My Sessions with stable personal capability access for ACTIVE Sailors;
-- personal Session participation history derived through the Sailor's Activities;
-- Admin personal-capability management;
-- Admin ingestion `active` / `discarded` disposition with semantic Discard / Restore;
-- filtering by technical status and administrative disposition;
-- deterministic Admin Session ordering by real sailing time;
-- TackBar visual-brand consolidation and the MPL-2.0 transition;
-- OpenFreeMap Positron in the Session Viewer;
-- standard MapLibre navigation/compass controls for manual rotation/reset;
-- focused hardening and release validation.
+The complete backend suite passes. Installing and validating the systemd timer
+and exercising the operational paths against production remain explicit
+post-publication deployment work.
 
-OVHcloud ingestion was subsequently delivered in v0.6.1; the v0.6.2 usability
-work is documented below. Individual personal Activity history/access remains
-outside the committed scope.
-
-Manual release validation is recorded in
-[`docs/v0.6.0-manual-test.md`](docs/v0.6.0-manual-test.md).
-
-See the [v0.6 requirements](docs/v0.6-personal-tackbar-pilot-operations-requirements.md),
-[v0.6 decisions](docs/v0.6-decisions.md) and [ROADMAP](ROADMAP.md).
-
-### v0.6.2 — Viewer & Admin Usability
-
-The current delivered release adds Individual SOG + COG analysis with visual-only
-temporal zoom, clearer Admin Session lifetime/capability presentation and current
-Sailor consent context in Admin Ingestion results. It preserves the v0.6.1 OVH
-mailbox baseline and existing Viewer, consent, ingestion, capability and
-Session semantics.
-
-See the [v0.6.2 requirements](docs/v0.6.2-viewer-admin-usability-requirements.md).
-
-### v0.6.3 — Usability & Maintenance
-
-The current delivered release corrects local visual temporal chart zoom on mobile
-and tablet through Pointer Events, pointer capture and cancellation handling, and
-shortens the Admin Session action to `Open session`. It preserves the v0.6.2
-Viewer, Analysis Window, replay, `playbackTime`, chart and COG semantics.
-
-See the [v0.6.3 requirements](docs/v0.6.3-usability-and-maintenance-requirements.md).
-
-### v0.6.4 — Sailor Activation Welcome Email
-
-Implemented and release-ready; production SMTP and manual validation are
-pending. The release adds the post-activation English-first / Spanish-second
-welcome email, authenticated OVH SMTP outbound delivery, persisted delivery
-state, Admin delivery status and resend controls, the current Personal TackBar
-link and the approved onboarding copy. It also includes the post-v0.6.3 Sailor
-history hierarchy fix and focused Session Viewer marker and map-viewport
-improvements without changing Viewer or Analysis Window semantics.
-
-Consulta los [requisitos v0.6.4](docs/v0.6.4-sailor-activation-welcome-email-requirements.md).
-
-### Future 0.6.x
-
-Valid operational follow-up remains unassigned until explicitly promoted to a
-concrete patch release. Current examples are additional mailbox providers and
-broader operational work.
-
-### v0.7.x Californian — Collaborative Debrief Analytics
-
-Planned: use existing Vakaros-derived canonical Activities for maneuver-oriented
-collaborative debrief. Neutral event summaries extend the existing Session
-Viewer and navigate its shared `playbackTime`. Metrics are provisional and
-evidence-driven; real sailing validation may add, remove or adjust them within
-focused scope. Maneuver does not automatically mean tack/gybe.
-
-Existing Activity/Session and Viewer semantics remain preserved. GPX/VKX/FIT,
-cross-format normalization and logical deduplication are Future / Unassigned;
-Garmin Connect remains separate future work. No later release is assigned.
+The next product increment remains undecided. Open GitHub Issues are the
+canonical pending-work inventory, and the GitHub Project provides its physical
+ordering without assigning release scope.
 
 See the [v0.7 requirements](docs/v0.7-collaborative-debrief-analytics-requirements.md),
-[decisions](docs/v0.7-decisions.md) and [ROADMAP](ROADMAP.md).
+[analytics decisions](docs/v0.7-decisions.md),
+[current mailbox operations decisions](docs/mailbox-operations-decisions.md),
+[CHANGELOG](CHANGELOG.md) and [ROADMAP](ROADMAP.md).
 
 ## Public website
 
@@ -331,10 +270,12 @@ El debriefing empieza cuando termina la navegación.
 `Navegar → compartir actividad Vakaros → ingesta por email → Sailor → Activity → Session → capability URL → Session Viewer compartido → debriefing colaborativo`
 
 El piloto actual admite exportaciones **Vakaros CSV y CSV.GZ** mediante el buzón OVH `share@tackbar.eu`.
-Admin inicia la revisión del buzón, gestiona el consentimiento y comparte los
-enlaces de Session. El email remitente normalizado resuelve el Sailor; cada
-track recibido se convierte en una Activity con contexto Boat opcional y se
-asocia automáticamente a una Session.
+TackBar revisa ese buzón automáticamente mediante el calendario systemd actual
+del VPS; **Review mailbox now** en Admin sigue siendo la alternativa manual.
+Admin también gestiona el consentimiento y comparte los enlaces de Session. El
+email remitente normalizado resuelve el Sailor; cada track recibido se convierte
+en una Activity con contexto Boat opcional y se asocia automáticamente a una
+Session.
 
 El consentimiento controla la visibilidad compartida, no la ingesta técnica ni
 el Session matching. Sólo las Activities de Sailors actualmente `ACTIVE`
@@ -342,9 +283,8 @@ aparecen en Sessions compartidas. El acceso utiliza una capability URL de
 Session válida, sin un sistema general de login de Sailor.
 
 GPX, VKX y FIT quedan Future / Unassigned, sin soporte actual ni compromiso
-v0.7.x. La ingesta OVHcloud /
-multi-proveedor generalizada queda diferida a **Future 0.6.x** y está
-explícitamente fuera de v0.6.0 Mahon.
+v0.7.x. La ingesta operativa actual utiliza OVH; proveedores adicionales siguen
+siendo trabajo futuro sin release asignada.
 
 ---
 
@@ -460,27 +400,19 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Piloto controlado con navegaciones reales, con v0.6.3 — Usabilidad y mantenimiento como release entregada actual.**
+**Piloto controlado con navegaciones reales. v0.7.1 Californian — Analysis
+Window Maneuver Metrics es la última release publicada; v0.7.2 Californian —
+Pilot Operations & Reliability está preparada para revisión independiente, con
+validación de producción pendiente.**
 
-**v0.5.0 — Real Sailing Pilot** está entregado y validado de extremo a extremo
-con mensajes Gmail reales, persistencia runtime, consentimiento explícito y
-acceso compartido a Sessions mediante capability URL. **v0.5.1 — Pilot Fix &
-Usability** está entregado y aporta un contexto más claro de navegación y
-participación en Admin.
-
-**v0.6.1 — OVH Mailbox Ingestion** sustituyó Gmail como buzón operativo por
-`share@tackbar.eu` en OVHcloud Zimbra. **v0.6.3 — Usabilidad y mantenimiento**
-añade soporte Pointer Events para móvil/tablet al zoom temporal visual local y
-acorta la acción de Session en Admin.
-
-**v0.6.4 — Correo de bienvenida tras la activación de Sailor** está implementado
-y listo para release; la validación SMTP y manual de producción está pendiente.
-Añade el correo bilingüe posterior a la activación, primero en inglés y después en
-español, el envío SMTP autenticado de OVH, estado de entrega persistido, estado y
-reenvío desde Admin y el enlace actual de Personal TackBar en el mensaje.
-También incluye la mejora de jerarquía del historial de Sailor y mejoras
-focalizadas de marcadores y viewport del Session Viewer posteriores a v0.6.3,
-sin cambiar las semánticas del Viewer ni de Analysis Window.
+La baseline entregada incluye ingesta del buzón OVH mediante
+`share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
+Personal TackBar, acceso compartido a Sessions mediante capability y analítica
+neutral de maniobras integrada en el Viewer colaborativo. La candidata v0.7.2
+añade revisión incremental del buzón, diagnósticos operativos acotados, revisión
+periódica mediante systemd, protecciones de propiedad/escritura runtime y
+archivo best-effort del correo saliente sin cambiar las semánticas existentes
+de producto o analítica.
 
 La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session
 matching automático, comparación de una/dos Activities, Analysis Window GPS/UTC
@@ -497,86 +429,28 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ## Release actual y próxima dirección
 
-### v0.6.0 Mahon — Pilot Operations
+### v0.7.2 Californian — Pilot Operations & Reliability
 
-La release v0.6.0 entregada consolidó todo el trabajo v0.6 desarrollado después
-de v0.5.1 para el piloto de Mahon. Su alcance incluye:
+La candidata de release mejora la operación del piloto existente basado en
+OVH: revisión incremental y programada del buzón, diagnósticos acotados seguros
+para la privacidad, comprobaciones de propiedad/escritura de datos runtime y
+archivo best-effort de mensajes salientes enviados. La revisión del buzón desde
+Admin sigue disponible como alternativa, SMTP continúa siendo la autoridad de
+entrega y se preservan las semánticas existentes de Activity, Session,
+consentimiento, capabilities, Viewer y analítica.
 
-- Personal TackBar / My Sessions con capability personal estable para Sailors ACTIVE;
-- historial de participación en Sessions derivado de las Activities del Sailor;
-- gestión Admin de capability personal;
-- disposición de ingesta `active` / `discarded` con Discard / Restore semánticos;
-- filtros por estado técnico y disposición administrativa;
-- orden determinista de Admin Sessions por hora real de navegación;
-- consolidación visual de marca TackBar y transición MPL-2.0;
-- mapa OpenFreeMap Positron en el Session Viewer;
-- controles estándar MapLibre de navegación/brújula para rotación/reset manual;
-- hardening y validación enfocada de release.
+La suite backend completa pasa. La instalación y validación del timer de systemd
+y el ejercicio de las rutas operativas en producción permanecen como trabajo
+explícito de despliegue posterior a la publicación.
 
-La ingesta OVHcloud se entregó posteriormente en v0.6.1; la usabilidad v0.6.2 se
-documenta más abajo. El historial/acceso individual a Activities sigue fuera
-del alcance comprometido.
-
-La validación manual de release se registra en
-[`docs/v0.6.0-manual-test.md`](docs/v0.6.0-manual-test.md).
-
-Consulta los [requisitos v0.6](docs/v0.6-personal-tackbar-pilot-operations-requirements.md),
-las [decisiones v0.6](docs/v0.6-decisions.md) y el [ROADMAP](ROADMAP.md).
-
-### v0.6.2 — Usabilidad de Viewer y Admin
-
-La release entregada actual añade análisis individual SOG + COG con zoom temporal
-solo visual, una presentación más clara de vigencia/capability de Session en Admin
-y el contexto actual de consentimiento del Sailor en los resultados de Ingestion.
-Preserva la baseline v0.6.1 de buzón OVH y las semánticas existentes.
-
-Consulta los [requisitos v0.6.2](docs/v0.6.2-viewer-admin-usability-requirements.md).
-
-### v0.6.3 — Usabilidad y mantenimiento
-
-La release entregada actual corrige el zoom temporal visual local de los gráficos
-en móvil y tablet mediante Pointer Events, captura de puntero y manejo de
-cancelación, y acorta la acción de Session en Admin a `Open session`. Preserva
-las semánticas v0.6.2 de Viewer, Analysis Window, replay, `playbackTime`,
-gráficos y COG.
-
-Consulta los [requisitos v0.6.3](docs/v0.6.3-usability-and-maintenance-requirements.md).
-
-### v0.6.4 — Correo de bienvenida tras la activación de Sailor
-
-Implementado y listo para release; la validación SMTP y manual de producción está
-pendiente. Añade el correo bilingüe posterior a la activación, primero en inglés y
-después en español, el envío SMTP autenticado de OVH, estado de entrega
-persistido, estado y reenvío desde Admin, el enlace actual de Personal TackBar y
-el copy aprobado de onboarding. También incluye la mejora de jerarquía del
-historial de Sailor y mejoras focalizadas de marcadores y viewport del Session
-Viewer posteriores a v0.6.3, sin cambiar las semánticas del Viewer ni de Analysis
-Window.
-
-Consulta los [requisitos v0.6.4](docs/v0.6.4-sailor-activation-welcome-email-requirements.md).
-
-### Future 0.6.x
-
-El seguimiento operativo válido permanece sin versión concreta hasta que se
-promueva explícitamente. Entre los ejemplos actuales están proveedores de buzón
-adicionales y trabajo operativo más amplio.
-
-### v0.7.x Californian — Collaborative Debrief Analytics
-
-Previsto: usar Activities canónicas ya derivadas de Vakaros para debrief
-colaborativo orientado inicialmente a maniobras. Los eventos neutrales se
-resumen en una sección adicional del Session Viewer y permiten navegar mediante
-su `playbackTime` compartido. Las métricas son provisionales y guiadas por
-evidencia; pueden añadirse, retirarse o ajustarse al validar datos reales dentro
-del alcance focalizado. Una maniobra no equivale automáticamente a virada o
-trasluchada.
-
-Se preservan las semánticas de Activity/Session y Viewer. GPX/VKX/FIT,
-normalización entre formatos y deduplicación lógica quedan Future / Unassigned;
-Garmin Connect permanece separado. No se asigna ninguna release posterior.
+El siguiente incremento de producto sigue sin decidirse. Los Issues abiertos de
+GitHub son el inventario canónico de trabajo pendiente y GitHub Project aporta
+su orden físico sin asignar alcance de release.
 
 Consulta los [requisitos v0.7](docs/v0.7-collaborative-debrief-analytics-requirements.md),
-[decisiones](docs/v0.7-decisions.md) y [ROADMAP](ROADMAP.md).
+las [decisiones de analítica](docs/v0.7-decisions.md), las
+[decisiones operativas actuales del buzón](docs/mailbox-operations-decisions.md),
+el [CHANGELOG](CHANGELOG.md) y el [ROADMAP](ROADMAP.md).
 
 ## Web pública
 

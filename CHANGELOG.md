@@ -2,6 +2,132 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.2 Californian — Pilot Operations & Reliability (Release-ready — production validation pending)
+
+### English
+
+Improves the reliability and day-to-day operation of the existing OVH-backed
+pilot while preserving Activity, Session, consent, capability, Viewer and
+analytics semantics.
+
+### Added
+
+* Incremental OVH mailbox acquisition backed by a private persisted
+  `UIDVALIDITY`/UID cursor. The first review examines the existing mailbox;
+  later reviews normally fetch only newer messages, while current
+  provider-message and ingestion-history deduplication remain authoritative.
+* Privacy-safe mailbox-review diagnostics for supported, unsupported,
+  malformed, already-known and failed outcomes, with bounded repeated-failure
+  logging and recovery reporting across scheduled processes.
+* A repository-owned systemd oneshot/timer that runs one existing mailbox
+  review approximately two minutes after each completed cycle. Manual Admin
+  review remains available as the operational fallback.
+* A read-only runtime-data preflight command that checks ownership,
+  readability and writability before an operator relies on the JSON/filesystem
+  persistence layer.
+
+### Changed
+
+* Sailor deletion now rejects an incompatible runtime owner or unwritable
+  mutation path before applying any deletion, and its CLI documents the
+  service-compatible execution model.
+* Successfully submitted OVH outbound messages now receive one best-effort
+  IMAP append to the manually provisioned `TackBar-Sent` folder. SMTP remains
+  the delivery authority, and archive failure does not alter consent, welcome
+  email, delivery-state or retry semantics.
+* GitHub Issues are now the canonical pending-work inventory, the GitHub
+  Project supplies backlog ordering, and the single root roadmap provides a
+  compact release-family-level view without committing future scope.
+
+### Issues
+
+- #2 — [#2] Preserve outbound OVH emails in a dedicated TackBar mailbox folder
+- #3 — [#3] Prevent maintenance scripts from changing TackBar runtime ownership
+- #4 — [#4] Improve mailbox review failure observability
+- #5 — [#5] Add a runtime-data ownership and writability preflight
+- #7 — [#7] Use incremental IMAP UID cursor for OVH mailbox review
+- #8 — [#8] Automatically review the OVH mailbox on a periodic schedule
+- #51 — [#51] Make GitHub Issues the canonical TackBar backlog
+- #52 — [#52] Simplify and refresh TackBar roadmap
+
+### Validation
+
+The complete backend suite passed with 484 tests. Backend `compileall` and
+`git diff --check` also passed. The release contains no frontend changes, so
+frontend tests, typecheck and production build were not rerun.
+
+Production installation and live validation of the systemd timer, incremental
+mailbox review, runtime-data preflight and `TackBar-Sent` archival remain
+pending. No tag, GitHub Release or production deployment is part of release
+preparation.
+
+---
+
+## v0.7.2 Californian — Operaciones y fiabilidad del piloto (Lista para release — validación de producción pendiente)
+
+### Español
+
+Mejora la fiabilidad y la operación cotidiana del piloto existente basado en
+OVH, preservando las semánticas de Activity, Session, consentimiento,
+capabilities, Viewer y analítica.
+
+### Añadido
+
+* Adquisición incremental del buzón OVH respaldada por un cursor privado y
+  persistido de `UIDVALIDITY`/UID. La primera revisión examina el buzón
+  existente; las posteriores normalmente obtienen solo mensajes nuevos,
+  mientras la deduplicación actual por mensaje de proveedor e historial de
+  ingestión sigue siendo autoritativa.
+* Diagnósticos de revisión del buzón seguros para la privacidad para resultados
+  soportados, no soportados, malformados, ya conocidos y fallidos, con logging
+  acotado de fallos repetidos e informe de recuperación entre procesos
+  programados.
+* Un servicio oneshot y timer de systemd versionados en el repositorio que
+  ejecutan una revisión existente del buzón aproximadamente dos minutos después
+  de completar cada ciclo. La revisión manual desde Admin sigue disponible como
+  alternativa operativa.
+* Un comando de preflight de datos runtime, de solo lectura, que comprueba
+  propiedad, lectura y escritura antes de que un operador dependa de la
+  persistencia JSON/filesystem.
+
+### Cambiado
+
+* La eliminación de Sailor ahora rechaza un propietario runtime incompatible o
+  una ruta de mutación no escribible antes de aplicar cualquier eliminación, y
+  su CLI documenta el modelo de ejecución compatible con el servicio.
+* Los mensajes salientes enviados correctamente por OVH reciben ahora un único
+  intento best-effort de IMAP append a la carpeta `TackBar-Sent` provisionada
+  manualmente. SMTP sigue siendo la autoridad de entrega, y un fallo de archivo
+  no altera el consentimiento, el email de bienvenida, el estado de entrega ni
+  las semánticas de reintento.
+* GitHub Issues es ahora el inventario canónico de trabajo pendiente, GitHub
+  Project proporciona el orden del backlog y el único roadmap raíz ofrece una
+  vista compacta por familias de release sin comprometer alcance futuro.
+
+### Issues
+
+- #2 — [#2] Preserve outbound OVH emails in a dedicated TackBar mailbox folder
+- #3 — [#3] Prevent maintenance scripts from changing TackBar runtime ownership
+- #4 — [#4] Improve mailbox review failure observability
+- #5 — [#5] Add a runtime-data ownership and writability preflight
+- #7 — [#7] Use incremental IMAP UID cursor for OVH mailbox review
+- #8 — [#8] Automatically review the OVH mailbox on a periodic schedule
+- #51 — [#51] Make GitHub Issues the canonical TackBar backlog
+- #52 — [#52] Simplify and refresh TackBar roadmap
+
+### Validación
+
+La suite backend completa pasó con 484 tests. También pasaron `compileall` del
+backend y `git diff --check`. La release no contiene cambios frontend, por lo
+que no se repitieron sus tests, typecheck ni build de producción.
+
+La instalación y validación real en producción del timer de systemd, la
+revisión incremental del buzón, el preflight de datos runtime y el archivo en
+`TackBar-Sent` permanecen pendientes. La preparación de la release no incluye
+ningún tag, GitHub Release ni despliegue a producción.
+
+---
+
 ## v0.7.1 Californian — Analysis Window Maneuver Metrics (Release-ready — production validation pending)
 
 ### English
