@@ -300,6 +300,36 @@ When reconciling pending and delivered work, agents should:
 If it is unclear whether something is a valid Issue, report it instead of
 creating or changing one automatically.
 
+### Promoted Issue completeness
+
+A promoted GitHub Issue is the primary scope definition for its increment.
+
+Before implementation, the coding agent MUST reconcile the promoted Issue with
+`AGENTS.md`, the applicable requirements and decisions, and the existing
+implementation.
+
+If the Issue leaves a product decision ambiguous, omits information required to
+implement the requested behavior safely, or allows multiple materially different
+product interpretations, the agent MUST stop before implementation and report
+the unresolved decision.
+
+The agent MUST NOT:
+
+- choose product behavior merely because one implementation is simpler;
+- infer missing domain, consent, persistence, capability, ingestion or frontend
+  semantics;
+- expand scope in order to resolve an ambiguity;
+- silently select between materially different valid product interpretations.
+
+Implementation may proceed only when any remaining choices are ordinary
+implementation details that do not change product behavior, externally visible
+semantics or documented contracts.
+
+Implementation prompts MUST NOT be used to silently complete an underspecified
+promoted Issue. If additional product decisions are required to make the work
+implementable, those decisions MUST first be resolved in the governing Issue
+and, when applicable, reconciled with requirements or decisions documentation.
+
 ## Git and release safety
 
 For production deployment, release upgrade, rollback, or server operational
