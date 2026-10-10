@@ -203,6 +203,19 @@ If review reports `BLOCKED`, report the findings before making corrective
 changes unless explicitly asked to fix them. The release-preparation issue must
 remain open.
 
+## 7. Prepare publication metadata
+
+Prepare, but do not publish:
+
+- release version;
+- release name;
+- proposed immutable Git tag;
+- concise GitHub Release notes;
+- known limitations or pending production validation;
+- a short release/deployment checklist when useful.
+
+Release notes should summarize the delivered product outcome rather than reproduce the complete changelog.
+
 ## 8. Independent review gate
 
 The preparation candidate reaches `READY_FOR_REVIEW` when the release scope,
@@ -251,71 +264,3 @@ release may be handed off by explicitly invoking the
 [Release Publisher](../../agents/release-publisher.md) for the prepared
 version. For example, `Publish v0.7.2` constitutes authorization only for the
 narrow publication operations defined by that agent.
-
-## 7. Prepare publication metadata
-
-Prepare, but do not publish:
-
-- release version;
-- release name;
-- proposed immutable Git tag;
-- concise GitHub Release notes;
-- known limitations or pending production validation;
-- a short release/deployment checklist when useful.
-
-Release notes should summarize the delivered product outcome rather than reproduce the complete changelog.
-
-## 8. Independent review gate
-
-The preparation candidate reaches `READY_FOR_REVIEW` when the release scope,
-version, name, reconciled documentation, `CHANGELOG.md` entry, required
-validation and publication metadata are committed to `main`. The preparation
-gate passes only when an independent reviewer reports `PASS`.
-
-The `READY_FOR_REVIEW` report must include:
-
-1. release scope confirmed;
-2. files changed;
-3. documentation reconciled;
-4. tests/checks executed and results;
-5. known limitations or pending validation;
-6. proposed release name and tag;
-7. proposed GitHub Release notes;
-8. unresolved decisions or blockers, if any.
-
-An explicitly invoked [Release Preparer](../../agents/release-preparer.md) may
-stage only exact intended preparation files, create the preparation commit and
-push it to `main` under that agent's narrow authority. Normal coding agents do
-not gain this Git authority from the workflow.
-
-After independent `PASS`, the Release Preparer may close the corresponding
-release-preparation issue. After `PASS` and issue closure, publication may be
-handed off by explicitly invoking the
-[Release Publisher](../../agents/release-publisher.md) for the prepared version.
-For example, `Publish v0.7.1` constitutes authorization only for the narrow
-publication operations defined by that agent.
-
-## 9. Actions outside release preparation
-
-Release preparation must not:
-
-- create, move or publish Git tags;
-- create or publish a GitHub Release;
-- deploy to production;
-- alter production runtime data or configuration;
-- close unrelated issues;
-- implement new functionality to make the release appear complete.
-
-An explicitly invoked Release Preparer may perform only the exact-path staging,
-preparation commit and `main` push defined in `agents/release-preparer.md` for
-the one requested release. It may close only that release-preparation issue and
-only after independent `PASS`. This does not authorize normal development Git
-operations or self-approval.
-
-An explicitly invoked Release Publisher may create and push the approved tag
-and create the corresponding GitHub Release only according to
-`agents/release-publisher.md`.
-
-Release publication does not authorize production deployment. Deployment
-remains a separate responsibility and follows the repository's Git and
-production-runbook rules under separate authority.
