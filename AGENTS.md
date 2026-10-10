@@ -78,11 +78,22 @@ navigation, or maintenance increments within the release family, also read both:
 - `docs/v0.7-decisions.md`
 
 The v0.7.x metric set is provisional and evidence-driven; detected maneuvers
-are not automatically tacks/gybes. Multi-format ingestion and canonical logical
-deduplication remain Future / Unassigned, not governing v0.7.x scope.
+are not automatically tacks/gybes.
 
-The v0.7.x maintenance allowance is evidence-driven and does not authorize
-unrelated feature expansion or speculative refactoring.
+The v0.7.x Californian family follows a continuous, evidence-driven development
+model. Open GitHub Issues remain pending work and do not automatically become
+v0.7.x scope. A focused Issue may be explicitly promoted into v0.7.x when
+supported by real-sailing feedback, product evidence, operational evidence or
+concrete implementation findings.
+
+Promotion of one Issue does not implicitly promote adjacent backlog items,
+broaden its scope or override unrelated existing requirements. Previously
+deferred work may be reconsidered when new evidence justifies an explicit
+promotion decision.
+
+Evidence-driven evolution does not authorize unrelated feature expansion,
+speculative refactoring or silent changes to domain, consent, persistence,
+ingestion, Session or frontend semantics.
 
 ## Instruction hierarchy
 
