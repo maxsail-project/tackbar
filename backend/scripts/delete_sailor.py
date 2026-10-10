@@ -24,7 +24,20 @@ def main() -> None:
             "Plan or apply deletion of one Sailor and owned TackBar runtime "
             "data. Dry-run is the default."
         ),
-        epilog=SERVICE_WARNING,
+        epilog=(
+            f"{SERVICE_WARNING}\n\n"
+            "Safety:\n"
+            "  Dry-run is the default and does not mutate runtime data.\n"
+            "  --apply mutates runtime data and, in production, must run as "
+            "the runtime owner/service-compatible user.\n"
+            "  Plain sudo can be unsafe because it changes the effective "
+            "user to root.\n\n"
+            "Safe production example:\n"
+            "  sudo -u <runtime-owner> /path/to/python "
+            "backend/scripts/delete_sailor.py --data-dir "
+            "<runtime-data-dir> --email <sailor-email> --apply"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--data-dir",
@@ -39,7 +52,10 @@ def main() -> None:
     parser.add_argument(
         "--apply",
         action="store_true",
-        help="Apply the deletion; requires tackbar.service to be stopped",
+        help=(
+            "Mutate runtime data using the planned deletion; requires "
+            "tackbar.service to be stopped and a runtime-owner-compatible user"
+        ),
     )
     args = parser.parse_args()
 

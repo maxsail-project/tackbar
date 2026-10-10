@@ -21,6 +21,10 @@ from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.runtime_paths import RuntimePaths, runtime_paths
 from app.services.ingestion_history import IngestionHistory
+from app.services.runtime_maintenance import (
+    RuntimeMutationPreflightError,
+    preflight_runtime_mutation,
+)
 from app.storage.track_storage import TrackStorage
 
 
@@ -341,15 +345,23 @@ def plan_sailor_deletion(
 def apply_sailor_deletion(plan: SailorDeletionPlan) -> SailorDeletionResult:
     root = _explicit_data_root(plan.data_root)
     paths = runtime_paths(root)
-    _verify_plan_is_current(plan, paths)
-    _validate_records(plan._updated_records)
-
     changed_names = tuple(
         name
         for name in _METADATA_NAMES
         if plan._updated_records[name]
         != _records_from_snapshot(plan._original_bytes[name], name)
     )
+    try:
+        preflight_runtime_mutation(
+            root,
+            _sailor_deletion_mutation_paths(plan, paths, changed_names),
+        )
+    except RuntimeMutationPreflightError as error:
+        raise SailorDeletionError(str(error)) from error
+
+    _verify_plan_is_current(plan, paths)
+    _validate_records(plan._updated_records)
+
     staged: dict[str, Path] = {}
     replaced: list[str] = []
     try:
@@ -399,6 +411,29 @@ def apply_sailor_deletion(plan: SailorDeletionPlan) -> SailorDeletionResult:
 
     _verify_post_deletion(plan, paths)
     return SailorDeletionResult(plan, tuple(dict.fromkeys(runtime_warnings)))
+
+
+def _sailor_deletion_mutation_paths(
+    plan: SailorDeletionPlan,
+    paths: RuntimePaths,
+    changed_names: tuple[str, ...],
+) -> tuple[Path, ...]:
+    mutation_paths = [
+        *(_metadata_path(paths, name) for name in changed_names),
+        *plan._track_paths,
+        *plan._activity_original_directories,
+        *plan._ingestion_original_paths,
+        *plan._ingestion_original_directories,
+    ]
+    try:
+        for directory in plan._activity_original_directories:
+            if directory.exists():
+                mutation_paths.extend(directory.rglob("*"))
+    except OSError as error:
+        raise SailorDeletionError(
+            "Runtime preflight could not inspect Activity originals"
+        ) from error
+    return tuple(dict.fromkeys(mutation_paths))
 
 
 def format_sailor_deletion_report(

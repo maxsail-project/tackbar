@@ -10,7 +10,7 @@ from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
-from app.services import sailor_deletion
+from app.services import runtime_maintenance, sailor_deletion
 from app.services.ingestion_history import IngestionHistory
 from app.services.sailor_deletion import (
     MAILBOX_WARNING,
@@ -426,6 +426,97 @@ def test_apply_deletes_only_target_owned_runtime_data(
     assert MAILBOX_WARNING in report
 
 
+def test_apply_accepts_a_compatible_runtime_owner(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _runtime_root(temporary_directory)
+    monkeypatch.setattr(
+        runtime_maintenance,
+        "_effective_user_id",
+        lambda: 1001,
+    )
+    monkeypatch.setattr(
+        runtime_maintenance,
+        "_owner_user_id",
+        lambda _path: 1001,
+    )
+
+    plan = plan_sailor_deletion(root, "target@example.com")
+    apply_sailor_deletion(plan)
+
+    assert SailorRepository(root / "sailors.json").get_by_id(
+        TARGET_SAILOR_ID
+    ) is None
+
+
+def test_cli_apply_rejects_an_owner_mismatch_before_mutation(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _runtime_root(temporary_directory)
+    before = _snapshot(root)
+    monkeypatch.setattr(
+        runtime_maintenance,
+        "_effective_user_id",
+        lambda: 1001,
+    )
+    monkeypatch.setattr(
+        runtime_maintenance,
+        "_owner_user_id",
+        lambda _path: 1002,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "delete_sailor.py",
+            "--data-dir",
+            str(root),
+            "--email",
+            "target@example.com",
+            "--apply",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+
+    assert exit_info.value.code == 1
+    error = capsys.readouterr().err
+    assert "Runtime ownership preflight failed" in error
+    assert "sudo -u <runtime-owner>" in error
+    assert _snapshot(root) == before
+
+
+def test_apply_rejects_unwritable_runtime_before_mutation(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _runtime_root(temporary_directory)
+    before = _snapshot(root)
+    monkeypatch.setattr(
+        runtime_maintenance,
+        "_effective_user_id",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        runtime_maintenance,
+        "_has_access",
+        lambda _path, _mode: False,
+    )
+
+    plan = plan_sailor_deletion(root, "target@example.com")
+    with pytest.raises(
+        SailorDeletionError,
+        match="Runtime writability preflight failed",
+    ):
+        apply_sailor_deletion(plan)
+
+    assert _snapshot(root) == before
+
+
 def test_missing_target_artifacts_warn_without_touching_unrelated_files(
     temporary_directory: Path,
 ) -> None:
@@ -562,6 +653,13 @@ def test_cli_defaults_to_dry_run_and_prints_only_safe_context(
     root = _runtime_root(temporary_directory)
     before = _snapshot(root)
     monkeypatch.setattr(
+        sailor_deletion,
+        "preflight_runtime_mutation",
+        lambda *_args, **_kwargs: pytest.fail(
+            "dry-run must not execute the mutation preflight"
+        ),
+    )
+    monkeypatch.setattr(
         sys,
         "argv",
         [
@@ -584,6 +682,24 @@ def test_cli_defaults_to_dry_run_and_prints_only_safe_context(
     assert TARGET_REQUEST_TOKEN not in output
     assert TARGET_PERSONAL_TOKEN not in output
     assert SHARED_SESSION_TOKEN not in output
+
+
+def test_cli_help_explains_safe_apply_invocation(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["delete_sailor.py", "--help"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+
+    assert exit_info.value.code == 0
+    output = " ".join(capsys.readouterr().out.split())
+    assert "Dry-run is the default" in output
+    assert "--apply mutates runtime data" in output
+    assert "runtime owner/service-compatible user" in output
+    assert "Plain sudo can be unsafe" in output
+    assert "sudo -u <runtime-owner>" in output
 
 
 def test_cli_apply_flag_performs_the_prevalidated_deletion(
