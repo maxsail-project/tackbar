@@ -72,6 +72,9 @@ def test_default_repositories_share_the_configured_root(
     assert paths.ovh_mailbox_cursor == (
         configured_root / "ovh_mailbox_cursor.json"
     )
+    assert paths.mailbox_review_observability == (
+        configured_root / "mailbox_review_observability.json"
+    )
     assert ConsentEventRepository().path == paths.consent_events
     assert ConsentRequestRepository().path == paths.consent_requests
     assert TrackStorage().data_root == paths.root

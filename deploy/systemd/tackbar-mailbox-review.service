@@ -1,0 +1,15 @@
+[Unit]
+Description=TackBar mailbox review
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=tackbar
+Group=tackbar
+WorkingDirectory=/opt/tackbar/backend
+EnvironmentFile=/etc/tackbar/tackbar.env
+ExecStart=/opt/tackbar/.venv/bin/python -m app.mailbox_review_once
+UMask=0077
+StandardOutput=journal
+StandardError=journal

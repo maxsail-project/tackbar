@@ -19,6 +19,7 @@ class RuntimePaths:
     sessions: Path
     ingestion_history: Path
     ovh_mailbox_cursor: Path
+    mailbox_review_observability: Path
     consent_events: Path
     consent_requests: Path
     originals: Path
@@ -54,6 +55,9 @@ def runtime_paths(data_root: str | Path | None = None) -> RuntimePaths:
         sessions=root / "sessions.json",
         ingestion_history=root / "ingestion_history.json",
         ovh_mailbox_cursor=root / "ovh_mailbox_cursor.json",
+        mailbox_review_observability=(
+            root / "mailbox_review_observability.json"
+        ),
         consent_events=root / "consent_events.json",
         consent_requests=root / "consent_requests.json",
         originals=root / "originals",

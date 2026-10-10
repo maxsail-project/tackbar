@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from app.email_providers.ovh import (
 from app.services.ingestion_history import IngestionHistory
 from app.services.mailbox_review import MailboxReviewError, review_mailbox_now
 from app.services import mailbox_review as mailbox_review_module
+from app.runtime_paths import runtime_paths
 from app.services.ovh_mailbox_cursor import (
     OVHMailboxCursor,
     OVHMailboxCursorStore,
@@ -36,6 +38,14 @@ def _runtime(monkeypatch, tmp_path):
     monkeypatch.setenv("TACKBAR_MAILBOX_PROVIDER", "ovh")
     monkeypatch.setenv("TACKBAR_OVH_IMAP_USERNAME", "share@tackbar.eu")
     monkeypatch.setenv("TACKBAR_OVH_IMAP_PASSWORD", "test-secret")
+
+
+def _new_suppression_process(monkeypatch, clock):
+    monkeypatch.setattr(
+        mailbox_review_module,
+        "_cycle_failure_logs",
+        mailbox_review_module._CycleFailureLogSuppressor(clock=clock),
+    )
 
 
 def test_ovh_review_uses_distinct_history_identity_and_is_idempotent(monkeypatch, tmp_path):
@@ -104,6 +114,20 @@ def test_invalid_provider_configuration_is_safe(monkeypatch, tmp_path, configura
 
     assert "test-secret" not in str(captured.value)
     assert IngestionHistory().records() == []
+
+
+def test_missing_private_root_does_not_write_observability_to_public_data(
+    monkeypatch,
+):
+    monkeypatch.delenv("TACKBAR_DATA_DIR", raising=False)
+    state_path = runtime_paths().mailbox_review_observability
+    before = state_path.read_bytes() if state_path.exists() else None
+
+    with pytest.raises(ValueError, match="TACKBAR_DATA_DIR"):
+        review_mailbox_now()
+
+    after = state_path.read_bytes() if state_path.exists() else None
+    assert after == before
 
 
 def test_connection_failure_is_safe_and_does_not_write_history(monkeypatch, tmp_path):
@@ -605,13 +629,6 @@ def test_identical_cycle_failure_is_suppressed_and_reminded_hourly(
 ):
     _runtime(monkeypatch, tmp_path)
     now = [0.0]
-    monkeypatch.setattr(
-        mailbox_review_module,
-        "_cycle_failure_logs",
-        mailbox_review_module._CycleFailureLogSuppressor(
-            clock=lambda: now[0]
-        ),
-    )
 
     class Provider:
         def acquire_messages(self, last_seen_uid, expected_uidvalidity):
@@ -620,18 +637,23 @@ def test_identical_cycle_failure_is_suppressed_and_reminded_hourly(
     caplog.set_level(logging.INFO, logger=mailbox_review_module.__name__)
     provider = Provider()
 
+    _new_suppression_process(monkeypatch, lambda: now[0])
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
     now[0] = 10
+    _new_suppression_process(monkeypatch, lambda: now[0])
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
     now[0] = 3599
+    _new_suppression_process(monkeypatch, lambda: now[0])
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
     now[0] = 3600
+    _new_suppression_process(monkeypatch, lambda: now[0])
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
     now[0] = 4000
+    _new_suppression_process(monkeypatch, lambda: now[0])
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
 
@@ -646,6 +668,26 @@ def test_identical_cycle_failure_is_suppressed_and_reminded_hourly(
     combined = "\n".join(messages)
     assert "test-secret" not in combined
     assert "private.example.test" not in combined
+    state_text = runtime_paths().mailbox_review_observability.read_text(
+        encoding="utf-8"
+    )
+    state = json.loads(state_text)
+    assert set(state) == {
+        "version",
+        "provider",
+        "stage",
+        "error_class",
+        "reason",
+        "last_emitted_at",
+        "suppressed_since_reminder",
+        "total_suppressed",
+    }
+    assert state["provider"] == "ovh"
+    assert state["stage"] == "acquisition"
+    assert state["error_class"] == "ConnectionError"
+    assert state["reason"] == "connection_failed"
+    assert "test-secret" not in state_text
+    assert "private.example.test" not in state_text
 
 
 def test_changed_cycle_failure_logs_immediately(monkeypatch, tmp_path, caplog):
@@ -662,8 +704,10 @@ def test_changed_cycle_failure_logs_immediately(monkeypatch, tmp_path, caplog):
     caplog.set_level(logging.INFO, logger=mailbox_review_module.__name__)
     provider = Provider()
 
+    _new_suppression_process(monkeypatch, lambda: 100.0)
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
+    _new_suppression_process(monkeypatch, lambda: 101.0)
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
 
@@ -696,12 +740,16 @@ def test_recovery_after_suppressed_failure_is_logged_once(
     caplog.set_level(logging.INFO, logger=mailbox_review_module.__name__)
     provider = Provider()
 
+    _new_suppression_process(monkeypatch, lambda: 100.0)
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
+    _new_suppression_process(monkeypatch, lambda: 101.0)
     with pytest.raises(MailboxReviewError):
         review_mailbox_now(provider=provider)
     provider.fail = False
+    _new_suppression_process(monkeypatch, lambda: 102.0)
     review_mailbox_now(provider=provider)
+    _new_suppression_process(monkeypatch, lambda: 103.0)
     review_mailbox_now(provider=provider)
 
     recoveries = [
@@ -711,3 +759,72 @@ def test_recovery_after_suppressed_failure_is_logged_once(
     ]
     assert len(recoveries) == 1
     assert "suppressed_cycles=1" in recoveries[0]
+    assert not runtime_paths().mailbox_review_observability.exists()
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"provider": "private@example.test"}\n',
+        json.dumps(
+            {
+                "version": 1,
+                "provider": [],
+                "stage": "acquisition",
+                "error_class": "ConnectionError",
+                "reason": "connection_failed",
+                "last_emitted_at": 1,
+                "suppressed_since_reminder": 0,
+                "total_suppressed": 0,
+            }
+        ),
+    ],
+)
+def test_corrupt_suppression_state_does_not_block_successful_review(
+    monkeypatch, tmp_path, caplog, content
+):
+    _runtime(monkeypatch, tmp_path)
+    state_path = runtime_paths().mailbox_review_observability
+    state_path.write_text(content, encoding="utf-8")
+
+    class Provider:
+        def acquire_messages(self, last_seen_uid, expected_uidvalidity):
+            return OVHAcquisitionBatch(456, ())
+
+    caplog.set_level(logging.INFO, logger=mailbox_review_module.__name__)
+
+    summary = review_mailbox_now(provider=Provider())
+
+    assert summary.discovered_candidates == 0
+    assert not state_path.exists()
+    assert not caplog.records
+
+
+def test_unreadable_suppression_state_treats_failure_as_new(
+    monkeypatch, tmp_path, caplog
+):
+    _runtime(monkeypatch, tmp_path)
+    state_path = runtime_paths().mailbox_review_observability
+    state_path.write_text("{}\n", encoding="utf-8")
+    actual_read_text = Path.read_text
+
+    def read_text(path, *args, **kwargs):
+        if path == state_path:
+            raise PermissionError("private path must not be logged")
+        return actual_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+
+    class Provider:
+        def acquire_messages(self, last_seen_uid, expected_uidvalidity):
+            raise ConnectionError("test-secret")
+
+    caplog.set_level(logging.INFO, logger=mailbox_review_module.__name__)
+
+    with pytest.raises(MailboxReviewError):
+        review_mailbox_now(provider=Provider())
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert sum("mailbox_review_cycle_failed" in item for item in messages) == 1
+    assert "private path" not in "\n".join(messages)
+    assert "test-secret" not in "\n".join(messages)

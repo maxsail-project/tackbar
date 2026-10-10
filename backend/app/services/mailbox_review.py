@@ -18,6 +18,11 @@ from app.repositories.sessions import SessionRepository
 from app.runtime_paths import require_private_data_root
 from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_processing import process_provider_email
+from app.services.mailbox_review_observability import (
+    CycleFailureState,
+    CycleFailureStateStore,
+    safe_error_class,
+)
 from app.services.ovh_mailbox_cursor import (
     OVHMailboxCursor,
     OVHMailboxCursorStore,
@@ -29,22 +34,14 @@ logger = logging.getLogger(__name__)
 _FAILURE_REMINDER_SECONDS = 60 * 60
 
 
-@dataclass
-class _ActiveCycleFailure:
-    fingerprint: tuple[str, str, str, str]
-    provider: str
-    stage: str
-    error_class: str
-    reason: str
-    last_emitted_at: float
-    suppressed_since_reminder: int = 0
-    total_suppressed: int = 0
-
-
 class _CycleFailureLogSuppressor:
-    def __init__(self, clock=time.monotonic) -> None:
+    def __init__(
+        self,
+        clock=time.time,
+        store: CycleFailureStateStore | None = None,
+    ) -> None:
         self._clock = clock
-        self._active: _ActiveCycleFailure | None = None
+        self._store = store or CycleFailureStateStore()
         self._lock = Lock()
 
     def record_failure(
@@ -53,17 +50,17 @@ class _CycleFailureLogSuppressor:
         stage: str,
         error: Exception,
     ) -> None:
-        error_class = type(error).__name__
+        error_class = safe_error_class(error)
         reason = _safe_failure_reason(error)
         fingerprint = (provider, stage, error_class, reason)
         now = self._clock()
         with self._lock:
+            active = self._store.load()
             if (
-                self._active is None
-                or self._active.fingerprint != fingerprint
+                active is None
+                or active.fingerprint != fingerprint
             ):
-                self._active = _ActiveCycleFailure(
-                    fingerprint,
+                active = CycleFailureState(
                     provider,
                     stage,
                     error_class,
@@ -78,14 +75,26 @@ class _CycleFailureLogSuppressor:
                     error_class,
                     reason,
                 )
+                self._store.write(active)
                 return
 
-            self._active.suppressed_since_reminder += 1
-            self._active.total_suppressed += 1
-            if (
-                now - self._active.last_emitted_at
-                < _FAILURE_REMINDER_SECONDS
-            ):
+            suppressed_since_reminder = (
+                active.suppressed_since_reminder + 1
+            )
+            total_suppressed = active.total_suppressed + 1
+            elapsed = now - active.last_emitted_at
+            if 0 <= elapsed < _FAILURE_REMINDER_SECONDS:
+                self._store.write(
+                    CycleFailureState(
+                        provider,
+                        stage,
+                        error_class,
+                        reason,
+                        active.last_emitted_at,
+                        suppressed_since_reminder,
+                        total_suppressed,
+                    )
+                )
                 return
             logger.warning(
                 "mailbox_review_cycle_still_failing provider=%s stage=%s "
@@ -94,16 +103,29 @@ class _CycleFailureLogSuppressor:
                 stage,
                 error_class,
                 reason,
-                self._active.suppressed_since_reminder,
+                suppressed_since_reminder,
             )
-            self._active.last_emitted_at = now
-            self._active.suppressed_since_reminder = 0
+            self._store.write(
+                CycleFailureState(
+                    provider,
+                    stage,
+                    error_class,
+                    reason,
+                    now,
+                    0,
+                    total_suppressed,
+                )
+            )
 
     def record_success(self, provider: str) -> None:
         with self._lock:
-            active = self._active
-            self._active = None
-            if active is None or active.total_suppressed == 0:
+            active = self._store.load()
+            cleared = self._store.clear()
+            if (
+                active is None
+                or active.total_suppressed == 0
+                or not cleared
+            ):
                 return
             logger.info(
                 "mailbox_review_cycle_recovered provider=%s "
@@ -154,8 +176,8 @@ def _configured_provider(provider_key: str) -> Any:
 
 
 def review_mailbox_now(provider: Any | None = None) -> MailboxReviewSummary:
-    require_private_data_root()
     try:
+        require_private_data_root()
         provider_key = _configured_provider_key()
     except Exception as error:
         _cycle_failure_logs.record_failure(

@@ -24,6 +24,7 @@ from app.services.consent_requests import (
     ConsentRequestService,
 )
 from app.services.ingestion_history import IngestionHistory
+from app.services.mailbox_review import MailboxReviewSummary
 from app.services.sailor_consent import SailorConsentService
 from app.services.welcome_email_delivery import WelcomeEmailDeliveryError
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
@@ -199,6 +200,32 @@ def _use_runtime(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> 
     monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(root))
     monkeypatch.setenv(ADMIN_KEY_ENVIRONMENT_VARIABLE, ADMIN_KEY)
     return root
+
+
+def test_admin_mailbox_review_remains_a_manual_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    calls = []
+
+    def review() -> MailboxReviewSummary:
+        calls.append("reviewed")
+        return MailboxReviewSummary(5, 2, 1, 1, 1)
+
+    monkeypatch.setattr("app.admin_routes.review_mailbox_now", review)
+
+    response = _request("POST", "/api/admin/ingestions/review-mailbox")
+
+    assert response.status_code == 200
+    assert response.json == {
+        "discovered_candidates": 5,
+        "processed": 2,
+        "skipped_already_processed": 1,
+        "known_failed": 1,
+        "failed": 1,
+    }
+    assert calls == ["reviewed"]
 
 
 def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

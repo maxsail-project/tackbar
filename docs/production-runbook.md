@@ -38,9 +38,86 @@ TACKBAR_OVH_IMAP_PASSWORD=<secret>
 
 `TACKBAR_OVH_IMAP_PASSWORD` is an operational secret and MUST NOT be committed or pasted into documentation/logs.
 
-Admin-triggered **Review mailbox now** remains the ingestion trigger. Automatic mailbox polling is not part of the current production baseline.
+Automatic review through `tackbar-mailbox-review.timer` is the normal ingestion
+trigger. Admin **Review mailbox now** remains available as the manual fallback.
 
 Remote IMAP `Seen`/`Unread` flags are not TackBar processing state; TackBar ingestion history owns processing/idempotency state.
+
+## Automatic mailbox review
+
+The repository versions the production units under `deploy/systemd/`. Unit
+installation and enablement are deliberate operator actions; the production
+deployment script does not manage them.
+
+The supplied service runs as the `tackbar` system user and group. Before first
+installation, confirm that this is also the account with access to the deployed
+backend, virtualenv and `TACKBAR_DATA_DIR`:
+
+```bash
+id tackbar
+sudo -u tackbar test -x /opt/tackbar/.venv/bin/python
+sudo -u tackbar test -r /opt/tackbar/backend/app/mailbox_review_once.py
+sudo -u tackbar test -w /var/lib/tackbar/data
+```
+
+From the deployed release checkout, install the versioned units and reload
+systemd:
+
+```bash
+cd /opt/tackbar
+sudo install -o root -g root -m 0644 \
+  deploy/systemd/tackbar-mailbox-review.service \
+  /etc/systemd/system/tackbar-mailbox-review.service
+sudo install -o root -g root -m 0644 \
+  deploy/systemd/tackbar-mailbox-review.timer \
+  /etc/systemd/system/tackbar-mailbox-review.timer
+sudo systemctl daemon-reload
+```
+
+Enable and start the timer:
+
+```bash
+sudo systemctl enable --now tackbar-mailbox-review.timer
+```
+
+The first review occurs approximately two minutes after the timer starts. Each
+later activation occurs approximately two minutes after the previous oneshot
+service execution finishes. A failed review exits non-zero and the timer makes
+the next normal activation the retry; there is no immediate retry loop.
+
+Inspect timer and service state without exposing the environment file:
+
+```bash
+sudo systemctl status tackbar-mailbox-review.timer --no-pager
+sudo systemctl list-timers tackbar-mailbox-review.timer --all --no-pager
+sudo systemctl status tackbar-mailbox-review.service --no-pager
+```
+
+The oneshot service is normally inactive after a successful run. A failed run
+may remain visible as failed until the next activation. Inspect its journal:
+
+```bash
+sudo journalctl -u tackbar-mailbox-review.service -n 100 --no-pager
+sudo journalctl -u tackbar-mailbox-review.service --since "1 hour ago"
+```
+
+Mailbox-review application logs deliberately exclude message content and
+private identities. Repeated identical cycle failures are suppressed across
+oneshot executions using the observability-only
+`mailbox_review_observability.json` file under `TACKBAR_DATA_DIR`. Missing,
+malformed or unreadable observability state does not block mailbox review.
+
+To stop automatic polling for rollback while retaining Admin review as the
+fallback:
+
+```bash
+sudo systemctl disable --now tackbar-mailbox-review.timer
+sudo systemctl stop tackbar-mailbox-review.service
+sudo systemctl reset-failed tackbar-mailbox-review.service
+```
+
+After installing a release that changes either versioned unit, repeat the two
+`install` commands and `daemon-reload`, then restart the timer explicitly.
 
 ## v0.6.4 outbound SMTP runtime configuration
 
@@ -122,8 +199,10 @@ After a release that changes mailbox acquisition/configuration:
 
 1. confirm the service environment uses the intended provider without exposing secrets;
 2. send or retain one supported Vakaros `.csv`/`.csv.gz` message in the operational mailbox from the intended Sailor email identity;
-3. open `https://app.tackbar.eu/admin`;
-4. run **Review mailbox now**;
+3. wait for the automatic timer activation, or open
+   `https://app.tackbar.eu/admin` and use **Review mailbox now** as the manual
+   fallback;
+4. inspect the mailbox-review service status and journal;
 5. confirm the Ingestion, Sailor, Activity and Session result;
 6. confirm the Session Viewer remains usable;
 7. repeat mailbox review and verify the same provider message is not duplicated.
@@ -166,6 +245,11 @@ Mailbox credentials/configuration may change only when explicitly required by th
 ## Rollback
 
 Checkout `<PREVIOUS_TAG>` in `/opt/tackbar`, perform any frontend build/publication required by that version, restart `tackbar.service`, and check the health endpoint.
+
+If the target release does not contain the automatic mailbox-review entry
+point, disable and stop `tackbar-mailbox-review.timer` before switching the
+checkout. Admin mailbox review remains the fallback where supported by that
+release.
 
 Application rollback and data rollback are separate concerns. Do not invent a persistent-data restore procedure; use a separately validated backup and restore procedure.
 

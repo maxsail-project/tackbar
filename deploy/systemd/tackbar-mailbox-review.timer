@@ -1,0 +1,11 @@
+[Unit]
+Description=Review the TackBar mailbox after each two-minute idle interval
+
+[Timer]
+OnActiveSec=2min
+OnUnitInactiveSec=2min
+AccuracySec=10s
+Unit=tackbar-mailbox-review.service
+
+[Install]
+WantedBy=timers.target
