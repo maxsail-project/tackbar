@@ -70,9 +70,9 @@ both:
 - `docs/v0.6.5-simplified-pilot-onboarding-requirements.md`
 - `docs/v0.6.5-decisions.md`
 
-For v0.7.x Californian work involving Vakaros-based collaborative debrief
-analytics, maneuver/event detection, analytical summaries, event-to-replay
-navigation, or maintenance increments within the release family, also read both:
+For any v0.7.x Californian work, including collaborative debrief analytics,
+ingestion, usability, operations, maintenance or another explicitly promoted
+increment within the release family, also read both:
 
 - `docs/v0.7-collaborative-debrief-analytics-requirements.md`
 - `docs/v0.7-decisions.md`
