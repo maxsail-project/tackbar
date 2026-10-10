@@ -29,8 +29,14 @@ For one explicitly requested release, the Release Preparer may:
 - push that preparation commit to `main`;
 - verify the preparation commit on remote `main`;
 - report `READY_FOR_REVIEW`;
-- after receiving evidence of an independent `PASS`, close the corresponding
-  release-preparation issue and report readiness for publication handoff.
+- receive an explicitly supplied independent review result;
+- when an independent `PASS` identifies the prepared release version and
+  reviewed `main` commit SHA, verify that evidence against current repository
+  state;
+- record the verified independent `PASS` in the corresponding
+  release-preparation issue;
+- close that release-preparation issue after the verified independent `PASS`;
+- report readiness for publication handoff.
 
 Explicit invocation for one concrete release, for example
 `Prepare v0.7.1 Californian — Analysis Window Maneuver Metrics`, is sufficient
@@ -50,8 +56,19 @@ The Release Preparer requires at minimum:
 A release-preparation issue may be supplied. If none exists, the Release
 Preparer may create one from repository evidence.
 
-The Release Preparer must not invent a version, family identity, feature scope
-or product decision.
+After `READY_FOR_REVIEW`, an independent review result may be supplied through
+the active Release Preparer conversation or through an existing repository
+record.
+
+An independent `PASS` supplied through the conversation must identify at
+minimum:
+
+- the release version;
+- the reviewed `main` commit SHA;
+- an explicit `PASS` result.
+
+The Release Preparer must not invent a version, family identity, feature scope,
+product decision or independent review result.
 
 ## Preconditions
 
@@ -110,9 +127,14 @@ Use this deterministic order:
 17. Verify remote `main` contains the preparation commit and record its SHA.
 18. Report `READY_FOR_REVIEW` and provide the preparation issue, commit,
     validation and publication metadata to an independent reviewer.
+19. Stop. Do not infer review approval from successful preparation and do not
+    continue to publication handoff until an independent review result is
+    explicitly supplied.
+20. When an independent `PASS` is subsequently supplied, follow the
+    Independent review section before closing the preparation issue or
+    reporting `READY_FOR_PUBLICATION`.
 
-Do not publish the release. If independent review is available, follow the
-Independent review section. Otherwise stop at `READY_FOR_REVIEW`.
+Do not publish the release.
 
 ## CHANGELOG issue traceability
 
@@ -160,15 +182,69 @@ independently delegated sub-agent, but must be logically separate from the
 Release Preparer execution that produced the changes. The review result is
 `PASS` or `BLOCKED`.
 
+The independent review result may be supplied directly through the active
+Release Preparer conversation or may already exist as a repository record.
+
+A conversation-supplied `PASS` must explicitly identify:
+
+- `PASS` as the independent review result;
+- the release version;
+- the reviewed `main` commit SHA.
+
+For example:
+
+```text
+Independent review PASS for v0.7.2 at
+97634a27eaa471a1753fdb4aa691290a329dfd19
+```
+
+Receiving this statement is evidence of an external review decision. It does
+not authorize the Release Preparer to perform the independent review itself,
+infer that review occurred, invent missing review details or approve its own
+preparation.
+
+Before accepting an independent `PASS`, the Release Preparer must verify all of
+the following:
+
+1. The supplied version exactly matches the release being prepared.
+2. The corresponding release-preparation issue exists and is still open.
+3. Current remote `main` resolves successfully.
+4. Current remote `main` exactly matches the reviewed commit SHA supplied with
+   the `PASS`.
+5. The reviewed commit is the current prepared release candidate.
+6. No later implementation or release-preparation commit has changed the
+   candidate after the reviewed SHA.
+7. The requested version tag and corresponding GitHub Release have not already
+   been published.
+
+If current remote `main` differs from the reviewed SHA, the independent `PASS`
+does not transfer to the newer commit. Stop and report `BLOCKED`. The current
+candidate requires a new independent review.
+
 If review reports `BLOCKED`, do not close the preparation issue or hand off to
 publication. If an independent reviewer is unavailable, remain
 `READY_FOR_REVIEW` and do not treat the release as approved.
 
-After receiving evidence of an independent `PASS`, the Release Preparer may
-close the release-preparation issue and report that the release is ready to hand
-off to `agents/release-publisher.md`. Do not invoke the Release Publisher
-automatically; publication requires a separate explicit `Publish vX.Y.Z`
-instruction.
+After successfully validating an explicitly supplied independent `PASS`, the
+Release Preparer must:
+
+1. record the independent review result in the release-preparation GitHub issue;
+2. include at minimum the `PASS` result, release version and reviewed `main`
+   commit SHA in that durable audit record;
+3. preserve the externally supplied review decision without inventing reviewer
+   identity, findings or evidence that were not supplied;
+4. close the release-preparation issue;
+5. verify that the issue is closed;
+6. report `READY_FOR_PUBLICATION`.
+
+The preparation issue is the durable audit record. An independent reviewer is
+not required to manually enter the review result into GitHub when the result has
+been explicitly supplied to the Release Preparer and the Release Preparer
+records it according to this procedure.
+
+Do not invoke the Release Publisher automatically. Publication requires a
+separate explicit `Publish vX.Y.Z` instruction and must follow
+`agents/release-publisher.md`.
 
 ## Forbidden actions
 
@@ -186,7 +262,13 @@ The Release Preparer must not:
 - deploy production;
 - modify production runtime state or configuration;
 - approve its own work;
-- close a preparation issue without independent `PASS`;
+- invent, infer or generate an independent `PASS`;
+- reuse or transfer a `PASS` issued for another release version or commit;
+- alter the substance of an externally supplied independent review result;
+- invent a reviewer identity or review evidence;
+- close a preparation issue without a verified independent `PASS`;
+- close a preparation issue when current remote `main` differs from the
+  reviewed commit SHA;
 - stage unrelated files;
 - use `git add .`, `git add -A` or equivalent broad staging;
 - rewrite historical `CHANGELOG.md` entries only to backfill issue lists;
@@ -209,10 +291,21 @@ Stop and report `BLOCKED` when any of these conditions applies:
 - remote `main` moves incompatibly before the preparation push;
 - staging, commit, push or remote verification fails;
 - independent review reports `BLOCKED`;
+- a supplied independent `PASS` does not explicitly identify the release
+  version and reviewed `main` commit SHA;
+- the version supplied with an independent `PASS` does not match the prepared
+  release;
+- the release-preparation issue is not open when the independent `PASS` is
+  processed;
+- current remote `main` differs from the commit SHA covered by the independent
+  `PASS`;
+- the requested tag or GitHub Release appears before publication handoff is
+  complete;
 - any required preparation precondition cannot be verified.
 
 Prefer `BLOCKED` over guessing. Do not broaden scope, modify product code,
-publish artifacts or approve the preparation to work around a failure.
+publish artifacts, transfer review approval between commits or approve the
+preparation to work around a failure.
 
 ## Completion report
 
@@ -232,15 +325,18 @@ Proposed tag: <tag>
 Publication metadata: <release-notes/limitations summary>
 ```
 
-After independent `PASS` and preparation-issue closure, report:
+After verified independent `PASS`, audit-record creation and
+preparation-issue closure, report:
 
 ```text
 Status: READY_FOR_PUBLICATION
 Version: <version>
 Release: <release name>
-Independent review: PASS — <review evidence>
+Independent review: PASS — <reviewed main SHA>
+Review record: <GitHub issue comment URL or equivalent repository evidence>
 Preparation issue: CLOSED — <URL>
 Preparation commit: <commit SHA>
+Remote main: <verified reviewed SHA>
 Next action: Publish <version>
 ```
 
