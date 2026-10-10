@@ -5,6 +5,10 @@ from threading import Lock
 import time
 from typing import Any
 
+from app.config import (
+    OvhImapConfigurationError,
+    load_ovh_imap_configuration,
+)
 from app.email_providers.gmail import GmailAdapter
 from app.email_providers.ovh import (
     OVHAdapter,
@@ -162,17 +166,16 @@ def _configured_provider_key() -> str:
 def _configured_provider(provider_key: str) -> Any:
     if provider_key == "gmail":
         return GmailAdapter()
-    host = os.environ.get("TACKBAR_OVH_IMAP_HOST", "imap.mail.ovh.net").strip()
-    port_text = os.environ.get("TACKBAR_OVH_IMAP_PORT", "993").strip()
-    username = os.environ.get("TACKBAR_OVH_IMAP_USERNAME", "").strip()
-    password = os.environ.get("TACKBAR_OVH_IMAP_PASSWORD", "")
     try:
-        port = int(port_text)
-    except ValueError as error:
-        raise MailboxReviewError("Invalid OVH mailbox configuration") from error
-    if not host or not username or not password.strip() or not 1 <= port <= 65535:
-        raise MailboxReviewError("Incomplete OVH mailbox configuration")
-    return OVHAdapter(host, port, username, password)
+        configuration = load_ovh_imap_configuration()
+    except OvhImapConfigurationError as error:
+        raise MailboxReviewError(str(error)) from error
+    return OVHAdapter(
+        configuration.host,
+        configuration.port,
+        configuration.username,
+        configuration.password,
+    )
 
 
 def review_mailbox_now(provider: Any | None = None) -> MailboxReviewSummary:
