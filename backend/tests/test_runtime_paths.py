@@ -2,7 +2,6 @@ import hashlib
 import json
 from pathlib import Path
 
-import pandas as pd
 import pytest
 
 from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
@@ -141,7 +140,7 @@ def test_public_test_data_has_complete_consistent_storage() -> None:
             activity.attachment_sha256
         )
 
-        track = pd.read_csv(track_path, compression="gzip")
+        track = storage.read_normalized_track(activity.id)
         assert list(track.columns) == CANONICAL_TRACK_COLUMNS
         assert len(track) == activity.sample_count
         assert set(track["activity_id"]) == {activity.id}

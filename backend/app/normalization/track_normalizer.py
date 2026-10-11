@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 
 
-CANONICAL_TRACK_COLUMNS = [
+LEGACY_CANONICAL_TRACK_COLUMNS = [
     "activity_id",
     "utc",
     "lat",
@@ -17,7 +17,24 @@ CANONICAL_TRACK_COLUMNS = [
     "heel",
     "trim",
 ]
-OPTIONAL_SAMPLE_COLUMNS = ["cog", "sog", "hdg", "heel", "trim"]
+CANONICAL_TRACK_COLUMNS = [
+    *LEGACY_CANONICAL_TRACK_COLUMNS,
+    "quat_w",
+    "quat_x",
+    "quat_y",
+    "quat_z",
+]
+OPTIONAL_SAMPLE_COLUMNS = [
+    "cog",
+    "sog",
+    "hdg",
+    "heel",
+    "trim",
+    "quat_w",
+    "quat_x",
+    "quat_y",
+    "quat_z",
+]
 EARTH_RADIUS_METRES = 6_371_008.8
 
 

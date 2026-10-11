@@ -6,6 +6,7 @@ import pandas as pd
 
 from app.normalization.track_normalizer import (
     CANONICAL_TRACK_COLUMNS,
+    LEGACY_CANONICAL_TRACK_COLUMNS,
     OPTIONAL_SAMPLE_COLUMNS,
 )
 from app.runtime_paths import runtime_paths
@@ -88,7 +89,13 @@ class TrackStorage:
             raise FileNotFoundError(f"Normalized track does not exist: {path}")
 
         track = pd.read_csv(path, compression="gzip")
-        if list(track.columns) != CANONICAL_TRACK_COLUMNS:
+        if list(track.columns) == LEGACY_CANONICAL_TRACK_COLUMNS:
+            for column in CANONICAL_TRACK_COLUMNS[
+                len(LEGACY_CANONICAL_TRACK_COLUMNS) :
+            ]:
+                track[column] = pd.NA
+            track = track[CANONICAL_TRACK_COLUMNS]
+        elif list(track.columns) != CANONICAL_TRACK_COLUMNS:
             raise ValueError(
                 "Normalized track columns must exactly match the TackBar schema"
             )

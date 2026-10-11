@@ -19,6 +19,12 @@ REQUIRED_COLUMNS = {
     "trim",
 }
 VAKAROS_CSV_SUFFIXES = (".csv.gz", ".csv")
+QUATERNION_COLUMNS = {
+    "q_w": "quat_w",
+    "q_x": "quat_x",
+    "q_y": "quat_y",
+    "q_z": "quat_z",
+}
 
 
 def has_vakaros_csv_suffix(value: str) -> bool:
@@ -52,6 +58,18 @@ def parse_vakaros_csv(
             + ", ".join(missing_columns)
         )
 
+    present_quaternion_columns = set(QUATERNION_COLUMNS) & set(frame.columns)
+    if present_quaternion_columns and present_quaternion_columns != set(
+        QUATERNION_COLUMNS
+    ):
+        missing_quaternion_columns = sorted(
+            set(QUATERNION_COLUMNS) - present_quaternion_columns
+        )
+        raise ValueError(
+            "Vakaros CSV has an incomplete quaternion column group; missing: "
+            + ", ".join(missing_quaternion_columns)
+        )
+
     if frame.empty:
         raise ValueError("Vakaros CSV contains no samples")
 
@@ -83,6 +101,9 @@ def parse_vakaros_csv(
             "trim": frame["trim"],
         }
     )
+    for source_column, canonical_column in QUATERNION_COLUMNS.items():
+        if source_column in frame:
+            samples[canonical_column] = frame[source_column]
     return Activity(
         source="vakaros",
         original_filename=filename,

@@ -3,6 +3,8 @@ from datetime import timezone
 from pathlib import Path
 from statistics import median
 
+import pytest
+
 from app.parsers.vakaros_csv import parse_vakaros_csv
 
 
@@ -69,3 +71,62 @@ def test_parse_equivalent_uncompressed_vakaros_csv() -> None:
     assert len(activity.samples) == 3613
     assert activity.start_time == activity.samples[0]["utc"]
     assert activity.end_time == activity.samples[-1]["utc"]
+
+
+def test_parse_vakaros_csv_preserves_complete_quaternion_group() -> None:
+    csv_bytes = (
+        b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim,"
+        b"q_w,q_x,q_y,q_z\n"
+        b"2031-06-10T10:00:00Z,38.1,-0.2,5.2,359,1,-8,2,"
+        b"0.5,0.1,-0.2,0.8\n"
+    )
+
+    activity = parse_vakaros_csv(
+        csv_bytes,
+        original_filename="quaternion.csv",
+    )
+
+    assert activity.samples[0] == {
+        "utc": activity.start_time,
+        "lat": 38.1,
+        "lon": -0.2,
+        "cog": 359,
+        "sog": 5.2,
+        "hdg": 1,
+        "heel": -8,
+        "trim": 2,
+        "quat_w": 0.5,
+        "quat_x": 0.1,
+        "quat_y": -0.2,
+        "quat_z": 0.8,
+    }
+
+
+def test_parse_vakaros_csv_rejects_partial_quaternion_group() -> None:
+    csv_bytes = (
+        b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim,q_w,q_x\n"
+        b"2031-06-10T10:00:00Z,38.1,-0.2,5.2,359,1,-8,2,0.5,0.1\n"
+    )
+
+    with pytest.raises(ValueError, match="incomplete quaternion column group"):
+        parse_vakaros_csv(csv_bytes, original_filename="partial.csv")
+
+
+def test_quaternion_csv_and_csv_gz_parse_equivalently() -> None:
+    csv_bytes = (
+        b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim,"
+        b"q_w,q_x,q_y,q_z\n"
+        b"2031-06-10T10:00:00Z,38.1,-0.2,5.2,359,1,-8,2,"
+        b"0.5,0.1,-0.2,0.8\n"
+    )
+
+    csv_activity = parse_vakaros_csv(
+        csv_bytes,
+        original_filename="quaternion.csv",
+    )
+    compressed_activity = parse_vakaros_csv(
+        gzip.compress(csv_bytes),
+        original_filename="quaternion.csv.gz",
+    )
+
+    assert compressed_activity.samples == csv_activity.samples

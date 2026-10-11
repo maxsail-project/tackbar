@@ -267,6 +267,37 @@ def test_valid_complete_track_returns_exact_contract_and_null_sensors(
     assert "tracks/" not in json.dumps(response.json)
 
 
+def test_quaternion_is_not_exposed_by_track_api(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    track = _track_frame()
+    track.loc[1, ["quat_w", "quat_x", "quat_y", "quat_z"]] = [
+        0.5,
+        0.1,
+        -0.2,
+        0.8,
+    ]
+    _write_track(root, track)
+
+    response = _get(_track_path(ACTIVITY_ID))
+
+    assert response.status_code == 200
+    assert set(response.json["samples"][1]) == {
+        "utc",
+        "lat",
+        "lon",
+        "cog",
+        "sog",
+        "dist",
+        "hdg",
+        "heel",
+        "trim",
+    }
+    assert "quat" not in response.body.decode("utf-8")
+
+
 def test_unknown_activity_returns_404_before_track_loading(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,

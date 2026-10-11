@@ -94,5 +94,40 @@ def test_missing_optional_fields_remain_as_empty_canonical_columns() -> None:
     )
 
     assert list(normalized.columns) == CANONICAL_TRACK_COLUMNS
-    for column in ("cog", "sog", "hdg", "heel", "trim"):
+    for column in (
+        "cog",
+        "sog",
+        "hdg",
+        "heel",
+        "trim",
+        "quat_w",
+        "quat_x",
+        "quat_y",
+        "quat_z",
+    ):
         assert pd.isna(normalized.iloc[0][column])
+
+
+def test_quaternion_values_survive_normalization() -> None:
+    normalized = normalize_track(
+        ACTIVITY_ID,
+        [
+            {
+                "utc": "2031-06-10T10:00:00Z",
+                "lat": 0.25,
+                "lon": -30.75,
+                "quat_w": 0.5,
+                "quat_x": 0.1,
+                "quat_y": -0.2,
+                "quat_z": 0.8,
+            }
+        ],
+    )
+
+    assert list(normalized.columns) == CANONICAL_TRACK_COLUMNS
+    assert normalized.loc[0, ["quat_w", "quat_x", "quat_y", "quat_z"]].tolist() == [
+        0.5,
+        0.1,
+        -0.2,
+        0.8,
+    ]
