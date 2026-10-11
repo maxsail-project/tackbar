@@ -52,12 +52,20 @@ class ConsentRequestService:
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.token_generator = token_generator or (lambda: token_urlsafe(32))
 
-    def issue_for_pending_sailor(self, sailor_id: str) -> ConsentRequest:
+    def issue_for_pending_sailor(
+        self,
+        sailor_id: str,
+        *,
+        onboarding_activity_id: str | None = None,
+        onboarding_session_id: str | None = None,
+    ) -> ConsentRequest:
         self._require_pending_sailor(sailor_id)
         current = self.find_current_for_sailor(sailor_id)
         if current is not None:
             return current
-        return self._create_request(sailor_id)
+        return self._create_request(
+            sailor_id, onboarding_activity_id, onboarding_session_id
+        )
 
     def reissue_expired_for_pending_sailor(
         self,
@@ -69,7 +77,9 @@ class ConsentRequestService:
             raise ConsentRequestOperationError(
                 "Current consent request is not expired"
             )
-        return self._create_request(sailor_id)
+        return self._create_request(
+            sailor_id, current.onboarding_activity_id, current.onboarding_session_id
+        )
 
     def find_current_for_sailor(self, sailor_id: str) -> ConsentRequest | None:
         if self.sailors.get_by_id(sailor_id) is None:
@@ -202,7 +212,12 @@ class ConsentRequestService:
             raise ConsentRequestOperationError("Consent request is not usable")
         return self.requests.replace(replace(request, accepted_at=occurred_at))
 
-    def _create_request(self, sailor_id: str) -> ConsentRequest:
+    def _create_request(
+        self,
+        sailor_id: str,
+        onboarding_activity_id: str | None = None,
+        onboarding_session_id: str | None = None,
+    ) -> ConsentRequest:
         created_at = self._now()
         request = ConsentRequest(
             id=str(uuid4()),
@@ -212,6 +227,8 @@ class ConsentRequestService:
             consent_cycle_sequence=self._cycle_sequence(sailor_id),
             created_at=created_at,
             expires_at=created_at + CONSENT_REQUEST_LIFETIME,
+            onboarding_activity_id=onboarding_activity_id,
+            onboarding_session_id=onboarding_session_id,
         )
         return self.requests.add(request)
 

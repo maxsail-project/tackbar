@@ -16,6 +16,8 @@ from app.services.outbound_mail import (
     OutboundMailMessage,
     OvhSmtpTransport,
 )
+from app.services.session_result_email import compose_session_result_email
+from app.services.welcome_email import compose_welcome_email
 
 
 def _environment(**overrides: str) -> dict[str, str]:
@@ -60,7 +62,12 @@ def test_invalid_public_base_url_is_controlled():
         configured_public_base_url({"TACKBAR_PUBLIC_BASE_URL": "not-a-url"})
 
 
-def test_smtp_success_appends_same_message_to_tackbar_sent(monkeypatch):
+@pytest.mark.parametrize("message", [
+    OutboundMailMessage("sailor@example.test", "Subject", "Plain text body"),
+    compose_session_result_email("sailor@example.test", "/s/session-token", "/me/personal-token", "https://app.example.test"),
+    compose_welcome_email("sailor@example.test", "/me/personal-token", "https://app.example.test", "/s/session-token"),
+], ids=["plain", "session-result", "onboarding-welcome"])
+def test_smtp_success_appends_same_message_to_tackbar_sent(monkeypatch, message):
     calls: list[tuple] = []
     submitted_messages = []
     appended_messages = []
@@ -100,7 +107,7 @@ def test_smtp_success_appends_same_message_to_tackbar_sent(monkeypatch):
     monkeypatch.setattr("app.services.outbound_mail.smtplib.SMTP_SSL", FakeSMTP)
     monkeypatch.setattr("app.services.outbound_mail.imaplib.IMAP4_SSL", FakeIMAP)
     transport = OvhSmtpTransport.from_environment(_environment())
-    transport.send(OutboundMailMessage("sailor@example.test", "Subject", "Plain text body"))
+    transport.send(message)
 
     assert calls == [
         ("smtp_connect", "smtp.example.test", 2465),
@@ -116,8 +123,8 @@ def test_smtp_success_appends_same_message_to_tackbar_sent(monkeypatch):
     submitted = submitted_messages[0]
     assert submitted["From"] == "share@example.test"
     assert submitted["To"] == "sailor@example.test"
-    assert submitted["Subject"] == "Subject"
-    assert submitted.get_content() == "Plain text body\n"
+    assert submitted["Subject"] == message.subject
+    assert submitted.get_content() == message.body.rstrip("\n") + "\n"
     assert appended_messages[0] == submitted.as_bytes(policy=policy.SMTP)
 
 

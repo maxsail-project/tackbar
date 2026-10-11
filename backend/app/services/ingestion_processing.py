@@ -19,6 +19,7 @@ from app.services.ingestion_history import IngestionHistory
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
 from app.services.sailor_consent import SailorConsentService
 from app.services.session_capabilities import SessionCapabilityService
+from app.services.session_result_delivery import SessionResultDeliveryService
 from app.storage.track_storage import TrackStorage
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
 
@@ -46,6 +47,7 @@ def process_provider_email(
     track_storage: TrackStorage | None = None,
     consent_events: ConsentEventRepository | None = None,
     consent_request_sender: Callable[[str, str], None] | None = None,
+    session_result_sender: Callable[[str, str, str], None] | None = None,
 ) -> IngestionProcessingResult | None:
     with _INGESTION_LOCK:
         if not email.provider_message_id:
@@ -72,6 +74,7 @@ def process_provider_email(
             consent_events,
             consent_request_sender,
             True,
+            session_result_sender=session_result_sender,
         )
 
 
@@ -84,6 +87,7 @@ def reprocess_ingestion(
     history: IngestionHistory,
     track_storage: TrackStorage | None = None,
     consent_request_sender: Callable[[str, str], None] | None = None,
+    session_result_sender: Callable[[str, str, str], None] | None = None,
 ) -> dict:
     with _INGESTION_LOCK:
         record = history.get(ingestion_id)
@@ -98,6 +102,14 @@ def reprocess_ingestion(
                 raise FileNotFoundError("Preserved ingestion original is unavailable")
             content = IngestionOriginalStorage(activities.path.parent).read(record["original_file"])
             email = InboundEmail(sender_email=record["sender_email"], subject=record["attachment_name"], attachment_filename=record["attachment_name"], attachment_bytes=content, provider_message_id=record["provider_message_id"])
+        except (ValueError, OSError, EOFError, FileNotFoundError) as error:
+            record["last_error"] = _safe_error(error)
+            history.replace(record)
+        except Exception as error:
+            record["last_error"] = _safe_error(error)
+            history.replace(record)
+            raise
+        else:
             _attempt_record(
                 record,
                 email,
@@ -111,14 +123,8 @@ def reprocess_ingestion(
                 consent_request_sender,
                 False,
                 attempt_started=True,
+                session_result_sender=session_result_sender,
             )
-        except (ValueError, OSError, EOFError, FileNotFoundError) as error:
-            record["last_error"] = _safe_error(error)
-            history.replace(record)
-        except Exception as error:
-            record["last_error"] = _safe_error(error)
-            history.replace(record)
-            raise
         updated = history.get(ingestion_id)
         if updated is None: raise ValueError("Ingestion disappeared after reprocessing")
         return updated
@@ -137,6 +143,7 @@ def _attempt_record(
     consent_request_sender,
     raise_errors,
     attempt_started=False,
+    session_result_sender=None,
 ):
     if not attempt_started:
         record["attempts"] += 1; record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
@@ -150,6 +157,11 @@ def _attempt_record(
         record.update(status="failed", last_error=_safe_error(error)); history.replace(record)
         if raise_errors or not isinstance(error, (ValueError, OSError, EOFError, FileNotFoundError)): raise
         return None
+    # Core ingestion is authoritative before capability handling or outbound mail.
+    session = SessionCapabilityService(sessions, activities, sailors).ensure_for_session(
+        result.session_match.session.id
+    )
+    result.session_match.session = session
     _automatic_consent_requests(
         sailors,
         sessions,
@@ -158,7 +170,13 @@ def _attempt_record(
     ).attempt_for_sailor(
         result.sailor.id,
         source=f"{record['provider']}_automatic_consent_request",
+        onboarding_activity_id=result.activity.id if result.activity_created else None,
+        onboarding_session_id=session.id if result.activity_created else None,
     )
+    if result.activity_created and result.sailor.consent_status == ConsentStatus.ACTIVE:
+        SessionResultDeliveryService(
+            history, sailors, activities, sessions, sender=session_result_sender
+        ).attempt_for_new_activity(record["id"])
     return result
 
 
@@ -253,13 +271,6 @@ def _process_known_email(
         activities,
         sessions,
     )
-    SessionCapabilityService(sessions, activities, sailors).ensure_for_session(
-        session_match.session.id
-    )
-    refreshed_session = sessions.get_by_id(session_match.session.id)
-    if refreshed_session is None:
-        raise ValueError("Matched Session disappeared from persistence")
-    session_match.session = refreshed_session
     return IngestionProcessingResult(
         sailor=sailor,
         sailor_created=sailor_created,

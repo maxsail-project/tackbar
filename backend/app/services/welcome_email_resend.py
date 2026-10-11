@@ -4,9 +4,11 @@ from typing import Callable
 
 from app.models import ConsentStatus, Sailor
 from app.repositories.sailors import SailorRepository
+from app.services.onboarding_session import onboarding_session_path
 from app.services.welcome_email_delivery import (
     WELCOME_EMAIL_DELIVERY_FAILURE,
     WelcomeEmailDeliveryError,
+    WelcomeEmailSender,
     send_welcome_email,
 )
 
@@ -19,7 +21,7 @@ class WelcomeEmailResendService:
     def __init__(
         self,
         sailors: SailorRepository,
-        sender: Callable[[str, str], None] | None = None,
+        sender: WelcomeEmailSender | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.sailors = sailors
@@ -29,8 +31,12 @@ class WelcomeEmailResendService:
     def resend(self, sailor_id: str) -> Sailor:
         sailor = self._eligible_sailor(sailor_id)
         capability_path = f"/me/{sailor.personal_capability_token}"
+        session_path = onboarding_session_path(sailor_id, self.sailors)
         try:
-            self.sender(sailor.email, capability_path)
+            if session_path is None:
+                self.sender(sailor.email, capability_path)
+            else:
+                self.sender(sailor.email, capability_path, session_path)
         except WelcomeEmailDeliveryError:
             return self.sailors.replace(
                 replace(

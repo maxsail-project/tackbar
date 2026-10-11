@@ -7,6 +7,7 @@ from app.runtime_paths import PUBLIC_TEST_DATA_ROOT, runtime_paths
 
 DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
 FIELDS = {"id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "attachment_sha256", "original_file", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id"}
+SESSION_RESULT_DELIVERY_FAILURE = "Session-result email delivery failed"
 
 
 class IngestionHistory:
@@ -34,6 +35,7 @@ class IngestionHistory:
     def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None) -> dict[str, Any]:
         records = self.records()
         record = {"id": str(uuid4()), "provider": provider, "provider_message_id": provider_message_id, "sender_email": sender_email, "received_at": None, "attachment_name": attachment_name, "attachment_sha256": attachment_sha256, "original_file": None, "status": "failed", "disposition": "active", "attempts": 0, "last_attempt_at": None, "last_error": None, "activity_id": None, "session_id": None}
+        record["session_result_notification"] = None
         records.append(record); self._write(records); return record
 
     def replace(self, replacement: dict[str, Any]) -> dict[str, Any]:
@@ -62,12 +64,35 @@ class IngestionHistory:
 
 
 def _canonical(item: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    notification = item.get("session_result_notification")
+    _validate_notification(notification)
+    item = {key: value for key, value in item.items() if key != "session_result_notification"}
     if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed"): raise ValueError("Malformed ingestion record")
     if "id" in item:
         if set(item) == FIELDS - {"disposition"}:
             item = {**item, "disposition": "active"}
-            return item, True
+            return {**item, "session_result_notification": notification}, True
         if set(item) != FIELDS or item.get("disposition") not in ("active", "discarded") or not isinstance(item["attempts"], int) or item["attempts"] < 0: raise ValueError("Malformed ingestion record")
-        return dict(item), False
+        return {**item, "session_result_notification": notification}, False
     attempted = item.get("processed_at")
-    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None}, True
+    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "session_result_notification": notification}, True
+
+
+def _validate_notification(notification: object) -> None:
+    # Missing/null is backward-compatible and means no notification required.
+    if notification is None:
+        return
+    if (
+        not isinstance(notification, dict)
+        or set(notification) != {"status", "attempted_at", "sent_at", "last_error"}
+        or notification["status"] not in ("eligible", "attempted", "sent", "failed")
+        or notification["last_error"] not in (None, SESSION_RESULT_DELIVERY_FAILURE)
+    ):
+        raise ValueError("Malformed Session-result notification state")
+    status = notification["status"]
+    if (
+        (notification["attempted_at"] is not None) != (status != "eligible")
+        or (notification["sent_at"] is not None) != (status == "sent")
+        or (notification["last_error"] is not None) != (status == "failed")
+    ):
+        raise ValueError("Inconsistent Session-result notification state")

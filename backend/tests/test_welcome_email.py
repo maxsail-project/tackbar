@@ -117,3 +117,23 @@ def test_personal_tackbar_url_does_not_include_path_in_validation_error():
         personal_tackbar_url("not-a-url", path)
 
     assert path not in str(captured.value)
+
+
+def test_track_first_welcome_keeps_onboarding_copy_and_puts_session_first():
+    legacy = compose_welcome_email("sailor@example.test", "/me/personal", "https://app.example.test")
+    enriched = compose_welcome_email_from_environment(
+        "sailor@example.test", "/me/personal",
+        {"TACKBAR_PUBLIC_BASE_URL": "https://app.example.test/"},
+        session_capability_path="/s/onboarding",
+    )
+    assert enriched.subject == legacy.subject
+    english, spanish = enriched.body.split("\n---\n")
+    assert english.startswith("Hi,")
+    assert spanish.strip().startswith("Hola,")
+    for section in (english, spanish):
+        assert section.index("https://app.example.test/s/onboarding") < section.index("https://app.example.test/me/personal")
+        assert section.index("https://app.example.test/s/onboarding") < section.index("share@tackbar.eu")
+    # All existing welcome/onboarding lines survive the focused content addition.
+    assert all(line in enriched.body for line in legacy.body.splitlines())
+    assert "Open this session:" in english
+    assert "Abre esta sesión:" in spanish

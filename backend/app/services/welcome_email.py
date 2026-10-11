@@ -11,8 +11,12 @@ SPANISH_VAKAROS_GUIDE_URL = "https://tackbar.eu/es/compartir-vakaros/index.html"
 
 
 def personal_tackbar_url(public_base_url: str, capability_path: str) -> str:
+    return public_capability_url(public_base_url, capability_path)
+
+
+def public_capability_url(public_base_url: str, capability_path: str) -> str:
     if not capability_path.strip():
-        raise ValueError("Personal capability path is required")
+        raise ValueError("Capability path is required")
     parsed = urlsplit(public_base_url)
     if (
         parsed.scheme not in ("http", "https")
@@ -31,15 +35,29 @@ def compose_welcome_email(
     recipient: str,
     personal_capability_path: str,
     public_base_url: str,
+    session_capability_path: str | None = None,
 ) -> OutboundMailMessage:
     personal_url = personal_tackbar_url(public_base_url, personal_capability_path)
+    session_en = session_es = ""
+    if session_capability_path is not None:
+        session_url = public_capability_url(public_base_url, session_capability_path)
+        session_en = (
+            "Your sailing activity has been processed and is now available in TackBar.\n\n"
+            f"Open this session:\n{session_url}\n\n"
+            "You can also find all your available sessions from your personal TackBar home below.\n\n"
+        )
+        session_es = (
+            "Tu navegación ha sido procesada y ya está disponible en TackBar.\n\n"
+            f"Abre esta sesión:\n{session_url}\n\n"
+            "También puedes consultar todas tus sesiones disponibles desde tu espacio personal de TackBar más abajo.\n\n"
+        )
     body = f"""Hi,
 
 I'm Maxi, a Snipe sailor and the person behind TackBar.
 
 Thanks for joining the TackBar pilot.
 
-Your participation is now confirmed, so you can start sending your sailing tracks to:
+{session_en}Your participation is now confirmed, so you can start sending your sailing tracks to:
 
 share@tackbar.eu
 
@@ -74,7 +92,7 @@ Soy Maxi, regatista de Snipe y la persona detrás de TackBar.
 
 Gracias por participar en el piloto de TackBar.
 
-Tu participación ya está confirmada, así que ya puedes empezar a enviar tus tracks de navegación a:
+{session_es}Tu participación ya está confirmada, así que ya puedes empezar a enviar tus tracks de navegación a:
 
 share@tackbar.eu
 
@@ -108,9 +126,12 @@ def compose_welcome_email_from_environment(
     recipient: str,
     personal_capability_path: str,
     environment: Mapping[str, str] | None = None,
+    *,
+    session_capability_path: str | None = None,
 ) -> OutboundMailMessage:
     return compose_welcome_email(
         recipient,
         personal_capability_path,
         configured_public_base_url(environment),
+        session_capability_path,
     )

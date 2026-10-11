@@ -102,6 +102,8 @@ class ConsentRequest:
     delivery_sent_at: datetime | None = None
     delivery_last_error: str | None = None
     accepted_at: datetime | None = None
+    onboarding_activity_id: str | None = None
+    onboarding_session_id: str | None = None
 
 
 @dataclass(frozen=True)

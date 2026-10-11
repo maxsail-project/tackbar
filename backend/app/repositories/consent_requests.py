@@ -58,6 +58,11 @@ class ConsentRequestRepository:
         requests = self.all()
         for index, request in enumerate(requests):
             if request.id == replacement.id:
+                if (
+                    request.onboarding_activity_id != replacement.onboarding_activity_id
+                    or request.onboarding_session_id != replacement.onboarding_session_id
+                ):
+                    raise ValueError("Consent onboarding association is immutable")
                 requests[index] = replacement
                 self._save(requests)
                 return replacement
@@ -114,6 +119,8 @@ def _deserialize_request(item: object) -> ConsentRequest:
                 item.get("accepted_at"),
                 "accepted_at",
             ),
+            onboarding_activity_id=item.get("onboarding_activity_id"),
+            onboarding_session_id=item.get("onboarding_session_id"),
         )
     except KeyError as error:
         raise ValueError("Persisted consent request is missing required data") from error
@@ -148,8 +155,14 @@ def _parse_optional_datetime(value: object, field_name: str) -> datetime | None:
 def _validate_requests(requests: list[ConsentRequest]) -> None:
     seen_ids: set[str] = set()
     seen_tokens: set[str] = set()
+    onboarding_by_cycle: dict[tuple[str, int], tuple[str | None, str | None]] = {}
     for request in requests:
         _validate_request(request)
+        cycle = (request.sailor_id, request.consent_cycle_sequence)
+        association = (request.onboarding_activity_id, request.onboarding_session_id)
+        if cycle in onboarding_by_cycle and onboarding_by_cycle[cycle] != association:
+            raise ValueError("Consent cycle has inconsistent onboarding associations")
+        onboarding_by_cycle[cycle] = association
         if request.id in seen_ids:
             raise ValueError("Duplicate consent request id")
         if request.token in seen_tokens:
@@ -161,6 +174,11 @@ def _validate_requests(requests: list[ConsentRequest]) -> None:
 def _validate_request(request: ConsentRequest) -> None:
     require_uuid(request.id, "Consent request")
     require_uuid(request.sailor_id, "Consent request Sailor")
+    if (request.onboarding_activity_id is None) != (request.onboarding_session_id is None):
+        raise ValueError("Consent onboarding association requires Activity and Session")
+    if request.onboarding_activity_id is not None:
+        require_uuid(request.onboarding_activity_id, "Onboarding Activity")
+        require_uuid(request.onboarding_session_id, "Onboarding Session")
     if (
         not is_consent_request_token(request.token)
         or request.token in (request.id, request.sailor_id)
