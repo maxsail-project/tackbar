@@ -157,6 +157,78 @@ def test_pending_onboarding_is_immutable_and_activation_uses_exact_session(runti
     assert runtime.requests.all()[0].onboarding_activity_id == first.activity.id
 
 
+@pytest.mark.parametrize("method", ["web", "admin"])
+def test_reprocess_recovers_onboarding_binding_after_request_persistence_interruption(
+    runtime, monkeypatch, method,
+):
+    sailor, _ = runtime.sailors.find_or_create_by_email("sailor@example.test")
+    assert sailor.consent_status == ConsentStatus.PENDING
+
+    with monkeypatch.context() as patch:
+        def interrupt_request_persistence(_repository, _request):
+            raise OSError("interrupted before consent request persistence")
+
+        patch.setattr(ConsentRequestRepository, "add", interrupt_request_persistence)
+        with pytest.raises(OSError, match="before consent request persistence"):
+            process(runtime, email("interrupted-onboarding", "05"))
+
+    interrupted = runtime.history.records()[0]
+    activity = runtime.activities.get_by_id(interrupted["activity_id"])
+    session = runtime.sessions.get_by_id(interrupted["session_id"])
+    assert interrupted["status"] == "processed"
+    assert interrupted["last_error"] is None
+    assert activity.sailor_id == sailor.id
+    assert (runtime.root / activity.track_file).is_file()
+    assert session.activity_ids == [activity.id]
+    assert len(runtime.activities.all()) == len(runtime.sessions.all()) == 1
+    assert runtime.requests.all() == []
+    assert runtime.sent == []
+
+    reconstructed = []
+    original_process = ingestion_processing._process_known_email
+    with monkeypatch.context() as patch:
+        def record_reconstructed_result(*args, **kwargs):
+            result = original_process(*args, **kwargs)
+            reconstructed.append(result)
+            return result
+
+        patch.setattr(ingestion_processing, "_process_known_email", record_reconstructed_result)
+        recovered = reprocess(runtime, interrupted["id"])
+
+    assert len(reconstructed) == 1
+    assert reconstructed[0].activity_created is False
+    assert recovered["status"] == "processed"
+    assert recovered["activity_id"] == activity.id
+    assert recovered["session_id"] == session.id
+    assert len(runtime.activities.all()) == len(runtime.sessions.all()) == 1
+    request = runtime.requests.all()[0]
+    assert request.onboarding_activity_id == activity.id
+    assert request.onboarding_session_id == session.id
+
+    # A newer PENDING Session must not replace the recovered association.
+    later = process(runtime, email("later-pending", "06"))
+    assert later.session_match.session.id != session.id
+    assert runtime.requests.all() == [request]
+    assert len(runtime.sent) == 1
+    assert runtime.sent[0].subject not in (WELCOME_EMAIL_SUBJECT, SESSION_RESULT_SUBJECT)
+    assert runtime.sailors.get_by_id(sailor.id).consent_status == ConsentStatus.PENDING
+
+    activated = activate(runtime, sailor.id, method)
+    assert len(runtime.sent) == 2
+    welcome = runtime.sent[-1]
+    assert welcome.subject == WELCOME_EMAIL_SUBJECT
+    onboarding_session = runtime.sessions.get_by_id(session.id)
+    other_session = runtime.sessions.get_by_id(later.session_match.session.id)
+    assert welcome.body.count(f"{ORIGIN}/s/{onboarding_session.capability_token}") == 2
+    assert welcome.body.count(f"{ORIGIN}/me/{activated.personal_capability_token}") == 2
+    assert other_session.capability_token not in welcome.body
+
+    reprocess(runtime, interrupted["id"])
+    assert len(runtime.sent) == 2
+    assert all(message.subject != SESSION_RESULT_SUBJECT for message in runtime.sent)
+    assert all(record["session_result_notification"] is None for record in runtime.history.records())
+
+
 @pytest.mark.parametrize("legacy", ["preissued", "old-json", "manual-email"])
 def test_manual_or_legacy_cycle_remains_unbound(runtime, legacy):
     sailor, _ = runtime.sailors.find_or_create_by_email("sailor@example.test")

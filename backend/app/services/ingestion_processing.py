@@ -170,8 +170,8 @@ def _attempt_record(
     ).attempt_for_sailor(
         result.sailor.id,
         source=f"{record['provider']}_automatic_consent_request",
-        onboarding_activity_id=result.activity.id if result.activity_created else None,
-        onboarding_session_id=session.id if result.activity_created else None,
+        onboarding_activity_id=result.activity.id,
+        onboarding_session_id=session.id,
     )
     if result.activity_created and result.sailor.consent_status == ConsentStatus.ACTIVE:
         SessionResultDeliveryService(
