@@ -84,7 +84,7 @@ class ConsentRequestService:
     def find_current_for_sailor(self, sailor_id: str) -> ConsentRequest | None:
         if self.sailors.get_by_id(sailor_id) is None:
             return None
-        cycle_sequence = self._cycle_sequence(sailor_id)
+        cycle_sequence = self.current_cycle_sequence(sailor_id)
         candidates = [
             request
             for request in self.requests.for_sailor(sailor_id)
@@ -112,7 +112,7 @@ class ConsentRequestService:
     ) -> bool:
         if self.sailors.get_by_id(sailor_id) is None:
             return False
-        cycle_sequence = self._cycle_sequence(sailor_id)
+        cycle_sequence = self.current_cycle_sequence(sailor_id)
         return any(
             request.consent_cycle_sequence == cycle_sequence
             and request.automatic_delivery_attempted_at is not None
@@ -125,7 +125,7 @@ class ConsentRequestService:
     ) -> bool:
         if self.sailors.get_by_id(sailor_id) is None:
             return False
-        cycle_sequence = self._cycle_sequence(sailor_id)
+        cycle_sequence = self.current_cycle_sequence(sailor_id)
         return any(
             request.consent_cycle_sequence == cycle_sequence
             and request.delivery_sent_at is not None
@@ -224,7 +224,7 @@ class ConsentRequestService:
             sailor_id=sailor_id,
             token=self._new_unique_token(),
             agreement_version=self.agreement_version,
-            consent_cycle_sequence=self._cycle_sequence(sailor_id),
+            consent_cycle_sequence=self.current_cycle_sequence(sailor_id),
             created_at=created_at,
             expires_at=created_at + CONSENT_REQUEST_LIFETIME,
             onboarding_activity_id=onboarding_activity_id,
@@ -269,7 +269,7 @@ class ConsentRequestService:
             sailor is None
             or current is None
             or current.id != request.id
-            or request.consent_cycle_sequence != self._cycle_sequence(request.sailor_id)
+            or request.consent_cycle_sequence != self.current_cycle_sequence(request.sailor_id)
         ):
             return ConsentRequestState.UNUSABLE
         if request.accepted_at is not None:
@@ -280,7 +280,7 @@ class ConsentRequestService:
             return ConsentRequestState.EXPIRED
         return ConsentRequestState.VALID
 
-    def _cycle_sequence(self, sailor_id: str) -> int:
+    def current_cycle_sequence(self, sailor_id: str) -> int:
         return sum(
             event.event_type == ConsentEventType.CONSENT_CYCLE_STARTED
             for event in self.events.for_sailor(sailor_id)

@@ -22,6 +22,7 @@ from app.services.consent_requests import (
     CONSENT_REQUEST_DELIVERY_FAILURE,
     ConsentRequestService,
 )
+from app.services.ingestion_history import IngestionHistory
 from app.services.sailor_consent import SailorConsentService
 
 
@@ -109,6 +110,8 @@ def test_explicit_send_issues_request_without_granting_consent(
     assert sailor.consent_request_sent_at == NOW
     assert delivered.delivery_sent_at == NOW
     assert delivered.automatic_delivery_attempted_at is None
+    assert delivered.onboarding_activity_id is None
+    assert delivered.onboarding_session_id is None
     assert context.sent == [("sailor@example.test", delivered.token)]
     assert len(context.request_repository.all()) == 1
     assert [event.event_type for event in events] == [
@@ -277,3 +280,30 @@ def test_accepted_request_is_not_resent_as_pending(
 
     assert context.sent == []
     assert context.events.all() == []
+
+
+def test_request_and_reservation_mismatch_is_an_integrity_error(
+    temporary_directory: Path,
+) -> None:
+    context = _context(temporary_directory)
+    context.requests.issue_for_pending_sailor(SAILOR_ID)
+    history = IngestionHistory(context.root / "ingestion_history.json")
+    record = history.create(
+        "ovh",
+        "reservation-mismatch",
+        "sailor@example.test",
+        "track.csv.gz",
+        "a" * 64,
+    )
+    record["pending_onboarding_reservation"] = {
+        "sailor_id": SAILOR_ID,
+        "consent_cycle_sequence": 0,
+        "activity_id": "50000000-0000-4000-8000-000000000001",
+        "session_id": "60000000-0000-4000-8000-000000000001",
+    }
+    history.replace(record)
+
+    with pytest.raises(ValueError, match="conflicts with pending onboarding"):
+        context.admin.send(SAILOR_ID)
+
+    assert context.sent == []

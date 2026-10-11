@@ -7,6 +7,7 @@ from app.services.consent_request_delivery import (
     send_consent_request_email,
 )
 from app.services.consent_requests import ConsentRequestService
+from app.services.ingestion_history import IngestionHistory
 from app.services.sailor_consent import SailorConsentService
 
 
@@ -24,10 +25,14 @@ class AdminConsentRequestService:
         sailors: SailorRepository,
         consent: SailorConsentService,
         sender: Callable[[str, str], None] | None = None,
+        history: IngestionHistory | None = None,
     ) -> None:
         self.requests = requests
         self.sailors = sailors
         self.consent = consent
+        self.history = history or IngestionHistory(
+            sailors.path.with_name("ingestion_history.json")
+        )
         self.sender = (
             send_consent_request_email if sender is None else sender
         )
@@ -42,8 +47,21 @@ class AdminConsentRequestService:
             )
 
         resolution = self.requests.current_resolution_for_sailor(sailor_id)
+        association = self.history.resolve_pending_onboarding_association(
+            sailor_id,
+            self.requests.current_cycle_sequence(sailor_id),
+            resolution.request,
+        )
         if resolution.state == ConsentRequestState.NOT_FOUND:
-            request = self.requests.issue_for_pending_sailor(sailor_id)
+            request = self.requests.issue_for_pending_sailor(
+                sailor_id,
+                onboarding_activity_id=(
+                    association["activity_id"] if association is not None else None
+                ),
+                onboarding_session_id=(
+                    association["session_id"] if association is not None else None
+                ),
+            )
         elif resolution.state == ConsentRequestState.VALID:
             request = resolution.request
         elif resolution.state == ConsentRequestState.EXPIRED:

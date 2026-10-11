@@ -4,6 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.identity import require_uuid
+from app.models import ConsentRequest
 from app.runtime_paths import PUBLIC_TEST_DATA_ROOT, runtime_paths
 
 DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
@@ -55,6 +56,43 @@ class IngestionHistory:
             and record["pending_onboarding_reservation"]["sailor_id"] == sailor_id
             and record["pending_onboarding_reservation"]["consent_cycle_sequence"] == consent_cycle_sequence
         ), None)
+
+    def resolve_pending_onboarding_association(
+        self,
+        sailor_id: str,
+        consent_cycle_sequence: int,
+        request: ConsentRequest | None,
+    ) -> dict[str, Any] | None:
+        reservation = self.find_pending_onboarding_reservation(
+            sailor_id,
+            consent_cycle_sequence,
+        )
+        if request is None:
+            return reservation
+        if (
+            request.sailor_id != sailor_id
+            or request.consent_cycle_sequence != consent_cycle_sequence
+        ):
+            raise ValueError("Consent request is not from the current consent cycle")
+        request_association = (
+            request.onboarding_activity_id,
+            request.onboarding_session_id,
+        )
+        if reservation is not None and request_association != (
+            reservation["activity_id"],
+            reservation["session_id"],
+        ):
+            raise ValueError(
+                "Consent request conflicts with pending onboarding reservation"
+            )
+        if request.onboarding_activity_id is None:
+            return None
+        return {
+            "sailor_id": sailor_id,
+            "consent_cycle_sequence": consent_cycle_sequence,
+            "activity_id": request.onboarding_activity_id,
+            "session_id": request.onboarding_session_id,
+        }
 
     def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None) -> dict[str, Any]:
         records = self.records()

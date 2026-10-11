@@ -4,7 +4,7 @@ from hashlib import sha256
 from threading import Lock
 from typing import Callable
 
-from app.models import ConsentEventType, ConsentStatus, InboundEmail, Sailor, StoredActivity
+from app.models import ConsentStatus, InboundEmail, Sailor, StoredActivity
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.consent_events import ConsentEventRepository
@@ -166,6 +166,19 @@ def _attempt_record(
             track_storage,
             consent_events,
         )
+        automatic_consent = _automatic_consent_requests(
+            sailors,
+            sessions,
+            consent_events,
+            consent_request_sender,
+        )
+        onboarding_reservation = _pending_onboarding_reservation(
+            record,
+            result,
+            history,
+            automatic_consent.requests,
+            establish_activity_creation_provenance,
+        )
         if (
             establish_activity_creation_provenance
             and record["session_result_notification_candidate"] is None
@@ -181,19 +194,6 @@ def _attempt_record(
         if raise_errors or not isinstance(error, (ValueError, OSError, EOFError, FileNotFoundError)): raise
         return None
     # Core ingestion is authoritative before capability handling or outbound mail.
-    automatic_consent = _automatic_consent_requests(
-        sailors,
-        sessions,
-        consent_events,
-        consent_request_sender,
-    )
-    onboarding_reservation = _pending_onboarding_reservation(
-        record,
-        result,
-        history,
-        automatic_consent.requests,
-        establish_activity_creation_provenance,
-    )
     session = SessionCapabilityService(sessions, activities, sailors).ensure_for_session(
         result.session_match.session.id
     )
@@ -236,13 +236,12 @@ def _pending_onboarding_reservation(
 ) -> dict | None:
     if result.sailor.consent_status != ConsentStatus.PENDING:
         return None
-    cycle_sequence = sum(
-        event.event_type == ConsentEventType.CONSENT_CYCLE_STARTED
-        for event in requests.events.for_sailor(result.sailor.id)
-    )
-    existing = history.find_pending_onboarding_reservation(
+    cycle_sequence = requests.current_cycle_sequence(result.sailor.id)
+    current_request = requests.find_current_for_sailor(result.sailor.id)
+    existing = history.resolve_pending_onboarding_association(
         result.sailor.id,
         cycle_sequence,
+        current_request,
     )
     if existing is not None:
         return existing
@@ -250,7 +249,7 @@ def _pending_onboarding_reservation(
         not allow_creation
         or record["activity_created_by_ingestion"] is not True
         or result.sailor.consent_request_sent_at is not None
-        or requests.find_current_for_sailor(result.sailor.id) is not None
+        or current_request is not None
     ):
         return None
     reservation = {
@@ -260,7 +259,6 @@ def _pending_onboarding_reservation(
         "session_id": result.session_match.session.id,
     }
     record["pending_onboarding_reservation"] = reservation
-    history.replace(record)
     return reservation
 
 

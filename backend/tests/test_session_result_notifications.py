@@ -15,6 +15,7 @@ from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services import ingestion_processing
+from app.services.admin_consent_requests import AdminConsentRequestService
 from app.services.consent_requests import ConsentRequestService
 from app.services.ingestion_history import IngestionHistory, SESSION_RESULT_DELIVERY_FAILURE
 from app.services.ingestion_processing import process_provider_email, reprocess_ingestion
@@ -155,6 +156,34 @@ def test_pending_onboarding_is_immutable_and_activation_uses_exact_session(runti
     assert len(runtime.sent) == 3
     assert runtime.sent[-1].subject == SESSION_RESULT_SUBJECT
     assert runtime.requests.all()[0].onboarding_activity_id == first.activity.id
+
+
+def test_first_processed_persistence_already_contains_onboarding_reservation(
+    runtime, monkeypatch,
+):
+    persisted_as_processed = []
+    original_replace = IngestionHistory.replace
+
+    def record_processed_persistence(history, replacement):
+        persisted = original_replace(history, replacement)
+        if history.path == runtime.history.path and replacement["status"] == "processed":
+            persisted_as_processed.append(json.loads(json.dumps(persisted)))
+        return persisted
+
+    monkeypatch.setattr(IngestionHistory, "replace", record_processed_persistence)
+
+    result = process(runtime)
+
+    assert len(persisted_as_processed) == 1
+    persisted = persisted_as_processed[0]
+    assert persisted["activity_id"] == result.activity.id
+    assert persisted["session_id"] == result.session_match.session.id
+    assert persisted["pending_onboarding_reservation"] == {
+        "sailor_id": result.sailor.id,
+        "consent_cycle_sequence": 0,
+        "activity_id": result.activity.id,
+        "session_id": result.session_match.session.id,
+    }
 
 
 @pytest.mark.parametrize("method", ["web", "admin"])
@@ -301,6 +330,101 @@ def test_first_pending_reservation_survives_request_persistence_failure(
     assert all(message.subject != SESSION_RESULT_SUBJECT for message in runtime.sent)
 
 
+def test_automatic_request_keeps_reservation_after_manual_request_marker(
+    runtime, monkeypatch,
+):
+    with monkeypatch.context() as patch:
+        def interrupt_request_persistence(_repository, _request):
+            raise OSError("interrupted before consent request persistence")
+
+        patch.setattr(ConsentRequestRepository, "add", interrupt_request_persistence)
+        with pytest.raises(OSError, match="before consent request persistence"):
+            process(runtime, email("reserved-before-manual-marker", "05"))
+
+    reservation = runtime.history.records()[0]["pending_onboarding_reservation"]
+    SailorConsentService(runtime.sailors, runtime.events).mark_consent_requested(
+        reservation["sailor_id"],
+        "manual",
+    )
+
+    later = process(runtime, email("automatic-after-manual-marker", "06"))
+
+    request = runtime.requests.all()[0]
+    assert later.activity.id != reservation["activity_id"]
+    assert request.onboarding_activity_id == reservation["activity_id"]
+    assert request.onboarding_session_id == reservation["session_id"]
+
+
+def test_admin_send_uses_reservation_after_request_persistence_failure(
+    runtime, monkeypatch,
+):
+    with monkeypatch.context() as patch:
+        def interrupt_request_persistence(_repository, _request):
+            raise OSError("interrupted before consent request persistence")
+
+        patch.setattr(ConsentRequestRepository, "add", interrupt_request_persistence)
+        with pytest.raises(OSError, match="before consent request persistence"):
+            process(runtime, email("admin-send-reserved"))
+
+    record = runtime.history.records()[0]
+    reservation = record["pending_onboarding_reservation"]
+    assert reservation is not None
+    assert runtime.requests.all() == []
+
+    reloaded_history = IngestionHistory(runtime.history.path)
+    delivered = AdminConsentRequestService(
+        requests(runtime),
+        runtime.sailors,
+        SailorConsentService(runtime.sailors, runtime.events),
+        history=reloaded_history,
+    ).send(reservation["sailor_id"])
+
+    assert delivered.onboarding_activity_id == reservation["activity_id"]
+    assert delivered.onboarding_session_id == reservation["session_id"]
+
+    activated = activate(runtime, reservation["sailor_id"], "admin")
+    session = runtime.sessions.get_by_id(reservation["session_id"])
+    welcome = runtime.sent[-1]
+    assert welcome.subject == WELCOME_EMAIL_SUBJECT
+    assert welcome.body.count(f"{ORIGIN}/s/{session.capability_token}") == 2
+    assert welcome.body.count(
+        f"{ORIGIN}/me/{activated.personal_capability_token}"
+    ) == 2
+    assert all(message.subject != SESSION_RESULT_SUBJECT for message in runtime.sent)
+
+
+def test_direct_admin_confirmation_uses_reservation_without_request(
+    runtime, monkeypatch,
+):
+    with monkeypatch.context() as patch:
+        def interrupt_request_persistence(_repository, _request):
+            raise OSError("interrupted before consent request persistence")
+
+        patch.setattr(ConsentRequestRepository, "add", interrupt_request_persistence)
+        with pytest.raises(OSError, match="before consent request persistence"):
+            process(runtime, email("admin-confirm-reserved"))
+
+    record = runtime.history.records()[0]
+    reservation = record["pending_onboarding_reservation"]
+    assert reservation is not None
+    assert runtime.requests.all() == []
+
+    runtime.history = IngestionHistory(runtime.history.path)
+    activated = activate(runtime, reservation["sailor_id"], "admin")
+
+    session = runtime.sessions.get_by_id(reservation["session_id"])
+    assert activated.consent_status == ConsentStatus.ACTIVE
+    assert runtime.requests.all() == []
+    assert len(runtime.sent) == 1
+    welcome = runtime.sent[0]
+    assert welcome.subject == WELCOME_EMAIL_SUBJECT
+    assert welcome.body.count(f"{ORIGIN}/s/{session.capability_token}") == 2
+    assert welcome.body.count(
+        f"{ORIGIN}/me/{activated.personal_capability_token}"
+    ) == 2
+    assert all(message.subject != SESSION_RESULT_SUBJECT for message in runtime.sent)
+
+
 def test_pending_reprocess_recovers_onboarding_after_track_persistence_failure(
     runtime, monkeypatch,
 ):
@@ -323,6 +447,7 @@ def test_pending_reprocess_recovers_onboarding_after_track_persistence_failure(
     assert interrupted["status"] == "failed"
     assert interrupted["activity_created_by_ingestion"] is True
     assert interrupted["session_result_notification_candidate"] is None
+    assert interrupted["pending_onboarding_reservation"] is None
     assert len(runtime.activities.all()) == 1
     assert runtime.sessions.all() == []
     assert runtime.requests.all() == []

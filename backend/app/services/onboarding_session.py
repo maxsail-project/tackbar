@@ -5,6 +5,7 @@ from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.consent_requests import ConsentRequestService
+from app.services.ingestion_history import IngestionHistory
 from app.services.session_capabilities import SessionCapabilityService
 
 
@@ -23,14 +24,21 @@ def onboarding_session_path(
         sessions,
     )
     request = requests.find_current_for_sailor(sailor_id)
-    if request is None or request.onboarding_activity_id is None:
+    association = IngestionHistory(
+        sailors.path.with_name("ingestion_history.json")
+    ).resolve_pending_onboarding_association(
+        sailor_id,
+        requests.current_cycle_sequence(sailor_id),
+        request,
+    )
+    if association is None:
         return None
     capabilities = capabilities or SessionCapabilityService(
         sessions, ActivityRepository(sailors.path.with_name("activities.json")), sailors
     )
     sailor = sailors.get_by_id(sailor_id)
-    activity = capabilities.activities.get_by_id(request.onboarding_activity_id)
-    session = capabilities.sessions.get_by_id(request.onboarding_session_id)
+    activity = capabilities.activities.get_by_id(association["activity_id"])
+    session = capabilities.sessions.get_by_id(association["session_id"])
     if (
         sailor is None
         or sailor.consent_status != ConsentStatus.ACTIVE

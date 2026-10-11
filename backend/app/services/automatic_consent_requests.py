@@ -49,12 +49,10 @@ class AutomaticConsentRequestService:
 
         resolution = self.requests.current_resolution_for_sailor(sailor_id)
         if resolution.state == ConsentRequestState.NOT_FOUND:
-            # Legacy manual requests may predate consent-token persistence.
-            track_first = sailor.consent_request_sent_at is None
             request = self.requests.issue_for_pending_sailor(
                 sailor_id,
-                onboarding_activity_id=onboarding_activity_id if track_first else None,
-                onboarding_session_id=onboarding_session_id if track_first else None,
+                onboarding_activity_id=onboarding_activity_id,
+                onboarding_session_id=onboarding_session_id,
             )
         elif resolution.state == ConsentRequestState.VALID:
             request = resolution.request
