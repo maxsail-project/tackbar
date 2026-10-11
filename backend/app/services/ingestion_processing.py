@@ -92,6 +92,7 @@ def reprocess_ingestion(
     with _INGESTION_LOCK:
         record = history.get(ingestion_id)
         if record is None: raise ValueError(f"Ingestion not found: {ingestion_id}")
+        establish_activity_creation_provenance = record["status"] != "processed"
         record["attempts"] += 1
         record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
         record["last_error"] = None
@@ -123,6 +124,7 @@ def reprocess_ingestion(
                 consent_request_sender,
                 False,
                 attempt_started=True,
+                establish_activity_creation_provenance=establish_activity_creation_provenance,
                 session_result_sender=session_result_sender,
             )
         updated = history.get(ingestion_id)
@@ -143,6 +145,7 @@ def _attempt_record(
     consent_request_sender,
     raise_errors,
     attempt_started=False,
+    establish_activity_creation_provenance=True,
     session_result_sender=None,
 ):
     if not attempt_started:
@@ -151,6 +154,15 @@ def _attempt_record(
     try:
         if email.attachment_bytes is None or sha256(email.attachment_bytes).hexdigest() != record["attachment_sha256"]: raise ValueError("Preserved ingestion original SHA-256 mismatch")
         result = _process_known_email(record["provider"], email, sailors, boats, activities, sessions, history, track_storage, consent_events)
+        if (
+            establish_activity_creation_provenance
+            and record["activity_created_by_ingestion"] is None
+        ):
+            record["activity_created_by_ingestion"] = result.activity_created
+            record["session_result_notification_candidate"] = (
+                result.activity_created
+                and result.sailor.consent_status == ConsentStatus.ACTIVE
+            )
         record.update(status="processed", last_error=None, activity_id=result.activity.id, session_id=result.session_match.session.id)
         history.replace(record)
     except Exception as error:
@@ -170,10 +182,19 @@ def _attempt_record(
     ).attempt_for_sailor(
         result.sailor.id,
         source=f"{record['provider']}_automatic_consent_request",
-        onboarding_activity_id=result.activity.id,
-        onboarding_session_id=session.id,
+        onboarding_activity_id=(
+            result.activity.id
+            if record["activity_created_by_ingestion"] is True else None
+        ),
+        onboarding_session_id=(
+            session.id
+            if record["activity_created_by_ingestion"] is True else None
+        ),
     )
-    if result.activity_created and result.sailor.consent_status == ConsentStatus.ACTIVE:
+    if (
+        record["activity_created_by_ingestion"] is True
+        and record["session_result_notification_candidate"] is True
+    ):
         SessionResultDeliveryService(
             history, sailors, activities, sessions, sender=session_result_sender
         ).attempt_for_new_activity(record["id"])

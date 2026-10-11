@@ -177,6 +177,8 @@ def test_reprocess_recovers_onboarding_binding_after_request_persistence_interru
     session = runtime.sessions.get_by_id(interrupted["session_id"])
     assert interrupted["status"] == "processed"
     assert interrupted["last_error"] is None
+    assert interrupted["activity_created_by_ingestion"] is True
+    assert interrupted["session_result_notification_candidate"] is False
     assert activity.sailor_id == sailor.id
     assert (runtime.root / activity.track_file).is_file()
     assert session.activity_ids == [activity.id]
@@ -198,6 +200,8 @@ def test_reprocess_recovers_onboarding_binding_after_request_persistence_interru
     assert len(reconstructed) == 1
     assert reconstructed[0].activity_created is False
     assert recovered["status"] == "processed"
+    assert recovered["activity_created_by_ingestion"] is True
+    assert recovered["session_result_notification_candidate"] is False
     assert recovered["activity_id"] == activity.id
     assert recovered["session_id"] == session.id
     assert len(runtime.activities.all()) == len(runtime.sessions.all()) == 1
@@ -275,11 +279,15 @@ def test_active_new_tracks_send_once_per_activity_across_duplicates_and_reload(r
     assert message.body.count(f"{ORIGIN}/s/{first_session.capability_token}") == 2
     assert message.body.count(f"{ORIGIN}/me/{PERSONAL_TOKEN}") == 2
     original_state = runtime.history.records()[0]["session_result_notification"]
+    assert runtime.history.records()[0]["activity_created_by_ingestion"] is True
+    assert runtime.history.records()[0]["session_result_notification_candidate"] is True
     assert original_state["status"] == "sent"
     assert original_state["attempted_at"] <= original_state["sent_at"]
     assert process(runtime) is None
     duplicate = process(runtime, email("other-message"))
     assert not duplicate.activity_created
+    assert runtime.history.records()[-1]["activity_created_by_ingestion"] is False
+    assert runtime.history.records()[-1]["session_result_notification_candidate"] is False
     process_provider_email("gmail", email(), runtime.sailors, runtime.boats, runtime.activities, runtime.sessions, runtime.history)
     for record in runtime.history.records():
         reprocess(runtime, record["id"])
@@ -298,6 +306,57 @@ def test_active_new_tracks_send_once_per_activity_across_duplicates_and_reload(r
     assert second.session_match.session.id == first_session.id
     assert second.session_match.session.capability_token == first_session.capability_token
     assert len(runtime.sent) == 2
+
+
+def test_reprocess_recovers_active_notification_after_pre_state_interruption(
+    runtime, monkeypatch,
+):
+    active_sailor(runtime)
+
+    with monkeypatch.context() as patch:
+        def interrupt_before_notification_state(_service, _ingestion_id):
+            raise OSError("interrupted before notification state")
+
+        patch.setattr(
+            SessionResultDeliveryService,
+            "attempt_for_new_activity",
+            interrupt_before_notification_state,
+        )
+        with pytest.raises(OSError, match="before notification state"):
+            process(runtime)
+
+    interrupted = runtime.history.records()[0]
+    assert interrupted["status"] == "processed"
+    assert interrupted["activity_created_by_ingestion"] is True
+    assert interrupted["session_result_notification_candidate"] is True
+    assert interrupted["session_result_notification"] is None
+    assert runtime.sent == []
+
+    reconstructed = []
+    original_process = ingestion_processing._process_known_email
+    with monkeypatch.context() as patch:
+        def record_reconstructed_result(*args, **kwargs):
+            result = original_process(*args, **kwargs)
+            reconstructed.append(result)
+            return result
+
+        patch.setattr(
+            ingestion_processing,
+            "_process_known_email",
+            record_reconstructed_result,
+        )
+        recovered = reprocess(runtime, interrupted["id"])
+
+    assert len(reconstructed) == 1
+    assert reconstructed[0].activity_created is False
+    assert recovered["activity_created_by_ingestion"] is True
+    assert recovered["session_result_notification_candidate"] is True
+    assert recovered["session_result_notification"]["status"] == "sent"
+    assert len(runtime.sent) == 1
+    assert runtime.sent[0].subject == SESSION_RESULT_SUBJECT
+
+    reprocess(runtime, interrupted["id"])
+    assert len(runtime.sent) == 1
 
 
 def test_attempt_is_claimed_before_smtp_and_safe_failure_is_terminal(runtime, monkeypatch, caplog):
@@ -431,6 +490,37 @@ def test_reentry_processing_preserves_welcome_state_and_does_not_send_session_re
     assert runtime.history.records()[-1]["session_result_notification"] is None
 
 
+def test_exact_file_duplicate_does_not_bind_historical_session_to_reentry_cycle(runtime):
+    first = process(runtime)
+    sailor = activate(runtime, first.sailor.id)
+    historical_session = runtime.sessions.get_by_id(first.session_match.session.id)
+    SailorConsentService(runtime.sailors, runtime.events).revoke_consent(
+        sailor.id, "withdrawal"
+    )
+    runtime.sent.clear()
+
+    duplicate = process(runtime, email("reentry-duplicate"))
+
+    assert duplicate.activity_created is False
+    record = runtime.history.records()[-1]
+    assert record["activity_created_by_ingestion"] is False
+    assert record["session_result_notification_candidate"] is False
+    assert record["session_result_notification"] is None
+    current = requests(runtime).find_current_for_sailor(sailor.id)
+    assert current.consent_cycle_sequence == 1
+    assert current.onboarding_activity_id is None
+    assert current.onboarding_session_id is None
+    assert len(runtime.sent) == 1
+    assert runtime.sent[0].subject not in (WELCOME_EMAIL_SUBJECT, SESSION_RESULT_SUBJECT)
+
+    activate(runtime, sailor.id, "admin")
+    welcome = runtime.sent[-1]
+    assert welcome.subject == WELCOME_EMAIL_SUBJECT
+    assert "/s/" not in welcome.body
+    assert historical_session.capability_token not in welcome.body
+    assert all(message.subject != SESSION_RESULT_SUBJECT for message in runtime.sent)
+
+
 def test_repeated_mailbox_review_does_not_send_another_session_result(runtime):
     active_sailor(runtime)
     class Provider:
@@ -448,10 +538,14 @@ def test_legacy_ingestion_state_loads_without_rewriting_or_notifying(runtime):
     active_sailor(runtime)
     process(runtime)
     records = json.loads(runtime.history.path.read_text(encoding="utf-8"))
+    del records[0]["activity_created_by_ingestion"]
+    del records[0]["session_result_notification_candidate"]
     del records[0]["session_result_notification"]
     legacy = json.dumps(records).encode()
     runtime.history.path.write_bytes(legacy)
     loaded = IngestionHistory(runtime.history.path).records()[0]
+    assert loaded["activity_created_by_ingestion"] is None
+    assert loaded["session_result_notification_candidate"] is None
     assert loaded["session_result_notification"] is None
     assert runtime.history.path.read_bytes() == legacy
     runtime.sent.clear()
@@ -508,16 +602,21 @@ def test_smtp_is_not_invoked_unless_the_attempt_claim_is_persisted(runtime, monk
         if notification is not None and notification["status"] == "attempted":
             raise OSError("cannot persist delivery claim")
         return original_replace(record)
-    monkeypatch.setattr(runtime.history, "replace", fail_claim)
-    with pytest.raises(OSError, match="delivery claim"):
-        process(runtime)
+    with monkeypatch.context() as patch:
+        patch.setattr(runtime.history, "replace", fail_claim)
+        with pytest.raises(OSError, match="delivery claim"):
+            process(runtime)
     record = IngestionHistory(runtime.history.path).records()[0]
     assert record["status"] == "processed"
     assert record["last_error"] is None
     assert record["session_result_notification"]["status"] == "eligible"
     assert runtime.sent == []
+    recovered = reprocess(runtime, record["id"])
+    assert recovered["session_result_notification"]["status"] == "sent"
+    assert len(runtime.sent) == 1
+    assert runtime.sent[0].subject == SESSION_RESULT_SUBJECT
     reprocess(runtime, record["id"])
-    assert runtime.sent == []
+    assert len(runtime.sent) == 1
 
 
 def test_notification_rechecks_active_consent_after_core_processing(runtime, monkeypatch):

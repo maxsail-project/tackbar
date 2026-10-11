@@ -31,14 +31,22 @@ class SessionResultDeliveryService:
         record = self.history.get(ingestion_id)
         if record is None or record["status"] != "processed":
             raise ValueError("Session-result delivery requires processed ingestion")
-        if record["session_result_notification"] is not None:
-            return
-        if any(
-            other["activity_id"] == record["activity_id"]
-            and other["session_result_notification"] is not None
-            for other in self.history.records()
+        if (
+            record["activity_created_by_ingestion"] is not True
+            or record["session_result_notification_candidate"] is not True
         ):
             return
+        notification = record["session_result_notification"]
+        if notification is not None and notification["status"] != "eligible":
+            return
+        if notification is None:
+            if any(
+                other["id"] != record["id"]
+                and other["activity_id"] == record["activity_id"]
+                and other["session_result_notification"] is not None
+                for other in self.history.records()
+            ):
+                return
 
         activity = self.activities.get_by_id(record["activity_id"])
         session = self.sessions.get_by_id(record["session_id"])
@@ -58,12 +66,13 @@ class SessionResultDeliveryService:
         ):
             return
 
-        notification = {
-            "status": "eligible", "attempted_at": None,
-            "sent_at": None, "last_error": None,
-        }
-        record["session_result_notification"] = notification
-        self.history.replace(record)
+        if notification is None:
+            notification = {
+                "status": "eligible", "attempted_at": None,
+                "sent_at": None, "last_error": None,
+            }
+            record["session_result_notification"] = notification
+            self.history.replace(record)
         notification.update(
             status="attempted", attempted_at=datetime.now(timezone.utc).isoformat()
         )

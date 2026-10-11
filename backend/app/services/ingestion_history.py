@@ -35,13 +35,27 @@ class IngestionHistory:
     def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None) -> dict[str, Any]:
         records = self.records()
         record = {"id": str(uuid4()), "provider": provider, "provider_message_id": provider_message_id, "sender_email": sender_email, "received_at": None, "attachment_name": attachment_name, "attachment_sha256": attachment_sha256, "original_file": None, "status": "failed", "disposition": "active", "attempts": 0, "last_attempt_at": None, "last_error": None, "activity_id": None, "session_id": None}
+        record["activity_created_by_ingestion"] = None
+        record["session_result_notification_candidate"] = None
         record["session_result_notification"] = None
         records.append(record); self._write(records); return record
 
     def replace(self, replacement: dict[str, Any]) -> dict[str, Any]:
         records = self.records()
         for i, record in enumerate(records):
-            if record["id"] == replacement["id"]: records[i] = replacement; self._write(records); return replacement
+            if record["id"] == replacement["id"]:
+                previous = record["activity_created_by_ingestion"]
+                current = replacement["activity_created_by_ingestion"]
+                if previous is not None and current != previous:
+                    raise ValueError("Ingestion Activity-creation provenance is immutable")
+                previous_candidate = record["session_result_notification_candidate"]
+                current_candidate = replacement["session_result_notification_candidate"]
+                if (
+                    previous_candidate is not None
+                    and current_candidate != previous_candidate
+                ):
+                    raise ValueError("Ingestion notification provenance is immutable")
+                records[i] = replacement; self._write(records); return replacement
         raise ValueError(f"Ingestion not found: {replacement['id']}")
 
     def set_disposition(self, record_id: str, disposition: str) -> dict[str, Any]:
@@ -64,18 +78,31 @@ class IngestionHistory:
 
 
 def _canonical(item: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    activity_created = item.get("activity_created_by_ingestion")
+    if activity_created is not None and not isinstance(activity_created, bool):
+        raise ValueError("Malformed ingestion Activity-creation provenance")
+    notification_candidate = item.get("session_result_notification_candidate")
+    if notification_candidate is not None and not isinstance(notification_candidate, bool):
+        raise ValueError("Malformed ingestion notification provenance")
     notification = item.get("session_result_notification")
     _validate_notification(notification)
-    item = {key: value for key, value in item.items() if key != "session_result_notification"}
+    item = {
+        key: value for key, value in item.items()
+        if key not in (
+            "activity_created_by_ingestion",
+            "session_result_notification_candidate",
+            "session_result_notification",
+        )
+    }
     if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed"): raise ValueError("Malformed ingestion record")
     if "id" in item:
         if set(item) == FIELDS - {"disposition"}:
             item = {**item, "disposition": "active"}
-            return {**item, "session_result_notification": notification}, True
+            return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification}, True
         if set(item) != FIELDS or item.get("disposition") not in ("active", "discarded") or not isinstance(item["attempts"], int) or item["attempts"] < 0: raise ValueError("Malformed ingestion record")
-        return {**item, "session_result_notification": notification}, False
+        return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification}, False
     attempted = item.get("processed_at")
-    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "session_result_notification": notification}, True
+    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "activity_created_by_ingestion": None, "session_result_notification_candidate": None, "session_result_notification": notification}, True
 
 
 def _validate_notification(notification: object) -> None:
