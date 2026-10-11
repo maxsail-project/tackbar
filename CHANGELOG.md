@@ -2,6 +2,90 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.5 Californian — Boat Marker Orientation Hotfix (Release-ready — production validation pending)
+
+### English
+
+Keeps Session Viewer boat markers aligned with their geographic COG when the
+map is rotated.
+
+### Fixed
+
+* Primary and comparison boat-marker rotation now compensates for the current
+  MapLibre map bearing, so each bow continues to point along its geographic COG
+  instead of remaining referenced to screen north.
+* Bearing compensation uses circular normalization across 0°/360° while
+  preserving north-up orientation when the map bearing is 0°.
+* Instantaneous COG telemetry remains the actual COG. Replay time and marker
+  position, track geometry, map fitting/focus, and existing Activity and
+  Session semantics remain unchanged.
+
+### Issues
+
+- #61 — [#61] Keep boat markers aligned with COG when the map is rotated
+
+### Validation
+
+Before release preparation, Issue #61 recorded human acceptance after local
+manual validation with one and two boats and map rotation. Its accepted
+implementation evidence recorded `TrackMap.test.ts` with 30 passing tests,
+passing frontend typecheck, passing production build, and a clean
+`git diff --check`.
+
+Release preparation performed documentation consistency, completed-Issue
+traceability, bilingual release-entry and publication-body equivalence review,
+final diff and whitespace checks, and repository/remote publication-state
+verification. The implementation checks were not rerun during preparation.
+
+Production deployment and end-to-end production validation of rotated-map
+marker orientation remain pending. No tag, GitHub Release or production
+deployment is part of release preparation.
+
+---
+
+## v0.7.5 Californian — Hotfix de orientación de marcadores de barco (Lista para release — validación de producción pendiente)
+
+### Español
+
+Mantiene los marcadores de barco del Session Viewer alineados con su COG
+geográfico cuando se rota el mapa.
+
+### Corregido
+
+* La rotación de los marcadores de barco Primary y Comparison compensa ahora
+  el bearing actual del mapa MapLibre, para que cada proa siga apuntando según
+  su COG geográfico en vez de permanecer referenciada al norte de la pantalla.
+* La compensación del bearing usa normalización circular en el límite
+  0°/360° y conserva la orientación north-up cuando el bearing del mapa es 0°.
+* La telemetría COG instantánea sigue mostrando el COG real. El tiempo de
+  replay y la posición de los marcadores, la geometría de los tracks, el
+  ajuste/foco del mapa y las semánticas existentes de Activity y Session
+  permanecen sin cambios.
+
+### Issues
+
+- #61 — [#61] Keep boat markers aligned with COG when the map is rotated
+
+### Validación
+
+Antes de preparar la release, el Issue #61 registró aceptación humana después
+de la validación manual local con uno y dos barcos y rotación del mapa. Su
+evidencia de implementación aceptada registró `TrackMap.test.ts` con 30 tests
+correctos, typecheck frontend correcto, build de producción correcto y
+`git diff --check` limpio.
+
+La preparación de la release comprobó la consistencia documental, la
+trazabilidad de Issues completados, la entrada bilingüe y la equivalencia del
+cuerpo de publicación, el diff final y los espacios en blanco, y el estado del
+repositorio, del remoto y de publicación. Los checks de implementación no se
+volvieron a ejecutar durante la preparación.
+
+El despliegue en producción y la validación end-to-end en producción de la
+orientación de los marcadores con el mapa rotado siguen pendientes. La
+preparación no incluye ningún tag, GitHub Release ni despliegue a producción.
+
+---
+
 ## v0.7.4 Californian — VKX Ingestion and Canonical Quaternion Preservation (Release-ready — production validation pending)
 
 ### English
