@@ -31,7 +31,7 @@ For one explicitly requested release, the Release Preparer may:
 - reconcile release-relevant documentation according to
   `docs/workflows/release-preparation-workflow.md`;
 - create or update the requested release entry in `CHANGELOG.md`;
-- prepare the release name, immutable tag proposal and GitHub Release notes;
+- prepare the release name, immutable tag proposal and GitHub Release body;
 - run proportionate release-preparation validation;
 - stage only exact intended release-preparation files;
 - create the release-preparation commit;

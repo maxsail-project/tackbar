@@ -102,18 +102,24 @@ Before any publication action, verify all of the following:
 8. Current remote `main` exactly matches the prepared release commit recorded by
    the completed release-preparation process.
 
-9. `CHANGELOG.md` contains the requested release version and release entry.
+9. `CHANGELOG.md` at the prepared commit contains the requested release version
+   and complete bilingual release entry.
 
-10. The release entry is consistent with the completed preparation record.
+10. The prepared GitHub Release body is identical to that complete
+    `CHANGELOG.md` release entry, excluding only the terminal `---` used to
+    separate adjacent changelog releases.
 
-11. The requested version tag does not exist locally or remotely.
+11. The publication body contains both language blocks, Issue traceability and
+    Validation / Validación exactly as prepared in `CHANGELOG.md`.
 
-12. The corresponding GitHub Release does not exist.
+12. The requested version tag does not exist locally or remotely.
 
-13. No repository evidence indicates that the prepared candidate has been
+13. The corresponding GitHub Release does not exist.
+
+14. No repository evidence indicates that the prepared candidate has been
     superseded by later changes.
 
-14. Production deployment is not assumed to have occurred merely because the
+15. Production deployment is not assumed to have occurred merely because the
     release is ready for publication.
 
 Complete all precondition checks before creating any publication artifact.
