@@ -121,6 +121,13 @@ export function shouldRefitForContextChange(
   return previousFitContextKey !== fitContextKey
 }
 
+export function trackFitOptions(mapBearing: number) {
+  return {
+    ...FIT_OPTIONS,
+    bearing: mapBearing,
+  }
+}
+
 export function currentVisibleTrackBounds(
   primaryBounds: TrackBounds | null,
   comparisonBounds: TrackBounds | null,
@@ -330,7 +337,10 @@ export default function TrackMap({
     if (!mapRef.current || !windowFocus) return
 
     if (combinedBounds) {
-      mapRef.current.fitBounds(combinedBounds, FIT_OPTIONS)
+      mapRef.current.fitBounds(
+        combinedBounds,
+        trackFitOptions(mapRef.current.getBearing()),
+      )
       return
     }
 

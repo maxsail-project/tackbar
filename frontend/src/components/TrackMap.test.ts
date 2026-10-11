@@ -11,6 +11,7 @@ import {
   maneuverFocusCameraOptions,
   resolveMapFocusPosition,
   shouldRefitForContextChange,
+  trackFitOptions,
 } from './TrackMap'
 
 function renderTelemetry(hasComparison: boolean) {
@@ -139,6 +140,17 @@ describe('map viewport fitting', () => {
     expect(shouldRefitForContextChange(fullWindow, narrowWindow)).toBe(true)
     expect(shouldRefitForContextChange(narrowWindow, fullWindow)).toBe(true)
   })
+
+  it.each([0, 120])(
+    'preserves map bearing %s while retaining fit padding and duration',
+    (mapBearing) => {
+      expect(trackFitOptions(mapBearing)).toEqual({
+        padding: { top: 42, right: 42, bottom: 106, left: 42 },
+        duration: 0,
+        bearing: mapBearing,
+      })
+    },
+  )
 
   it('fits Primary bounds alone or combined current-window bounds', () => {
     const primaryBounds: TrackBounds = [[-30.73, 0.25], [-30.71, 0.27]]
