@@ -2,6 +2,126 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.4 Californian — VKX Ingestion and Canonical Quaternion Preservation (Release-ready — production validation pending)
+
+### English
+
+Adds Vakaros VKX as a supported track format while preserving richer
+orientation telemetry in TackBar's provider-independent canonical track.
+
+### Added
+
+* Vakaros `.vkx` and gzip-wrapped `.vkx.gz` attachments are accepted through
+  the existing OVH and maintained Gmail acquisition paths, then continue
+  through the common ingestion, Activity and Session flow.
+* The VKX v1.4 parser normalizes timestamp, position, SOG and circular COG and
+  preserves the raw orientation quaternion as optional canonical `quat_w`,
+  `quat_x`, `quat_y` and `quat_z` fields.
+* Vakaros CSV exports may provide the same optional quaternion fields through
+  `q_w`, `q_x`, `q_y` and `q_z`; the existing CSV/CSV.GZ form without them
+  remains supported.
+* When VKX device configuration unambiguously asserts that the device is fixed
+  to the body frame, canonical HDG, HEEL and TRIM are derived from the
+  normalized true-NED quaternion without using COG as a heading substitute.
+
+### Changed
+
+* Newly persisted canonical tracks use the expanded fourteen-column schema.
+  Historical ten-column tracks remain readable without migration and expose
+  unavailable quaternion values in memory.
+* Vakaros parser dispatch and Activity reprocessing now recognize CSV,
+  CSV.GZ, VKX and VKX.GZ while retaining Activity source `vakaros` and current
+  raw-file SHA-256 duplicate behavior.
+* The public Activity Track API and Session Viewer response shape remain
+  unchanged; quaternion fields are not exposed by this increment.
+
+### Issues
+
+- #33 — [#33] VKX ingestion and canonical quaternion preservation
+
+### Validation
+
+Before release preparation, Issue #33 recorded accepted focused validation for
+VKX parsing/orientation (36 tests), maneuver analytics (17 tests), the focused
+parser/persistence/analytics group (134 tests), and the ingestion/provider/API
+group (144 tests). It also recorded a clean `git diff --check`, technical and
+human acceptance, and successful private real-sailing VKX v1.4 validation
+without committing private sailing data.
+
+Release preparation performed documentation consistency, completed-Issue
+traceability, bilingual release-entry review, final diff and whitespace
+checks. The complete product regression suite was not rerun during preparation.
+
+Cross-format logical deduplication, FIT and GPX ingestion, Garmin Connect,
+public quaternion API/Viewer exposure and new quaternion analytics remain out
+of scope. Live production email ingestion and end-to-end production validation
+of VKX/VKX.GZ remain pending. No tag, GitHub Release or production deployment
+is part of release preparation.
+
+---
+
+## v0.7.4 Californian — Ingesta VKX y conservación del cuaternión canónico (Lista para release — validación de producción pendiente)
+
+### Español
+
+Añade Vakaros VKX como formato de track soportado y conserva telemetría de
+orientación más rica en el track canónico de TackBar independiente del
+proveedor.
+
+### Añadido
+
+* Los adjuntos Vakaros `.vkx` y `.vkx.gz` comprimidos con gzip se aceptan a
+  través de las rutas existentes de adquisición OVH y Gmail mantenida, y
+  continúan por el flujo común de ingesta, Activity y Session.
+* El parser VKX v1.4 normaliza timestamp, posición, SOG y COG circular, y
+  conserva el cuaternión de orientación original en los campos canónicos
+  opcionales `quat_w`, `quat_x`, `quat_y` y `quat_z`.
+* Los exports Vakaros CSV pueden aportar los mismos campos opcionales de
+  cuaternión mediante `q_w`, `q_x`, `q_y` y `q_z`; el formato CSV/CSV.GZ
+  existente sin ellos continúa soportado.
+* Cuando la configuración del dispositivo VKX afirma inequívocamente que está
+  fijado al marco del barco, HDG, HEEL y TRIM canónicos se derivan del
+  cuaternión true-NED normalizado sin usar COG como sustituto del heading.
+
+### Cambiado
+
+* Los nuevos tracks canónicos persistidos usan el esquema ampliado de catorce
+  columnas. Los tracks históricos de diez columnas siguen siendo legibles sin
+  migración y exponen valores de cuaternión no disponibles en memoria.
+* El dispatch del parser Vakaros y el reproceso de Activities reconocen ahora
+  CSV, CSV.GZ, VKX y VKX.GZ, conservando el source `vakaros` de Activity y el
+  comportamiento actual de duplicados por SHA-256 del fichero original.
+* La API pública de Track de Activity y el formato de respuesta del Session
+  Viewer permanecen sin cambios; este incremento no expone los campos de
+  cuaternión.
+
+### Issues
+
+- #33 — [#33] VKX ingestion and canonical quaternion preservation
+
+### Validación
+
+Antes de preparar la release, el Issue #33 registró validación focalizada
+aceptada para parsing/orientación VKX (36 tests), analítica de maniobras (17
+tests), el grupo focalizado de parser/persistencia/analítica (134 tests) y el
+grupo de ingesta/proveedor/API (144 tests). También registró un
+`git diff --check` limpio, aceptación técnica y humana, y validación correcta
+con un VKX v1.4 real y privado sin incorporar datos privados de navegación al
+repositorio.
+
+La preparación de la release comprobó la consistencia documental, la
+trazabilidad de Issues completados, la entrada bilingüe, el diff final y los
+espacios en blanco. La suite completa de regresión del producto no se volvió a
+ejecutar durante la preparación.
+
+La deduplicación lógica entre formatos, la ingesta FIT y GPX, Garmin Connect,
+la exposición pública del cuaternión en API/Viewer y nuevas analíticas de
+cuaternión permanecen fuera de alcance. La ingesta real por email y la
+validación end-to-end en producción de VKX/VKX.GZ siguen pendientes. La
+preparación no incluye ningún tag, GitHub Release ni despliegue a producción.
+
+---
+
 ## v0.7.3 Californian — Return to Session (Release-ready — production validation pending)
 
 ### English
