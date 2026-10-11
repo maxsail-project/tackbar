@@ -4,7 +4,7 @@ from hashlib import sha256
 from threading import Lock
 from typing import Callable
 
-from app.models import ConsentStatus, InboundEmail, Sailor, StoredActivity
+from app.models import ConsentEventType, ConsentStatus, InboundEmail, Sailor, StoredActivity
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.consent_events import ConsentEventRepository
@@ -181,25 +181,33 @@ def _attempt_record(
         if raise_errors or not isinstance(error, (ValueError, OSError, EOFError, FileNotFoundError)): raise
         return None
     # Core ingestion is authoritative before capability handling or outbound mail.
-    session = SessionCapabilityService(sessions, activities, sailors).ensure_for_session(
-        result.session_match.session.id
-    )
-    result.session_match.session = session
-    _automatic_consent_requests(
+    automatic_consent = _automatic_consent_requests(
         sailors,
         sessions,
         consent_events,
         consent_request_sender,
-    ).attempt_for_sailor(
+    )
+    onboarding_reservation = _pending_onboarding_reservation(
+        record,
+        result,
+        history,
+        automatic_consent.requests,
+        establish_activity_creation_provenance,
+    )
+    session = SessionCapabilityService(sessions, activities, sailors).ensure_for_session(
+        result.session_match.session.id
+    )
+    result.session_match.session = session
+    automatic_consent.attempt_for_sailor(
         result.sailor.id,
         source=f"{record['provider']}_automatic_consent_request",
         onboarding_activity_id=(
-            result.activity.id
-            if record["activity_created_by_ingestion"] is True else None
+            onboarding_reservation["activity_id"]
+            if onboarding_reservation is not None else None
         ),
         onboarding_session_id=(
-            session.id
-            if record["activity_created_by_ingestion"] is True else None
+            onboarding_reservation["session_id"]
+            if onboarding_reservation is not None else None
         ),
     )
     if (
@@ -217,6 +225,43 @@ def _safe_error(error: Exception) -> str:
         message = str(error).replace("\\", "/")
         return message.rsplit("/", 1)[-1][:300]
     return "Unexpected ingestion processing error"
+
+
+def _pending_onboarding_reservation(
+    record: dict,
+    result: IngestionProcessingResult,
+    history: IngestionHistory,
+    requests: ConsentRequestService,
+    allow_creation: bool,
+) -> dict | None:
+    if result.sailor.consent_status != ConsentStatus.PENDING:
+        return None
+    cycle_sequence = sum(
+        event.event_type == ConsentEventType.CONSENT_CYCLE_STARTED
+        for event in requests.events.for_sailor(result.sailor.id)
+    )
+    existing = history.find_pending_onboarding_reservation(
+        result.sailor.id,
+        cycle_sequence,
+    )
+    if existing is not None:
+        return existing
+    if (
+        not allow_creation
+        or record["activity_created_by_ingestion"] is not True
+        or result.sailor.consent_request_sent_at is not None
+        or requests.find_current_for_sailor(result.sailor.id) is not None
+    ):
+        return None
+    reservation = {
+        "sailor_id": result.sailor.id,
+        "consent_cycle_sequence": cycle_sequence,
+        "activity_id": result.activity.id,
+        "session_id": result.session_match.session.id,
+    }
+    record["pending_onboarding_reservation"] = reservation
+    history.replace(record)
+    return reservation
 
 
 def _automatic_consent_requests(

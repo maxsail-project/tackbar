@@ -233,6 +233,74 @@ def test_reprocess_recovers_onboarding_binding_after_request_persistence_interru
     assert all(record["session_result_notification"] is None for record in runtime.history.records())
 
 
+def test_first_pending_reservation_survives_request_persistence_failure(
+    runtime, monkeypatch,
+):
+    sailor, _ = runtime.sailors.find_or_create_by_email("sailor@example.test")
+
+    with monkeypatch.context() as patch:
+        def interrupt_request_persistence(_repository, _request):
+            raise OSError("interrupted before consent request persistence")
+
+        patch.setattr(ConsentRequestRepository, "add", interrupt_request_persistence)
+        with pytest.raises(OSError, match="before consent request persistence"):
+            process(runtime, email("first-reserved", "05"))
+
+    first_record = runtime.history.records()[0]
+    first_activity = runtime.activities.get_by_id(first_record["activity_id"])
+    first_session = runtime.sessions.get_by_id(first_record["session_id"])
+    reservation = first_record["pending_onboarding_reservation"]
+    assert first_record["status"] == "processed"
+    assert reservation == {
+        "sailor_id": sailor.id,
+        "consent_cycle_sequence": 0,
+        "activity_id": first_activity.id,
+        "session_id": first_session.id,
+    }
+    assert runtime.requests.all() == []
+    assert runtime.sent == []
+
+    runtime.history = IngestionHistory(runtime.history.path)
+    second = process(runtime, email("second-after-interruption", "06"))
+
+    assert second.activity.id != first_activity.id
+    assert second.session_match.session.id != first_session.id
+    assert len(runtime.activities.all()) == 2
+    assert len(runtime.sessions.all()) == 2
+    request = runtime.requests.all()[0]
+    assert request.onboarding_activity_id == first_activity.id
+    assert request.onboarding_session_id == first_session.id
+    reservations = [
+        record["pending_onboarding_reservation"]
+        for record in runtime.history.records()
+        if record["pending_onboarding_reservation"] is not None
+    ]
+    assert reservations == [reservation]
+
+    changed = runtime.history.get(first_record["id"])
+    changed["pending_onboarding_reservation"] = {
+        **reservation,
+        "activity_id": second.activity.id,
+        "session_id": second.session_match.session.id,
+    }
+    with pytest.raises(ValueError, match="reservation is immutable"):
+        runtime.history.replace(changed)
+
+    activated = activate(runtime, sailor.id, "web")
+    activated_first_session = runtime.sessions.get_by_id(first_session.id)
+    activated_second_session = runtime.sessions.get_by_id(second.session_match.session.id)
+    welcome = runtime.sent[-1]
+    assert welcome.subject == WELCOME_EMAIL_SUBJECT
+    assert welcome.body.count(
+        f"{ORIGIN}/s/{activated_first_session.capability_token}"
+    ) == 2
+    assert activated_second_session.capability_token not in welcome.body
+    assert welcome.body.count(
+        f"{ORIGIN}/me/{activated.personal_capability_token}"
+    ) == 2
+    assert all(message.subject != SESSION_RESULT_SUBJECT for message in runtime.sent)
+
+
 def test_pending_reprocess_recovers_onboarding_after_track_persistence_failure(
     runtime, monkeypatch,
 ):
@@ -634,12 +702,14 @@ def test_legacy_ingestion_state_loads_without_rewriting_or_notifying(runtime):
     del records[0]["activity_created_by_ingestion"]
     del records[0]["session_result_notification_candidate"]
     del records[0]["session_result_notification"]
+    del records[0]["pending_onboarding_reservation"]
     legacy = json.dumps(records).encode()
     runtime.history.path.write_bytes(legacy)
     loaded = IngestionHistory(runtime.history.path).records()[0]
     assert loaded["activity_created_by_ingestion"] is None
     assert loaded["session_result_notification_candidate"] is None
     assert loaded["session_result_notification"] is None
+    assert loaded["pending_onboarding_reservation"] is None
     assert runtime.history.path.read_bytes() == legacy
     runtime.sent.clear()
     reprocess(runtime, loaded["id"])

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from app.identity import require_uuid
 from app.runtime_paths import PUBLIC_TEST_DATA_ROOT, runtime_paths
 
 DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
@@ -16,9 +17,19 @@ class IngestionHistory:
 
     def records(self) -> list[dict[str, Any]]:
         if not self.path.exists(): return []
-        records, changed = [], False
+        records, reservations, changed = [], set(), False
         for item in self._read(self.path):
-            canonical, migrated = _canonical(item); records.append(canonical); changed |= migrated
+            canonical, migrated = _canonical(item)
+            reservation = canonical["pending_onboarding_reservation"]
+            if reservation is not None:
+                key = (
+                    reservation["sailor_id"],
+                    reservation["consent_cycle_sequence"],
+                )
+                if key in reservations:
+                    raise ValueError("Consent cycle has multiple onboarding reservations")
+                reservations.add(key)
+            records.append(canonical); changed |= migrated
         if changed: self._write(records)
         return records
 
@@ -32,12 +43,26 @@ class IngestionHistory:
         record = self.find_provider_message(provider, provider_message_id)
         return record is not None and record["status"] == "processed"
 
+    def find_pending_onboarding_reservation(
+        self,
+        sailor_id: str,
+        consent_cycle_sequence: int,
+    ) -> dict[str, Any] | None:
+        return next((
+            record["pending_onboarding_reservation"]
+            for record in self.records()
+            if record["pending_onboarding_reservation"] is not None
+            and record["pending_onboarding_reservation"]["sailor_id"] == sailor_id
+            and record["pending_onboarding_reservation"]["consent_cycle_sequence"] == consent_cycle_sequence
+        ), None)
+
     def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None) -> dict[str, Any]:
         records = self.records()
         record = {"id": str(uuid4()), "provider": provider, "provider_message_id": provider_message_id, "sender_email": sender_email, "received_at": None, "attachment_name": attachment_name, "attachment_sha256": attachment_sha256, "original_file": None, "status": "failed", "disposition": "active", "attempts": 0, "last_attempt_at": None, "last_error": None, "activity_id": None, "session_id": None}
         record["activity_created_by_ingestion"] = None
         record["session_result_notification_candidate"] = None
         record["session_result_notification"] = None
+        record["pending_onboarding_reservation"] = None
         records.append(record); self._write(records); return record
 
     def replace(self, replacement: dict[str, Any]) -> dict[str, Any]:
@@ -55,6 +80,29 @@ class IngestionHistory:
                     and current_candidate != previous_candidate
                 ):
                     raise ValueError("Ingestion notification provenance is immutable")
+                previous_reservation = record["pending_onboarding_reservation"]
+                current_reservation = replacement["pending_onboarding_reservation"]
+                _validate_onboarding_reservation(current_reservation)
+                if (
+                    previous_reservation is not None
+                    and current_reservation != previous_reservation
+                ):
+                    raise ValueError("Pending onboarding reservation is immutable")
+                if current_reservation is not None and previous_reservation is None:
+                    key = (
+                        current_reservation["sailor_id"],
+                        current_reservation["consent_cycle_sequence"],
+                    )
+                    if any(
+                        other["id"] != replacement["id"]
+                        and other["pending_onboarding_reservation"] is not None
+                        and (
+                            other["pending_onboarding_reservation"]["sailor_id"],
+                            other["pending_onboarding_reservation"]["consent_cycle_sequence"],
+                        ) == key
+                        for other in records
+                    ):
+                        raise ValueError("Consent cycle already has an onboarding reservation")
                 records[i] = replacement; self._write(records); return replacement
         raise ValueError(f"Ingestion not found: {replacement['id']}")
 
@@ -86,23 +134,47 @@ def _canonical(item: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         raise ValueError("Malformed ingestion notification provenance")
     notification = item.get("session_result_notification")
     _validate_notification(notification)
+    onboarding_reservation = item.get("pending_onboarding_reservation")
+    _validate_onboarding_reservation(onboarding_reservation)
     item = {
         key: value for key, value in item.items()
         if key not in (
             "activity_created_by_ingestion",
             "session_result_notification_candidate",
             "session_result_notification",
+            "pending_onboarding_reservation",
         )
     }
     if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed"): raise ValueError("Malformed ingestion record")
     if "id" in item:
         if set(item) == FIELDS - {"disposition"}:
             item = {**item, "disposition": "active"}
-            return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification}, True
+            return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}, True
         if set(item) != FIELDS or item.get("disposition") not in ("active", "discarded") or not isinstance(item["attempts"], int) or item["attempts"] < 0: raise ValueError("Malformed ingestion record")
-        return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification}, False
+        return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}, False
     attempted = item.get("processed_at")
-    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "activity_created_by_ingestion": None, "session_result_notification_candidate": None, "session_result_notification": notification}, True
+    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "activity_created_by_ingestion": None, "session_result_notification_candidate": None, "session_result_notification": notification, "pending_onboarding_reservation": None}, True
+
+
+def _validate_onboarding_reservation(reservation: object) -> None:
+    if reservation is None:
+        return
+    if (
+        not isinstance(reservation, dict)
+        or set(reservation) != {
+            "sailor_id",
+            "consent_cycle_sequence",
+            "activity_id",
+            "session_id",
+        }
+        or isinstance(reservation["consent_cycle_sequence"], bool)
+        or not isinstance(reservation["consent_cycle_sequence"], int)
+        or reservation["consent_cycle_sequence"] < 0
+    ):
+        raise ValueError("Malformed pending onboarding reservation")
+    require_uuid(reservation["sailor_id"], "Onboarding reservation Sailor")
+    require_uuid(reservation["activity_id"], "Onboarding reservation Activity")
+    require_uuid(reservation["session_id"], "Onboarding reservation Session")
 
 
 def _validate_notification(notification: object) -> None:
