@@ -300,6 +300,10 @@ When reconciling pending and delivered work, agents should:
 If it is unclear whether something is a valid Issue, report it instead of
 creating or changing one automatically.
 
+An Issue closed as `completed` represents accepted delivered work. Any required
+implementation review and validation are considered complete, so release
+preparation may include it without requiring a second functional approval.
+
 ### Promoted Issue completeness
 
 A promoted GitHub Issue is the primary scope definition for its increment.
