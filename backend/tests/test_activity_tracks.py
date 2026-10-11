@@ -1,5 +1,7 @@
 import gzip
+import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pandas as pd
@@ -16,8 +18,8 @@ from app.repositories.sessions import SessionRepository
 from app.services.activity_reprocessing import reprocess_activity
 from app.services.activity_tracks import persist_activity_track
 from app.services.maneuver_analytics import (
+    MANEUVER_ALGORITHM_VERSION,
     generate_maneuver_analytics,
-    get_or_generate_maneuver_analytics,
 )
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
@@ -72,6 +74,41 @@ def test_new_activity_receives_track_file_and_archived_original(
     ).read_bytes() == original_bytes
     record = json.loads(repository.path.read_text(encoding="utf-8"))[0]
     assert record["track_file"] == persisted.track_file
+    artifact = ManeuverAnalyticsStorage(temporary_directory).read(activity_id)
+    assert artifact["activity_id"] == activity_id
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION
+    assert artifact["track_sha256"] == hashlib.sha256(
+        storage.track_path(activity_id).read_bytes()
+    ).hexdigest()
+
+
+def test_new_activity_without_hdg_receives_unavailable_maneuver_artifact(
+    temporary_directory: Path,
+) -> None:
+    repository, storage, original_bytes, activity_id = _create_activity(
+        temporary_directory
+    )
+    parsed = parse_vakaros_csv(FIXTURE_PATH)
+    parsed_without_hdg = replace(
+        parsed,
+        samples=[{**sample, "hdg": None} for sample in parsed.samples],
+    )
+    stored = repository.get_by_id(activity_id)
+    assert stored is not None
+
+    persisted = persist_activity_track(
+        stored,
+        parsed_without_hdg,
+        original_bytes,
+        repository,
+        storage,
+    )
+
+    artifact = ManeuverAnalyticsStorage(temporary_directory).read(activity_id)
+    assert persisted.id == activity_id
+    assert artifact["status"] == "unavailable"
+    assert artifact["reason"] == "missing_hdg"
+    assert artifact["maneuvers"] == []
 
 
 def test_existing_activity_without_track_file_is_enriched_without_duplicate(
@@ -133,7 +170,6 @@ def test_reprocessing_restores_deleted_track_without_changing_identity_or_sessio
         "maneuvers": [],
     }
     analytics.write(activity_id, stale_artifact)
-    artifact_before = analytics.artifact_path(activity_id).read_bytes()
     expected_track = pd.read_csv(track_path, compression="gzip")
     identity = (
         initial.id,
@@ -161,7 +197,11 @@ def test_reprocessing_restores_deleted_track_without_changing_identity_or_sessio
     assert len(repository.all()) == 1
     assert sessions.all() == [session]
     assert sessions.all()[0].activity_ids == [activity_id]
-    assert analytics.artifact_path(activity_id).read_bytes() == artifact_before
+    refreshed_artifact = analytics.read(activity_id)
+    assert refreshed_artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION
+    assert refreshed_artifact["track_sha256"] == hashlib.sha256(
+        track_path.read_bytes()
+    ).hexdigest()
 
 
 def test_reprocessing_restores_track_from_archived_uncompressed_csv(
@@ -214,7 +254,7 @@ def test_reprocessing_restores_track_from_archived_uncompressed_csv(
     assert len(repository.all()) == 1
 
 
-def test_reprocessed_track_lazily_regenerates_stale_maneuver_analytics(
+def test_reprocessed_track_eagerly_regenerates_maneuver_analytics(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -249,16 +289,12 @@ def test_reprocessed_track_lazily_regenerates_stale_maneuver_analytics(
     )
 
     reprocess_activity(activity_id, repository, storage)
-    assert analytics.read(activity_id) == stale
-
-    refreshed = get_or_generate_maneuver_analytics(
-        activity_id,
-        storage,
-        analytics,
-    )
+    refreshed = analytics.read(activity_id)
 
     assert refreshed["track_sha256"] != stale["track_sha256"]
-    assert analytics.read(activity_id) == refreshed
+    assert refreshed["track_sha256"] == hashlib.sha256(
+        storage.track_path(activity_id).read_bytes()
+    ).hexdigest()
 
 
 def test_reprocessing_reports_unknown_activity(

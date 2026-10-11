@@ -5,6 +5,8 @@ from app.repositories.activities import (
     ActivityRepository,
     calculate_attachment_sha256,
 )
+from app.services.maneuver_analytics import generate_maneuver_analytics
+from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
 
 
@@ -42,11 +44,17 @@ def reprocess_activity(
         stored_activity.id,
         normalized_track,
     )
-    return activities.refresh_track_metadata(
+    stored_activity = activities.refresh_track_metadata(
         stored_activity.id,
         parsed_activity,
         track_file,
     )
+    generate_maneuver_analytics(
+        stored_activity.id,
+        storage,
+        ManeuverAnalyticsStorage(storage.data_root),
+    )
+    return stored_activity
 
 
 def _parse_original(
