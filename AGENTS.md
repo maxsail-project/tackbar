@@ -304,6 +304,28 @@ creating or changing one automatically.
 
 A promoted GitHub Issue is the primary scope definition for its increment.
 
+A promoted Issue defines the explicitly approved delta over the delivered and
+documented baseline.
+
+Applicable requirements and decisions remain authoritative for all behavior that
+the promoted Issue does not explicitly change. A promoted Issue MAY
+intentionally evolve previously delivered or documented behavior when that
+change is stated clearly and unambiguously in the Issue.
+
+Such an explicit promoted delta does not require the historical requirements or
+decision documents to be rewritten before implementation. Those documents remain
+valid evidence of the behavior and decisions delivered at that point in the
+product's history.
+
+Implementation documentation MAY be updated later when explicitly requested,
+for example during release preparation or another documentation task. Lack of a
+documentation update alone MUST NOT block implementation of an otherwise
+complete and explicitly promoted Issue.
+
+If it is unclear whether the promoted Issue intentionally changes an existing
+requirement or decision, the agent MUST stop before implementation and report
+the ambiguity rather than infer an override.
+
 Before implementation, the coding agent MUST reconcile the promoted Issue with
 `AGENTS.md`, the applicable requirements and decisions, and the existing
 implementation.
