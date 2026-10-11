@@ -1,9 +1,11 @@
 import gzip
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Callable
 
+import pandas as pd
 import pytest
 
 from app.models import ConsentStatus, InboundEmail
@@ -20,6 +22,11 @@ from app.services.ingestion_processing import (
     process_provider_email,
     reprocess_ingestion,
 )
+from app.services.maneuver_analytics import (
+    MANEUVER_ALGORITHM_VERSION,
+    get_or_generate_maneuver_analytics,
+)
+from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
 
 
@@ -168,8 +175,98 @@ def test_provider_and_message_id_deduplicate_ingestion(
         / first.activity.original_filename
     )
     assert archived_original.read_bytes() == email.attachment_bytes
+    analytics = ManeuverAnalyticsStorage(activities.path.parent)
+    artifact = analytics.read(first.activity.id)
+    assert artifact["activity_id"] == first.activity.id
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION
+    assert artifact["track_sha256"] == hashlib.sha256(
+        TrackStorage(activities.path.parent)
+        .track_path(first.activity.id)
+        .read_bytes()
+    ).hexdigest()
     assert second is None
     assert history.records()[0]["disposition"] == "active"
+
+
+def test_eager_analytics_failure_preserves_ingestion_and_lazy_recovers(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+
+    def fail_generation(*_args, **_kwargs):
+        raise RuntimeError("derived analytics failed")
+
+    monkeypatch.setattr(
+        "app.services.ingestion_processing.get_or_generate_maneuver_analytics",
+        fail_generation,
+    )
+
+    result = process_provider_email(
+        "gmail",
+        _email(FIXTURE_PATH.read_bytes()),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    assert result.activity.track_file is not None
+    assert TrackStorage(activities.path.parent).track_path(
+        result.activity.id
+    ).exists()
+    assert result.activity.id in result.session_match.session.activity_ids
+    assert sessions.get_by_id(result.session_match.session.id) is not None
+    record = history.records()[0]
+    assert record["status"] == "processed"
+    assert record["last_error"] is None
+    analytics = ManeuverAnalyticsStorage(activities.path.parent)
+    assert not analytics.artifact_path(result.activity.id).exists()
+
+    recovered = get_or_generate_maneuver_analytics(
+        result.activity.id,
+        TrackStorage(activities.path.parent),
+        analytics,
+    )
+
+    assert recovered["activity_id"] == result.activity.id
+    assert analytics.read(result.activity.id) == recovered
+
+
+def test_eager_analytics_persists_unavailable_artifact_without_hdg(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    frame = pd.read_csv(FIXTURE_PATH, compression="gzip")
+    frame["hdg_true"] = None
+    attachment_bytes = gzip.compress(
+        frame.to_csv(index=False).encode("utf-8")
+    )
+
+    result = process_provider_email(
+        "gmail",
+        _email(attachment_bytes),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    assert history.records()[0]["status"] == "processed"
+    artifact = ManeuverAnalyticsStorage(activities.path.parent).read(
+        result.activity.id
+    )
+    assert artifact["status"] == "unavailable"
+    assert artifact["reason"] == "missing_hdg"
+    assert artifact["maneuvers"] == []
 
 
 def test_arbitrary_subject_preserves_downstream_activity_and_session_flow(

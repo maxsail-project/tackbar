@@ -1,3 +1,5 @@
+import logging
+
 from app.models import Activity, StoredActivity
 from app.normalization.track_normalizer import normalize_track
 from app.parsers.vakaros import parse_vakaros_attachment
@@ -8,6 +10,9 @@ from app.repositories.activities import (
 from app.services.maneuver_analytics import generate_maneuver_analytics
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
+
+
+logger = logging.getLogger(__name__)
 
 
 def reprocess_activity(
@@ -49,12 +54,25 @@ def reprocess_activity(
         parsed_activity,
         track_file,
     )
-    generate_maneuver_analytics(
-        stored_activity.id,
-        storage,
-        ManeuverAnalyticsStorage(storage.data_root),
-    )
+    _attempt_maneuver_analytics_generation(stored_activity.id, storage)
     return stored_activity
+
+
+def _attempt_maneuver_analytics_generation(
+    activity_id: str,
+    storage: TrackStorage,
+) -> None:
+    try:
+        generate_maneuver_analytics(
+            activity_id,
+            storage,
+            ManeuverAnalyticsStorage(storage.data_root),
+        )
+    except Exception:
+        logger.warning(
+            "Eager maneuver analytics generation failed for Activity %s",
+            activity_id,
+        )
 
 
 def _parse_original(

@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -16,15 +17,18 @@ from app.services.automatic_consent_requests import AutomaticConsentRequestServi
 from app.services.consent_requests import ConsentRequestService
 from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
+from app.services.maneuver_analytics import get_or_generate_maneuver_analytics
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
 from app.services.sailor_consent import SailorConsentService
 from app.services.session_capabilities import SessionCapabilityService
 from app.services.session_result_delivery import SessionResultDeliveryService
 from app.storage.track_storage import TrackStorage
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
+from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 
 
 _INGESTION_LOCK = Lock()
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -354,6 +358,7 @@ def _process_known_email(
         activities,
         sessions,
     )
+    _attempt_maneuver_analytics_generation(stored_activity.id, storage)
     return IngestionProcessingResult(
         sailor=sailor,
         sailor_created=sailor_created,
@@ -361,3 +366,20 @@ def _process_known_email(
         activity_created=created,
         session_match=session_match,
     )
+
+
+def _attempt_maneuver_analytics_generation(
+    activity_id: str,
+    storage: TrackStorage,
+) -> None:
+    try:
+        get_or_generate_maneuver_analytics(
+            activity_id,
+            storage,
+            ManeuverAnalyticsStorage(storage.data_root),
+        )
+    except Exception:
+        logger.warning(
+            "Eager maneuver analytics generation failed for Activity %s",
+            activity_id,
+        )
