@@ -2,6 +2,114 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.3 Californian — Return to Session (Release-ready — production validation pending)
+
+### English
+
+Closes the post-sailing submission loop by returning the Sailor directly to
+the relevant TackBar Session after successful track processing.
+
+### Added
+
+* For deterministic first-track onboarding, the existing Welcome email sent
+  after activation now presents the onboarding Session as the primary action
+  and Personal TackBar as the secondary persistent navigation path.
+* Each newly processed supported Activity from an already-ACTIVE Sailor now
+  receives one direct Session-result email when its existing Session and
+  Personal TackBar capabilities are usable.
+* Durable operational notification state prevents duplicate result emails
+  across repeated mailbox review, duplicate input, reprocessing and process
+  recovery, without redefining Activity, Session or ingestion identity.
+
+### Changed
+
+* Deterministic onboarding context is preserved through later PENDING tracks,
+  web acceptance, manual Admin confirmation and eligible Welcome resend. A
+  legacy or manually initiated consent cycle without that context never
+  guesses a Session.
+* Result notification remains a non-authoritative discovery channel. Delivery
+  success or failure does not change Activity processing, Session matching,
+  consent, capabilities or Viewer visibility, and Personal TackBar remains the
+  persistent fallback path.
+* Existing capability routes, ACTIVE-only visibility, consent lifecycle,
+  Session matching and OVH mailbox/outbound-mail semantics remain unchanged.
+
+### Issues
+
+- #56 — [#56] Send Session link after successful track processing
+
+### Validation
+
+Before release preparation, the validated implementation at
+`a38863f8f288a3030775411bbf020d1c053610a2` passed implementation
+review, the complete backend regression with 529 tests, manual validation and
+`git diff --check`, with a clean working tree. Release preparation reran 69
+focused backend tests covering Session-result notifications, Welcome email,
+outbound mail and Admin consent-request behavior; all passed.
+
+Live production deployment and end-to-end production validation of the
+Session-result and enriched Welcome emails remain pending. No tag, GitHub
+Release or production deployment is part of release preparation.
+
+---
+
+## v0.7.3 Californian — Regreso a la Session (Lista para release — validación de producción pendiente)
+
+### Español
+
+Cierra el ciclo posterior al envío de un track devolviendo al Sailor
+directamente a la Session relevante de TackBar después de procesarlo
+correctamente.
+
+### Añadido
+
+* En el onboarding determinista del primer track, el email de bienvenida
+  existente que se envía tras la activación presenta ahora la Session de
+  onboarding como acción principal y Personal TackBar como ruta secundaria y
+  persistente de navegación.
+* Cada nueva Activity soportada y procesada de un Sailor ya ACTIVE recibe ahora
+  un único email directo con el resultado de la Session cuando sus capabilities
+  existentes de Session y Personal TackBar son utilizables.
+* Un estado operativo persistente de notificación evita emails de resultado
+  duplicados ante revisiones repetidas del buzón, entradas duplicadas,
+  reprocesos y recuperación de procesos, sin redefinir la identidad de
+  Activity, Session ni ingesta.
+
+### Cambiado
+
+* El contexto determinista de onboarding se conserva ante tracks PENDING
+  posteriores, aceptación web, confirmación manual desde Admin y reenvíos de
+  bienvenida elegibles. Un ciclo de consentimiento legacy o iniciado
+  manualmente sin ese contexto nunca intenta adivinar una Session.
+* La notificación del resultado sigue siendo un canal de descubrimiento no
+  autoritativo. Su éxito o fallo no cambia el procesamiento de Activity, el
+  Session matching, el consentimiento, las capabilities ni la visibilidad del
+  Viewer, y Personal TackBar continúa siendo la ruta persistente alternativa.
+* Las rutas de capability existentes, la visibilidad solo para ACTIVE, el ciclo
+  de consentimiento, el Session matching y las semánticas del buzón y correo
+  saliente OVH permanecen sin cambios.
+
+### Issues
+
+- #56 — [#56] Send Session link after successful track processing
+
+### Validación
+
+Antes de preparar la release, la implementación validada en
+`a38863f8f288a3030775411bbf020d1c053610a2` superó la revisión de
+implementación, la regresión backend completa con 529 tests, la validación
+manual y `git diff --check`, con el working tree limpio. Durante la preparación
+se repitieron 69 tests backend focalizados sobre notificaciones de resultado de
+Session, email de bienvenida, correo saliente y solicitudes de consentimiento
+desde Admin; todos pasaron.
+
+El despliegue real en producción y la validación end-to-end en producción de
+los emails de resultado de Session y de bienvenida enriquecido permanecen
+pendientes. La preparación no incluye ningún tag, GitHub Release ni despliegue
+a producción.
+
+---
+
 ## v0.7.2 Californian — Pilot Operations & Reliability (Release-ready — production validation pending)
 
 ### English
