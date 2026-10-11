@@ -147,9 +147,16 @@ Use this deterministic order:
     - version;
     - release name;
     - proposed immutable tag;
-    - GitHub Release notes;
+    - GitHub Release body taken from the complete corresponding
+      `CHANGELOG.md` release entry;
     - known limitations;
     - pending production validation when applicable.
+
+    The GitHub Release body must match the complete corresponding changelog
+    entry exactly, excluding only the terminal `---` that separates this
+    release from the next historical changelog entry.
+
+    Do not generate a separate concise summary as the GitHub Release body.
 
 13. Run validation proportionate to the release preparation and report only
     checks actually executed.
@@ -190,6 +197,7 @@ Use this deterministic order:
     - previous release boundary;
     - delivered Issue traceability;
     - `CHANGELOG.md`;
+    - exact GitHub Release body / `CHANGELOG.md` correspondence;
     - any release-relevant documentation changes;
     - publication metadata;
     - preparation diff;
@@ -251,6 +259,55 @@ references.
 The current changelog is bilingual. Each newly prepared language block must be
 self-contained and include its own flat `### Issues` section while preserving
 the established release structure.
+
+## GitHub Release body
+
+The newly prepared `CHANGELOG.md` release entry is the authoritative source for
+the GitHub Release body.
+
+The Release Preparer MUST prepare the publication body from the complete
+corresponding release entry in `CHANGELOG.md`.
+
+The prepared GitHub Release body MUST preserve:
+
+- the complete English release block;
+- the complete Spanish release block;
+- the separator between the two language blocks;
+- all release-section headings;
+- Added / Changed or equivalent release sections when present;
+- the flat `### Issues` section in each language block;
+- Validation / Validación;
+- known limitations;
+- pending production validation;
+- the exact wording and Markdown structure of the prepared changelog entry.
+
+The Publisher-facing release body MUST NOT:
+
+- summarize the changelog entry;
+- shorten it;
+- rewrite it;
+- editorialize it;
+- omit one language;
+- omit Issue traceability;
+- omit validation or limitations;
+- introduce parallel release prose that can drift from `CHANGELOG.md`.
+
+The final `---` used only to separate this release from the next historical
+entry in `CHANGELOG.md` is not part of the GitHub Release body.
+
+The internal `---` separating the English and Spanish blocks IS part of the
+GitHub Release body.
+
+Before reporting `READY_FOR_PUBLICATION`, the Release Preparer MUST verify that
+the prepared GitHub Release body is identical to the corresponding complete
+`CHANGELOG.md` release entry, excluding only that terminal changelog separator.
+
+The release-preparation Issue must record either:
+
+- the exact prepared GitHub Release body; or
+- an unambiguous statement that the publication body is the complete
+  corresponding `CHANGELOG.md` entry at the preparation commit, excluding only
+  its terminal separator.
 
 ## Accepted delivery and release preparation
 

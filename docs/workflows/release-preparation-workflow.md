@@ -316,16 +316,41 @@ Prepare, but do not publish:
 - release version;
 - release name;
 - proposed immutable Git tag;
-- concise GitHub Release notes;
+- GitHub Release body;
 - known limitations;
 - pending production validation;
 - a short deployment or publication checklist when useful.
 
-Release notes should summarize the delivered product outcome rather than
-reproduce the complete changelog.
+The newly prepared `CHANGELOG.md` release entry is the authoritative source for
+the GitHub Release body.
+
+The GitHub Release body MUST be the complete corresponding bilingual release
+entry from `CHANGELOG.md`, preserving:
+
+- the English block;
+- the Spanish block;
+- the separator between those language blocks;
+- all release-section headings;
+- Issues;
+- Validation / Validación;
+- limitations;
+- pending production validation;
+- wording and Markdown structure.
+
+The terminal `---` used only to separate this release from the next historical
+entry in `CHANGELOG.md` is excluded from the GitHub Release body.
+
+The internal `---` separating the English and Spanish blocks is preserved.
+
+Do not generate a separate summary, shortened version or editorialized release
+body.
 
 Publication metadata must not introduce product claims beyond the delivered
 completed Issues and current repository evidence.
+
+Before preparation is complete, verify that the prepared GitHub Release body
+matches the corresponding `CHANGELOG.md` entry exactly except for the terminal
+changelog separator.
 
 ## 9. Prepare the release candidate
 
@@ -366,6 +391,12 @@ Verify at minimum:
 - open, duplicate, `not_planned`, pending or unrelated work is not presented as
   delivered;
 - `CHANGELOG.md` accurately describes the delivered release;
+- the prepared GitHub Release body is identical to the complete corresponding
+  `CHANGELOG.md` release entry, excluding only the terminal separator used
+  between changelog releases;
+- both English and Spanish release blocks are present in the publication body;
+- Issue traceability and Validation / Validación are present in the publication
+  body;
 - other modified release documentation is consistent;
 - validation evidence is represented accurately;
 - checks claimed as executed were actually executed;
@@ -391,6 +422,9 @@ The release reaches `READY_FOR_PUBLICATION` when all of the following are true:
 - `CHANGELOG.md` is complete;
 - completed-Issue traceability is correct;
 - publication metadata is prepared;
+- the GitHub Release body matches the complete corresponding bilingual
+  `CHANGELOG.md` release entry exactly, excluding only the terminal changelog
+  separator;
 - required release-preparation validation has passed;
 - the preparation commit is present on remote `main`;
 - the final release-preparation consistency review has passed;

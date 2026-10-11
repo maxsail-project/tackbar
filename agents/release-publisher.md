@@ -148,31 +148,43 @@ Use this deterministic order:
 8. Verify that current remote `main` exactly matches the preparation commit
    recorded for the release.
 
-9. Verify the corresponding `CHANGELOG.md` entry.
+9. Read the complete corresponding bilingual release entry from
+   `CHANGELOG.md` at that exact preparation commit.
 
-10. Verify that the version tag does not exist locally or remotely.
+10. Derive the publication body from that entry by removing only the terminal
+    `---` that separates the release from the next historical changelog entry.
 
-11. Verify that the corresponding GitHub Release does not exist.
+    Preserve the internal `---` separating the English and Spanish blocks.
 
-12. Resolve the prepared GitHub Release notes from the completed preparation
-    record and/or corresponding prepared release documentation.
+11. Verify that the publication body recorded or referenced by the completed
+    preparation process matches that derived changelog body exactly.
 
-13. Create the immutable version tag on the verified remote `main` commit.
+12. Verify that the version tag does not exist locally or remotely.
 
-14. Push only that tag to GitHub.
+13. Verify that the corresponding GitHub Release does not exist.
 
-15. Create the GitHub Release using the prepared release metadata.
+14. Create the immutable version tag on the verified remote `main` commit.
 
-    Do not invent additional release scope or product claims.
+15. Push only that tag to GitHub.
 
-16. Verify that:
+16. Create the GitHub Release using:
+
+    - the prepared release name; and
+    - the exact GitHub Release body derived and verified from `CHANGELOG.md`.
+
+    Do not summarize, shorten, rewrite, editorialize or regenerate the body.
+
+17. Verify that:
 
     - the tag exists;
     - the tag points to the intended prepared commit;
     - the GitHub Release exists;
-    - the GitHub Release uses the intended version and release name.
+    - the GitHub Release uses the intended version and release name;
+    - the published GitHub Release body matches the corresponding prepared
+      `CHANGELOG.md` entry exactly, excluding only the terminal changelog
+      separator.
 
-17. Produce the completion report.
+18. Produce the completion report.
 
 ## Publication source of truth
 
@@ -204,23 +216,48 @@ prepared candidate has changed and publication must stop.
 
 ## GitHub Release content
 
-The GitHub Release must use publication metadata already prepared for the
-release.
+The complete corresponding bilingual `CHANGELOG.md` release entry at the
+prepared release commit is the authoritative GitHub Release body.
 
-The Publisher may format the prepared release notes as needed for GitHub
-presentation, but must not:
+The Publisher MUST publish that body without rewriting it.
 
+The GitHub Release body must preserve:
+
+- the English release block;
+- the Spanish release block;
+- the internal separator between both language blocks;
+- all section headings;
+- Added / Changed or equivalent sections when present;
+- Issues;
+- Validation / Validación;
+- known limitations;
+- pending production validation;
+- exact prepared wording and Markdown structure.
+
+The only content removed when deriving the GitHub Release body is the terminal
+`---` whose sole purpose is to separate this release from the next historical
+entry inside `CHANGELOG.md`.
+
+The Publisher must not:
+
+- summarize the release entry;
+- shorten it;
+- editorialize it;
+- reformat it into different release prose;
+- omit either language;
+- omit Issue traceability;
+- omit validation;
 - add product scope;
 - reinterpret completed Issues;
 - introduce new claims;
 - remove material known limitations;
 - claim production validation that has not occurred.
 
-The GitHub Release should summarize the delivered product outcome rather than
-copy the entire repository history.
+If the prepared publication metadata differs from the corresponding changelog
+entry, publication MUST stop with `BLOCKED`.
 
-Issue traceability must remain consistent with the prepared release
-documentation.
+The Publisher must not choose between the two versions or repair the mismatch
+during publication.
 
 ## Partial publication safety
 
@@ -284,8 +321,13 @@ Stop and report `BLOCKED` when any of these conditions applies:
 - the preparation commit cannot be determined;
 - current remote `main` cannot be determined;
 - current remote `main` differs from the prepared release commit;
-- the requested `CHANGELOG.md` entry is missing, incomplete or inconsistent
-  with the preparation record;
+- the requested `CHANGELOG.md` entry is missing or incomplete;
+- the corresponding changelog entry is not bilingual according to the current
+  release convention;
+- the prepared GitHub Release body differs from the complete corresponding
+  `CHANGELOG.md` entry after excluding only the terminal changelog separator;
+- Issue traceability or Validation / Validación would be omitted from the
+  publication body;
 - publication metadata cannot be resolved from prepared repository evidence;
 - the requested tag already exists locally or remotely;
 - the corresponding GitHub Release already exists;
@@ -297,6 +339,10 @@ Prefer `BLOCKED` over guessing.
 
 Do not modify preparation state, documentation, product code or already
 published artifacts to work around a publication failure.
+
+The Publisher must not repair a CHANGELOG/publication-body mismatch during
+publication. That mismatch requires a new preparation correction before
+publication can proceed.
 
 ## Completion report
 
