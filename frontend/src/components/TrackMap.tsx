@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Map, {
   Layer,
   Marker,
@@ -86,8 +86,10 @@ const FIT_OPTIONS = {
 
 const MANEUVER_FOCUS_VERTICAL_OFFSET_RATIO = 0.125
 
-export function boatMarkerRotation(cog: number | null) {
-  return cog ?? 0
+export function boatMarkerRotation(cog: number | null, mapBearing = 0) {
+  if (cog === null) return 0
+
+  return ((cog - mapBearing) % 360 + 360) % 360
 }
 
 export function formatMapCogValue(cog: number | null) {
@@ -159,10 +161,12 @@ function BoatMarker({
   color,
   cog,
   label,
+  mapBearing,
 }: {
   color: string
   cog: number | null
   label: string
+  mapBearing: number
 }) {
   return (
     <div className="boat-marker" role="img" aria-label={label}>
@@ -171,7 +175,7 @@ function BoatMarker({
         className="boat-marker__hull"
         style={{
           color,
-          transform: `rotate(${boatMarkerRotation(cog)}deg)`,
+          transform: `rotate(${boatMarkerRotation(cog, mapBearing)}deg)`,
         }}
       />
     </div>
@@ -299,6 +303,7 @@ export default function TrackMap({
   comparisonTrim = null,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
+  const [mapBearing, setMapBearing] = useState(0)
   const fittedContextKeyRef = useRef<string | null>(null)
   const handledFocusRequestIdRef = useRef<number | null>(null)
   const primaryGeometry = useMemo(
@@ -383,6 +388,7 @@ export default function TrackMap({
         mapStyle={MAP_STYLE_URL}
         attributionControl={{ compact: true }}
         onLoad={fitTrack}
+        onRotate={(event) => setMapBearing(event.viewState.bearing)}
       >
         <NavigationControl position="top-right" />
         {primaryGeometry && (
@@ -423,6 +429,7 @@ export default function TrackMap({
               color={ACTIVITY_COLORS.primary}
               cog={primaryCog}
               label="Primary boat position"
+              mapBearing={mapBearing}
             />
           </Marker>
         )}
@@ -436,6 +443,7 @@ export default function TrackMap({
               color={ACTIVITY_COLORS.comparison}
               cog={comparisonCog}
               label="Comparison boat position"
+              mapBearing={mapBearing}
             />
           </Marker>
         )}

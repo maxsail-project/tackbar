@@ -79,6 +79,24 @@ describe('boat marker rotation', () => {
   ])('uses COG %s as the north-up marker rotation', (cog, expected) => {
     expect(boatMarkerRotation(cog)).toBe(expected)
   })
+
+  it('compensates for the current map bearing', () => {
+    expect(boatMarkerRotation(90, 30)).toBe(60)
+  })
+
+  it.each([
+    [10, 350, 20],
+    [350, 10, 340],
+  ])(
+    'normalizes COG %s with map bearing %s to rotation %s',
+    (cog, mapBearing, expected) => {
+      expect(boatMarkerRotation(cog, mapBearing)).toBe(expected)
+    },
+  )
+
+  it('keeps the existing fallback rotation when COG is unavailable', () => {
+    expect(boatMarkerRotation(null, 30)).toBe(0)
+  })
 })
 
 describe('map COG presentation', () => {
