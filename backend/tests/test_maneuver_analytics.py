@@ -1,5 +1,7 @@
 import hashlib
 import json
+import math
+import struct
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -7,6 +9,7 @@ import pytest
 
 from app.analytics.maneuver_detector import detect_maneuvers
 from app.normalization.track_normalizer import normalize_track
+from app.parsers.vakaros_vkx import parse_vakaros_vkx
 from app.services.maneuver_analytics import (
     MANEUVER_ALGORITHM_VERSION,
     generate_maneuver_analytics,
@@ -17,6 +20,8 @@ from app.storage.track_storage import TrackStorage
 
 
 ACTIVITY_ID = "4f17e0e1-4e36-4d4e-b059-a1a33fb1be2f"
+BODY_FIXED_VKX_ACTIVITY_ID = "51f08780-c8ba-43b0-923c-a6cbfd13b0f9"
+UNFIXED_VKX_ACTIVITY_ID = "a6be49b8-4177-4ce5-a7db-d1260240c386"
 
 
 def _canonical_track(activity_id: str, *, with_hdg: bool = True):
@@ -35,6 +40,95 @@ def _canonical_track(activity_id: str, *, with_hdg: bool = True):
             "hdg": heading if with_hdg else None,
         })
     return normalize_track(activity_id, samples)
+
+
+def _yaw_quaternion(heading: float) -> tuple[float, float, float, float]:
+    half_yaw = math.radians(heading) / 2
+    return math.cos(half_yaw), 0.0, 0.0, math.sin(half_yaw)
+
+
+def _maneuver_vkx(*, body_fixed: bool) -> bytes:
+    start_ms = 1_924_861_200_000
+    heading = 40.0
+    rows = [bytes([0xFF, 0x05]) + bytes(6)]
+    if body_fixed:
+        rows.append(bytes([0x08]) + struct.pack("<QIB", 0, 1, 10))
+    for index in range(35):
+        if 10 <= index < 24:
+            heading += 7.5
+        quaternion = _yaw_quaternion(heading)
+        rows.append(
+            bytes([0x02])
+            + struct.pack(
+                "<Qii7f",
+                start_ms + index * 500,
+                381_234_567,
+                -2_345_678,
+                5.0,
+                math.radians(heading),
+                0.0,
+                *quaternion,
+            )
+        )
+    return b"".join(rows)
+
+
+def _persist_vkx_track(
+    activity_id: str,
+    body_fixed: bool,
+    tracks: TrackStorage,
+) -> None:
+    activity = parse_vakaros_vkx(
+        _maneuver_vkx(body_fixed=body_fixed),
+        original_filename="Synthetic maneuver.vkx",
+    )
+    tracks.write_normalized_track(
+        activity_id,
+        normalize_track(activity_id, activity.samples),
+    )
+
+
+def test_body_fixed_vkx_uses_existing_maneuver_analytics_pipeline(
+    temporary_directory: Path,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    _persist_vkx_track(BODY_FIXED_VKX_ACTIVITY_ID, True, tracks)
+
+    track = tracks.read_normalized_track(BODY_FIXED_VKX_ACTIVITY_ID)
+    artifact = generate_maneuver_analytics(
+        BODY_FIXED_VKX_ACTIVITY_ID,
+        tracks,
+        analytics,
+    )
+
+    assert track["hdg"].notna().all()
+    assert track["heel"].notna().all()
+    assert track["trim"].notna().all()
+    assert artifact["status"] == "available"
+    assert len(artifact["maneuvers"]) == 1
+
+
+def test_vkx_without_body_frame_evidence_keeps_analytics_unavailable(
+    temporary_directory: Path,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    _persist_vkx_track(UNFIXED_VKX_ACTIVITY_ID, False, tracks)
+
+    track = tracks.read_normalized_track(UNFIXED_VKX_ACTIVITY_ID)
+    artifact = generate_maneuver_analytics(
+        UNFIXED_VKX_ACTIVITY_ID,
+        tracks,
+        analytics,
+    )
+
+    assert track["hdg"].isna().all()
+    assert track["heel"].isna().all()
+    assert track["trim"].isna().all()
+    assert artifact["status"] == "unavailable"
+    assert artifact["reason"] == "missing_hdg"
+    assert artifact["maneuvers"] == []
 
 
 def test_generates_available_artifact_without_mutating_canonical_track(

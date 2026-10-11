@@ -7,6 +7,7 @@ from typing import Callable
 import pytest
 
 from app.models import ConsentStatus, InboundEmail
+from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.sailors import SailorRepository
@@ -19,6 +20,7 @@ from app.services.ingestion_processing import (
     process_provider_email,
     reprocess_ingestion,
 )
+from app.storage.track_storage import TrackStorage
 
 
 FIXTURE_PATH = (
@@ -207,6 +209,66 @@ def test_arbitrary_subject_preserves_downstream_activity_and_session_flow(
     assert history.find_provider_message("ovh", "456:pilot-message")[
         "status"
     ] == "processed"
+
+
+def test_vkx_uses_existing_activity_track_session_and_raw_dedup_pipeline(
+    temporary_json_file: Callable[[str, object], Path],
+    vakaros_vkx_bytes: bytes,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    first_email = _email(
+        vakaros_vkx_bytes,
+        provider_message_id="ovh-vkx-1",
+        filename="Atlas.vkx",
+        subject="Informational note.csv",
+    )
+
+    first = process_provider_email(
+        "ovh",
+        first_email,
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+    second = process_provider_email(
+        "ovh",
+        _email(
+            vakaros_vkx_bytes,
+            provider_message_id="ovh-vkx-2",
+            filename="Atlas.vkx",
+            subject="Another note",
+        ),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first.activity.source == "vakaros"
+    assert first.activity_created is True
+    assert second.activity_created is False
+    assert second.activity.id == first.activity.id
+    assert first.activity.id in first.session_match.session.activity_ids
+    assert second.session_match.session.id == first.session_match.session.id
+    track = TrackStorage(activities.path.parent).read_normalized_track(
+        first.activity.id
+    )
+    assert list(track.columns) == CANONICAL_TRACK_COLUMNS
+    quaternions = track.loc[
+        0,
+        ["quat_w", "quat_x", "quat_y", "quat_z"],
+    ].tolist()
+    assert quaternions == pytest.approx([0.5, 0.1, -0.2, 0.8])
+    assert len(activities.all()) == 1
+    assert len(sessions.all()) == 1
+    assert len(history.records()) == 2
 
 
 def test_disposition_is_preserved_without_affecting_provider_deduplication(

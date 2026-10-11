@@ -255,3 +255,44 @@ def test_ovh_uidvalidity_mismatch_fails_before_search(monkeypatch):
         )
 
     assert not any(call[:2] == ("uid", "SEARCH") for call in fake.calls)
+
+
+@pytest.mark.parametrize("filename", ["Atlas.vkx", "Atlas.VKX.GZ"])
+def test_ovh_recognizes_vkx_attachments(monkeypatch, filename):
+    content = b"synthetic VKX acquisition bytes"
+    adapter, _, _ = _adapter(
+        monkeypatch,
+        {
+            b"20": _message(
+                subject="Informational note",
+                attachments=[(filename, content)],
+            )
+        },
+    )
+
+    candidates = adapter.get_candidate_emails()
+
+    assert len(candidates) == 1
+    assert candidates[0].attachment_filename == filename
+    assert candidates[0].attachment_bytes == content
+
+
+def test_ovh_treats_mixed_csv_and_vkx_as_multiple_supported_attachments(
+    monkeypatch,
+):
+    adapter, _, _ = _adapter(
+        monkeypatch,
+        {
+            b"21": _message(
+                attachments=[
+                    ("one.csv", b"csv"),
+                    ("two.vkx", b"vkx"),
+                ]
+            )
+        },
+    )
+
+    batch = adapter.acquire_messages()
+
+    assert batch.examined_messages[0].outcome == OVHMessageOutcome.MALFORMED
+    assert batch.examined_messages[0].error_class == "ValueError"

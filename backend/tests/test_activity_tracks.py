@@ -5,7 +5,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from app.normalization.track_normalizer import normalize_track
+from app.normalization.track_normalizer import (
+    CANONICAL_TRACK_COLUMNS,
+    normalize_track,
+)
+from app.parsers.vakaros import parse_vakaros_attachment
 from app.parsers.vakaros_csv import parse_vakaros_csv
 from app.repositories.activities import ActivityRepository
 from app.repositories.sessions import SessionRepository
@@ -277,3 +281,100 @@ def test_reprocessing_reports_missing_archived_original(
 
     with pytest.raises(FileNotFoundError, match="Archived original not found"):
         reprocess_activity(activity_id, repository, storage)
+
+
+def test_reprocessing_restores_vkx_track_and_preserves_identity_and_session(
+    temporary_directory: Path,
+    vakaros_vkx_bytes: bytes,
+) -> None:
+    repository = ActivityRepository(temporary_directory / "activities.json")
+    storage = TrackStorage(temporary_directory)
+    original_filename = "Atlas 10-10-2026.vkx.gz"
+    original_bytes = gzip.compress(vakaros_vkx_bytes)
+    parsed = parse_vakaros_attachment(
+        original_bytes,
+        original_filename=original_filename,
+    )
+    stored, created = repository.find_or_create(
+        SAILOR_ID,
+        BOAT_ID,
+        parsed,
+        original_bytes,
+    )
+    assert created is True
+    persisted = persist_activity_track(
+        stored,
+        parsed,
+        original_bytes,
+        repository,
+        storage,
+    )
+    sessions = SessionRepository(temporary_directory / "sessions.json")
+    session = sessions.create(persisted.id)
+    expected_identity = (
+        persisted.id,
+        persisted.sailor_id,
+        persisted.boat_id,
+        persisted.source,
+        persisted.original_filename,
+        persisted.attachment_sha256,
+    )
+
+    storage.track_path(persisted.id).unlink()
+    reprocessed = reprocess_activity(persisted.id, repository, storage)
+    restored = storage.read_normalized_track(persisted.id)
+
+    assert (
+        reprocessed.id,
+        reprocessed.sailor_id,
+        reprocessed.boat_id,
+        reprocessed.source,
+        reprocessed.original_filename,
+        reprocessed.attachment_sha256,
+    ) == expected_identity
+    assert reprocessed.source == "vakaros"
+    assert list(restored.columns) == CANONICAL_TRACK_COLUMNS
+    quaternions = restored.loc[
+        0,
+        ["quat_w", "quat_x", "quat_y", "quat_z"],
+    ].tolist()
+    assert quaternions == pytest.approx([0.5, 0.1, -0.2, 0.8])
+    assert sessions.all() == [session]
+    assert sessions.all()[0].activity_ids == [persisted.id]
+
+
+@pytest.mark.parametrize("invalid_quaternion", ["nan", "inf", "-inf"])
+def test_non_finite_csv_quaternion_cannot_be_persisted(
+    temporary_directory: Path,
+    invalid_quaternion: str,
+) -> None:
+    csv_bytes = (
+        b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim,"
+        b"q_w,q_x,q_y,q_z\n"
+        + (
+            "2031-06-10T10:00:00Z,38.1,-0.2,5.2,359,1,-8,2,"
+            f"{invalid_quaternion},0.1,-0.2,0.8\n"
+        ).encode("ascii")
+    )
+    repository = ActivityRepository(temporary_directory / "activities.json")
+    storage = TrackStorage(temporary_directory)
+    with pytest.raises(ValueError, match="invalid quaternion values"):
+        parsed = parse_vakaros_csv(
+            csv_bytes,
+            original_filename="invalid-quaternion.csv",
+        )
+        stored, _ = repository.find_or_create(
+            SAILOR_ID,
+            BOAT_ID,
+            parsed,
+            csv_bytes,
+        )
+        persist_activity_track(
+            stored,
+            parsed,
+            csv_bytes,
+            repository,
+            storage,
+        )
+
+    assert list(storage.tracks_root.glob("*.csv.gz")) == []

@@ -8,7 +8,7 @@ from email.utils import parseaddr, parsedate_to_datetime
 from enum import Enum
 
 from app.models import InboundEmail
-from app.parsers.vakaros_csv import has_vakaros_csv_suffix
+from app.parsers.vakaros import is_supported_vakaros_attachment
 
 
 class OVHMessageOutcome(str, Enum):
@@ -179,7 +179,7 @@ def _extract_email(raw: bytes, provider_message_id: str) -> InboundEmail | None:
         if not filename:
             continue
         filename = _header_text(filename)
-        if has_vakaros_csv_suffix(filename):
+        if is_supported_vakaros_attachment(filename):
             attachments.append((filename, part.get_payload(decode=True)))
     if len(attachments) > 1:
         raise ValueError("OVH message contains multiple supported attachments")

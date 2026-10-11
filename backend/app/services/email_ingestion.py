@@ -1,8 +1,9 @@
 from app.models import InboundEmail, IngestionResult
-from app.parsers.vakaros_csv import (
-    has_vakaros_csv_suffix,
-    parse_vakaros_csv,
+from app.parsers.vakaros import (
+    is_supported_vakaros_attachment,
+    parse_vakaros_attachment,
 )
+from app.parsers.vakaros_vkx import VKXParseError
 
 
 class InboundEmailRejected(ValueError):
@@ -13,16 +14,20 @@ def process_inbound_email(email: InboundEmail) -> IngestionResult:
     if email.attachment_bytes is None or not email.attachment_filename:
         raise InboundEmailRejected("Inbound email has no attachment")
 
-    if not has_vakaros_csv_suffix(email.attachment_filename):
+    if not is_supported_vakaros_attachment(email.attachment_filename):
         raise InboundEmailRejected(
-            "Inbound email attachment filename must end with .csv or .csv.gz"
+            "Inbound email attachment filename is not a supported Vakaros format"
         )
 
     try:
-        activity = parse_vakaros_csv(
+        activity = parse_vakaros_attachment(
             email.attachment_bytes,
             original_filename=email.attachment_filename,
         )
+    except VKXParseError as error:
+        raise InboundEmailRejected(
+            "Inbound email attachment is not a valid Vakaros VKX file"
+        ) from error
     except (OSError, EOFError) as error:
         raise InboundEmailRejected(
             "Inbound email attachment is not a valid Vakaros CSV file"

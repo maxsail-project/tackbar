@@ -10,7 +10,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from app.models import InboundEmail
-from app.parsers.vakaros_csv import has_vakaros_csv_suffix
+from app.parsers.vakaros import is_supported_vakaros_attachment
 
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
@@ -99,7 +99,7 @@ class GmailAdapter:
 
         for part in _walk_parts(payload):
             filename = part.get("filename", "")
-            if not has_vakaros_csv_suffix(filename):
+            if not is_supported_vakaros_attachment(filename):
                 continue
 
             body = part.get("body", {})

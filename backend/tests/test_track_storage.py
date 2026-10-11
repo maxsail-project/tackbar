@@ -178,6 +178,25 @@ def test_track_storage_rejects_noncanonical_schema(
         )
 
 
+@pytest.mark.parametrize("invalid_value", [float("inf"), float("-inf"), "bad"])
+def test_write_rejects_invalid_optional_quaternion(
+    temporary_directory: Path,
+    invalid_value: object,
+) -> None:
+    storage = TrackStorage(temporary_directory)
+    track = normalize_track(
+        ACTIVITY_ID,
+        [{"utc": "2031-06-10T10:00:00Z", "lat": 0.25, "lon": -30.75}],
+    )
+    track["quat_w"] = track["quat_w"].astype(object)
+    track.loc[0, "quat_w"] = invalid_value
+
+    with pytest.raises(ValueError, match="invalid quat_w values"):
+        storage.write_normalized_track(ACTIVITY_ID, track)
+
+    assert not storage.track_path(ACTIVITY_ID).exists()
+
+
 def test_historical_canonical_track_is_expanded_in_memory(
     temporary_directory: Path,
 ) -> None:

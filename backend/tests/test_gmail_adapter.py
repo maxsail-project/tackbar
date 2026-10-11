@@ -184,3 +184,59 @@ def test_rejects_multiple_supported_attachments() -> None:
 
     with pytest.raises(ValueError, match="multiple supported attachments"):
         GmailAdapter(service=service).get_candidate_emails()
+
+
+@pytest.mark.parametrize("filename", ["Atlas.vkx", "Atlas.VKX.GZ"])
+def test_get_candidate_vkx_from_gmail_response(filename: str) -> None:
+    content = b"synthetic VKX acquisition bytes"
+    encoded_attachment = base64.urlsafe_b64encode(content).decode("ascii")
+    service = MagicMock()
+    messages = service.users.return_value.messages.return_value
+    messages.list.return_value.execute.return_value = {
+        "messages": [{"id": "message-vkx"}]
+    }
+    messages.get.return_value.execute.return_value = {
+        "id": "message-vkx",
+        "payload": {
+            "headers": [
+                {"name": "From", "value": "sailor-a@example.com"},
+                {"name": "Subject", "value": "Informational note"},
+            ],
+            "parts": [
+                {
+                    "filename": filename,
+                    "body": {"data": encoded_attachment.rstrip("=")},
+                }
+            ],
+        },
+    }
+
+    emails = GmailAdapter(service=service).get_candidate_emails()
+
+    assert len(emails) == 1
+    assert emails[0].attachment_filename == filename
+    assert emails[0].attachment_bytes == content
+
+
+def test_gmail_rejects_mixed_csv_and_vkx_attachments() -> None:
+    service = MagicMock()
+    messages = service.users.return_value.messages.return_value
+    messages.list.return_value.execute.return_value = {
+        "messages": [{"id": "message-mixed"}]
+    }
+    messages.get.return_value.execute.return_value = {
+        "id": "message-mixed",
+        "payload": {
+            "headers": [
+                {"name": "From", "value": "sailor-a@example.com"},
+                {"name": "Subject", "value": "Two formats"},
+            ],
+            "parts": [
+                {"filename": "one.csv", "body": {"data": "Y3N2"}},
+                {"filename": "two.vkx", "body": {"data": "dmt4"}},
+            ],
+        },
+    }
+
+    with pytest.raises(ValueError, match="multiple supported attachments"):
+        GmailAdapter(service=service).get_candidate_emails()

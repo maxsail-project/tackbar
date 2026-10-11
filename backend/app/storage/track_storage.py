@@ -61,6 +61,8 @@ class TrackStorage:
             raise ValueError(
                 "Normalized track columns must exactly match the TackBar schema"
             )
+        for column in OPTIONAL_SAMPLE_COLUMNS:
+            _validate_optional_number(normalized_track[column], column)
         relative_path = self.track_relative_path(activity_id)
         path = self.data_root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)

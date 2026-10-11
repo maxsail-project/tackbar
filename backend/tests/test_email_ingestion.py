@@ -130,3 +130,56 @@ def test_rejects_corrupted_attachment() -> None:
 
     with pytest.raises(InboundEmailRejected, match="not a valid Vakaros"):
         process_inbound_email(email)
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ["Atlas.vkx", "Atlas.VKX", "Atlas.vkx.gz", "Atlas.VKX.GZ"],
+)
+def test_processes_supported_vkx_attachments_by_filename(
+    filename: str,
+    vakaros_vkx_bytes: bytes,
+) -> None:
+    content = (
+        gzip.compress(vakaros_vkx_bytes)
+        if filename.lower().endswith(".gz")
+        else vakaros_vkx_bytes
+    )
+    email = InboundEmail(
+        sender_email="sailor-a@example.com",
+        subject="Informational sailing note.csv",
+        attachment_filename=filename,
+        attachment_bytes=content,
+    )
+
+    result = process_inbound_email(email)
+
+    assert result.subject == email.subject
+    assert result.activity.source == "vakaros"
+    assert result.activity.original_filename == filename
+    assert result.activity.device_name == "Atlas"
+    assert result.activity.samples[0]["quat_w"] == pytest.approx(0.5)
+
+
+def test_vkx_subject_does_not_make_unsupported_attachment_eligible() -> None:
+    email = InboundEmail(
+        sender_email="sailor-a@example.com",
+        subject="Atlas.vkx",
+        attachment_filename="notes.txt",
+        attachment_bytes=b"notes",
+    )
+
+    with pytest.raises(InboundEmailRejected, match="attachment filename"):
+        process_inbound_email(email)
+
+
+def test_malformed_vkx_is_a_controlled_inbound_rejection() -> None:
+    email = InboundEmail(
+        sender_email="sailor-a@example.com",
+        subject="Training session",
+        attachment_filename="Atlas.vkx",
+        attachment_bytes=b"not a VKX file",
+    )
+
+    with pytest.raises(InboundEmailRejected, match="not a valid Vakaros VKX"):
+        process_inbound_email(email)

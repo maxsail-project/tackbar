@@ -1,6 +1,6 @@
 from app.models import Activity, StoredActivity
 from app.normalization.track_normalizer import normalize_track
-from app.parsers.vakaros_csv import parse_vakaros_csv
+from app.parsers.vakaros import parse_vakaros_attachment
 from app.repositories.activities import (
     ActivityRepository,
     calculate_attachment_sha256,
@@ -54,7 +54,7 @@ def _parse_original(
     original_bytes: bytes,
 ) -> Activity:
     if stored_activity.source == "vakaros":
-        return parse_vakaros_csv(
+        return parse_vakaros_attachment(
             original_bytes,
             original_filename=stored_activity.original_filename,
         )

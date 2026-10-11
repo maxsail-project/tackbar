@@ -1,11 +1,15 @@
-import re
 from io import BytesIO
+from math import isfinite
 from pathlib import Path
 from typing import BinaryIO
 
 import pandas as pd
 
 from app.models import Activity
+from app.parsers.vakaros import (
+    VAKAROS_CSV_SUFFIXES,
+    extract_vakaros_device_name,
+)
 
 
 REQUIRED_COLUMNS = {
@@ -18,7 +22,6 @@ REQUIRED_COLUMNS = {
     "heel",
     "trim",
 }
-VAKAROS_CSV_SUFFIXES = (".csv.gz", ".csv")
 QUATERNION_COLUMNS = {
     "q_w": "quat_w",
     "q_x": "quat_x",
@@ -73,6 +76,19 @@ def parse_vakaros_csv(
     if frame.empty:
         raise ValueError("Vakaros CSV contains no samples")
 
+    if present_quaternion_columns:
+        quaternion_columns = list(QUATERNION_COLUMNS)
+        quaternion_values = frame[quaternion_columns].apply(
+            pd.to_numeric,
+            errors="coerce",
+        )
+        finite_values = quaternion_values.apply(
+            lambda values: values.map(isfinite)
+        )
+        if quaternion_values.isna().any().any() or not finite_values.all().all():
+            raise ValueError("Vakaros CSV contains invalid quaternion values")
+        frame[quaternion_columns] = quaternion_values
+
     frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
     frame = frame.sort_values("timestamp").reset_index(drop=True)
 
@@ -107,7 +123,7 @@ def parse_vakaros_csv(
     return Activity(
         source="vakaros",
         original_filename=filename,
-        device_name=_extract_device_name(filename),
+        device_name=extract_vakaros_device_name(filename),
         start_time=frame.iloc[0]["timestamp"].to_pydatetime(),
         end_time=frame.iloc[-1]["timestamp"].to_pydatetime(),
         start_lat=float(first_sample["latitude"]),
@@ -122,16 +138,6 @@ def parse_vakaros_csv(
         max_lon=float(gps_samples["longitude"].max()),
         samples=samples.to_dict(orient="records"),
     )
-
-
-def _extract_device_name(filename: str) -> str:
-    name = filename
-    for suffix in VAKAROS_CSV_SUFFIXES:
-        if name.lower().endswith(suffix):
-            name = name[: -len(suffix)]
-            break
-
-    return re.sub(r"\s+\d{1,2}-\d{1,2}-\d{4}$", "", name)
 
 
 def _compression_for_filename(filename: str) -> str | None:
