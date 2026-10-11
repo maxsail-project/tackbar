@@ -153,14 +153,25 @@ def _attempt_record(
     record["last_error"] = None
     try:
         if email.attachment_bytes is None or sha256(email.attachment_bytes).hexdigest() != record["attachment_sha256"]: raise ValueError("Preserved ingestion original SHA-256 mismatch")
-        result = _process_known_email(record["provider"], email, sailors, boats, activities, sessions, history, track_storage, consent_events)
+        result = _process_known_email(
+            record["provider"],
+            email,
+            sailors,
+            boats,
+            activities,
+            sessions,
+            history,
+            record,
+            establish_activity_creation_provenance,
+            track_storage,
+            consent_events,
+        )
         if (
             establish_activity_creation_provenance
-            and record["activity_created_by_ingestion"] is None
+            and record["session_result_notification_candidate"] is None
         ):
-            record["activity_created_by_ingestion"] = result.activity_created
             record["session_result_notification_candidate"] = (
-                result.activity_created
+                record["activity_created_by_ingestion"] is True
                 and result.sailor.consent_status == ConsentStatus.ACTIVE
             )
         record.update(status="processed", last_error=None, activity_id=result.activity.id, session_id=result.session_match.session.id)
@@ -241,6 +252,8 @@ def _process_known_email(
     activities: ActivityRepository,
     sessions: SessionRepository,
     history: IngestionHistory,
+    record: dict,
+    establish_activity_creation_provenance: bool,
     track_storage: TrackStorage | None = None,
     consent_events: ConsentEventRepository | None = None,
 ) -> IngestionProcessingResult:
@@ -279,6 +292,12 @@ def _process_known_email(
         ingestion.activity,
         email.attachment_bytes,
     )
+    if (
+        establish_activity_creation_provenance
+        and record["activity_created_by_ingestion"] is None
+    ):
+        record["activity_created_by_ingestion"] = created
+        history.replace(record)
     storage = track_storage or TrackStorage(activities.path.parent)
     stored_activity = persist_activity_track(
         stored_activity,

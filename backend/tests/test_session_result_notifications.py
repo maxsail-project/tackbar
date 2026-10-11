@@ -233,6 +233,56 @@ def test_reprocess_recovers_onboarding_binding_after_request_persistence_interru
     assert all(record["session_result_notification"] is None for record in runtime.history.records())
 
 
+def test_pending_reprocess_recovers_onboarding_after_track_persistence_failure(
+    runtime, monkeypatch,
+):
+    sailor, _ = runtime.sailors.find_or_create_by_email("sailor@example.test")
+
+    with monkeypatch.context() as patch:
+        def fail_track_persistence(*_args, **_kwargs):
+            raise ValueError("interrupted during track persistence")
+
+        patch.setattr(
+            ingestion_processing,
+            "persist_activity_track",
+            fail_track_persistence,
+        )
+        with pytest.raises(ValueError, match="track persistence"):
+            process(runtime, email("pending-track-interrupted"))
+
+    interrupted = runtime.history.records()[0]
+    activity = runtime.activities.all()[0]
+    assert interrupted["status"] == "failed"
+    assert interrupted["activity_created_by_ingestion"] is True
+    assert interrupted["session_result_notification_candidate"] is None
+    assert len(runtime.activities.all()) == 1
+    assert runtime.sessions.all() == []
+    assert runtime.requests.all() == []
+    assert runtime.sent == []
+
+    recovered = reprocess(runtime, interrupted["id"])
+
+    assert recovered["status"] == "processed"
+    assert recovered["activity_id"] == activity.id
+    assert recovered["activity_created_by_ingestion"] is True
+    assert recovered["session_result_notification_candidate"] is False
+    assert len(runtime.activities.all()) == 1
+    assert len(runtime.sessions.all()) == 1
+    request = requests(runtime).find_current_for_sailor(sailor.id)
+    assert request.onboarding_activity_id == activity.id
+    assert request.onboarding_session_id == recovered["session_id"]
+
+    activated = activate(runtime, sailor.id, "admin")
+    session = runtime.sessions.get_by_id(recovered["session_id"])
+    welcome = runtime.sent[-1]
+    assert welcome.subject == WELCOME_EMAIL_SUBJECT
+    assert welcome.body.count(f"{ORIGIN}/s/{session.capability_token}") == 2
+    assert welcome.body.count(
+        f"{ORIGIN}/me/{activated.personal_capability_token}"
+    ) == 2
+    assert all(message.subject != SESSION_RESULT_SUBJECT for message in runtime.sent)
+
+
 @pytest.mark.parametrize("legacy", ["preissued", "old-json", "manual-email"])
 def test_manual_or_legacy_cycle_remains_unbound(runtime, legacy):
     sailor, _ = runtime.sailors.find_or_create_by_email("sailor@example.test")
@@ -352,6 +402,49 @@ def test_reprocess_recovers_active_notification_after_pre_state_interruption(
     assert recovered["activity_created_by_ingestion"] is True
     assert recovered["session_result_notification_candidate"] is True
     assert recovered["session_result_notification"]["status"] == "sent"
+    assert len(runtime.sent) == 1
+    assert runtime.sent[0].subject == SESSION_RESULT_SUBJECT
+
+    reprocess(runtime, interrupted["id"])
+    assert len(runtime.sent) == 1
+
+
+def test_active_reprocess_recovers_notification_after_track_persistence_failure(
+    runtime, monkeypatch,
+):
+    active_sailor(runtime)
+
+    with monkeypatch.context() as patch:
+        def fail_track_persistence(*_args, **_kwargs):
+            raise ValueError("interrupted during track persistence")
+
+        patch.setattr(
+            ingestion_processing,
+            "persist_activity_track",
+            fail_track_persistence,
+        )
+        with pytest.raises(ValueError, match="track persistence"):
+            process(runtime, email("active-track-interrupted"))
+
+    interrupted = runtime.history.records()[0]
+    activity = runtime.activities.all()[0]
+    assert interrupted["status"] == "failed"
+    assert interrupted["activity_created_by_ingestion"] is True
+    assert interrupted["session_result_notification_candidate"] is None
+    assert interrupted["session_result_notification"] is None
+    assert len(runtime.activities.all()) == 1
+    assert runtime.sessions.all() == []
+    assert runtime.sent == []
+
+    recovered = reprocess(runtime, interrupted["id"])
+
+    assert recovered["status"] == "processed"
+    assert recovered["activity_id"] == activity.id
+    assert recovered["activity_created_by_ingestion"] is True
+    assert recovered["session_result_notification_candidate"] is True
+    assert recovered["session_result_notification"]["status"] == "sent"
+    assert len(runtime.activities.all()) == 1
+    assert len(runtime.sessions.all()) == 1
     assert len(runtime.sent) == 1
     assert runtime.sent[0].subject == SESSION_RESULT_SUBJECT
 
@@ -565,6 +658,9 @@ def test_failed_core_processing_does_not_attempt_session_result(runtime, monkeyp
         process(runtime)
     record = runtime.history.records()[0]
     assert record["status"] == "failed"
+    expected_provenance = None if stage == "parse" else True
+    assert record["activity_created_by_ingestion"] is expected_provenance
+    assert record["session_result_notification_candidate"] is None
     assert record["session_result_notification"] is None
     assert runtime.sent == []
 
