@@ -21,13 +21,19 @@ export interface TemporalPointerSelection {
 }
 
 export function createTemporalRange(timestamps: number[]): TemporalRange | null {
-  const validTimestamps = timestamps.filter(Number.isFinite)
-  if (validTimestamps.length === 0) return null
+  let start: number | null = null
+  let end: number | null = null
 
-  return {
-    start: Math.min(...validTimestamps),
-    end: Math.max(...validTimestamps),
+  for (const timestamp of timestamps) {
+    if (!Number.isFinite(timestamp)) continue
+
+    if (start === null || timestamp < start) start = timestamp
+    if (end === null || timestamp > end) end = timestamp
   }
+
+  if (start === null || end === null) return null
+
+  return { start, end }
 }
 
 export function selectTemporalZoom(

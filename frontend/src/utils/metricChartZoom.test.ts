@@ -16,6 +16,31 @@ describe('metric chart temporal zoom', () => {
     expect(createTemporalRange([5_000, 1_000, 3_000])).toEqual(fullRange)
   })
 
+  it('handles a large unsorted timestamp collection without argument expansion', () => {
+    const timestamps = Array.from({ length: 150_000 }, (_, index) => index + 1_000)
+    timestamps[0] = 200_000
+    timestamps[timestamps.length - 1] = -500
+
+    expect(() => createTemporalRange(timestamps)).not.toThrow()
+    expect(createTemporalRange(timestamps)).toEqual({ start: -500, end: 200_000 })
+  })
+
+  it('ignores non-finite timestamps and returns null when none are finite', () => {
+    expect(createTemporalRange([Number.NaN, 5_000, Number.POSITIVE_INFINITY, 1_000, Number.NEGATIVE_INFINITY]))
+      .toEqual(fullRange)
+    expect(createTemporalRange([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]))
+      .toBeNull()
+  })
+
+  it('does not mutate timestamps while creating their temporal range', () => {
+    const timestamps = [5_000, Number.NaN, 1_000, Number.POSITIVE_INFINITY, 3_000]
+    const originalTimestamps = [...timestamps]
+
+    createTemporalRange(timestamps)
+
+    expect(timestamps).toEqual(originalTimestamps)
+  })
+
   it('creates a valid shorter range from a selection', () => {
     expect(selectTemporalZoom(fullRange, 2_000, 4_000)).toEqual({ start: 2_000, end: 4_000 })
   })
