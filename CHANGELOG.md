@@ -2,6 +2,126 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.6 Californian — Analytics & Map Orientation (Release-ready — production validation pending)
+
+### English
+
+Generates maneuver analytics during Activity processing and improves manual
+map orientation during collaborative debriefing.
+
+### Added
+
+* Newly ingested Activities now generate their existing maneuver analytics
+  artifact after the canonical track and Session processing have completed.
+* Explicit Activity reprocessing now regenerates maneuver analytics against
+  the rewritten canonical track.
+* The Session Viewer map now shows its current geographic bearing in a compact,
+  top-center `DIR 000°–359°` indicator that updates during rotation.
+
+### Changed
+
+* Eager maneuver generation reuses the existing algorithm, artifact schema,
+  canonical-track SHA-256 invalidation and lazy self-healing path. Unexpected
+  derived-analytics failures do not invalidate otherwise successful Activity
+  or Session processing.
+* Analysis Window-driven track refits now preserve the current MapLibre map
+  bearing while continuing to update center and zoom for the visible bounds.
+* Native map rotation gestures and controls, boat-marker COG compensation,
+  maneuver API and metrics, replay, Analysis Window, Activity and Session
+  semantics remain unchanged. The `DIR` value is map-camera orientation only;
+  it does not introduce or infer wind, COG or HDG data.
+
+### Issues
+
+- #63 — [#63] Generate maneuver analytics when Activity processing completes
+- #64 — [#64] Preserve map bearing when Analysis Window refits the track
+- #65 — [#65] Show current map bearing in degrees
+
+### Validation
+
+Before release preparation, Issue #63 recorded human acceptance, technical
+review PASS, passing focused backend regression and compile checks, and
+confirmed best-effort analytics failure semantics with lazy recovery. Issue
+#64 recorded technical review PASS, manual validation PASS with one and two
+Activities, and passing focused frontend tests, typecheck, production build
+and diff check. Issue #65 recorded technical review and manual validation PASS,
+plus passing focused frontend tests, typecheck, production build and diff
+check.
+
+Release preparation performed documentation consistency, completed-Issue
+traceability, bilingual release-entry and publication-body equivalence review,
+final diff and whitespace checks, and repository/remote publication-state
+verification. The implementation checks were not rerun during preparation.
+
+Production deployment and end-to-end production validation of eager analytics
+generation and map-orientation behavior remain pending. No tag, GitHub Release
+or production deployment is part of release preparation.
+
+---
+
+## v0.7.6 Californian — Analítica y orientación del mapa (Lista para release — validación de producción pendiente)
+
+### Español
+
+Genera la analítica de maniobras durante el procesamiento de Activities y
+mejora la orientación manual del mapa durante el debriefing colaborativo.
+
+### Añadido
+
+* Las Activities recién ingeridas generan ahora su artefacto existente de
+  analítica de maniobras después de completar el track canónico y el
+  procesamiento de la Session.
+* El reprocesamiento explícito de una Activity regenera ahora la analítica de
+  maniobras contra el track canónico reescrito.
+* El mapa del Session Viewer muestra ahora su bearing geográfico actual en un
+  indicador compacto y centrado arriba, `DIR 000°–359°`, que se actualiza
+  durante la rotación.
+
+### Cambiado
+
+* La generación anticipada de maniobras reutiliza el algoritmo, el esquema del
+  artefacto, la invalidación por SHA-256 del track canónico y la recuperación
+  lazy existentes. Los fallos inesperados de la analítica derivada no invalidan
+  el procesamiento correcto de una Activity o Session.
+* Los reajustes del track provocados por cambios en la Analysis Window
+  conservan ahora el bearing actual del mapa MapLibre mientras continúan
+  actualizando el centro y el zoom para los límites visibles.
+* Los gestos y controles nativos de rotación, la compensación COG de los
+  marcadores de barco, la API y métricas de maniobras, el replay, la Analysis
+  Window y las semánticas de Activity y Session permanecen sin cambios. El
+  valor `DIR` representa solo la orientación de la cámara del mapa; no
+  introduce ni infiere datos de viento, COG o HDG.
+
+### Issues
+
+- #63 — [#63] Generate maneuver analytics when Activity processing completes
+- #64 — [#64] Preserve map bearing when Analysis Window refits the track
+- #65 — [#65] Show current map bearing in degrees
+
+### Validación
+
+Antes de preparar la release, el Issue #63 registró aceptación humana, revisión
+técnica PASS, checks focalizados de regresión backend y compilación correctos,
+y confirmó la semántica best-effort de los fallos de analítica con recuperación
+lazy. El Issue #64 registró revisión técnica PASS, validación manual PASS con
+una y dos Activities, y tests frontend focalizados, typecheck, build de
+producción y diff check correctos. El Issue #65 registró revisión técnica y
+validación manual PASS, además de tests frontend focalizados, typecheck, build
+de producción y diff check correctos.
+
+La preparación de la release comprobó la consistencia documental, la
+trazabilidad de Issues completados, la entrada bilingüe y la equivalencia del
+cuerpo de publicación, el diff final y los espacios en blanco, y el estado del
+repositorio, del remoto y de publicación. Los checks de implementación no se
+volvieron a ejecutar durante la preparación.
+
+El despliegue en producción y la validación end-to-end en producción de la
+generación anticipada de analítica y del comportamiento de orientación del mapa
+siguen pendientes. La preparación no incluye ningún tag, GitHub Release ni
+despliegue a producción.
+
+---
+
 ## v0.7.5 Californian — Boat Marker Orientation Hotfix (Release-ready — production validation pending)
 
 ### English
