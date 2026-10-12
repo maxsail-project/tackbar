@@ -2,6 +2,130 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.9 Californian — Versus (VS) Analytics (Release-ready — production validation pending)
+
+### English
+
+Adds an Analysis Window distribution view that makes Primary and Comparison
+speed and course patterns directly comparable while preserving the existing
+time-series and collaborative Viewer semantics.
+
+### Added
+
+* `VS` is now the first and default Viewer mode, alongside the existing
+  `SOG | COG | HEEL | TRIM` time-series views. It remains a presentation mode,
+  not a new sailing metric.
+* The VS view presents a time-weighted SOG speed histogram and a time-weighted
+  circular COG course rose for the shared GPS/UTC Analysis Window. It works
+  with Primary alone or with Primary and Comparison using common bins, sectors
+  and per-chart percentage scales.
+* Metric-specific time coverage is shown for each selected Activity. An
+  Activity below the centralized 80% threshold is omitted from that
+  distribution with an explicit unavailable message, while an eligible peer
+  remains visible.
+
+### Changed
+
+* VS calculations use canonical source timestamps and the complete relevant
+  normalized sample population. Represented intervals are clipped to the
+  Analysis Window, gaps over the centralized 1.5-second limit are excluded,
+  SOG uses aligned 0.5-knot bins, and COG uses north-centered circular 10°
+  sectors with correct 0°/360° wrapping.
+* Comparison renders before Primary and both use equivalent default visual
+  weight, keeping Primary visible where geometries overlap without weakening
+  Comparison by default. Visual and analytical tuning values are centralized.
+* Existing SOG, COG, HEEL and TRIM time-series plus Summary, map, replay,
+  maneuver, Session, persistence, consent and API semantics remain unchanged.
+
+### Issues
+
+- [#72](https://github.com/maxsail-project/tackbar/issues/72) — [#72] Add VS distribution view for Analysis Window comparison
+
+### Validation
+
+Before release preparation, Issue #72 recorded acceptance PASS at `0cedf33`
+with 27 focused VS/selector/distribution tests, frontend typecheck, frontend
+production build and `git diff --check` passing, plus manual responsive/visual
+validation with real Viewer data. The build retained only the existing
+non-failing Vite large-chunk advisory. No dependencies were added or removed.
+
+Release preparation performed release-range and completed-Issue
+reconciliation, documentation consistency, bilingual release-entry and
+publication-body equivalence review, final diff and whitespace checks, and
+repository/remote publication-state verification. The implementation checks
+were not rerun during this documentation-only preparation.
+
+Production deployment and end-to-end validation of VS with real production
+Viewer data remain pending. No tag, GitHub Release or production deployment is
+part of release preparation.
+
+---
+
+## v0.7.9 Californian — Analítica Versus (VS) (Lista para release — validación de producción pendiente)
+
+### Español
+
+Añade una vista de distribuciones para la Analysis Window que permite comparar
+directamente los patrones de velocidad y rumbo de Primary y Comparison,
+conservando las series temporales y las semánticas colaborativas existentes del
+Viewer.
+
+### Añadido
+
+* `VS` es ahora la primera vista y la predeterminada del Viewer, junto a las
+  series temporales existentes `SOG | COG | HEEL | TRIM`. Sigue siendo un modo
+  de presentación, no una nueva métrica de navegación.
+* La vista VS presenta un histograma de velocidad SOG ponderado por tiempo y
+  una rosa circular de rumbo COG ponderada por tiempo para la Analysis Window
+  GPS/UTC compartida. Funciona solo con Primary o con Primary y Comparison,
+  usando bins, sectores y escalas porcentuales comunes dentro de cada gráfico.
+* Se muestra la cobertura temporal específica de cada métrica para cada
+  Activity seleccionada. Una Activity por debajo del umbral centralizado del
+  80% se omite de esa distribución con un mensaje explícito de no
+  disponibilidad, mientras una compañera elegible permanece visible.
+
+### Cambiado
+
+* Los cálculos de VS usan timestamps canónicos de origen y la población
+  completa de muestras normalizadas relevantes. Los intervalos representados
+  se recortan a la Analysis Window, se excluyen los huecos superiores al límite
+  centralizado de 1,5 segundos, SOG usa bins alineados de 0,5 nudos y COG usa
+  sectores circulares de 10° centrados al norte con tratamiento correcto del
+  cruce 0°/360°.
+* Comparison se renderiza antes que Primary y ambas tienen el mismo peso visual
+  predeterminado, manteniendo visible Primary donde se solapan las geometrías
+  sin debilitar Comparison por defecto. Los valores de ajuste visual y
+  analítico están centralizados.
+* Las series temporales existentes de SOG, COG, HEEL y TRIM, así como las
+  semánticas de Summary, mapa, replay, maniobras, Session, persistencia,
+  consentimiento y API, permanecen sin cambios.
+
+### Issues
+
+- [#72](https://github.com/maxsail-project/tackbar/issues/72) — [#72] Add VS distribution view for Analysis Window comparison
+
+### Validación
+
+Antes de preparar la release, el Issue #72 registró aceptación PASS en
+`0cedf33` con 27 tests focalizados de VS/selector/distribuciones, typecheck
+frontend, build de producción frontend y `git diff --check` correctos, además
+de validación manual responsive/visual con datos reales del Viewer. El build
+mantuvo únicamente el aviso no bloqueante existente de Vite sobre el tamaño de
+chunks. No se añadieron ni eliminaron dependencias.
+
+La preparación de la release comprobó el rango de release y la reconciliación
+de Issues completados, la consistencia documental, la entrada bilingüe y la
+equivalencia del cuerpo de publicación, el diff final y los espacios en blanco,
+y el estado del repositorio, del remoto y de publicación. Los checks de
+implementación no se volvieron a ejecutar durante esta preparación solo
+documental.
+
+El despliegue en producción y la validación end-to-end de VS con datos reales
+del Viewer de producción siguen pendientes. La preparación no incluye ningún
+tag, GitHub Release ni despliegue a producción.
+
+---
+
 ## v0.7.8 Californian — Large Track Stability (Release-ready — production validation pending)
 
 ### English
