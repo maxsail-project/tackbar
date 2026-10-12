@@ -2,6 +2,115 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.8 Californian — Large Track Stability (Release-ready — production validation pending)
+
+### English
+
+Keeps the Session Viewer stable when a complete Activity contains a very large
+timestamp population and hardens the existing release-based production
+deployment path.
+
+### Fixed
+
+* Temporal chart ranges are now calculated iteratively from finite timestamps,
+  avoiding JavaScript call-argument limits that could crash the Viewer on a
+  valid large track.
+* Exact minimum/maximum results, non-finite filtering and input immutability are
+  preserved without downsampling or changing the complete normalized sample
+  population, Analysis Window, chart or zoom semantics.
+
+### Changed
+
+* The production deployment script now prepares changed backend and frontend
+  dependencies for the target release and restores the previous checkout when
+  frontend preparation or build fails before publication.
+* Production workflow run names now identify the requested release tag and
+  whether the run came from release publication or manual dispatch.
+
+### Issues
+
+- [#69](https://github.com/maxsail-project/tackbar/issues/69) — [#69] Prevent Session Viewer crash on large tracks
+
+### Validation
+
+Before release preparation, Issue #69 recorded acceptance PASS at `4c6ff88`
+with 15/15 targeted frontend tests, frontend typecheck, frontend production
+build and `git diff --check` passing. Its regression coverage includes 150,000
+unsorted timestamps, exact bounds, non-finite filtering, all-invalid input and
+input immutability. No dependencies were added or removed.
+
+Release preparation ran the complete frontend regression suite (328/328),
+frontend typecheck, frontend production build and the focused deployment-script
+tests (2/2); all passed. The production build retained its non-failing chunk-size
+warning, and pytest reported a non-failing cache-write warning. Preparation also
+performed release-range and completed-Issue reconciliation, documentation
+consistency, bilingual release-entry and publication-body equivalence review,
+final diff and whitespace checks, and repository/remote publication-state
+verification.
+
+Production deployment, validation against the real 128,415-sample Activity and
+end-to-end validation of the dependency-aware deployment path remain pending.
+No tag, GitHub Release or production deployment is part of release preparation.
+
+---
+
+## v0.7.8 Californian — Estabilidad con tracks grandes (Lista para release — validación de producción pendiente)
+
+### Español
+
+Mantiene estable el Session Viewer cuando una Activity completa contiene una
+población de timestamps muy grande y refuerza la ruta existente de despliegue a
+producción basada en releases.
+
+### Corregido
+
+* Los rangos temporales de los gráficos se calculan ahora de forma iterativa a
+  partir de timestamps finitos, evitando los límites de argumentos de llamada
+  de JavaScript que podían bloquear el Viewer con un track grande válido.
+* Se conservan los resultados mínimo/máximo exactos, el filtrado de valores no
+  finitos y la inmutabilidad de la entrada, sin downsampling ni cambios en la
+  población completa de muestras normalizadas, la Analysis Window o las
+  semánticas de gráficos y zoom.
+
+### Cambiado
+
+* El script de despliegue a producción prepara ahora las dependencias backend y
+  frontend que cambien para la release objetivo y restaura el checkout anterior
+  si falla la preparación o el build frontend antes de la publicación.
+* Los nombres de las ejecuciones del workflow de producción identifican ahora
+  el tag de release solicitado y si la ejecución procede de la publicación de
+  una release o de un lanzamiento manual.
+
+### Issues
+
+- [#69](https://github.com/maxsail-project/tackbar/issues/69) — [#69] Prevent Session Viewer crash on large tracks
+
+### Validación
+
+Antes de preparar la release, el Issue #69 registró aceptación PASS en
+`4c6ff88` con 15/15 tests frontend focalizados, typecheck frontend, build de
+producción frontend y `git diff --check` correctos. Su cobertura de regresión
+incluye 150.000 timestamps desordenados, límites exactos, filtrado de valores no
+finitos, entrada completamente inválida e inmutabilidad de la entrada. No se
+añadieron ni eliminaron dependencias.
+
+La preparación de la release ejecutó la suite completa de regresión frontend
+(328/328), el typecheck frontend, el build de producción frontend y los tests
+focalizados del script de despliegue (2/2); todos fueron correctos. El build de
+producción mantuvo su aviso no bloqueante sobre el tamaño de chunks y pytest
+informó de un aviso no bloqueante al escribir la caché. La preparación también
+comprobó el rango de release y la reconciliación de Issues completados, la
+consistencia documental, la entrada bilingüe y la equivalencia del cuerpo de
+publicación, el diff final y los espacios en blanco, y el estado del repositorio,
+del remoto y de publicación.
+
+El despliegue en producción, la validación con la Activity real de 128.415
+muestras y la validación end-to-end de la ruta de despliegue con gestión de
+dependencias siguen pendientes. La preparación no incluye ningún tag, GitHub
+Release ni despliegue a producción.
+
+---
+
 ## v0.7.7 Californian — Session Sharing & Pilot Cleanup (Release-ready — production validation pending)
 
 ### English
