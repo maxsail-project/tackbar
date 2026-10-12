@@ -203,7 +203,14 @@ Use:
 ```markdown
 ### Issues
 
-- #<issue number> — <canonical GitHub issue title>
+- [#63](https://github.com/maxsail-project/tackbar/issues/63) — Generate maneuver analytics when Activity processing completes
+- [#64](https://github.com/maxsail-project/tackbar/issues/64) — Preserve map bearing when Analysis Window refits the track
+```
+
+Use exactly:
+
+```markdown
+- [#<issue number>](https://github.com/maxsail-project/tackbar/issues/<issue number>) — <canonical GitHub issue title>
 ```
 
 Include only Issues that:

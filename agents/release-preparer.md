@@ -227,14 +227,14 @@ Every newly prepared release entry must contain a flat section in this form:
 ```markdown
 ### Issues
 
-- #20 — Show selected maneuver metrics in Analysis Window
-- #21 — Allow specialized Release Publisher to publish approved GitHub releases
+- [#63](https://github.com/maxsail-project/tackbar/issues/63) — Generate maneuver analytics when Activity processing completes
+- [#64](https://github.com/maxsail-project/tackbar/issues/64) — Preserve map bearing when Analysis Window refits the track
 ```
 
 Use exactly:
 
-```text
-- #<issue number> — <canonical GitHub issue title>
+```markdown
+- [#<issue number>](https://github.com/maxsail-project/tackbar/issues/<issue number>) — <canonical GitHub issue title>
 ```
 
 Include only Issues that:
