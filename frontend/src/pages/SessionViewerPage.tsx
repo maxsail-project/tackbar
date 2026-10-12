@@ -20,7 +20,11 @@ import AnalysisWindow, {
 import ComparisonTable from '../components/ComparisonTable'
 import IndividualAnalysis from '../components/IndividualAnalysis'
 import MetricChart from '../components/MetricChart'
-import MetricSelector from '../components/MetricSelector'
+import MetricSelector, {
+  DEFAULT_VIEWER_METRIC_VIEW,
+  type ViewerMetricView,
+} from '../components/MetricSelector'
+import VsDistributionView from '../components/VsDistributionView'
 import ManeuverEventTable, {
   type ManeuverPresentationStatus,
 } from '../components/ManeuverEventTable'
@@ -34,7 +38,6 @@ import {
   SessionViewerHeader,
 } from '../components/SessionShare'
 import type {
-  SailingMetric,
   SessionAccess,
   SessionDetail,
   SharedSessionDetail,
@@ -294,7 +297,9 @@ export function SessionViewer({
     session.activities[0]?.id ?? '',
   )
   const [comparisonActivityId, setComparisonActivityId] = useState<string | null>(null)
-  const [selectedMetric, setSelectedMetric] = useState<SailingMetric>('SOG')
+  const [selectedMetric, setSelectedMetric] = useState<ViewerMetricView>(
+    DEFAULT_VIEWER_METRIC_VIEW,
+  )
   const [isPlaying, setIsPlaying] = useState(false)
   const [speed, setSpeed] = useState<PlaybackSpeed>(1)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
@@ -800,18 +805,28 @@ export function SessionViewer({
         selectedMetric={selectedMetric}
         onChange={setSelectedMetric}
       />
-      <MetricChart
-        metric={selectedMetric}
-        primarySamples={canReplay ? primaryWindowSamples : null}
-        comparisonSamples={comparisonActivity ? comparisonWindowSamples : undefined}
-        playbackTime={canReplay ? playbackTime : null}
-        primaryLabel={formatActivityIdentity(primaryActivity)}
-        comparisonLabel={
-          comparisonActivity
-            ? formatActivityIdentity(comparisonActivity)
-            : undefined
-        }
-      />
+      {selectedMetric === 'VS'
+        ? analysisWindow && primaryTrack && (
+            <VsDistributionView
+              primarySamples={primaryTrack.samples}
+              comparisonSamples={comparisonTrack?.samples}
+              analysisWindow={analysisWindow}
+            />
+          )
+        : (
+            <MetricChart
+              metric={selectedMetric}
+              primarySamples={canReplay ? primaryWindowSamples : null}
+              comparisonSamples={comparisonActivity ? comparisonWindowSamples : undefined}
+              playbackTime={canReplay ? playbackTime : null}
+              primaryLabel={formatActivityIdentity(primaryActivity)}
+              comparisonLabel={
+                comparisonActivity
+                  ? formatActivityIdentity(comparisonActivity)
+                  : undefined
+              }
+            />
+          )}
       <IndividualAnalysis
         primaryActivity={{
           id: primaryActivity.id,

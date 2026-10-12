@@ -1217,9 +1217,106 @@ input:focus-visible {
 
 .metric-options {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 7px;
   margin-top: 15px;
+}
+
+.vs-distribution {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 20px 16px;
+  background: #f8fbfb;
+}
+
+.vs-distribution__panel {
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid #d5e1e3;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.vs-distribution__panel header {
+  display: grid;
+  gap: 2px;
+}
+
+.vs-distribution__panel header span {
+  color: #647b82;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.vs-distribution__coverage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  margin-top: 10px;
+  color: #647b82;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.vs-distribution__coverage span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.vs-distribution__coverage i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.vs-distribution__histogram,
+.vs-distribution__rose {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 10px;
+}
+
+.vs-distribution__rose {
+  max-height: 230px;
+}
+
+.vs-distribution__axis {
+  fill: none;
+  stroke: #b9cbcf;
+  stroke-width: 1;
+}
+
+.vs-distribution__tick,
+.vs-distribution__axis-label,
+.vs-distribution__angular-label {
+  fill: #60777e;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.vs-distribution__angular-label {
+  font-size: 11px;
+}
+
+.vs-distribution__empty {
+  display: grid;
+  min-height: 180px;
+  margin: 10px 0 0;
+  color: #52717a;
+  font-weight: 700;
+  place-content: center;
+  text-align: center;
+}
+
+.vs-distribution__unavailable {
+  margin: 7px 0 0;
+  color: #6b5960;
+  font-size: 0.74rem;
+  line-height: 1.35;
 }
 
 .metric-chart {
@@ -1508,9 +1605,14 @@ input:focus-visible {
   }
 
   .content-section,
-  .metric-chart {
+  .metric-chart,
+  .vs-distribution {
     padding-top: 24px;
     padding-bottom: 24px;
+  }
+
+  .vs-distribution {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
