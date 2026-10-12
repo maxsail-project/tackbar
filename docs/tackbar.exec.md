@@ -54,7 +54,7 @@ $env:TACKBAR_ADMIN_KEY = "change-me-local-only"
 ```
 
 En la Terminal 2 ejecute `.\scripts\start-local-frontend.ps1`. Como
-pre-flight opcional, use `.\scripts\check-local-pilot.ps1`; no contacta Gmail
+pre-flight opcional, use `.\scripts\check-local-pilot.ps1`; no contacta el buzón
 ni inicia ingestión. El envío/selección del track, **Review mailbox now** y las
 acciones de consentimiento, capability, renovación y Viewer siguen siendo
 pasos manuales del operador.
@@ -190,7 +190,7 @@ Admin obtiene/copia una capability activa
 
 No hay “Recent Sessions” público. Compruebe Primary Activity, Compare Activity opcional, uno/dos tracks, telemetría GPS/SOG/COG/HEEL/TRIM, Analysis Window, Replay x1/x2/x5/x10, gráficos SOG/COG/HEEL/TRIM y Summary Metrics.
 
-## 9. Gmail e ingestión
+## 9. Buzón OVH e ingestión
 
 Admin incluye la pestaña **Ingestions** para inspeccionar cada intento operativo:
 attachment, sender/provider, status, attempts, last attempt, last error,
@@ -198,15 +198,17 @@ Activity ID, Session ID y disponibilidad del original. Los registros `failed`
 permanecen visibles y pueden reprocesarse cuando el original preservado está
 disponible.
 
-**Review mailbox now** requiere `TACKBAR_DATA_DIR` privado, la clave Admin y
-credenciales/token OAuth de Gmail preparados previamente con alcance
-`gmail.readonly`. No abre OAuth interactivo desde el navegador ni modifica el
-estado de Gmail.
+**Review mailbox now** requiere `TACKBAR_DATA_DIR` privado, la clave Admin y la
+configuración IMAP de OVH. `TACKBAR_MAILBOX_PROVIDER` conserva la selección de
+proveedor, pero `ovh` es su valor predeterminado y el único admitido. La cuenta
+y contraseña se configuran mediante `TACKBAR_OVH_IMAP_USERNAME` y
+`TACKBAR_OVH_IMAP_PASSWORD`; host y puerto admiten los valores predeterminados
+de producción documentados en el runbook.
 
-La acción descubre mensajes con adjuntos (incluidos mensajes ya leídos), usa
-paginación y muestra un resumen con candidatos `processed`, `skipped`, `known
-failed` y `failed`. Los registros `known failed` no se reintentan
-automáticamente; use **Reprocess** explícitamente.
+La acción examina mensajes nuevos desde el cursor IMAP persistido, sin usar el
+estado leído/no leído como estado TackBar, y muestra un resumen con candidatos
+`processed`, `skipped`, `known failed` y `failed`. Los registros `known failed`
+no se reintentan automáticamente; use **Reprocess** explícitamente.
 
 **Reprocess** trabaja sobre el registro conocido y su original preservado:
 
@@ -219,23 +221,15 @@ ingestion conocida
 → matching de Session existente
 ```
 
-No contacta Gmail ni crea un registro nuevo. El original de ingestión y el
-original de Activity pueden coexistir; ambos viven bajo la raíz privada de
-datos y la API Admin nunca expone rutas locales ni bytes crudos. La exclusión
-de escritor es por proceso, por lo que no cubre varias instancias del backend.
+No contacta el proveedor del buzón ni crea un registro nuevo. El original de
+ingestión y el original de Activity pueden coexistir; ambos viven bajo la raíz
+privada de datos y la API Admin nunca expone rutas locales ni bytes crudos. La
+exclusión de escritor es por proceso, por lo que no cubre varias instancias del
+backend.
 
-`scripts/check_gmail.py` sigue siendo el mecanismo diagnóstico/fallback y usa el
-mismo servicio compartido. No hay polling ni reintentos automáticos.
-
-El script existente sigue disponible como fallback operativo/diagnóstico y exige almacenamiento privado fuera del repositorio:
-
-```powershell
-cd C:\maxsail-project\tackbar\backend
-$env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
-python scripts/check_gmail.py
-```
-
-No es todavía el flujo final de Admin. Para reconstruir el índice de tracks existente:
+La revisión automática mediante el timer de producción y la acción manual de
+Admin usan el mismo servicio compartido. Para reconstruir el índice de tracks
+existente:
 
 ```powershell
 python scripts/build_tracks_index.py

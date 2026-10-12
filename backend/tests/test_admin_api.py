@@ -1215,7 +1215,7 @@ def test_admin_ingestion_inspection_and_reprocess_are_protected_and_path_safe(
     root = _use_runtime(monkeypatch, temporary_directory)
     history = IngestionHistory(root / "ingestion_history.json")
     content = b"invalid preserved track"
-    record = history.create("gmail", "message-1", "sailor@example.test", "track.csv.gz", sha256(content).hexdigest())
+    record = history.create("ovh", "message-1", "sailor@example.test", "track.csv.gz", sha256(content).hexdigest())
     record["original_file"] = IngestionOriginalStorage(root).preserve(record["id"], "track.csv.gz", content)
     history.replace(record)
 
@@ -1254,11 +1254,11 @@ def test_admin_ingestion_exposes_current_resolved_sailor_consent_status(
         ("pending", ACTIVITY_PENDING),
         ("revoked", ACTIVITY_REVOKED),
     ):
-        record = history.create("gmail", message_id, f"{message_id}@example.test", f"{message_id}.csv", None)
+        record = history.create("ovh", message_id, f"{message_id}@example.test", f"{message_id}.csv", None)
         record.update(status="processed", activity_id=activity_id)
         history.replace(record)
         records.append(record)
-    unresolved = history.create("gmail", "unresolved", "unresolved@example.test", "unresolved.csv", None)
+    unresolved = history.create("ovh", "unresolved", "unresolved@example.test", "unresolved.csv", None)
 
     initial = _request("GET", "/api/admin/ingestions")
     confirmed = _request("POST", f"/api/admin/sailors/{PENDING_NEEDS}/consent/confirm")
@@ -1277,11 +1277,11 @@ def test_admin_ingestions_are_ordered_by_received_at_before_attempt_time(
 ) -> None:
     _use_runtime(monkeypatch, temporary_directory)
     history = IngestionHistory()
-    old = history.create("gmail", "old", "a@example.test", "old.csv", None)
+    old = history.create("ovh", "old", "a@example.test", "old.csv", None)
     old["received_at"] = "2026-08-28T10:00:00+00:00"; old["last_attempt_at"] = "2026-08-28T15:00:00+00:00"; history.replace(old)
-    new = history.create("gmail", "new", "a@example.test", "new.csv", None)
+    new = history.create("ovh", "new", "a@example.test", "new.csv", None)
     new["received_at"] = "2026-08-28T12:00:00+00:00"; new["last_attempt_at"] = "2026-08-28T12:01:00+00:00"; history.replace(new)
-    missing = history.create("gmail", "missing", "a@example.test", "missing.csv", None)
+    missing = history.create("ovh", "missing", "a@example.test", "missing.csv", None)
     missing["last_attempt_at"] = "2026-08-28T16:00:00+00:00"; history.replace(missing)
     response = _request("GET", "/api/admin/ingestions")
     assert [item["provider_message_id"] for item in response.json] == ["new", "old", "missing"]
@@ -1292,10 +1292,10 @@ def test_admin_ingestion_disposition_operations_and_filters(
 ) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
     history = IngestionHistory(root / "ingestion_history.json")
-    processed = history.create("gmail", "processed", "a@example.test", "processed.csv", "sha-processed")
+    processed = history.create("ovh", "processed", "a@example.test", "processed.csv", "sha-processed")
     processed.update(status="processed", attempts=2, activity_id=ACTIVITY_ACTIVE, session_id=SESSION_ACTIVE, received_at="2026-08-28T12:00:00+00:00")
     history.replace(processed)
-    failed = history.create("gmail", "failed", "a@example.test", "failed.csv", "sha-failed")
+    failed = history.create("ovh", "failed", "a@example.test", "failed.csv", "sha-failed")
     failed.update(status="failed", attempts=3, last_error="invalid", received_at="2026-08-28T11:00:00+00:00")
     history.replace(failed)
 

@@ -141,6 +141,7 @@ def test_persisted_activity_has_only_activity_domain_fields(
     assert record["min_lon"] == parsed.min_lon
     assert record["max_lon"] == parsed.max_lon
     assert "samples" not in record
+    # Historical provider metadata stays in ingestion history, not Activity.
     assert "gmail_message_id" not in record
     assert "provider_message_id" not in record
     assert "gmail_message_id" not in {field.name for field in fields(Activity)}

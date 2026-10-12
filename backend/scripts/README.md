@@ -9,7 +9,6 @@ cd backend
 
 | Script | Purpose | Reads | Writes |
 | --- | --- | --- | --- |
-| `check_gmail.py` | Process candidate Gmail attachments through the TackBar ingestion flow | Gmail, OAuth files, Sailor/Boat/Activity/Session/ingestion data | OAuth token, Sailors, Activities, Sessions, ingestion history, archived originals, normalized tracks |
 | `reprocess_activity.py` | Regenerate one normalized track from its archived original | Activity data and archived original | Normalized track and track-derived Activity metadata |
 | `migrate_sailor_boat.py` | Migrate an explicitly selected legacy Participant data root to Sailor/Boat | Legacy Participant and Activity JSON | Sailor/Boat JSON, migrated Activity JSON, explicit legacy backups |
 | `build_tracks_index.py` | Build a human-readable index of persisted tracks | Sailor, optional Boat, Activity, Session, and original-file presence | `tmp/tracks-index.csv` only |
@@ -20,99 +19,18 @@ cd backend
 - **Inspection / derived output:** `build_tracks_index.py` and
   `inspect_vakaros.py`. They write disposable files under `backend/tmp/` and do
   not modify domain data.
-- **Data processing / persistence:** `check_gmail.py`. It can create or update
-  persistent PoC data and track files.
 - **Maintenance / reprocessing:** `reprocess_activity.py`. It replaces a
   generated normalized track and refreshes track-derived Activity metadata.
 - **One-time migration:** `migrate_sailor_boat.py`. It rewrites an explicitly
   selected legacy data root after validation and preserves explicit legacy
   backups.
 
-## `check_gmail.py`
-
-### Purpose
-
-Runs the current real Gmail ingestion PoC:
-
-```text
-Gmail
-→ InboundEmail
-→ Sailor
-→ optional default Boat
-→ Activity
-→ normalized track
-→ Session
-```
-
-It searches up to 10 unread Gmail messages with attachments, then selects
-messages whose subject and attachment filename use a supported Vakaros CSV
-suffix. Gmail access uses the read-only scope; the script does not mark
-messages as read or otherwise modify Gmail state.
-
-Sailor has a stable internal TackBar UUID. Its normalized email is the external
-identity used by email ingestion. A Sailor may have an optional default Boat;
-new Activities use it when configured, otherwise their Boat context is
-unknown. Boat is never inferred from the filename, Gmail subject, device name,
-or Vakaros metadata.
-
-### Usage
-
-Set `TACKBAR_DATA_DIR` to a private runtime root outside the repository, then
-run:
-
-```powershell
-python scripts/check_gmail.py
-```
-
-The script refuses real ingestion without that explicit private root. The
-first OAuth run may open a local browser authorization flow.
-
-### Reads
-
-- Gmail through the Gmail API.
-- `secrets/credentials.json` and, when present, `token.json` for OAuth.
-- `<runtime-root>/sailors.json`.
-- `<runtime-root>/boats.json`.
-- `<runtime-root>/activities.json`.
-- `<runtime-root>/sessions.json`.
-- `<runtime-root>/ingestion_history.json`.
-
-### Writes / side effects
-
-This script performs persistent data processing. Depending on the messages it
-finds, it may create or update:
-
-- `token.json` when OAuth authorization or token refresh is required;
-- `<runtime-root>/sailors.json`, including minimal Sailors for new senders;
-- `<runtime-root>/activities.json`;
-- `<runtime-root>/sessions.json`;
-- `<runtime-root>/ingestion_history.json` after complete successful processing;
-- `<runtime-root>/originals/<activity_id>/<original_filename>`;
-- `<runtime-root>/tracks/<activity_id>.csv.gz`.
-
-It reads Boat configuration but does not create or infer Boats. Original
-attachments are archived without being rewritten when identical. Normalized
-tracks are generated when missing. Existing message and Activity deduplication
-rules still apply.
-
-### Expected output
-
-For each processed email, the script prints Sailor, optional Boat, Activity,
-track, and Session identifiers or status. It reports already processed
-messages, rejected attachments, and the case where no matching Gmail messages
-are found. It does not print track samples.
-
-### Typical use
-
-Run it when manually exercising the live Gmail-to-Session PoC or checking that
-new Gmail attachments are ingested successfully.
-
 ## `reprocess_activity.py`
 
 ### Purpose
 
 Regenerates the canonical normalized track for one existing Activity using its
-archived original. Gmail and ingestion history are not involved.
+archived original. Mailbox acquisition and ingestion history are not involved.
 
 The Activity UUID, Sailor reference, Boat context, and attachment SHA-256
 remain stable. The script verifies the archived original against the Activity
@@ -312,7 +230,7 @@ error if the public demo fixture is missing or invalid.
 ### Typical use
 
 Run it while validating the Vakaros parser or inspecting the demo fixture
-without invoking Gmail ingestion or persistent domain processing.
+without invoking mailbox ingestion or persistent domain processing.
 
 ## Runtime paths
 
@@ -321,7 +239,7 @@ The active runtime data root is selected through TackBar runtime configuration:
 - when `TACKBAR_DATA_DIR` is set, repositories use that configured path;
 - when it is not set, repositories use the public sanitized
   `backend/test-data/` root;
-- live Gmail ingestion requires `TACKBAR_DATA_DIR` to point to a private root
+- live mailbox ingestion requires `TACKBAR_DATA_DIR` to point to a private root
   outside the repository.
 
 Each current v0.4 runtime root contains:

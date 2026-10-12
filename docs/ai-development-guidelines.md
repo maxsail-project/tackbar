@@ -214,7 +214,7 @@ External providers must remain adapters.
 
 Examples:
 
-- Gmail;
+- OVH mailbox acquisition;
 - future Garmin integration;
 - future Vakaros integrations;
 - other input channels.
@@ -243,7 +243,7 @@ The frontend must not:
 - read backend JSON persistence directly;
 - read CSV.GZ track files directly;
 - depend on filesystem layout;
-- depend on Gmail or source-provider structures;
+- depend on mailbox-provider or source-provider structures;
 - duplicate backend domain rules unnecessarily.
 
 The frontend should consume a stable API contract.

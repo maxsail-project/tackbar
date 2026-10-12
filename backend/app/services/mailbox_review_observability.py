@@ -9,7 +9,7 @@ from app.runtime_paths import require_private_data_root, runtime_paths
 
 
 _STATE_VERSION = 1
-_PROVIDERS = {"gmail", "ovh", "unknown"}
+_PROVIDERS = {"ovh", "unknown"}
 _STAGES = {
     "configuration",
     "cursor_load",

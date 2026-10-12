@@ -117,9 +117,9 @@ The repository currently contains:
 scripts/check-local-pilot.ps1
 ```
 
-It may be useful diagnostically, but it currently contains Gmail-specific checks inherited from an older local-pilot workflow.
-
-Until that script is reconciled with the current production/local mailbox direction, a Local Development Skill or Agent MUST NOT treat its Gmail checks as authoritative prerequisites for simply starting TackBar locally.
+It checks the optional local-pilot mailbox configuration against the current
+OVH-only runtime, as well as the backend and frontend endpoints. It does not
+contact the mailbox or start ingestion.
 
 The authoritative startup preconditions are the current startup scripts and applicable repository documentation.
 

@@ -8,8 +8,10 @@ if (-not $env:TACKBAR_DATA_DIR -or [string]::IsNullOrWhiteSpace($env:TACKBAR_DAT
   Report ($(if ($dataRoot.StartsWith($repoRoot, [StringComparison]::OrdinalIgnoreCase)) {'FAIL'} else {'PASS'})) 'private runtime root outside repository' $true
 }
 Report ($(if ($env:TACKBAR_ADMIN_KEY -and $env:TACKBAR_ADMIN_KEY.Trim()) {'PASS'} else {'FAIL'})) 'Admin key configured' $true
-Report ($(if (Test-Path (Join-Path $repo 'backend\secrets\credentials.json')) {'PASS'} else {'FAIL'})) 'Gmail credentials present' $true
-Report ($(if (Test-Path (Join-Path $repo 'backend\token.json')) {'PASS'} else {'WARNING'})) 'Gmail token present (authorize before Review mailbox now)' $false
+$mailboxProvider = if ($env:TACKBAR_MAILBOX_PROVIDER -and $env:TACKBAR_MAILBOX_PROVIDER.Trim()) { $env:TACKBAR_MAILBOX_PROVIDER.Trim().ToLowerInvariant() } else { 'ovh' }
+Report ($(if ($mailboxProvider -eq 'ovh') {'PASS'} else {'FAIL'})) 'OVH mailbox provider selected' $true
+Report ($(if ($env:TACKBAR_OVH_IMAP_USERNAME -and $env:TACKBAR_OVH_IMAP_USERNAME.Trim()) {'PASS'} else {'FAIL'})) 'OVH IMAP username configured' $true
+Report ($(if ($env:TACKBAR_OVH_IMAP_PASSWORD -and $env:TACKBAR_OVH_IMAP_PASSWORD.Trim()) {'PASS'} else {'FAIL'})) 'OVH IMAP password configured' $true
 Report ($(if (Get-Command python -ErrorAction SilentlyContinue) {'PASS'} else {'FAIL'})) 'Python available' $true
 Report ($(if (Get-Command npm.cmd -ErrorAction SilentlyContinue) {'PASS'} else {'FAIL'})) 'Node/npm available' $true
 try { Invoke-WebRequest -Uri 'http://127.0.0.1:8000/health' -UseBasicParsing -TimeoutSec 3 | Out-Null; Report 'PASS' 'backend health' } catch { Report 'FAIL' 'backend health unreachable' $true }

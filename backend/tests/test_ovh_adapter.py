@@ -158,7 +158,7 @@ def test_ovh_accepts_real_pilot_shape_without_private_track_data(monkeypatch):
         {
             b"5": _message(
                 subject=subject,
-                sender="aquaxsailing@gmail.com",
+                sender="sailor@example.com",
                 attachments=[(filename, csv)],
             )
         },
@@ -167,7 +167,7 @@ def test_ovh_accepts_real_pilot_shape_without_private_track_data(monkeypatch):
     candidates = adapter.get_candidate_emails()
 
     assert len(candidates) == 1
-    assert candidates[0].sender_email == "aquaxsailing@gmail.com"
+    assert candidates[0].sender_email == "sailor@example.com"
     assert candidates[0].subject == subject
     assert candidates[0].attachment_filename == filename
     assert candidates[0].attachment_bytes == csv

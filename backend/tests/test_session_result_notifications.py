@@ -531,7 +531,7 @@ def test_active_new_tracks_send_once_per_activity_across_duplicates_and_reload(r
     assert not duplicate.activity_created
     assert runtime.history.records()[-1]["activity_created_by_ingestion"] is False
     assert runtime.history.records()[-1]["session_result_notification_candidate"] is False
-    process_provider_email("gmail", email(), runtime.sailors, runtime.boats, runtime.activities, runtime.sessions, runtime.history)
+    process_provider_email("ovh", email(), runtime.sailors, runtime.boats, runtime.activities, runtime.sessions, runtime.history)
     for record in runtime.history.records():
         reprocess(runtime, record["id"])
     reloaded = IngestionHistory(runtime.history.path)

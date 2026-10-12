@@ -102,6 +102,7 @@ def test_ovh_review_uses_distinct_history_identity_and_is_idempotent(monkeypatch
     {"TACKBAR_OVH_IMAP_USERNAME": ""},
     {"TACKBAR_OVH_IMAP_PORT": "invalid"},
     {"TACKBAR_OVH_IMAP_PORT": "0"},
+    {"TACKBAR_MAILBOX_PROVIDER": "gmail"},
     {"TACKBAR_MAILBOX_PROVIDER": "unknown"},
 ])
 def test_invalid_provider_configuration_is_safe(monkeypatch, tmp_path, configuration):
@@ -186,7 +187,7 @@ def test_injected_provider_uses_selected_key(monkeypatch, tmp_path):
     assert IngestionHistory().find_provider_message("ovh", "456:18") is not None
 
 
-def test_injected_provider_defaults_to_gmail_key(monkeypatch, tmp_path):
+def test_injected_provider_defaults_to_ovh_key(monkeypatch, tmp_path):
     monkeypatch.setenv("TACKBAR_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("TACKBAR_MAILBOX_PROVIDER", raising=False)
 
@@ -197,11 +198,11 @@ def test_injected_provider_defaults_to_gmail_key(monkeypatch, tmp_path):
                 subject="vakaros-demo.csv.gz",
                 attachment_filename="vakaros-demo.csv.gz",
                 attachment_bytes=FIXTURE.read_bytes(),
-                provider_message_id="gmail-message-1",
+                provider_message_id="456:19",
             )]
 
     assert review_mailbox_now(provider=Provider()).processed == 1
-    assert IngestionHistory().find_provider_message("gmail", "gmail-message-1") is not None
+    assert IngestionHistory().find_provider_message("ovh", "456:19") is not None
 
 
 def _inbound(provider_message_id: str) -> InboundEmail:

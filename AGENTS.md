@@ -149,7 +149,7 @@ Do not implement future roadmap or backlog items unless explicitly requested.
 - Avoid unrelated refactors.
 - Preserve provider-independent domain boundaries.
 - Keep ingestion, parsing, normalization, persistence, domain services, APIs, and frontend responsibilities separated.
-- Keep external providers such as Gmail, Vakaros, and future Garmin integrations as adapters.
+- Keep external providers such as OVH mailbox acquisition, Vakaros, and future Garmin integrations as adapters.
 - Reuse validated sailing-domain knowledge from MaxSail when useful, but do not inherit MaxSail's Streamlit architecture or reproduce MaxSail Analytics by default.
 - Do not invent domain concepts, fields, or semantics.
 - Preserve already validated v0.4 behavior unless the current requirement explicitly changes it.

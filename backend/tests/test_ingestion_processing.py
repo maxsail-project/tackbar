@@ -62,7 +62,7 @@ def test_default_history_path_is_persistent_data() -> None:
     )
 
 
-def test_legacy_records_are_migrated_in_place(
+def test_historical_gmail_records_are_migrated_in_place(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     legacy_records = [
@@ -92,7 +92,7 @@ def test_unknown_disposition_is_rejected_as_malformed_persistence(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     path = temporary_json_file("malformed-history", [{
-        "id": "record-1", "provider": "gmail", "provider_message_id": "message", "sender_email": None,
+        "id": "record-1", "provider": "ovh", "provider_message_id": "message", "sender_email": None,
         "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None,
         "status": "failed", "disposition": "deleted", "attempts": 0, "last_attempt_at": None,
         "last_error": None, "activity_id": None, "session_id": None,
@@ -105,7 +105,7 @@ def test_unknown_disposition_is_rejected_as_malformed_persistence(
 def test_missing_runtime_history_does_not_import_other_path(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
-    unrelated = temporary_json_file("legacy-history", [{"provider": "gmail"}])
+    unrelated = temporary_json_file("legacy-history", [{"provider": "ovh"}])
     runtime_path = unrelated.with_name("private-runtime") / "ingestion_history.json"
     history = IngestionHistory(runtime_path)
     assert history.records() == []
@@ -116,7 +116,7 @@ def test_missing_runtime_history_does_not_import_other_path(
 def _email(
     attachment_bytes: bytes,
     sender_email: str = "sailor-a@example.com",
-    provider_message_id: str = "gmail-message-1",
+    provider_message_id: str = "456:1",
     filename: str = FILENAME,
     subject: str | None = None,
 ) -> InboundEmail:
@@ -156,10 +156,10 @@ def test_provider_and_message_id_deduplicate_ingestion(
     email = _email(FIXTURE_PATH.read_bytes())
 
     first = process_provider_email(
-        "gmail", email, sailors, boats, activities, sessions, history
+        "ovh", email, sailors, boats, activities, sessions, history
     )
     second = process_provider_email(
-        "gmail", email, sailors, boats, activities, sessions, history
+        "ovh", email, sailors, boats, activities, sessions, history
     )
 
     assert first is not None
@@ -205,7 +205,7 @@ def test_eager_analytics_failure_preserves_ingestion_and_lazy_recovers(
     )
 
     result = process_provider_email(
-        "gmail",
+        "ovh",
         _email(FIXTURE_PATH.read_bytes()),
         sailors,
         boats,
@@ -250,7 +250,7 @@ def test_eager_analytics_persists_unavailable_artifact_without_hdg(
     )
 
     result = process_provider_email(
-        "gmail",
+        "ovh",
         _email(attachment_bytes),
         sailors,
         boats,
@@ -277,7 +277,7 @@ def test_arbitrary_subject_preserves_downstream_activity_and_session_flow(
     )
     subject = "SHIMASAIL track ult. día track H. Reina."
     filename = "SHIMASAIL 5-7-2026.csv"
-    pilot_sailor, _ = sailors.find_or_create_by_email("aquaxsailing@gmail.com")
+    pilot_sailor, _ = sailors.find_or_create_by_email("sailor@example.com")
     sailors.replace(
         replace(pilot_sailor, consent_status=ConsentStatus.ACTIVE)
     )
@@ -286,7 +286,7 @@ def test_arbitrary_subject_preserves_downstream_activity_and_session_flow(
         "ovh",
         _email(
             gzip.decompress(FIXTURE_PATH.read_bytes()),
-            sender_email="aquaxsailing@gmail.com",
+            sender_email="sailor@example.com",
             provider_message_id="456:pilot-message",
             filename=filename,
             subject=subject,
@@ -299,7 +299,7 @@ def test_arbitrary_subject_preserves_downstream_activity_and_session_flow(
     )
 
     assert result is not None
-    assert result.sailor.email == "aquaxsailing@gmail.com"
+    assert result.sailor.email == "sailor@example.com"
     assert result.activity.original_filename == filename
     assert result.activity.sample_count == 3613
     assert result.activity.id in result.session_match.session.activity_ids
@@ -373,7 +373,7 @@ def test_disposition_is_preserved_without_affecting_provider_deduplication(
 ) -> None:
     sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
     email = _email(FIXTURE_PATH.read_bytes())
-    first = process_provider_email("gmail", email, sailors, boats, activities, sessions, history)
+    first = process_provider_email("ovh", email, sailors, boats, activities, sessions, history)
     assert first is not None
     record = history.records()[0]
     discarded = history.set_disposition(record["id"], "discarded")
@@ -382,7 +382,7 @@ def test_disposition_is_preserved_without_affecting_provider_deduplication(
     assert discarded["activity_id"] == first.activity.id
     assert discarded["session_id"] == first.session_match.session.id
     assert history.set_disposition(record["id"], "discarded") == discarded
-    assert process_provider_email("gmail", email, sailors, boats, activities, sessions, history) is None
+    assert process_provider_email("ovh", email, sailors, boats, activities, sessions, history) is None
     restored = history.set_disposition(record["id"], "active")
     assert restored["disposition"] == "active"
 
@@ -398,7 +398,7 @@ def test_active_sailor_ingestion_creates_stable_session_capability(
     sailors.replace(replace(sailor, consent_status=ConsentStatus.ACTIVE))
 
     result = process_provider_email(
-        "gmail",
+        "ovh",
         _email(FIXTURE_PATH.read_bytes()),
         sailors,
         boats,
@@ -415,7 +415,7 @@ def test_active_sailor_ingestion_creates_stable_session_capability(
     assert len(history.records()) == 1
 
 
-def test_same_message_id_from_different_provider_is_not_skipped(
+def test_historical_gmail_message_id_does_not_collide_with_ovh(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     sailors, boats, activities, sessions, history = _repositories(
@@ -423,21 +423,21 @@ def test_same_message_id_from_different_provider_is_not_skipped(
     )
     email = _email(FIXTURE_PATH.read_bytes())
 
-    gmail_result = process_provider_email(
+    historical_gmail_result = process_provider_email(
         "gmail", email, sailors, boats, activities, sessions, history
     )
-    other_provider_result = process_provider_email(
-        "future-provider", email, sailors, boats, activities, sessions, history
+    ovh_result = process_provider_email(
+        "ovh", email, sailors, boats, activities, sessions, history
     )
 
-    assert gmail_result is not None
-    assert other_provider_result is not None
-    assert other_provider_result.activity_created is False
-    assert other_provider_result.activity.id == gmail_result.activity.id
+    assert historical_gmail_result is not None
+    assert ovh_result is not None
+    assert ovh_result.activity_created is False
+    assert ovh_result.activity.id == historical_gmail_result.activity.id
     assert len(history.records()) == 2
 
 
-def test_different_gmail_messages_with_identical_attachment_reuse_activity(
+def test_different_provider_messages_with_identical_attachment_reuse_activity(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     sailors, boats, activities, sessions, history = _repositories(
@@ -446,8 +446,8 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
     attachment_bytes = FIXTURE_PATH.read_bytes()
 
     first = process_provider_email(
-        "gmail",
-        _email(attachment_bytes, provider_message_id="gmail-message-1"),
+        "ovh",
+        _email(attachment_bytes, provider_message_id="456:1"),
         sailors,
         boats,
         activities,
@@ -455,8 +455,8 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
         history,
     )
     second = process_provider_email(
-        "gmail",
-        _email(attachment_bytes, provider_message_id="gmail-message-2"),
+        "ovh",
+        _email(attachment_bytes, provider_message_id="456:2"),
         sailors,
         boats,
         activities,
@@ -475,10 +475,10 @@ def test_different_gmail_messages_with_identical_attachment_reuse_activity(
     assert len(activities.all()) == 1
 
     records = history.records()
-    assert [record["provider"] for record in records] == ["gmail", "gmail"]
+    assert [record["provider"] for record in records] == ["ovh", "ovh"]
     assert [record["provider_message_id"] for record in records] == [
-        "gmail-message-1",
-        "gmail-message-2",
+        "456:1",
+        "456:2",
     ]
     assert [record["activity_id"] for record in records] == [
         first.activity.id,
@@ -496,10 +496,10 @@ def test_csv_ingestion_archives_exact_original_and_reuses_by_raw_sha(
     csv_filename = "vakaros-demo.csv"
 
     first = process_provider_email(
-        "gmail",
+        "ovh",
         _email(
             csv_bytes,
-            provider_message_id="gmail-csv-1",
+            provider_message_id="456:1",
             filename=csv_filename,
         ),
         sailors,
@@ -509,10 +509,10 @@ def test_csv_ingestion_archives_exact_original_and_reuses_by_raw_sha(
         history,
     )
     second = process_provider_email(
-        "gmail",
+        "ovh",
         _email(
             csv_bytes,
-            provider_message_id="gmail-csv-2",
+            provider_message_id="456:2",
             filename=csv_filename,
         ),
         sailors,
@@ -553,8 +553,8 @@ def test_equivalent_csv_and_csv_gz_keep_raw_attachment_deduplication(
     csv_bytes = gzip.decompress(compressed_bytes)
 
     compressed = process_provider_email(
-        "gmail",
-        _email(compressed_bytes, provider_message_id="gmail-gzip"),
+        "ovh",
+        _email(compressed_bytes, provider_message_id="456:1"),
         sailors,
         boats,
         activities,
@@ -562,10 +562,10 @@ def test_equivalent_csv_and_csv_gz_keep_raw_attachment_deduplication(
         history,
     )
     uncompressed = process_provider_email(
-        "gmail",
+        "ovh",
         _email(
             csv_bytes,
-            provider_message_id="gmail-csv",
+            provider_message_id="456:2",
             filename="vakaros-demo.csv",
         ),
         sailors,
@@ -596,7 +596,7 @@ def test_processed_history_stores_provider_and_activity_id(
     )
 
     result = process_provider_email(
-        "gmail",
+        "ovh",
         _email(FIXTURE_PATH.read_bytes()),
         sailors,
         boats,
@@ -607,8 +607,8 @@ def test_processed_history_stores_provider_and_activity_id(
     record = history.records()[0]
 
     assert result is not None
-    assert record["provider"] == "gmail"
-    assert record["provider_message_id"] == "gmail-message-1"
+    assert record["provider"] == "ovh"
+    assert record["provider_message_id"] == "456:1"
     assert record["activity_id"] == result.activity.id
     assert record["status"] == "processed"
     assert record["last_attempt_at"].endswith("+00:00")
@@ -627,7 +627,7 @@ def test_unknown_sailor_is_created_and_full_flow_continues(
     )
 
     result = process_provider_email(
-        "gmail",
+        "ovh",
         _email(FIXTURE_PATH.read_bytes(), " UNKNOWN@EXAMPLE.COM "),
         sailors,
         boats,
@@ -644,7 +644,7 @@ def test_unknown_sailor_is_created_and_full_flow_continues(
     assert result.activity.boat_id is None
     assert result.session_match.status == "created"
     assert result.activity.id in result.session_match.session.activity_ids
-    assert history.is_processed("gmail", "gmail-message-1")
+    assert history.is_processed("ovh", "456:1")
 
 
 def test_revoked_sailor_reenters_pending_and_ingestion_still_matches_session(
@@ -660,7 +660,7 @@ def test_revoked_sailor_reenters_pending_and_ingestion_still_matches_session(
     )
 
     result = process_provider_email(
-        "gmail",
+        "ovh",
         _email(FIXTURE_PATH.read_bytes()),
         sailors,
         boats,
@@ -697,7 +697,7 @@ def test_known_sailor_without_default_boat_creates_activity_with_unknown_boat(
     )
 
     result = process_provider_email(
-        "gmail",
+        "ovh",
         _email(FIXTURE_PATH.read_bytes()),
         sailors,
         boats,
@@ -728,7 +728,7 @@ def test_missing_default_boat_fails_before_activity_creation(
 
     with pytest.raises(ValueError, match="missing default Boat"):
         process_provider_email(
-            "gmail",
+            "ovh",
             _email(FIXTURE_PATH.read_bytes()),
             sailors,
             boats,
@@ -759,7 +759,7 @@ def test_ingestion_is_recorded_only_after_complete_flow_succeeds(
 
     with pytest.raises(RuntimeError, match="session persistence failed"):
         process_provider_email(
-            "gmail",
+            "ovh",
             _email(FIXTURE_PATH.read_bytes(), "new@example.com"),
             sailors,
             boats,
@@ -782,7 +782,7 @@ def test_failed_attachment_is_not_processed(
 
     with pytest.raises(ValueError):
         process_provider_email(
-            "gmail",
+            "ovh",
             _email(b"not a gzip file"),
             sailors,
             boats,
@@ -800,13 +800,14 @@ def test_failed_attachment_is_not_processed(
     assert sessions.all() == []
 
 
-def test_reprocess_uses_preserved_original_and_is_idempotent(
+def test_historical_gmail_record_reprocesses_from_preserved_original(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
     first = process_provider_email("gmail", _email(FIXTURE_PATH.read_bytes()), sailors, boats, activities, sessions, history)
     assert first is not None
     record = history.records()[0]
+    assert record["provider"] == "gmail"
 
     updated = reprocess_ingestion(record["id"], sailors, boats, activities, sessions, history)
 
@@ -818,13 +819,14 @@ def test_reprocess_uses_preserved_original_and_is_idempotent(
     assert len(sessions.all()) == 1
 
 
-def test_reprocess_failure_increments_attempts_and_sha_mismatch_fails_safely(
+def test_historical_gmail_failed_record_reprocesses_without_provider_access(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
     with pytest.raises(ValueError):
         process_provider_email("gmail", _email(b"bad gzip"), sailors, boats, activities, sessions, history)
     record = history.records()[0]
+    assert record["provider"] == "gmail"
 
     repeated = reprocess_ingestion(record["id"], sailors, boats, activities, sessions, history)
     assert repeated["status"] == "failed"

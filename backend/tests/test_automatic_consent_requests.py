@@ -156,7 +156,7 @@ def test_invalid_track_does_not_issue_or_send_consent_request(
 
     with pytest.raises(ValueError):
         process_provider_email(
-            "gmail",
+            "ovh",
             email,
             sailors,
             boats,
@@ -192,7 +192,7 @@ def test_pending_cycle_sends_once_across_more_tracks_duplicates_and_reprocessing
     sender = lambda email, token: sent.append((email, token))
 
     first = process_provider_email(
-        "gmail",
+        "ovh",
         _email("message-1"),
         sailors,
         boats,
@@ -203,7 +203,7 @@ def test_pending_cycle_sends_once_across_more_tracks_duplicates_and_reprocessing
         consent_request_sender=sender,
     )
     second = process_provider_email(
-        "gmail",
+        "ovh",
         _email("message-2"),
         sailors,
         boats,
@@ -214,7 +214,7 @@ def test_pending_cycle_sends_once_across_more_tracks_duplicates_and_reprocessing
         consent_request_sender=sender,
     )
     duplicate = process_provider_email(
-        "gmail",
+        "ovh",
         _email("message-2"),
         sailors,
         boats,
@@ -224,7 +224,7 @@ def test_pending_cycle_sends_once_across_more_tracks_duplicates_and_reprocessing
         consent_events=events,
         consent_request_sender=sender,
     )
-    record = history.find_provider_message("gmail", "message-1")
+    record = history.find_provider_message("ovh", "message-1")
     assert record is not None
     reprocessed = reprocess_ingestion(
         record["id"],
@@ -347,7 +347,7 @@ def test_active_sailor_does_not_receive_consent_request(
     sent: list[tuple[str, str]] = []
 
     result = process_provider_email(
-        "gmail",
+        "ovh",
         _email("active-message"),
         sailors,
         boats,
@@ -419,7 +419,7 @@ def test_controlled_delivery_failure_preserves_processed_ingestion_and_is_not_re
         )
 
     first = process_provider_email(
-        "gmail",
+        "ovh",
         _email("failed-delivery-1"),
         sailors,
         boats,
@@ -430,7 +430,7 @@ def test_controlled_delivery_failure_preserves_processed_ingestion_and_is_not_re
         consent_request_sender=fail_delivery,
     )
     second = process_provider_email(
-        "gmail",
+        "ovh",
         _email("failed-delivery-2"),
         sailors,
         boats,
@@ -473,7 +473,7 @@ def test_unexpected_consent_orchestration_error_surfaces_after_ingestion_is_proc
 
     with pytest.raises(RuntimeError, match="programming error"):
         process_provider_email(
-            "gmail",
+            "ovh",
             _email("unexpected-error"),
             sailors,
             boats,

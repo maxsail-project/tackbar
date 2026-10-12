@@ -20,7 +20,8 @@ The current production mailbox provider is OVHcloud Zimbra. Track sharing uses `
 
 Mailbox credentials and persistent application data remain outside normal repository content. Never place secrets in Git or this file.
 
-The Gmail adapter remains available in the codebase for compatibility/rollback, but Gmail OAuth is not part of the current production ingestion path. If Gmail OAuth is intentionally re-enabled in a future rollback or diagnostic operation, follow `docs/gmail-token-renewal.md`.
+Runtime mailbox acquisition is OVH-only. Gmail acquisition and OAuth/token
+maintenance are not supported by the current release.
 
 ## Mailbox runtime configuration
 
@@ -36,7 +37,18 @@ TACKBAR_OVH_IMAP_USERNAME=share@tackbar.eu
 TACKBAR_OVH_IMAP_PASSWORD=<secret>
 ```
 
+`TACKBAR_MAILBOX_PROVIDER` is retained as the provider-selection seam. Its
+default and only supported value is `ovh`; any other value makes mailbox review
+unavailable.
+
 `TACKBAR_OVH_IMAP_PASSWORD` is an operational secret and MUST NOT be committed or pasted into documentation/logs.
+
+After upgrading to the OVH-only release, an operator should review and remove
+retired Gmail OAuth client/token material from production configuration and
+private runtime locations. This is a deliberate secret-cleanup operation, not
+an application data migration; the application does not delete those files.
+Record any material needed for a separately approved rollback in the applicable
+private backup/restore procedure before removal.
 
 Automatic review through `tackbar-mailbox-review.timer` is the normal ingestion
 trigger. Admin **Review mailbox now** remains available as the manual fallback.

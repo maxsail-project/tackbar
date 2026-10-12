@@ -9,7 +9,6 @@ from app.config import (
     OvhImapConfigurationError,
     load_ovh_imap_configuration,
 )
-from app.email_providers.gmail import GmailAdapter
 from app.email_providers.ovh import (
     OVHAdapter,
     OVHMessageOutcome,
@@ -157,15 +156,13 @@ class MailboxReviewSummary:
 
 
 def _configured_provider_key() -> str:
-    provider_key = os.environ.get("TACKBAR_MAILBOX_PROVIDER", "gmail").strip().lower()
-    if provider_key not in ("gmail", "ovh"):
+    provider_key = os.environ.get("TACKBAR_MAILBOX_PROVIDER", "ovh").strip().lower()
+    if provider_key != "ovh":
         raise MailboxReviewError("Unsupported mailbox provider configuration")
     return provider_key
 
 
 def _configured_provider(provider_key: str) -> Any:
-    if provider_key == "gmail":
-        return GmailAdapter()
     try:
         configuration = load_ovh_imap_configuration()
     except OvhImapConfigurationError as error:

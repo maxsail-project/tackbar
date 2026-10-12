@@ -47,7 +47,7 @@ def test_process_valid_email(fixture_bytes: bytes) -> None:
 def test_process_valid_uncompressed_csv_email(fixture_bytes: bytes) -> None:
     filename = "SHIMASAIL 5-7-2026.csv"
     email = InboundEmail(
-        sender_email="aquaxsailing@gmail.com",
+        sender_email="sailor@example.com",
         subject="SHIMASAIL track ult. día track H. Reina.",
         attachment_filename=filename,
         attachment_bytes=gzip.decompress(fixture_bytes),

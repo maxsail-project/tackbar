@@ -175,7 +175,7 @@ def test_declined_sailor_can_start_new_pending_cycle_with_history_intact(
 
     pending = service.start_new_consent_cycle(
         SAILOR_ID,
-        source="gmail_valid_track",
+        source="ovh_valid_track",
     )
 
     assert pending.consent_status == ConsentStatus.PENDING
@@ -201,7 +201,7 @@ def test_revoked_sailor_can_start_new_pending_cycle_without_losing_history(
 
     pending = service.start_new_consent_cycle(
         SAILOR_ID,
-        source="gmail_valid_track",
+        source="ovh_valid_track",
     )
 
     assert pending.consent_status == ConsentStatus.PENDING
