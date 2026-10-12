@@ -31,7 +31,40 @@ export function temporaryShareUrl(path: string, origin: string) {
   return new URL(path, `${origin.replace(/\/$/, '')}/`).toString()
 }
 
-export function SessionViewerHeader({
+export function formatTemporaryAccessExpiry(
+  expiresAt: string,
+  locales?: Intl.LocalesArgument,
+  timeZone?: string,
+) {
+  const expiry = new Date(expiresAt)
+  if (!Number.isFinite(expiry.getTime())) return 'Unavailable'
+
+  const timeZoneOption = timeZone ? { timeZone } : {}
+  const date = new Intl.DateTimeFormat(locales, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    ...timeZoneOption,
+  }).format(expiry)
+  const time = new Intl.DateTimeFormat(locales, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    ...timeZoneOption,
+  }).format(expiry)
+
+  return `${date} · ${time}`
+}
+
+export function SessionViewerHeader() {
+  return (
+    <header className="app-header viewer-header">
+      <TackBarBrand inverted />
+    </header>
+  )
+}
+
+export function SessionSummaryHeading({
   access,
   onShare,
 }: {
@@ -39,28 +72,31 @@ export function SessionViewerHeader({
   onShare?: () => void
 }) {
   return (
-    <header className="app-header viewer-header">
-      <div className="viewer-header__main">
-        <TackBarBrand inverted />
-        {access.kind === 'original' && onShare && (
-          <button className="viewer-share-button" type="button" onClick={onShare}>
-            Share / QR
-          </button>
+    <div className="session-summary__heading">
+      <div className="session-summary__title">
+        <h1 id="session-summary-heading">
+          {access.kind === 'temporary' ? 'Shared Session' : 'Session'}
+        </h1>
+        {access.kind === 'temporary' && (
+          <p className="session-summary__availability">
+            Available until {formatTemporaryAccessExpiry(access.expiresAt)}
+          </p>
         )}
       </div>
-      {access.kind === 'temporary' && (
-        <TemporaryAccessIndicator expiresAt={access.expiresAt} />
+      {access.kind === 'original' && onShare && (
+        <button className="session-share-button" type="button" onClick={onShare}>
+          <svg
+            className="session-share-button__icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M1 1h6v6H1V1Zm2 2v2h2V3H3Zm6-2h6v6H9V1Zm2 2v2h2V3h-2ZM1 9h6v6H1V9Zm2 2v2h2v-2H3Zm6-2h2v2H9V9Zm4 0h2v4h-2V9Zm-4 4h4v2H9v-2Zm4 0h2v2h-2v-2Z" />
+          </svg>
+          <span>Share</span>
+        </button>
       )}
-    </header>
-  )
-}
-
-function TemporaryAccessIndicator({ expiresAt }: { expiresAt: string }) {
-  const remaining = useRemainingLifetime(expiresAt)
-  return (
-    <p className="temporary-access-indicator" aria-live="polite">
-      Shared access · {remaining === 'Expired' ? remaining : `${remaining} left`}
-    </p>
+    </div>
   )
 }
 

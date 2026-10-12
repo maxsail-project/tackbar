@@ -30,6 +30,7 @@ import TrackMap, {
 } from '../components/TrackMap'
 import {
   SessionSharePanel,
+  SessionSummaryHeading,
   SessionViewerHeader,
 } from '../components/SessionShare'
 import type {
@@ -656,7 +657,7 @@ export function SessionViewer({
 
   return (
     <main className="page-shell viewer-page">
-      <SessionViewerHeader access={access} onShare={openSharePanel} />
+      <SessionViewerHeader />
       {sharePanelOpen && access.kind === 'original' && (
         <SessionSharePanel
           share={temporaryShare}
@@ -667,7 +668,7 @@ export function SessionViewer({
       )}
 
       <section className="session-summary" aria-labelledby="session-summary-heading">
-        <h1 id="session-summary-heading">Session</h1>
+        <SessionSummaryHeading access={access} onShare={openSharePanel} />
         <p>{formatSessionRange(session.start_time, session.end_time)}</p>
         <p>{formatSessionDuration(session.start_time, session.end_time)} · {uniqueSailorCount} {uniqueSailorCount === 1 ? 'sailor' : 'sailors'}</p>
       </section>

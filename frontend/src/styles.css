@@ -174,37 +174,36 @@ a {
 
 .viewer-header {
   align-items: center;
-  flex-wrap: wrap;
 }
 
-.viewer-header__main {
-  display: flex;
+.session-share-button {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-}
-
-.viewer-share-button {
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-left: auto;
+  gap: 6px;
   min-height: 38px;
   padding: 0 11px;
-  border: 1px solid rgb(255 255 255 / 65%);
+  border: 1px solid var(--color-navy);
   border-radius: 9px;
-  color: var(--color-white);
-  background: transparent;
+  color: var(--color-navy);
+  background: var(--color-white);
   font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
 }
 
-.viewer-share-button:hover,
-.viewer-share-button:focus-visible {
-  background: rgb(255 255 255 / 12%);
+.session-share-button:hover,
+.session-share-button:focus-visible {
+  background: var(--color-pale);
 }
 
-.temporary-access-indicator {
-  margin: 0;
-  color: var(--color-white);
-  font-size: 0.82rem;
-  font-weight: 800;
+.session-share-button__icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
 }
 
 .share-panel-backdrop {
@@ -281,8 +280,21 @@ a {
   background: var(--color-background);
 }
 
+.session-summary__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.session-summary__title {
+  min-width: 0;
+}
+
 .session-summary h1 {
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--color-navy);
   font-size: clamp(1.55rem, 6vw, 2rem);
   line-height: 1.1;
@@ -292,6 +304,12 @@ a {
   margin: 4px 0 0;
   color: var(--color-navy);
   line-height: 1.4;
+}
+
+.session-summary .session-summary__availability {
+  margin-top: 5px;
+  color: #526d74;
+  font-size: 0.86rem;
 }
 
 @media (min-width: 700px) {

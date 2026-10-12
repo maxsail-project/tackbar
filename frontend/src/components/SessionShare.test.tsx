@@ -2,22 +2,32 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import {
   formatRemainingLifetime,
+  formatTemporaryAccessExpiry,
   SessionSharePanel,
+  SessionSummaryHeading,
   SessionViewerHeader,
   temporaryShareUrl,
 } from './SessionShare'
 
 
 describe('temporary Session sharing presentation', () => {
-  it('shows Share / QR only for original Session access', () => {
+  it('keeps the global Viewer header branding-only', () => {
+    const header = renderToStaticMarkup(<SessionViewerHeader />)
+
+    expect(header).toContain('viewer-header')
+    expect(header).not.toContain('Share')
+    expect(header).not.toContain('Shared access')
+  })
+
+  it('shows the contextual QR-labelled Share action only for original Session access', () => {
     const original = renderToStaticMarkup(
-      <SessionViewerHeader
+      <SessionSummaryHeading
         access={{ kind: 'original', token: 'original-private-token' }}
         onShare={vi.fn()}
       />,
     )
     const temporary = renderToStaticMarkup(
-      <SessionViewerHeader
+      <SessionSummaryHeading
         access={{
           kind: 'temporary',
           token: 'temporary-private-token',
@@ -26,11 +36,20 @@ describe('temporary Session sharing presentation', () => {
       />,
     )
 
-    expect(original).toContain('Share / QR')
-    expect(temporary).toContain('Shared access')
-    expect(temporary).toContain('left')
-    expect(temporary).not.toContain('Share / QR')
+    expect(original).toContain('>Session</h1>')
+    expect(original).toContain('session-share-button__icon')
+    expect(original).toContain('<span>Share</span>')
+    expect(temporary).toContain('>Shared Session</h1>')
+    expect(temporary).toContain('Available until')
+    expect(temporary).not.toContain('session-share-button')
+    expect(temporary).not.toContain('<span>Share</span>')
     expect(temporary).not.toContain('original-private-token')
+  })
+
+  it('formats the temporary expiry as a fixed local date and time', () => {
+    expect(
+      formatTemporaryAccessExpiry('2026-10-14T17:35:00Z', 'en-GB', 'UTC'),
+    ).toBe('14 Oct 2026 · 17:35')
   })
 
   it('renders a local QR presentation containing only the temporary URL', () => {
