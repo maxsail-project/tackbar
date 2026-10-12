@@ -38,11 +38,31 @@ if git rev-parse --verify --quiet "refs/tags/v0.6.1^{commit}" >/dev/null && \
   exit 1
 fi
 
+backend_requirements_changed=false
 if ! git diff --quiet "$current_commit" "$target_commit" -- \
-  backend/requirements.txt frontend/package.json frontend/package-lock.json; then
-  echo "Dependency manifests differ between the deployed release and '$target_tag'." >&2
-  echo "Install dependencies through the approved server-side procedure before deploying." >&2
-  exit 1
+  backend/requirements.txt; then
+  backend_requirements_changed=true
+fi
+
+frontend_manifests_changed=false
+if ! git diff --quiet "$current_commit" "$target_commit" -- \
+  frontend/package.json frontend/package-lock.json; then
+  frontend_manifests_changed=true
+fi
+
+if [ "$backend_requirements_changed" = true ]; then
+  target_requirements_file="$(mktemp)"
+
+  cleanup_target_requirements() {
+    rm -f -- "$target_requirements_file"
+  }
+  trap cleanup_target_requirements EXIT
+
+  git show "${target_commit}:backend/requirements.txt" > "$target_requirements_file"
+  /opt/tackbar/.venv/bin/python -m pip install -r "$target_requirements_file"
+
+  cleanup_target_requirements
+  trap - EXIT
 fi
 
 git checkout --detach "$target_ref"
@@ -56,8 +76,29 @@ fi
 echo "Checked-out release: $target_tag"
 echo "Commit: $checked_out_commit"
 
-cd "$frontend_dir"
-npm run build
+prepare_frontend() {
+  cd "$frontend_dir" || return
+
+  if [ "$frontend_manifests_changed" = true ]; then
+    npm ci || return
+  elif ! npm ls --all; then
+    npm ci || return
+  fi
+
+  npm run build
+}
+
+if prepare_frontend; then
+  :
+else
+  preparation_status="$?"
+  echo "Frontend dependency preparation or build failed; restoring the previous checkout." >&2
+  if ! git -C "$checkout_dir" checkout --detach "$current_commit"; then
+    echo "Failed to restore the previous checkout at '$current_commit'." >&2
+  fi
+  exit "$preparation_status"
+fi
+
 sudo rsync -a --delete "$frontend_dir/dist/" /var/www/tackbar/
 echo "Frontend: published"
 
