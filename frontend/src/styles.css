@@ -172,6 +172,110 @@ a {
 /* Keep analytical text independent from the decorative brand palette. */
 .viewer-page { color: #17323a; }
 
+.viewer-header {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.viewer-header__main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.viewer-share-button {
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid rgb(255 255 255 / 65%);
+  border-radius: 9px;
+  color: var(--color-white);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.viewer-share-button:hover,
+.viewer-share-button:focus-visible {
+  background: rgb(255 255 255 / 12%);
+}
+
+.temporary-access-indicator {
+  margin: 0;
+  color: var(--color-white);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.share-panel-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(1 54 99 / 72%);
+}
+
+.share-panel {
+  width: min(100%, 380px);
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--color-white);
+  box-shadow: 0 18px 50px rgb(1 54 99 / 30%);
+  text-align: center;
+}
+
+.share-panel__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: left;
+}
+
+.share-panel__heading h2 {
+  margin: 0;
+  color: var(--color-navy);
+  font-size: 1.3rem;
+}
+
+.share-panel__heading button {
+  min-width: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--color-background);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.share-panel__qr {
+  width: min(100%, 288px);
+  margin: 20px auto 0;
+  padding: 16px;
+  border: 1px solid var(--color-pale);
+  border-radius: 12px;
+  background: var(--color-white);
+}
+
+.share-panel__qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.share-panel__instruction {
+  margin: 16px 0 0;
+  color: var(--color-navy);
+  font-weight: 800;
+}
+
+.share-panel__expiry {
+  margin: 7px 0 0;
+  color: #526d74;
+  font-size: 0.86rem;
+}
+
 .session-summary {
   padding: 20px 16px 16px;
   background: var(--color-background);

@@ -7,6 +7,7 @@ import {
   resolveSelectedDisplayManeuver,
   resolveSelectedManeuverAnalytics,
   SharedSessionUnavailable,
+  TemporaryAccessUnavailable,
 } from './SessionViewerPage'
 import { formatSessionDuration } from '../utils/sessionPresentation'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
@@ -36,6 +37,19 @@ describe('unavailable shared Session', () => {
     expect(markup).toContain('shared link is unavailable')
     expect(markup).not.toContain('session_id')
     expect(markup).not.toContain('capability')
+  })
+
+  it('distinguishes expired and invalidated temporary access safely', () => {
+    const expired = renderToStaticMarkup(
+      <TemporaryAccessUnavailable state="expired" />,
+    )
+    const invalidated = renderToStaticMarkup(
+      <TemporaryAccessUnavailable state="unavailable" />,
+    )
+
+    expect(expired).toContain('Temporary access expired')
+    expect(invalidated).toContain('Temporary access no longer available')
+    expect(expired + invalidated).not.toContain('capability')
   })
 })
 

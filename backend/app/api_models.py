@@ -49,6 +49,15 @@ class SharedSessionDetailResponse(BaseModel):
     activities: list[ActivityContextResponse]
 
 
+class TemporarySessionShareResponse(BaseModel):
+    path: str
+    expires_at: datetime
+
+
+class TemporarySharedSessionDetailResponse(SharedSessionDetailResponse):
+    temporary_access_expires_at: datetime
+
+
 class TrackSampleResponse(BaseModel):
     utc: str
     lat: float

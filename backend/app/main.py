@@ -6,6 +6,12 @@ from app.api_models import (
     ActivityManeuverAnalyticsResponse,
     ActivityTrackResponse,
     SharedSessionDetailResponse,
+    TemporarySessionShareResponse,
+    TemporarySharedSessionDetailResponse,
+)
+from app.models import (
+    TemporarySessionShareResolution,
+    TemporarySessionShareState,
 )
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
@@ -13,6 +19,9 @@ from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
+from app.repositories.temporary_session_shares import (
+    TemporarySessionShareRepository,
+)
 from app.services.activity_track_reader import (
     ActivityTrackDataIntegrityError,
     ActivityTrackReader,
@@ -25,6 +34,7 @@ from app.services.session_capabilities import (
     SessionCapabilityIntegrityError,
     SessionCapabilityService,
 )
+from app.services.temporary_session_shares import TemporarySessionShareService
 from app.services.shared_session_reader import (
     ManeuverAnalyticsDataIntegrityError,
     SharedSessionReader,
@@ -129,6 +139,150 @@ def get_shared_session(token: str) -> SharedSessionDetailResponse:
     return session
 
 
+@app.post(
+    "/api/shared/sessions/{token}/temporary-share",
+    response_model=TemporarySessionShareResponse,
+)
+def create_temporary_session_share(
+    token: str,
+    response: Response,
+) -> TemporarySessionShareResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        if _shared_session_reader().get_session(token) is None:
+            raise _session_not_found()
+        share = _temporary_share_service().create_or_reuse(token)
+    except HTTPException:
+        raise
+    except (
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise _integrity_error() from error
+    if share is None:
+        raise _session_not_found()
+    return TemporarySessionShareResponse(
+        path=f"/q/{share.token}",
+        expires_at=share.expires_at,
+    )
+
+
+@app.get(
+    "/api/temporary/sessions/{token}",
+    response_model=TemporarySharedSessionDetailResponse,
+)
+def get_temporary_shared_session(
+    token: str,
+    response: Response,
+) -> TemporarySharedSessionDetailResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        resolution = _resolve_temporary_share(token)
+        if resolution.session is None or resolution.share is None:
+            raise ValueError("Valid temporary share resolution is incomplete")
+        detail = _shared_session_reader().get_session_for_resolved(
+            resolution.session
+        )
+    except HTTPException:
+        raise
+    except (
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise _integrity_error() from error
+    if detail is None:
+        raise _temporary_share_not_found()
+    return TemporarySharedSessionDetailResponse(
+        start_time=detail.start_time,
+        end_time=detail.end_time,
+        activities=detail.activities,
+        temporary_access_expires_at=resolution.share.expires_at,
+    )
+
+
+@app.get(
+    "/api/temporary/sessions/{token}/activities/{activity_id}/track",
+    response_model=ActivityTrackResponse,
+)
+def get_temporary_shared_activity_track(
+    token: str,
+    activity_id: str,
+    response: Response,
+) -> ActivityTrackResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        resolution = _resolve_temporary_share(token)
+        if resolution.session is None:
+            raise ValueError("Valid temporary share resolution is incomplete")
+        track = _shared_session_reader().get_track_for_resolved(
+            resolution.session,
+            activity_id,
+        )
+    except HTTPException:
+        raise
+    except (
+        ActivityTrackDataIntegrityError,
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Persisted Activity track data is inconsistent",
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    if track is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Activity not found",
+            headers={"Cache-Control": "no-store"},
+        )
+    return track
+
+
+@app.get(
+    "/api/temporary/sessions/{token}/activities/{activity_id}/maneuvers",
+    response_model=ActivityManeuverAnalyticsResponse,
+    response_model_exclude_none=True,
+)
+def get_temporary_shared_activity_maneuvers(
+    token: str,
+    activity_id: str,
+    response: Response,
+) -> ActivityManeuverAnalyticsResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        resolution = _resolve_temporary_share(token)
+        if resolution.session is None:
+            raise ValueError("Valid temporary share resolution is incomplete")
+        analytics = _shared_session_reader().get_maneuvers_for_resolved(
+            resolution.session,
+            activity_id,
+        )
+    except HTTPException:
+        raise
+    except (
+        ManeuverAnalyticsDataIntegrityError,
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Persisted maneuver analytics data is inconsistent",
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    if analytics is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Activity not found",
+            headers={"Cache-Control": "no-store"},
+        )
+    return analytics
+
+
 @app.get(
     "/api/shared/sessions/{token}/activities/{activity_id}/track",
     response_model=ActivityTrackResponse,
@@ -208,6 +362,35 @@ def _shared_session_reader() -> SharedSessionReader:
     )
 
 
+def _temporary_share_service() -> TemporarySessionShareService:
+    sessions = SessionRepository()
+    sailors = SailorRepository()
+    return TemporarySessionShareService(
+        TemporarySessionShareRepository(),
+        SessionCapabilityService(sessions, ActivityRepository(), sailors),
+        sailors,
+    )
+
+
+def _resolve_temporary_share(token: str) -> TemporarySessionShareResolution:
+    resolution = _temporary_share_service().resolve(token)
+    if resolution.state == TemporarySessionShareState.NOT_FOUND:
+        raise _temporary_share_not_found()
+    if resolution.state == TemporarySessionShareState.EXPIRED:
+        raise HTTPException(
+            status_code=410,
+            detail="Temporary access expired",
+            headers={"Cache-Control": "no-store"},
+        )
+    if resolution.state == TemporarySessionShareState.UNAVAILABLE:
+        raise HTTPException(
+            status_code=403,
+            detail="Temporary access no longer available",
+            headers={"Cache-Control": "no-store"},
+        )
+    return resolution
+
+
 def _web_consent_service() -> WebConsentService:
     sailors = SailorRepository()
     events = ConsentEventRepository()
@@ -242,6 +425,22 @@ def _integrity_error() -> HTTPException:
     return HTTPException(
         status_code=500,
         detail="Persisted Session data is inconsistent",
+    )
+
+
+def _session_not_found() -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail="Session not found",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def _temporary_share_not_found() -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail="Temporary access not found",
+        headers={"Cache-Control": "no-store"},
     )
 
 

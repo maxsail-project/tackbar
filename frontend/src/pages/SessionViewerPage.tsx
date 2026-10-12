@@ -4,10 +4,14 @@ import { useParams } from 'react-router-dom'
 import {
   ActivityManeuverAnalyticsNotFoundError,
   ActivityTrackNotFoundError,
-  getSharedActivityTrack,
-  getSharedActivityManeuvers,
-  getSharedSession,
+  createTemporarySessionShare,
+  getActivityManeuversForAccess,
+  getActivityTrackForAccess,
+  getSessionForAccess,
   SessionNotFoundError,
+  TemporaryAccessExpiredError,
+  TemporaryAccessNotFoundError,
+  TemporaryAccessUnavailableError,
 } from '../api/tackbarApi'
 import ActivitySelector from '../components/ActivitySelector'
 import AnalysisWindow, {
@@ -24,7 +28,17 @@ import TrackMap, {
   createMapFitContextKey,
   type MapFocusRequest,
 } from '../components/TrackMap'
-import type { SailingMetric, SessionDetail } from '../types/session'
+import {
+  SessionSharePanel,
+  SessionViewerHeader,
+} from '../components/SessionShare'
+import type {
+  SailingMetric,
+  SessionAccess,
+  SessionDetail,
+  TemporarySessionDetail,
+  TemporarySessionShare,
+} from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import {
@@ -64,7 +78,7 @@ interface TrackLoadState {
 }
 
 function useActivityTrack(
-  token: string,
+  access: SessionAccess,
   activityId: string | null,
   cache: Map<string, ActivityTrack>,
 ): TrackLoadState {
@@ -90,7 +104,7 @@ function useActivityTrack(
     let isCurrent = true
     setState({ activityId, status: 'loading', track: null })
 
-    getSharedActivityTrack(token, activityId, controller.signal).then((track) => {
+    getActivityTrackForAccess(access, activityId, controller.signal).then((track) => {
       if (!isCurrent) return
       if (track.activity_id !== activityId) {
         setState({ activityId, status: 'error', track: null })
@@ -111,7 +125,7 @@ function useActivityTrack(
       isCurrent = false
       controller.abort()
     }
-  }, [activityId, cache, token])
+  }, [access.kind, access.token, activityId, cache])
 
   return state
 }
@@ -188,7 +202,7 @@ export function resolveSelectedDisplayManeuver(
 }
 
 function useActivityManeuvers(
-  token: string,
+  access: SessionAccess,
   activityId: string | null,
   cache: Map<string, ActivityManeuverAnalytics>,
 ): ManeuverLoadState {
@@ -214,7 +228,7 @@ function useActivityManeuvers(
     let isCurrent = true
     setState({ activityId, status: 'loading', analytics: null })
 
-    getSharedActivityManeuvers(token, activityId, controller.signal).then((analytics) => {
+    getActivityManeuversForAccess(access, activityId, controller.signal).then((analytics) => {
       if (!isCurrent) return
       if (analytics.activity_id !== activityId) {
         setState({ activityId, status: 'error', analytics: null })
@@ -237,7 +251,7 @@ function useActivityManeuvers(
       isCurrent = false
       controller.abort()
     }
-  }, [activityId, cache, token])
+  }, [access.kind, access.token, activityId, cache])
 
   return state
 }
@@ -267,7 +281,13 @@ function activityTrackRange(track: ActivityTrack | null) {
   )
 }
 
-function SessionViewer({ token, session }: { token: string, session: SessionDetail }) {
+export function SessionViewer({
+  access,
+  session,
+}: {
+  access: SessionAccess
+  session: SessionDetail
+}) {
   const [primaryActivityId, setPrimaryActivityId] = useState(
     session.activities[0]?.id ?? '',
   )
@@ -277,6 +297,9 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   const [speed, setSpeed] = useState<PlaybackSpeed>(1)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
   const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
+  const [sharePanelOpen, setSharePanelOpen] = useState(false)
+  const [shareStatus, setShareStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [temporaryShare, setTemporaryShare] = useState<TemporarySessionShare | null>(null)
 
   const primaryActivity = session.activities.find(
     (activity) => activity.id === primaryActivityId,
@@ -287,15 +310,15 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   const comparisonOptions = session.activities.filter(
     (activity) => activity.id !== primaryActivityId,
   )
-  const primaryTrackState = useActivityTrack(token, primaryActivityId || null, trackCache)
-  const comparisonTrackState = useActivityTrack(token, comparisonActivityId, trackCache)
+  const primaryTrackState = useActivityTrack(access, primaryActivityId || null, trackCache)
+  const comparisonTrackState = useActivityTrack(access, comparisonActivityId, trackCache)
   const primaryManeuverState = useActivityManeuvers(
-    token,
+    access,
     primaryActivityId || null,
     maneuverCache,
   )
   const comparisonManeuverState = useActivityManeuvers(
-    token,
+    access,
     comparisonActivityId,
     maneuverCache,
   )
@@ -578,6 +601,25 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
     setPlaybackTime(nextTimeline.playbackTime)
   }
 
+  function openSharePanel() {
+    if (access.kind !== 'original') return
+    setSharePanelOpen(true)
+    if (
+      temporaryShare !== null
+      && Date.parse(temporaryShare.expires_at) > Date.now()
+    ) {
+      setShareStatus('ready')
+      return
+    }
+    setShareStatus('loading')
+    createTemporarySessionShare(access.token).then((share) => {
+      setTemporaryShare(share)
+      setShareStatus('ready')
+    }).catch(() => {
+      setShareStatus('error')
+    })
+  }
+
   if (!primaryActivity) {
     return <p className="empty-state">This Session has no Activities.</p>
   }
@@ -614,9 +656,15 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
 
   return (
     <main className="page-shell viewer-page">
-      <header className="app-header viewer-header">
-        <TackBarBrand inverted />
-      </header>
+      <SessionViewerHeader access={access} onShare={openSharePanel} />
+      {sharePanelOpen && access.kind === 'original' && (
+        <SessionSharePanel
+          share={temporaryShare}
+          status={shareStatus}
+          onClose={() => setSharePanelOpen(false)}
+          origin={window.location.origin}
+        />
+      )}
 
       <section className="session-summary" aria-labelledby="session-summary-heading">
         <h1 id="session-summary-heading">Session</h1>
@@ -784,16 +832,30 @@ function SessionViewer({ token, session }: { token: string, session: SessionDeta
   )
 }
 
-export default function SessionViewerPage() {
+type PageStatus =
+  | 'loading'
+  | 'ready'
+  | 'not-found'
+  | 'temporary-expired'
+  | 'temporary-unavailable'
+  | 'error'
+
+export default function SessionViewerPage({
+  accessKind = 'original',
+}: {
+  accessKind?: 'original' | 'temporary'
+}) {
   const { token } = useParams()
   const [session, setSession] = useState<SessionDetail | null>(null)
-  const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
+  const [access, setAccess] = useState<SessionAccess | null>(null)
+  const [status, setStatus] = useState<PageStatus>('loading')
 
   useEffect(() => {
     const controller = new AbortController()
     let isCurrent = true
 
     setSession(null)
+    setAccess(null)
     setStatus('loading')
 
     if (!token) {
@@ -804,20 +866,41 @@ export default function SessionViewerPage() {
       }
     }
 
-    getSharedSession(token, controller.signal).then((loadedSession) => {
+    const requestedAccess: SessionAccess = accessKind === 'original'
+      ? { kind: 'original', token }
+      : { kind: 'temporary', token, expiresAt: '' }
+    getSessionForAccess(requestedAccess, controller.signal).then((loadedSession) => {
       if (!isCurrent) return
       setSession(loadedSession)
+      setAccess(accessKind === 'original'
+        ? requestedAccess
+        : {
+            kind: 'temporary',
+            token,
+            expiresAt: (loadedSession as TemporarySessionDetail).temporary_access_expires_at,
+          })
       setStatus('ready')
     }).catch((error: unknown) => {
       if (!isCurrent || (error instanceof DOMException && error.name === 'AbortError')) return
-      setStatus(error instanceof SessionNotFoundError ? 'not-found' : 'error')
+      if (error instanceof TemporaryAccessExpiredError) {
+        setStatus('temporary-expired')
+      } else if (error instanceof TemporaryAccessUnavailableError) {
+        setStatus('temporary-unavailable')
+      } else if (
+        error instanceof SessionNotFoundError
+        || error instanceof TemporaryAccessNotFoundError
+      ) {
+        setStatus('not-found')
+      } else {
+        setStatus('error')
+      }
     })
 
     return () => {
       isCurrent = false
       controller.abort()
     }
-  }, [token])
+  }, [accessKind, token])
 
   if (status === 'loading') {
     return (
@@ -829,10 +912,20 @@ export default function SessionViewerPage() {
   }
 
   if (status === 'not-found') {
-    return <SharedSessionUnavailable />
+    return accessKind === 'temporary'
+      ? <TemporaryAccessUnavailable state="not-found" />
+      : <SharedSessionUnavailable />
   }
 
-  if (status === 'error' || !session) {
+  if (status === 'temporary-expired') {
+    return <TemporaryAccessUnavailable state="expired" />
+  }
+
+  if (status === 'temporary-unavailable') {
+    return <TemporaryAccessUnavailable state="unavailable" />
+  }
+
+  if (status === 'error' || !session || !access) {
     return (
       <main className="page-shell not-found-page" role="alert">
         <TackBarBrand />
@@ -842,7 +935,7 @@ export default function SessionViewerPage() {
     )
   }
 
-  return <SessionViewer key={token} token={token!} session={session} />
+  return <SessionViewer key={`${accessKind}:${token}`} access={access} session={session} />
 }
 
 export function SharedSessionUnavailable() {
@@ -851,6 +944,30 @@ export function SharedSessionUnavailable() {
       <TackBarBrand />
       <h1>Session not found</h1>
       <p>This shared link is unavailable.</p>
+    </main>
+  )
+}
+
+export function TemporaryAccessUnavailable({
+  state,
+}: {
+  state: 'not-found' | 'expired' | 'unavailable'
+}) {
+  const heading = state === 'expired'
+    ? 'Temporary access expired'
+    : state === 'unavailable'
+      ? 'Temporary access no longer available'
+      : 'Session not found'
+  const detail = state === 'expired'
+    ? 'This temporary shared access has reached its expiry time.'
+    : state === 'unavailable'
+      ? 'This temporary shared access is no longer valid.'
+      : 'This temporary shared link is not recognized.'
+  return (
+    <main className="page-shell not-found-page">
+      <TackBarBrand />
+      <h1>{heading}</h1>
+      <p>{detail}</p>
     </main>
   )
 }

@@ -41,3 +41,16 @@ export interface SessionDetail {
   end_time: string
   activities: SessionActivity[]
 }
+
+export interface TemporarySessionDetail extends SessionDetail {
+  temporary_access_expires_at: string
+}
+
+export interface TemporarySessionShare {
+  path: string
+  expires_at: string
+}
+
+export type SessionAccess =
+  | { kind: 'original', token: string }
+  | { kind: 'temporary', token: string, expiresAt: string }

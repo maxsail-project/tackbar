@@ -4,12 +4,19 @@ import {
   ActivityManeuverAnalyticsNotFoundError,
   ActivityTrackNotFoundError,
   ConsentUnavailableError,
+  createTemporarySessionShare,
+  getActivityManeuversForAccess,
+  getActivityTrackForAccess,
   getConsentRequest,
   getSharedActivityManeuvers,
   getSharedActivityTrack,
   getSharedSession,
+  getTemporarySharedSession,
   SessionNotFoundError,
   TackBarApiError,
+  TemporaryAccessExpiredError,
+  TemporaryAccessNotFoundError,
+  TemporaryAccessUnavailableError,
 } from './tackbarApi'
 
 const SESSION = {
@@ -149,6 +156,69 @@ describe('TackBar Session API client', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError))
 
     await expect(getSharedActivityTrack('token', 'activity-1')).rejects.toBe(abortError)
+  })
+
+  it('creates a temporary share only through the original Session endpoint', async () => {
+    const share = {
+      path: '/q/temporary-token',
+      expires_at: '2031-06-17T08:00:00Z',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(share), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(createTemporarySessionShare('original/token')).resolves.toEqual(share)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/shared/sessions/original%2Ftoken/temporary-share',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('uses temporary endpoints for the same Viewer data without the original token', async () => {
+    const temporarySession = {
+      ...SESSION,
+      temporary_access_expires_at: '2031-06-17T08:00:00Z',
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(temporarySession), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activity_id: 'activity', samples: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activity_id: 'activity', status: 'available', maneuvers: [] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getTemporarySharedSession('temporary/token')
+    await getActivityTrackForAccess(
+      { kind: 'temporary', token: 'temporary/token', expiresAt: temporarySession.temporary_access_expires_at },
+      'activity',
+    )
+    await getActivityManeuversForAccess(
+      { kind: 'temporary', token: 'temporary/token', expiresAt: temporarySession.temporary_access_expires_at },
+      'activity',
+    )
+
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/temporary/sessions/temporary%2Ftoken',
+      '/api/temporary/sessions/temporary%2Ftoken/activities/activity/track',
+      '/api/temporary/sessions/temporary%2Ftoken/activities/activity/maneuvers',
+    ])
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('original')
+  })
+
+  it('distinguishes unknown, expired and invalidated temporary access', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(null, { status: 410 }))
+      .mockResolvedValueOnce(new Response(null, { status: 403 })))
+
+    await expect(getTemporarySharedSession('unknown')).rejects.toBeInstanceOf(
+      TemporaryAccessNotFoundError,
+    )
+    await expect(getTemporarySharedSession('expired')).rejects.toBeInstanceOf(
+      TemporaryAccessExpiredError,
+    )
+    await expect(getTemporarySharedSession('invalidated')).rejects.toBeInstanceOf(
+      TemporaryAccessUnavailableError,
+    )
   })
 })
 

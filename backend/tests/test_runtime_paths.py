@@ -11,6 +11,7 @@ from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
+from app.repositories.temporary_session_shares import TemporarySessionShareRepository
 from app.runtime_paths import (
     DATA_DIR_ENVIRONMENT_VARIABLE,
     PUBLIC_TEST_DATA_ROOT,
@@ -76,6 +77,7 @@ def test_default_repositories_share_the_configured_root(
     )
     assert ConsentEventRepository().path == paths.consent_events
     assert ConsentRequestRepository().path == paths.consent_requests
+    assert TemporarySessionShareRepository().path == paths.temporary_session_shares
     assert TrackStorage().data_root == paths.root
     assert paths.analytics == configured_root / "analytics"
 

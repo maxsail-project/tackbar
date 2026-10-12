@@ -22,6 +22,7 @@ class RuntimePaths:
     mailbox_review_observability: Path
     consent_events: Path
     consent_requests: Path
+    temporary_session_shares: Path
     originals: Path
     tracks: Path
     analytics: Path
@@ -60,6 +61,7 @@ def runtime_paths(data_root: str | Path | None = None) -> RuntimePaths:
         ),
         consent_events=root / "consent_events.json",
         consent_requests=root / "consent_requests.json",
+        temporary_session_shares=root / "temporary_session_shares.json",
         originals=root / "originals",
         tracks=root / "tracks",
         analytics=root / "analytics",

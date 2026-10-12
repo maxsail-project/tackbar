@@ -10,7 +10,8 @@ export const appRoutes: RouteObject[] = [
   { path: '/consent/conditions', element: <ConsentConditionsPage /> },
   { path: '/consent/:token', element: <ConsentDecisionPage /> },
   { path: '/me/:token', element: <PersonalTackBarPage /> },
-  { path: '/s/:token', element: <SessionViewerPage /> },
+  { path: '/s/:token', element: <SessionViewerPage accessKind="original" /> },
+  { path: '/q/:token', element: <SessionViewerPage accessKind="temporary" /> },
   { path: '/admin', element: <AdminPage /> },
   { path: '*', element: <SessionsPage /> },
 ]

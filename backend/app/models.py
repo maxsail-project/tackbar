@@ -26,6 +26,13 @@ class ConsentRequestState(str, Enum):
     NOT_FOUND = "NOT_FOUND"
 
 
+class TemporarySessionShareState(str, Enum):
+    VALID = "VALID"
+    EXPIRED = "EXPIRED"
+    UNAVAILABLE = "UNAVAILABLE"
+    NOT_FOUND = "NOT_FOUND"
+
+
 @dataclass
 class Activity:
     source: str
@@ -110,6 +117,23 @@ class ConsentRequest:
 class ConsentRequestResolution:
     state: ConsentRequestState
     request: ConsentRequest | None = None
+
+
+@dataclass(frozen=True)
+class TemporarySessionShare:
+    id: str
+    token: str
+    session_id: str
+    originating_capability_fingerprint: str
+    created_at: datetime
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class TemporarySessionShareResolution:
+    state: TemporarySessionShareState
+    share: TemporarySessionShare | None = None
+    session: "Session | None" = None
 
 
 @dataclass

@@ -4,6 +4,7 @@ from app.api_models import (
     ManeuverResponse,
     SharedSessionDetailResponse,
 )
+from app.models import Session
 from app.services.activity_track_reader import ActivityTrackReader
 from app.services.maneuver_analytics import get_or_generate_maneuver_analytics
 from app.services.session_capabilities import SessionCapabilityService
@@ -35,6 +36,12 @@ class SharedSessionReader:
         resolved = self.capabilities.resolve(token)
         if resolved is None:
             return None
+        return self.get_session_for_resolved(resolved)
+
+    def get_session_for_resolved(
+        self,
+        resolved: Session,
+    ) -> SharedSessionDetailResponse | None:
         detail = self.sessions.get_session(resolved.id)
         if detail is None:
             return None
@@ -52,6 +59,13 @@ class SharedSessionReader:
         resolved = self.capabilities.resolve(token)
         if resolved is None:
             return None
+        return self.get_track_for_resolved(resolved, activity_id)
+
+    def get_track_for_resolved(
+        self,
+        resolved: Session,
+        activity_id: str,
+    ) -> ActivityTrackResponse | None:
         detail = self.sessions.get_session(resolved.id)
         if detail is None or activity_id not in {
             activity.id for activity in detail.activities
@@ -67,6 +81,13 @@ class SharedSessionReader:
         resolved = self.capabilities.resolve(token)
         if resolved is None:
             return None
+        return self.get_maneuvers_for_resolved(resolved, activity_id)
+
+    def get_maneuvers_for_resolved(
+        self,
+        resolved: Session,
+        activity_id: str,
+    ) -> ActivityManeuverAnalyticsResponse | None:
         detail = self.sessions.get_session(resolved.id)
         if detail is None or activity_id not in {
             activity.id for activity in detail.activities

@@ -25,6 +25,14 @@ describe('application routing', () => {
     expect(matches?.at(-1)?.params.token).toBe('private-capability')
   })
 
+  it('routes /q/:token to the temporary-access Viewer route', () => {
+    const matches = matchRoutes(appRoutes, '/q/temporary-capability')
+
+    expect(matches).not.toBeNull()
+    expect(matches?.at(-1)?.route.path).toBe('/q/:token')
+    expect(matches?.at(-1)?.params.token).toBe('temporary-capability')
+  })
+
   it('routes /admin independently from shared Sessions', () => {
     const matches = matchRoutes(appRoutes, '/admin')
 
