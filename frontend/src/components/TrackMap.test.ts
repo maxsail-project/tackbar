@@ -6,6 +6,7 @@ import {
   boatMarkerRotation,
   createMapFitContextKey,
   currentVisibleTrackBounds,
+  formatMapBearing,
   formatMapCogValue,
   MapTelemetryOverlay,
   maneuverFocusCameraOptions,
@@ -107,6 +108,20 @@ describe('map COG presentation', () => {
     [null, '—'],
   ])('formats map COG %s as %s', (cog, expected) => {
     expect(formatMapCogValue(cog)).toBe(expected)
+  })
+})
+
+describe('map bearing presentation', () => {
+  it.each([
+    [0, '000°'],
+    [62, '062°'],
+    [180, '180°'],
+    [-1, '359°'],
+    [359.6, '000°'],
+    [360, '000°'],
+    [361, '001°'],
+  ])('formats map bearing %s as %s', (mapBearing, expected) => {
+    expect(formatMapBearing(mapBearing)).toBe(expected)
   })
 })
 

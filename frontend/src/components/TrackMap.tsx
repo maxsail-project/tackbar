@@ -100,6 +100,12 @@ export function formatMapCogValue(cog: number | null) {
   return `${normalizedCog}°`
 }
 
+export function formatMapBearing(mapBearing: number) {
+  const roundedBearing = Math.round(mapBearing)
+  const normalizedBearing = ((roundedBearing % 360) + 360) % 360
+  return `${String(normalizedBearing).padStart(3, '0')}°`
+}
+
 export function createMapFitContextKey(
   primaryActivityId: string,
   comparisonActivityId: string | null,
@@ -458,6 +464,13 @@ export default function TrackMap({
           </Marker>
         )}
       </Map>
+      <div
+        className="map-bearing"
+        aria-label={`Map direction ${formatMapBearing(mapBearing)}`}
+      >
+        <span>DIR</span>
+        <strong>{formatMapBearing(mapBearing)}</strong>
+      </div>
       <MapTelemetryOverlay
         hasComparison={hasComparison}
         primaryActivityIdentity={primaryActivityIdentity}
