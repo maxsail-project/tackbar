@@ -1,5 +1,7 @@
 name: Deploy Production
 
+run-name: Deploy Production — ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }} (${{ github.event_name == 'release' && 'release' || 'manual' }})
+
 on:
   release:
     types: [published]
