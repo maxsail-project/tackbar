@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import {
   formatRemainingLifetime,
-  formatTemporaryAccessExpiry,
+  formatAccessExpiry,
   SessionSharePanel,
   SessionSummaryHeading,
   SessionViewerHeader,
@@ -23,6 +23,7 @@ describe('temporary Session sharing presentation', () => {
     const original = renderToStaticMarkup(
       <SessionSummaryHeading
         access={{ kind: 'original', token: 'original-private-token' }}
+        expiresAt="2026-11-11T17:35:00Z"
         onShare={vi.fn()}
       />,
     )
@@ -33,22 +34,26 @@ describe('temporary Session sharing presentation', () => {
           token: 'temporary-private-token',
           expiresAt: '2099-01-01T12:00:00Z',
         }}
+        expiresAt="2026-10-14T17:35:00Z"
       />,
     )
 
     expect(original).toContain('>Session</h1>')
+    expect(original).toContain('Available until')
+    expect(original).toContain(formatAccessExpiry('2026-11-11T17:35:00Z'))
     expect(original).toContain('session-share-button__icon')
     expect(original).toContain('<span>Share</span>')
     expect(temporary).toContain('>Shared Session</h1>')
     expect(temporary).toContain('Available until')
+    expect(temporary).toContain(formatAccessExpiry('2026-10-14T17:35:00Z'))
     expect(temporary).not.toContain('session-share-button')
     expect(temporary).not.toContain('<span>Share</span>')
     expect(temporary).not.toContain('original-private-token')
   })
 
-  it('formats the temporary expiry as a fixed local date and time', () => {
+  it('formats an access expiry as a fixed local date and time', () => {
     expect(
-      formatTemporaryAccessExpiry('2026-10-14T17:35:00Z', 'en-GB', 'UTC'),
+      formatAccessExpiry('2026-10-14T17:35:00Z', 'en-GB', 'UTC'),
     ).toBe('14 Oct 2026 · 17:35')
   })
 

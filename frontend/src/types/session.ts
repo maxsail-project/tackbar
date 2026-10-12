@@ -42,6 +42,10 @@ export interface SessionDetail {
   activities: SessionActivity[]
 }
 
+export interface SharedSessionDetail extends SessionDetail {
+  session_access_expires_at: string
+}
+
 export interface TemporarySessionDetail extends SessionDetail {
   temporary_access_expires_at: string
 }

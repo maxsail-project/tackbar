@@ -37,6 +37,7 @@ import type {
   SailingMetric,
   SessionAccess,
   SessionDetail,
+  SharedSessionDetail,
   TemporarySessionDetail,
   TemporarySessionShare,
 } from '../types/session'
@@ -661,7 +662,13 @@ export function SessionViewer({
       )}
 
       <section className="session-summary" aria-labelledby="session-summary-heading">
-        <SessionSummaryHeading access={access} onShare={openSharePanel} />
+        <SessionSummaryHeading
+          access={access}
+          expiresAt={access.kind === 'temporary'
+            ? access.expiresAt
+            : (session as SharedSessionDetail).session_access_expires_at}
+          onShare={openSharePanel}
+        />
         <p>{formatSessionRange(session.start_time, session.end_time)}</p>
         <p>{formatSessionDuration(session.start_time, session.end_time)} · {uniqueSailorCount} {uniqueSailorCount === 1 ? 'sailor' : 'sailors'}</p>
       </section>

@@ -19,10 +19,15 @@ import {
   TemporaryAccessUnavailableError,
 } from './tackbarApi'
 
-const SESSION = {
+const SESSION_CONTENT = {
   start_time: '2031-06-15T08:00:00Z',
   end_time: '2031-06-15T10:00:00Z',
   activities: [],
+}
+
+const SESSION = {
+  ...SESSION_CONTENT,
+  session_access_expires_at: '2031-08-14T08:00:00Z',
 }
 
 const CONSENT = {
@@ -177,9 +182,10 @@ describe('TackBar Session API client', () => {
 
   it('uses temporary endpoints for the same Viewer data without the original token', async () => {
     const temporarySession = {
-      ...SESSION,
+      ...SESSION_CONTENT,
       temporary_access_expires_at: '2031-06-17T08:00:00Z',
     }
+    expect(temporarySession).not.toHaveProperty('session_access_expires_at')
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(temporarySession), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ activity_id: 'activity', samples: [] }), { status: 200 }))

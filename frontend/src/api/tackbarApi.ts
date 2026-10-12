@@ -1,7 +1,7 @@
 import type { PersonalTackBar } from '../types/personal'
 import type {
   SessionAccess,
-  SessionDetail,
+  SharedSessionDetail,
   TemporarySessionDetail,
   TemporarySessionShare,
 } from '../types/session'
@@ -141,7 +141,7 @@ async function requestJson<T>(
 }
 
 export function getSharedSession(token: string, signal?: AbortSignal) {
-  return requestJson<SessionDetail>(
+  return requestJson<SharedSessionDetail>(
     `/api/shared/sessions/${encodeURIComponent(token)}`,
     signal,
     () => new SessionNotFoundError(),

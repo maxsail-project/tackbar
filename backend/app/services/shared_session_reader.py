@@ -49,6 +49,7 @@ class SharedSessionReader:
             start_time=detail.start_time,
             end_time=detail.end_time,
             activities=detail.activities,
+            session_access_expires_at=resolved.expires_at,
         )
 
     def get_track(

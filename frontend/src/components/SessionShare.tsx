@@ -31,7 +31,7 @@ export function temporaryShareUrl(path: string, origin: string) {
   return new URL(path, `${origin.replace(/\/$/, '')}/`).toString()
 }
 
-export function formatTemporaryAccessExpiry(
+export function formatAccessExpiry(
   expiresAt: string,
   locales?: Intl.LocalesArgument,
   timeZone?: string,
@@ -66,9 +66,11 @@ export function SessionViewerHeader() {
 
 export function SessionSummaryHeading({
   access,
+  expiresAt,
   onShare,
 }: {
   access: SessionAccess
+  expiresAt: string
   onShare?: () => void
 }) {
   return (
@@ -77,11 +79,9 @@ export function SessionSummaryHeading({
         <h1 id="session-summary-heading">
           {access.kind === 'temporary' ? 'Shared Session' : 'Session'}
         </h1>
-        {access.kind === 'temporary' && (
-          <p className="session-summary__availability">
-            Available until {formatTemporaryAccessExpiry(access.expiresAt)}
-          </p>
-        )}
+        <p className="session-summary__availability">
+          Available until {formatAccessExpiry(expiresAt)}
+        </p>
       </div>
       {access.kind === 'original' && onShare && (
         <button className="session-share-button" type="button" onClick={onShare}>

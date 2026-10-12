@@ -43,10 +43,14 @@ class SessionDetailResponse(BaseModel):
     activities: list[ActivityContextResponse]
 
 
-class SharedSessionDetailResponse(BaseModel):
+class SharedSessionContentResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     activities: list[ActivityContextResponse]
+
+
+class SharedSessionDetailResponse(SharedSessionContentResponse):
+    session_access_expires_at: datetime
 
 
 class TemporarySessionShareResponse(BaseModel):
@@ -54,7 +58,7 @@ class TemporarySessionShareResponse(BaseModel):
     expires_at: datetime
 
 
-class TemporarySharedSessionDetailResponse(SharedSessionDetailResponse):
+class TemporarySharedSessionDetailResponse(SharedSessionContentResponse):
     temporary_access_expires_at: datetime
 
 

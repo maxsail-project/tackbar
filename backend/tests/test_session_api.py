@@ -14,6 +14,8 @@ from app.normalization.track_normalizer import (
 )
 from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
 from app.services.maneuver_analytics import MANEUVER_ALGORITHM_VERSION
+from app.repositories.sessions import SessionRepository
+from app.services.session_lifetime import SessionLifetimeService
 from app.storage.track_storage import TrackStorage
 
 SESSION_ID = "20000000-0000-4000-8000-000000000001"
@@ -127,12 +129,37 @@ def test_capability_session_exposes_active_subset_without_internal_id(monkeypatc
     _use_runtime(monkeypatch, temporary_directory)
     response = _get(f"/api/shared/sessions/{TOKEN}")
     assert response.status_code == 200
-    assert set(response.json) == {"start_time", "end_time", "activities"}
+    assert set(response.json) == {
+        "start_time",
+        "end_time",
+        "activities",
+        "session_access_expires_at",
+    }
     assert response.json["start_time"] == "2031-06-01T08:00:00Z"
     assert response.json["end_time"] == "2031-06-01T10:00:00Z"
+    assert response.json["session_access_expires_at"] == "2031-07-31T00:00:00Z"
     assert [item["id"] for item in response.json["activities"]] == [ACTIVITY_A]
     assert SESSION_ID not in json.dumps(response.json)
+    assert TOKEN not in json.dumps(response.json)
     assert ACTIVITY_B not in json.dumps(response.json)
+
+
+def test_capability_session_reports_renewed_expiry_on_subsequent_read(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    renewal_time = datetime(2031, 7, 1, 12, tzinfo=timezone.utc)
+    renewed = SessionLifetimeService(
+        SessionRepository(root / "sessions.json"),
+        clock=lambda: renewal_time,
+    ).renew_session(SESSION_ID)
+
+    response = _get(f"/api/shared/sessions/{TOKEN}")
+
+    assert response.status_code == 200
+    assert renewed.expires_at == renewal_time + timedelta(days=30)
+    assert response.json["session_access_expires_at"] == "2031-07-31T12:00:00Z"
 
 
 def test_visibility_changes_on_next_capability_read_without_membership_change(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

@@ -265,6 +265,13 @@ def test_public_api_returns_only_temporary_path_and_distinguishes_unavailable_st
     assert ORIGINAL_TOKEN not in created.path
     loaded = get_temporary_shared_session(TEMPORARY_TOKEN, Response())
     assert loaded.temporary_access_expires_at == NOW + timedelta(hours=48)
+    assert set(loaded.model_dump()) == {
+        "start_time",
+        "end_time",
+        "activities",
+        "temporary_access_expires_at",
+    }
+    assert "session_access_expires_at" not in loaded.model_dump()
     assert loaded.activities[0].id == ACTIVITY_ID
 
     with pytest.raises(HTTPException) as unknown:
