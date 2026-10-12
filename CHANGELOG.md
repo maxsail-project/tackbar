@@ -2,6 +2,157 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.7 Californian — Session Sharing & Pilot Cleanup (Release-ready — production validation pending)
+
+### English
+
+Adds bounded in-person Session sharing, makes original Session access expiry
+visible, and removes the obsolete Gmail acquisition path from the pilot
+runtime.
+
+### Added
+
+* A valid original Session capability can now create or reuse one temporary QR
+  share for the same Session. The QR contains only a separate temporary TackBar
+  capability and never exposes or redirects to the original Session capability.
+* Temporary QR access expires at the earlier of 48 hours after creation or the
+  Session expiry captured at creation, persists across backend restart, remains
+  bound to the current originating capability and cannot create another share.
+* The Session Viewer distinguishes temporary `Shared Session` access, shows its
+  authoritative remaining lifetime and hides the Share action from temporary
+  access. Existing ACTIVE-only visibility continues to apply.
+* Original Session access now shows `Available until` with the authoritative
+  backend expiry formatted in the browser's local timezone. Temporary access
+  continues to use its separate temporary expiry.
+
+### Changed
+
+* Runtime mailbox acquisition is now OVH-only. `TACKBAR_MAILBOX_PROVIDER`
+  remains the stable selection seam with `ovh` as its default and only accepted
+  value.
+* Historical ingestion records with `provider="gmail"` remain readable and
+  reprocessable from preserved originals without Gmail access. Provider-message
+  identity, OVH cursor and failure-isolation behavior, Activity and Session
+  processing, consent, analytics and Viewer semantics remain unchanged.
+
+### Removed
+
+* The Gmail acquisition adapter, OAuth/token maintenance path, diagnostic
+  script and Google client dependencies are no longer part of the runtime.
+  Production credential/token cleanup remains an explicit operator action.
+
+### Issues
+
+- [#9](https://github.com/maxsail-project/tackbar/issues/9) — [#9] Remove Gmail mailbox support from the TackBar runtime
+- [#25](https://github.com/maxsail-project/tackbar/issues/25) — [#25] QR Session sharing
+- [#67](https://github.com/maxsail-project/tackbar/issues/67) — Show original Session access expiry in Viewer
+
+### Validation
+
+Before release preparation, Issue #9 recorded acceptance PASS with 76 focused
+OVH/mailbox/ingestion tests, 146 broader related backend regression tests, 222
+selected tests in total, successful import of all 73 `app` modules, backend
+compile/import and PowerShell preflight checks, and a clean `git diff --check`.
+It did not claim live-mailbox validation. Issue #25 recorded acceptance after
+code review and manual validation; its accepted implementation includes focused
+backend and frontend regression coverage for temporary-share creation, reuse,
+lifetime, persistence, invalidation, visibility and presentation. Issue #67
+recorded acceptance review and manual validation PASS, plus passing focused
+backend/frontend tests, frontend typecheck and production build, Python compile
+validation and `git diff --check`.
+
+Release preparation performed release-range and completed-Issue reconciliation,
+documentation consistency, bilingual release-entry and publication-body
+equivalence review, final diff and whitespace checks, and repository/remote
+publication-state verification. The implementation checks were not rerun during
+this documentation-only preparation.
+
+Production deployment and end-to-end production validation of the OVH-only
+mailbox path, temporary QR Session sharing and original Session expiry
+presentation remain pending. No tag, GitHub Release, production secret cleanup
+or production deployment is part of release preparation.
+
+---
+
+## v0.7.7 Californian — Compartir Sessions y limpieza del piloto (Lista para release — validación de producción pendiente)
+
+### Español
+
+Añade el acceso compartido presencial y limitado a una Session, hace visible
+la caducidad del acceso original a la Session y elimina del runtime del piloto
+la ruta obsoleta de adquisición mediante Gmail.
+
+### Añadido
+
+* Una capability original válida de Session puede crear o reutilizar un único
+  QR temporal para compartir la misma Session. El QR contiene solo una
+  capability temporal e independiente de TackBar y nunca expone ni redirige a
+  la capability original de la Session.
+* El acceso QR temporal caduca en el momento más temprano entre 48 horas desde
+  su creación y la caducidad de la Session capturada al crearlo, persiste tras
+  reiniciar el backend, permanece vinculado a la capability de origen vigente
+  y no puede crear otro acceso compartido.
+* El Session Viewer distingue el acceso temporal `Shared Session`, muestra su
+  tiempo restante autoritativo y oculta la acción Share en el acceso temporal.
+  La visibilidad existente limitada a Sailors ACTIVE sigue aplicándose.
+* El acceso original a la Session muestra ahora `Available until` con la
+  caducidad autoritativa del backend formateada en la zona horaria local del
+  navegador. El acceso temporal continúa usando su caducidad independiente.
+
+### Cambiado
+
+* La adquisición runtime del buzón es ahora exclusivamente mediante OVH.
+  `TACKBAR_MAILBOX_PROVIDER` permanece como punto estable de selección, con
+  `ovh` como valor predeterminado y único aceptado.
+* Los registros históricos de ingestión con `provider="gmail"` siguen siendo
+  legibles y reprocesables desde los originales conservados sin acceso a
+  Gmail. La identidad de mensajes del proveedor, el cursor y el aislamiento de
+  fallos de OVH, el procesamiento de Activities y Sessions, el consentimiento,
+  la analítica y las semánticas del Viewer permanecen sin cambios.
+
+### Eliminado
+
+* El adaptador de adquisición de Gmail, la ruta de mantenimiento OAuth/tokens,
+  el script de diagnóstico y las dependencias cliente de Google ya no forman
+  parte del runtime. La limpieza de credenciales/tokens de producción sigue
+  siendo una acción explícita del operador.
+
+### Issues
+
+- [#9](https://github.com/maxsail-project/tackbar/issues/9) — [#9] Remove Gmail mailbox support from the TackBar runtime
+- [#25](https://github.com/maxsail-project/tackbar/issues/25) — [#25] QR Session sharing
+- [#67](https://github.com/maxsail-project/tackbar/issues/67) — Show original Session access expiry in Viewer
+
+### Validación
+
+Antes de preparar la release, el Issue #9 registró aceptación PASS con 76 tests
+focalizados de OVH/buzón/ingestión, 146 tests de regresión backend relacionados
+más amplios, 222 tests seleccionados en total, importación correcta de los 73
+módulos de `app`, checks de compilación/importación backend y preflight de
+PowerShell correctos, y un `git diff --check` limpio. No declaró validación con
+el buzón real. El Issue #25 registró aceptación tras revisión de código y
+validación manual; su implementación aceptada incluye cobertura de regresión
+backend y frontend focalizada en creación, reutilización, vigencia, persistencia,
+invalidación, visibilidad y presentación del acceso temporal. El Issue #67
+registró revisión de aceptación y validación manual PASS, además de tests
+backend/frontend focalizados, typecheck frontend y build de producción,
+validación de compilación Python y `git diff --check` correctos.
+
+La preparación de la release comprobó el rango de release y la reconciliación
+de Issues completados, la consistencia documental, la entrada bilingüe y la
+equivalencia del cuerpo de publicación, el diff final y los espacios en blanco,
+y el estado del repositorio, del remoto y de publicación. Los checks de
+implementación no se volvieron a ejecutar durante esta preparación solo
+documental.
+
+El despliegue en producción y la validación end-to-end en producción de la ruta
+de buzón exclusivamente OVH, el acceso QR temporal a Sessions y la presentación
+de la caducidad de la Session original siguen pendientes. La preparación no
+incluye ningún tag, GitHub Release, limpieza de secretos de producción ni
+despliegue a producción.
+
+---
+
 ## v0.7.6 Californian — Analytics & Map Orientation (Release-ready — production validation pending)
 
 ### English
