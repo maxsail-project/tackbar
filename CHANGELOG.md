@@ -33,9 +33,9 @@ map orientation during collaborative debriefing.
 
 ### Issues
 
-- #63 — [#63] Generate maneuver analytics when Activity processing completes
-- #64 — [#64] Preserve map bearing when Analysis Window refits the track
-- #65 — [#65] Show current map bearing in degrees
+- [#63](https://github.com/maxsail-project/tackbar/issues/63) — Generate maneuver analytics when Activity processing completes
+- [#64](https://github.com/maxsail-project/tackbar/issues/64) — Preserve map bearing when Analysis Window refits the track
+- [#65](https://github.com/maxsail-project/tackbar/issues/65) — Show current map bearing in degrees
 
 ### Validation
 
@@ -94,9 +94,9 @@ mejora la orientación manual del mapa durante el debriefing colaborativo.
 
 ### Issues
 
-- #63 — [#63] Generate maneuver analytics when Activity processing completes
-- #64 — [#64] Preserve map bearing when Analysis Window refits the track
-- #65 — [#65] Show current map bearing in degrees
+- [#63](https://github.com/maxsail-project/tackbar/issues/63) — Generate maneuver analytics when Activity processing completes
+- [#64](https://github.com/maxsail-project/tackbar/issues/64) — Preserve map bearing when Analysis Window refits the track
+- [#65](https://github.com/maxsail-project/tackbar/issues/65) — Show current map bearing in degrees
 
 ### Validación
 
@@ -142,7 +142,7 @@ map is rotated.
 
 ### Issues
 
-- #61 — [#61] Keep boat markers aligned with COG when the map is rotated
+- [#61](https://github.com/maxsail-project/tackbar/issues/61) — Keep boat markers aligned with COG when the map is rotated
 
 ### Validation
 
@@ -184,7 +184,7 @@ geográfico cuando se rota el mapa.
 
 ### Issues
 
-- #61 — [#61] Keep boat markers aligned with COG when the map is rotated
+- [#61](https://github.com/maxsail-project/tackbar/issues/61) — Keep boat markers aligned with COG when the map is rotated
 
 ### Validación
 
@@ -241,7 +241,7 @@ orientation telemetry in TackBar's provider-independent canonical track.
 
 ### Issues
 
-- #33 — [#33] VKX ingestion and canonical quaternion preservation
+- [#33](https://github.com/maxsail-project/tackbar/issues/33) — VKX ingestion and canonical quaternion preservation
 
 ### Validation
 
@@ -301,7 +301,7 @@ proveedor.
 
 ### Issues
 
-- #33 — [#33] VKX ingestion and canonical quaternion preservation
+- [#33](https://github.com/maxsail-project/tackbar/issues/33) — VKX ingestion and canonical quaternion preservation
 
 ### Validación
 
@@ -360,7 +360,7 @@ the relevant TackBar Session after successful track processing.
 
 ### Issues
 
-- #56 — [#56] Send Session link after successful track processing
+- [#56](https://github.com/maxsail-project/tackbar/issues/56) — Send Session link after successful track processing
 
 ### Validation
 
@@ -415,7 +415,7 @@ correctamente.
 
 ### Issues
 
-- #56 — [#56] Send Session link after successful track processing
+- [#56](https://github.com/maxsail-project/tackbar/issues/56) — Send Session link after successful track processing
 
 ### Validación
 
@@ -473,14 +473,14 @@ analytics semantics.
 
 ### Issues
 
-- #2 — [#2] Preserve outbound OVH emails in a dedicated TackBar mailbox folder
-- #3 — [#3] Prevent maintenance scripts from changing TackBar runtime ownership
-- #4 — [#4] Improve mailbox review failure observability
-- #5 — [#5] Add a runtime-data ownership and writability preflight
-- #7 — [#7] Use incremental IMAP UID cursor for OVH mailbox review
-- #8 — [#8] Automatically review the OVH mailbox on a periodic schedule
-- #51 — [#51] Make GitHub Issues the canonical TackBar backlog
-- #52 — [#52] Simplify and refresh TackBar roadmap
+- [#2](https://github.com/maxsail-project/tackbar/issues/2) — Preserve outbound OVH emails in a dedicated TackBar mailbox folder
+- [#3](https://github.com/maxsail-project/tackbar/issues/3) — Prevent maintenance scripts from changing TackBar runtime ownership
+- [#4](https://github.com/maxsail-project/tackbar/issues/4) — Improve mailbox review failure observability
+- [#5](https://github.com/maxsail-project/tackbar/issues/5) — Add a runtime-data ownership and writability preflight
+- [#7](https://github.com/maxsail-project/tackbar/issues/7) — Use incremental IMAP UID cursor for OVH mailbox review
+- [#8](https://github.com/maxsail-project/tackbar/issues/8) — Automatically review the OVH mailbox on a periodic schedule
+- [#51](https://github.com/maxsail-project/tackbar/issues/51) — Make GitHub Issues the canonical TackBar backlog
+- [#52](https://github.com/maxsail-project/tackbar/issues/52) — Simplify and refresh TackBar roadmap
 
 ### Validation
 
@@ -538,14 +538,14 @@ capabilities, Viewer y analítica.
 
 ### Issues
 
-- #2 — [#2] Preserve outbound OVH emails in a dedicated TackBar mailbox folder
-- #3 — [#3] Prevent maintenance scripts from changing TackBar runtime ownership
-- #4 — [#4] Improve mailbox review failure observability
-- #5 — [#5] Add a runtime-data ownership and writability preflight
-- #7 — [#7] Use incremental IMAP UID cursor for OVH mailbox review
-- #8 — [#8] Automatically review the OVH mailbox on a periodic schedule
-- #51 — [#51] Make GitHub Issues the canonical TackBar backlog
-- #52 — [#52] Simplify and refresh TackBar roadmap
+- [#2](https://github.com/maxsail-project/tackbar/issues/2) — Preserve outbound OVH emails in a dedicated TackBar mailbox folder
+- [#3](https://github.com/maxsail-project/tackbar/issues/3) — Prevent maintenance scripts from changing TackBar runtime ownership
+- [#4](https://github.com/maxsail-project/tackbar/issues/4) — Improve mailbox review failure observability
+- [#5](https://github.com/maxsail-project/tackbar/issues/5) — Add a runtime-data ownership and writability preflight
+- [#7](https://github.com/maxsail-project/tackbar/issues/7) — Use incremental IMAP UID cursor for OVH mailbox review
+- [#8](https://github.com/maxsail-project/tackbar/issues/8) — Automatically review the OVH mailbox on a periodic schedule
+- [#51](https://github.com/maxsail-project/tackbar/issues/51) — Make GitHub Issues the canonical TackBar backlog
+- [#52](https://github.com/maxsail-project/tackbar/issues/52) — Simplify and refresh TackBar roadmap
 
 ### Validación
 
@@ -583,9 +583,9 @@ replay and Activity/Session semantics.
 
 ### Issues
 
-- #20 — Show selected maneuver metrics in Analysis Window
-- #21 — Allow specialized Release Publisher to publish approved GitHub releases
-- #22 — Introduce specialized Release Preparer and CHANGELOG issue traceability
+- [#20](https://github.com/maxsail-project/tackbar/issues/20) — Show selected maneuver metrics in Analysis Window
+- [#21](https://github.com/maxsail-project/tackbar/issues/21) — Allow specialized Release Publisher to publish approved GitHub releases
+- [#22](https://github.com/maxsail-project/tackbar/issues/22) — Introduce specialized Release Preparer and CHANGELOG issue traceability
 
 ### Validation
 
@@ -626,9 +626,9 @@ semánticas analíticas, de replay y de Activity/Session de v0.7.0.
 
 ### Issues
 
-- #20 — Show selected maneuver metrics in Analysis Window
-- #21 — Allow specialized Release Publisher to publish approved GitHub releases
-- #22 — Introduce specialized Release Preparer and CHANGELOG issue traceability
+- [#20](https://github.com/maxsail-project/tackbar/issues/20) — Show selected maneuver metrics in Analysis Window
+- [#21](https://github.com/maxsail-project/tackbar/issues/21) — Allow specialized Release Publisher to publish approved GitHub releases
+- [#22](https://github.com/maxsail-project/tackbar/issues/22) — Introduce specialized Release Preparer and CHANGELOG issue traceability
 
 ### Validación
 
