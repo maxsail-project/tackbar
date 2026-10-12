@@ -282,6 +282,25 @@ def test_public_api_returns_only_temporary_path_and_distinguishes_unavailable_st
     assert expired.value.detail == "Temporary access expired"
 
 
+def test_temporary_share_token_cannot_delegate_another_share(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    current_time = [NOW]
+    service, _, _, _ = _runtime(temporary_directory, current_time)
+    monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(temporary_directory))
+    monkeypatch.setattr("app.main._temporary_share_service", lambda: service)
+    original_share = create_temporary_session_share(ORIGINAL_TOKEN, Response())
+
+    with pytest.raises(HTTPException) as rejected:
+        create_temporary_session_share(TEMPORARY_TOKEN, Response())
+
+    assert rejected.value.status_code == 404
+    assert rejected.value.detail == "Session not found"
+    assert original_share.path == f"/q/{TEMPORARY_TOKEN}"
+    assert len(service.shares.all()) == 1
+
+
 def test_temporary_access_uses_same_visible_track_and_analytics_boundaries(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,

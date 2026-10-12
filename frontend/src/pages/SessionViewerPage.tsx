@@ -605,13 +605,6 @@ export function SessionViewer({
   function openSharePanel() {
     if (access.kind !== 'original') return
     setSharePanelOpen(true)
-    if (
-      temporaryShare !== null
-      && Date.parse(temporaryShare.expires_at) > Date.now()
-    ) {
-      setShareStatus('ready')
-      return
-    }
     setShareStatus('loading')
     createTemporarySessionShare(access.token).then((share) => {
       setTemporaryShare(share)
