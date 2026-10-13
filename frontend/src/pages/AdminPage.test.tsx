@@ -399,11 +399,24 @@ describe('minimal Admin UI', () => {
     expect(failed).toContain('Session-result email delivery failed')
   })
 
-  it('renders reusable read-only Activity traceability without viewer features', () => {
+  it('separates Activity traceability relationships from source metadata', () => {
     const markup = renderToStaticMarkup(<ActivityAdminDetail activity={activity} onFollow={() => undefined} />)
+    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Source</h3>'))
+    const source = markup.slice(markup.indexOf('<h3>Source</h3>'), markup.indexOf('<h3>Maneuvers</h3>'))
 
-    expect(markup).toContain('Track'); expect(markup).toContain('Owner / context'); expect(markup).toContain('Source'); expect(markup).toContain('Maneuvers'); expect(markup).toContain('CURRENT'); expect(markup).toContain('>4</dd>'); expect(markup).toContain('Pilot'); expect(markup).toContain('Zafar · Snipe · ESP 1'); expect(markup).toContain('Source Ingestion'); expect(markup).toContain('Recalculate maneuvers'); expect(markup).toContain('Read-only JSON')
+    expect(traceability).toContain('Sailor'); expect(traceability).toContain('Pilot'); expect(traceability).toContain('Boat'); expect(traceability).toContain('Zafar · Snipe · ESP 1'); expect(traceability).toContain('Session'); expect(traceability).toContain('<button class="admin-relation" type="button"><span>Source Ingestion</span>')
+    expect(source).toContain('Provider/source'); expect(source).toContain('Device'); expect(source).toContain('Original filename'); expect(source).not.toContain('Source Ingestion')
+    expect(markup).toContain('Track'); expect(markup).toContain('Maneuvers'); expect(markup).toContain('CURRENT'); expect(markup).toContain('>4</dd>'); expect(markup).toContain('Recalculate maneuvers'); expect(markup).toContain('<summary>Advanced</summary>'); expect(markup).toContain('<summary>Diagnostic JSON</summary>')
+    expect(markup.indexOf('<h3>Track</h3>')).toBeLessThan(markup.indexOf('<h3>Traceability</h3>')); expect(markup.indexOf('<h3>Traceability</h3>')).toBeLessThan(markup.indexOf('<h3>Source</h3>')); expect(markup.indexOf('<h3>Source</h3>')).toBeLessThan(markup.indexOf('<h3>Maneuvers</h3>')); expect(markup.indexOf('<h3>Maneuvers</h3>')).toBeLessThan(markup.indexOf('<summary>Advanced</summary>')); expect(markup.indexOf('<summary>Advanced</summary>')).toBeLessThan(markup.indexOf('<summary>Diagnostic JSON</summary>'))
     expect(markup).not.toContain('Map'); expect(markup).not.toContain('Metrics')
+  })
+
+  it('shows authoritative source Ingestion as unavailable without a navigation control', () => {
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_id: null }} onFollow={() => undefined} />)
+    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Source</h3>'))
+
+    expect(traceability).toContain('<span>Source Ingestion</span><strong>Unavailable</strong>')
+    expect(traceability).not.toContain('title="ingestion-')
   })
 
   it('exposes independent ingestion status and disposition filters', () => {
