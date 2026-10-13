@@ -171,6 +171,9 @@ class AdminActivityResponse(AdminActivitySummaryResponse):
     attachment_sha256: str
     track_available: bool
     source_ingestion_id: str | None
+    source_ingestion_resolution: Literal[
+        "authoritative", "related", "none", "ambiguous"
+    ]
     maneuvers: AdminManeuverStateResponse
     diagnostic: dict[str, object]
 

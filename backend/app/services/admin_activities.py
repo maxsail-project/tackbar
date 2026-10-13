@@ -49,15 +49,29 @@ class AdminActivityReader:
         boat = self.boats.get_by_id(activity.boat_id) if activity.boat_id else None
         if activity.boat_id is not None and boat is None:
             raise AdminDataIntegrityError("Activity references unknown Boat")
-        source_ingestions = [
+        related_ingestions = [
             record for record in self.history.records()
             if record["activity_id"] == activity.id
-            and record["activity_created_by_ingestion"] is True
+        ]
+        source_ingestions = [
+            record for record in related_ingestions
+            if record["activity_created_by_ingestion"] is True
         ]
         if len(source_ingestions) > 1:
             raise AdminDataIntegrityError("Activity has multiple source Ingestions")
+        if source_ingestions:
+            source_ingestion = source_ingestions[0]
+            source_ingestion_resolution = "authoritative"
+        elif len(related_ingestions) == 1:
+            source_ingestion = related_ingestions[0]
+            source_ingestion_resolution = "related"
+        else:
+            source_ingestion = None
+            source_ingestion_resolution = (
+                "ambiguous" if related_ingestions else "none"
+            )
         source_ingestion_id = (
-            source_ingestions[0]["id"] if source_ingestions else None
+            source_ingestion["id"] if source_ingestion else None
         )
         track_available = self.tracks.track_path(activity.id).is_file()
         diagnostic = {
@@ -74,6 +88,12 @@ class AdminActivityReader:
             "track_available": track_available,
             "session_id": summary.session_id,
             "source_ingestion_id": source_ingestion_id,
+            "source_ingestion_resolution": source_ingestion_resolution,
+            "source_ingestion_activity_created_by_ingestion": (
+                source_ingestion["activity_created_by_ingestion"]
+                if source_ingestion else None
+            ),
+            "related_ingestion_count": len(related_ingestions),
         }
         return AdminActivityResponse(
             **summary.model_dump(),
@@ -84,6 +104,7 @@ class AdminActivityReader:
             attachment_sha256=activity.attachment_sha256,
             track_available=track_available,
             source_ingestion_id=source_ingestion_id,
+            source_ingestion_resolution=source_ingestion_resolution,
             maneuvers=self._maneuver_state(activity.id),
             diagnostic=diagnostic,
         )

@@ -1349,12 +1349,95 @@ def test_admin_activity_detail_uses_authoritative_source_ingestion_and_safe_json
     assert unauthorized.status_code == 401
     assert missing.status_code == 404
     assert response.json["source_ingestion_id"] == source["id"]
+    assert response.json["source_ingestion_resolution"] == "authoritative"
     assert response.json["sailor_id"] == ACTIVE
     assert response.json["session_id"] == SESSION_ACTIVE
     assert response.json["track_available"] is False
     assert response.json["diagnostic"]["source_ingestion_id"] == source["id"]
+    assert response.json["diagnostic"]["source_ingestion_activity_created_by_ingestion"] is True
+    assert response.json["diagnostic"]["related_ingestion_count"] == 2
     assert "track_file" not in response.json["diagnostic"]
     assert str(root) not in json.dumps(response.json)
+
+
+@pytest.mark.parametrize(
+    ("provenance", "expected_resolution"),
+    [(False, "related"), (None, "related")],
+)
+def test_admin_activity_detail_uses_single_related_ingestion_without_changing_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    provenance: bool | None,
+    expected_resolution: str,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory(root / "ingestion_history.json")
+    related = history.create(
+        "ovh",
+        f"related-{provenance}",
+        "active@example.com",
+        "demo.csv.gz",
+        "3" * 64,
+    )
+    related.update(
+        status="processed",
+        activity_id=ACTIVITY_ACTIVE,
+        session_id=SESSION_ACTIVE,
+        activity_created_by_ingestion=provenance,
+    )
+    history.replace(related)
+
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+
+    assert response.status_code == 200
+    assert response.json["source_ingestion_id"] == related["id"]
+    assert response.json["source_ingestion_resolution"] == expected_resolution
+    assert response.json["diagnostic"]["source_ingestion_activity_created_by_ingestion"] is provenance
+    assert history.get(related["id"])["activity_created_by_ingestion"] is provenance
+
+
+def test_admin_activity_detail_reports_no_related_ingestion(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+
+    assert response.status_code == 200
+    assert response.json["source_ingestion_id"] is None
+    assert response.json["source_ingestion_resolution"] == "none"
+    assert response.json["diagnostic"]["related_ingestion_count"] == 0
+
+
+def test_admin_activity_detail_reports_ambiguous_related_ingestions_without_guessing(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory(root / "ingestion_history.json")
+    for index, provenance in enumerate((False, None)):
+        related = history.create(
+            "ovh",
+            f"ambiguous-{index}",
+            "active@example.com",
+            f"demo-{index}.csv.gz",
+            str(index + 4) * 64,
+        )
+        related.update(
+            status="processed",
+            activity_id=ACTIVITY_ACTIVE,
+            session_id=SESSION_ACTIVE,
+            activity_created_by_ingestion=provenance,
+        )
+        history.replace(related)
+
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+
+    assert response.status_code == 200
+    assert response.json["source_ingestion_id"] is None
+    assert response.json["source_ingestion_resolution"] == "ambiguous"
+    assert response.json["diagnostic"]["related_ingestion_count"] == 2
 
 
 def test_admin_activity_collection_is_newest_first_compact_and_protected(

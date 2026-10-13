@@ -18,7 +18,7 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   capability_token: state === 'active' ? 'token' : null, capability_path: state === 'active' ? '/s/token' : null,
   sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', active_sailors: [{ id: 'sailor-1', label: 'Test Sailor' }], consent_active_count: 1, consent_pending_count: 0, consent_revoked_count: 0,
 })
-const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
+const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
@@ -412,10 +412,18 @@ describe('minimal Admin UI', () => {
   })
 
   it('shows authoritative source Ingestion as unavailable without a navigation control', () => {
-    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_id: null }} onFollow={() => undefined} />)
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_id: null, source_ingestion_resolution: 'none' }} onFollow={() => undefined} />)
     const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Source</h3>'))
 
     expect(traceability).toContain('<span>Source Ingestion</span><strong>Unavailable</strong>')
+    expect(traceability).not.toContain('title="ingestion-')
+  })
+
+  it('shows ambiguous related Ingestions without guessing a navigation target', () => {
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_id: null, source_ingestion_resolution: 'ambiguous' }} onFollow={() => undefined} />)
+    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Source</h3>'))
+
+    expect(traceability).toContain('<span>Source Ingestion</span><strong>Ambiguous · multiple related Ingestions</strong>')
     expect(traceability).not.toContain('title="ingestion-')
   })
 

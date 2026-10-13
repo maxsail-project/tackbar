@@ -132,6 +132,7 @@ export interface AdminActivity extends AdminActivitySummary {
   attachment_sha256: string
   track_available: boolean
   source_ingestion_id: string | null
+  source_ingestion_resolution: 'authoritative' | 'related' | 'none' | 'ambiguous'
   maneuvers: AdminManeuverState
   diagnostic: Record<string, unknown>
 }
