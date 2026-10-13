@@ -450,6 +450,7 @@ def _admin_reader() -> AdminReader:
         ConsentEventRepository(),
         sessions,
         activities,
+        boats=BoatRepository(),
     )
 
 

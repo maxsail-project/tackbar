@@ -53,6 +53,13 @@ class AdminConsentRequestResponse(BaseModel):
     delivery_last_error: str | None
 
 
+class AdminSailorBoatResponse(BaseModel):
+    id: str
+    name: str | None
+    sailing_class: str | None
+    sail_number: str | None
+
+
 class AdminSailorDetailResponse(AdminSailorResponse):
     personal_capability_state: Literal["never_generated", "active", "revoked", "consent_inactive"]
     personal_capability_path: str | None
@@ -61,6 +68,8 @@ class AdminSailorDetailResponse(AdminSailorResponse):
     consent_request: AdminConsentRequestResponse
     consent_events: list[AdminConsentEventResponse]
     sessions: list["AdminSailorSessionResponse"]
+    default_boat: AdminSailorBoatResponse | None
+    diagnostic: dict[str, object]
 
 
 class AdminSailorSessionResponse(BaseModel):

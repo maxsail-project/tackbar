@@ -289,6 +289,38 @@ def test_sailor_groups_and_history_are_explicit(monkeypatch: pytest.MonkeyPatch,
     }]
 
 
+def test_admin_sailor_detail_resolves_default_boat_and_safe_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    boat_id = "40000000-0000-4000-8000-000000000001"
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    next(item for item in sailors if item["id"] == ACTIVE)["default_boat_id"] = boat_id
+    _write_json(root / "sailors.json", sailors)
+    _write_json(root / "boats.json", [{
+        "id": boat_id,
+        "name": "Zafar",
+        "sailing_class": "Snipe",
+        "sail_number": "ESP 1",
+    }])
+
+    detail = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+
+    assert detail.status_code == 200
+    assert detail.json["default_boat"] == {
+        "id": boat_id,
+        "name": "Zafar",
+        "sailing_class": "Snipe",
+        "sail_number": "ESP 1",
+    }
+    assert detail.json["diagnostic"]["default_boat"]["id"] == boat_id
+    serialized = json.dumps(detail.json["diagnostic"])
+    assert ACTIVE_TOKEN not in serialized
+    assert "personal_capability_token" not in serialized
+    assert "capability_path" not in serialized
+
+
 def test_admin_sailor_detail_exposes_welcome_email_delivery_state(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,
@@ -663,10 +695,10 @@ def test_mark_request_and_confirm_use_semantic_service(monkeypatch: pytest.Monke
 
     assert requested.status_code == confirmed.status_code == 200
     assert requested.json["operational_group"] == "pending_awaiting_response"
-    assert requested.json["consent_events"][-1]["source"] == "admin_marked_consent_requested"
+    assert requested.json["consent_events"][0]["source"] == "admin_marked_consent_requested"
     assert confirmed.json["consent_status"] == "ACTIVE"
-    assert confirmed.json["consent_events"][-1]["agreement_version"] == CURRENT_CONSENT_AGREEMENT_VERSION
-    assert confirmed.json["consent_events"][-1]["source"] == "admin_confirmed_email"
+    assert confirmed.json["consent_events"][0]["agreement_version"] == CURRENT_CONSENT_AGREEMENT_VERSION
+    assert confirmed.json["consent_events"][0]["source"] == "admin_confirmed_email"
     assert session.json["visible_activity_count"] == 1
     assert session.json["capability_state"] == "active"
 
@@ -893,8 +925,8 @@ def test_revoke_uses_existing_decline_withdrawal_semantics(monkeypatch: pytest.M
 
     assert response.status_code == 200
     assert response.json["consent_status"] == "REVOKED"
-    assert response.json["consent_events"][-1]["event_type"] == expected_event
-    assert response.json["consent_events"][-1]["source"] == "admin_recorded_withdrawal"
+    assert response.json["consent_events"][0]["event_type"] == expected_event
+    assert response.json["consent_events"][0]["source"] == "admin_recorded_withdrawal"
 
 
 def test_invalid_transition_and_unknown_sailor_are_client_errors(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
@@ -925,10 +957,10 @@ def test_admin_starts_new_consent_cycle_without_restoring_shared_visibility(
     assert response.json["consent_granted_at"] is None
     assert response.json["consent_revoked_at"] is None
     assert [event["event_type"] for event in response.json["consent_events"]] == [
-        "consent_revoked",
         "consent_cycle_started",
+        "consent_revoked",
     ]
-    assert response.json["consent_events"][-1]["source"] == "admin_started_new_consent_cycle"
+    assert response.json["consent_events"][0]["source"] == "admin_started_new_consent_cycle"
     assert after_session.json["visible_activity_count"] == before_session.json["visible_activity_count"]
     assert after_session.json["capability_path"] == before_session.json["capability_path"]
     assert before_private.json["capability_state"] == after_private.json["capability_state"] == "never_generated"

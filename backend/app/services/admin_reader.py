@@ -5,6 +5,7 @@ from app.admin_api_models import (
     AdminConsentRequestResponse,
     AdminConsentEventResponse,
     AdminSailorDetailResponse,
+    AdminSailorBoatResponse,
     AdminSailorResponse,
     AdminSailorSessionResponse,
     AdminSessionActivityResponse,
@@ -24,6 +25,7 @@ from app.models import (
     TemporarySessionShareState,
 )
 from app.repositories.activities import ActivityRepository
+from app.repositories.boats import BoatRepository
 from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
@@ -56,11 +58,13 @@ class AdminReader:
         clock: Callable[[], datetime] | None = None,
         consent_requests: ConsentRequestRepository | None = None,
         temporary_shares: TemporarySessionShareRepository | None = None,
+        boats: BoatRepository | None = None,
     ) -> None:
         self.sailors = sailors
         self.consent_events = consent_events
         self.sessions = sessions
         self.activities = activities
+        self.boats = boats or BoatRepository(sailors.path.with_name("boats.json"))
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.consent_requests = ConsentRequestService(
             consent_requests or ConsentRequestRepository(
@@ -121,11 +125,17 @@ class AdminReader:
         events = sorted(
             self.consent_events.for_sailor(sailor_id),
             key=lambda event: (event.timestamp, event.event_type.value),
+            reverse=True,
         )
         request_resolution = (
             self.consent_requests.current_resolution_for_sailor(sailor_id)
         )
         request = request_resolution.request
+        sessions = self._sailor_sessions(sailor.id)
+        boat = (
+            self.boats.get_by_id(sailor.default_boat_id)
+            if sailor.default_boat_id is not None else None
+        )
         request_states = {
             ConsentRequestState.NOT_FOUND: "none",
             ConsentRequestState.VALID: "valid",
@@ -144,7 +154,7 @@ class AdminReader:
                 )
                 for event in events
             ],
-            sessions=self._sailor_sessions(sailor.id),
+            sessions=sessions,
             personal_capability_state=(
                 "revoked" if sailor.personal_capability_revoked else
                 "never_generated" if sailor.personal_capability_token is None else
@@ -180,6 +190,86 @@ class AdminReader:
                     else None
                 ),
             ),
+            default_boat=(
+                AdminSailorBoatResponse(
+                    id=boat.id,
+                    name=boat.name,
+                    sailing_class=boat.sailing_class,
+                    sail_number=boat.sail_number,
+                )
+                if boat is not None else None
+            ),
+            diagnostic={
+                "sailor": {
+                    "id": sailor.id,
+                    "email": sailor.email,
+                    "name": sailor.name,
+                    "default_boat_id": sailor.default_boat_id,
+                    "consent_status": sailor.consent_status.value,
+                    "consent_request_sent_at": sailor.consent_request_sent_at,
+                    "consent_granted_at": sailor.consent_granted_at,
+                    "consent_revoked_at": sailor.consent_revoked_at,
+                    "personal_capability_revoked": sailor.personal_capability_revoked,
+                    "welcome_email_sent_at": sailor.welcome_email_sent_at,
+                    "welcome_email_last_error": (
+                        "Delivery failed"
+                        if sailor.welcome_email_last_error is not None else None
+                    ),
+                },
+                "operational_group": summary.operational_group,
+                "personal_capability_state": (
+                    "revoked" if sailor.personal_capability_revoked else
+                    "never_generated" if sailor.personal_capability_token is None else
+                    "active" if sailor.consent_status == ConsentStatus.ACTIVE else
+                    "consent_inactive"
+                ),
+                "activity_count": summary.activity_count,
+                "session_count": summary.session_count,
+                "default_boat": (
+                    {
+                        "id": boat.id,
+                        "name": boat.name,
+                        "sailing_class": boat.sailing_class,
+                        "sail_number": boat.sail_number,
+                    }
+                    if boat is not None else None
+                ),
+                "consent_request": (
+                    {
+                        "state": request_states[request_resolution.state],
+                        "agreement_version": request.agreement_version,
+                        "created_at": request.created_at,
+                        "expires_at": request.expires_at,
+                        "automatic_delivery_attempted_at": request.automatic_delivery_attempted_at,
+                        "delivery_sent_at": request.delivery_sent_at,
+                        "delivery_last_error": (
+                            CONSENT_REQUEST_DELIVERY_FAILURE
+                            if request.delivery_last_error is not None else None
+                        ),
+                    }
+                    if request is not None else {"state": "none"}
+                ),
+                "consent_events": [
+                    {
+                        "event_type": event.event_type.value,
+                        "timestamp": event.timestamp,
+                        "source": event.source,
+                        "agreement_version": event.agreement_version,
+                    }
+                    for event in events
+                ],
+                "sessions": [
+                    {
+                        "session_id": item.session_id,
+                        "sailing_start": item.sailing_start,
+                        "sailing_end": item.sailing_end,
+                        "sailor_activity_count": item.sailor_activity_count,
+                        "expires_at": item.expires_at,
+                        "capability_state": item.capability_state,
+                    }
+                    for item in sessions
+                ],
+            },
         )
 
     def _validate_consent_event_sailors(self, sailor_ids: set[str]) -> None:

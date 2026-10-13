@@ -48,6 +48,13 @@ export interface AdminSailorDetail extends AdminSailor {
   consent_request: AdminConsentRequest
   consent_events: AdminConsentEvent[]
   sessions: AdminSailorSession[]
+  default_boat: {
+    id: string
+    name: string | null
+    sailing_class: string | null
+    sail_number: string | null
+  } | null
+  diagnostic: Record<string, unknown>
 }
 
 export interface AdminSailorSession {

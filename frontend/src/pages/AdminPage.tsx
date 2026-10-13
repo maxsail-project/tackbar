@@ -288,6 +288,12 @@ export default function AdminPage() {
     setBusy(true); setError(null)
     try { setSelectedActivity(await getAdminActivity(adminKey, id)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
+  const selectSailor = async (id: string) => {
+    if (selectedSailor?.id === id) { setSelectedSailor(null); return }
+    if (!adminKey) return
+    setBusy(true); setError(null)
+    try { setSelectedSailor(await getAdminSailor(adminKey, id)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+  }
   const selectSession = async (id: string) => {
     if (selectedSession?.id === id) { setSelectedSession(null); return }
     if (!adminKey) return
@@ -331,13 +337,8 @@ export default function AdminPage() {
     {error && <p className="admin-error admin-feedback" role="alert">{error}</p>}
     {section === 'activities' ? <section className="admin-content"><h1>Activities</h1>{activities.length === 0 && <p className="admin-meta">No Activities recorded.</p>}<div className="admin-list admin-activity-list">
       {activities.map((activity) => <ActivityCard key={activity.id} activity={activity} detail={selectedActivity?.id === activity.id ? selectedActivity : null} busy={busy} onSelect={() => void selectActivity(activity.id)} onFollow={(kind, id) => void followRelation(kind, id)} onRecalculate={() => void recalculateManeuvers()} />)}
-    </div></section> : section === 'sailors' ? <section className="admin-content"><h1>Sailors</h1><div className="admin-list">
-      {sailors.map((sailor) => <article className="admin-card" key={sailor.id}>
-        <div className="admin-card__heading"><div><h2>{sailor.name || sailor.email}</h2>{sailor.name && <p>{sailor.email}</p>}</div><span className={`state-badge state-${sailor.operational_group}`}>{consentLabels[sailor.operational_group]}</span></div>
-        <p className="admin-meta">Activities: {sailor.activity_count} · Sessions: {sailor.session_count}<br />Last sailing: {sailor.last_sailing_end ? localDate(sailor.last_sailing_start) + '–' + localDate(sailor.last_sailing_end) : '—'}<br />{sailor.operational_group === 'active' ? 'Consent granted' : sailor.operational_group === 'revoked' ? 'Consent revoked' : 'Consent request'}: {localDate(sailor.operational_group === 'active' ? sailor.consent_granted_at : sailor.operational_group === 'revoked' ? sailor.consent_revoked_at : sailor.consent_request_sent_at)}</p>
-        <button disabled={busy} onClick={async () => { if (!adminKey) return; setBusy(true); try { setSelectedSailor(await getAdminSailor(adminKey, sailor.id)) } catch (cause) { handleError(cause) } finally { setBusy(false) } }}>View details</button>
-        {selectedSailor?.id === sailor.id && <SailorDetail sailor={selectedSailor} activities={activities.filter((activity) => activity.sailor_id === sailor.id)} busy={busy} onActivitySelect={(id) => void followRelation('activity', id)} onSessionSelect={(id) => void followRelation('session', id)} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConsentRequestSend={() => sailorAction(() => sendConsentRequest(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} onPersonalRegenerate={() => { if (window.confirm('Regenerate personal access? The current personal link will stop working.')) void sailorAction(() => regeneratePersonalCapability(adminKey, sailor.id)) }} onPersonalRevoke={() => { if (window.confirm('Revoke personal access? Consent and shared Sessions will remain unchanged.')) void sailorAction(() => revokePersonalCapability(adminKey, sailor.id)) }} onWelcomeEmailResend={() => void sailorAction(() => resendWelcomeEmail(adminKey, sailor.id))} />}
-      </article>)}
+    </div></section> : section === 'sailors' ? <section className="admin-content"><h1>Sailors</h1><div className="admin-list admin-sailor-list">
+      {sailors.map((sailor) => <SailorCard key={sailor.id} sailor={sailor} detail={selectedSailor?.id === sailor.id ? selectedSailor : null} activities={activities.filter((activity) => activity.sailor_id === sailor.id)} busy={busy} onSelect={() => void selectSailor(sailor.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSessionSelect={(id) => void followRelation('session', id)} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConsentRequestSend={() => sailorAction(() => sendConsentRequest(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} onPersonalRegenerate={() => { if (window.confirm('Regenerate personal access? The current personal link will stop working.')) void sailorAction(() => regeneratePersonalCapability(adminKey, sailor.id)) }} onPersonalRevoke={() => { if (window.confirm('Revoke personal access? Consent and shared Sessions will remain unchanged.')) void sailorAction(() => revokePersonalCapability(adminKey, sailor.id)) }} onWelcomeEmailResend={() => void sailorAction(() => resendWelcomeEmail(adminKey, sailor.id))} />)}
     </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><div className="admin-list admin-session-list">
       {sessions.map((session) => <SessionCard key={session.id} session={session} detail={selectedSession?.id === session.id ? selectedSession : null} busy={busy} onSelect={() => void selectSession(session.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSailorSelect={(id) => void followRelation('sailor', id)} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
     </div></section> : <section className="admin-content"><IngestionSectionHeader busy={busy} onReview={() => void mailboxAction()} /><IngestionFilters status={ingestionStatus} disposition={ingestionDisposition} sailor={ingestionSailor} search={ingestionSearch} sailors={sailorOptions} busy={busy} onChange={changeIngestionFilters} onSailorChange={(value) => { setIngestionSailor(value); setDrilldown([]) }} onSearchChange={(value) => { setIngestionSearch(value); setDrilldown([]) }} />{reviewSummary && <p className="admin-meta">{reviewSummary}</p>}{<>{visibleIngestions.length === 0 && <p className="admin-meta">No Ingestions match the active filters.</p>}<div className="admin-list admin-ingestion-list">{visibleIngestions.map((item) => {
@@ -415,32 +416,45 @@ export function ActivityAdminDetail({ activity, busy = false, onFollow, onRecalc
   return <div className="admin-activity-detail"><div className="admin-detail-grid"><section><h3>Track</h3><dl><div><dt>Date</dt><dd>{sailingDate(activity.start_time)}</dd></div><div><dt>Start</dt><dd>{sailingTime(activity.start_time)}</dd></div><div><dt>End</dt><dd>{sailingTime(activity.end_time)}</dd></div><div><dt>Duration</dt><dd>{sailingDuration(activity.start_time, activity.end_time)}</dd></div><div><dt>Samples</dt><dd>{activity.sample_count.toLocaleString()}</dd></div><div><dt>Normalized track</dt><dd>{activity.track_available ? 'Available' : 'Unavailable'}</dd></div></dl></section><section><h3>Traceability</h3><dl><div><dt>Boat</dt><dd>{boat}</dd></div></dl><div className="admin-relations"><RelationButton label="Sailor" id={activity.sailor_id} value={activity.sailor_label} onFollow={() => onFollow('sailor', activity.sailor_id)} /><RelationButton label="Session" id={activity.session_id} onFollow={() => activity.session_id && onFollow('session', activity.session_id)} /><RelationButton label="Source Ingestion" id={activity.source_ingestion_id} unavailableValue={ingestionUnavailable} onFollow={() => activity.source_ingestion_id && onFollow('ingestion', activity.source_ingestion_id)} /></div></section><section><h3>Source</h3><dl><div><dt>Provider/source</dt><dd>{activity.source}</dd></div><div><dt>Device</dt><dd>{activity.device_name}</dd></div><div><dt>Original filename</dt><dd>{activity.original_filename}</dd></div></dl></section><section><h3>Maneuvers</h3><dl><div><dt>Artifact currency</dt><dd>{maneuvers.artifact_currency.toUpperCase()}</dd></div><div><dt>Detector status</dt><dd>{detector}</dd></div><div><dt>Detected event count</dt><dd>{maneuvers.detected_count ?? '—'}</dd></div><div><dt>Persisted algorithm version</dt><dd>{maneuvers.artifact_algorithm_version ?? '—'}</dd></div><div><dt>Current algorithm version</dt><dd>{maneuvers.current_algorithm_version}</dd></div></dl><div className="admin-actions"><button disabled={busy || !activity.track_available} onClick={onRecalculate}>{busy ? 'Recalculating…' : 'Recalculate maneuvers'}</button></div></section></div><details className="admin-advanced"><summary>Advanced</summary><dl><div><dt>Activity ID</dt><dd>{activity.id}</dd></div><div><dt>Attachment SHA-256</dt><dd>{activity.attachment_sha256}</dd></div></dl></details><DiagnosticJson value={activity.diagnostic} label="Diagnostic JSON" /></div>
 }
 
-export function SailorDetail({ sailor, activities = [], busy, onActivitySelect, onSessionSelect, onRequested, onConsentRequestSend, onConfirm, onRevoke, onNewCycle, onPersonalRegenerate, onPersonalRevoke, onWelcomeEmailResend }: { sailor: AdminSailorDetail, activities?: AdminActivitySummary[], busy: boolean, onActivitySelect?: (id: string) => void, onSessionSelect?: (id: string) => void, onRequested: () => void, onConsentRequestSend: () => void, onConfirm: () => void, onRevoke: () => void, onNewCycle: () => void, onPersonalRegenerate: () => void, onPersonalRevoke: () => void, onWelcomeEmailResend: () => void }) {
+type SailorActions = {
+  onRequested: () => void; onConsentRequestSend: () => void; onConfirm: () => void
+  onRevoke: () => void; onNewCycle: () => void; onPersonalRegenerate: () => void
+  onPersonalRevoke: () => void; onWelcomeEmailResend: () => void
+}
+
+export function SailorCard({ sailor, detail, activities, busy, onSelect, onActivitySelect, onSessionSelect, ...actions }: { sailor: AdminSailor, detail: AdminSailorDetail | null, activities: AdminActivitySummary[], busy: boolean, onSelect: () => void, onActivitySelect?: (id: string) => void, onSessionSelect?: (id: string) => void } & SailorActions) {
+  return <article className={`admin-card admin-sailor-card${detail ? ' is-expanded is-selected' : ''}`} aria-current={detail ? 'true' : undefined}>
+    <button className="admin-sailor-summary" type="button" aria-expanded={Boolean(detail)} disabled={busy} onClick={onSelect}>
+      <div className="admin-card__heading"><div><h2>{sailor.name || sailor.email}</h2>{sailor.name && <p>{sailor.email}</p>}</div><span className={`state-badge state-${sailor.operational_group}`}>{consentLabels[sailor.operational_group]}</span></div>
+      <p className="admin-meta">{sailor.activity_count} Activities · {sailor.session_count} Sessions<br />Latest sailing: {sailor.last_sailing_end ? `${localDate(sailor.last_sailing_start)}–${localDate(sailor.last_sailing_end)}` : '—'}</p>
+    </button>
+    {detail && <SailorDetail sailor={detail} activities={activities} busy={busy} onActivitySelect={onActivitySelect} onSessionSelect={onSessionSelect} {...actions} />}
+  </article>
+}
+
+export function SailorDetail({ sailor, activities = [], busy, onActivitySelect, onSessionSelect, onRequested, onConsentRequestSend, onConfirm, onRevoke, onNewCycle, onPersonalRegenerate, onPersonalRevoke, onWelcomeEmailResend }: { sailor: AdminSailorDetail, activities?: AdminActivitySummary[], busy: boolean, onActivitySelect?: (id: string) => void, onSessionSelect?: (id: string) => void } & SailorActions) {
   const pending = sailor.consent_status === 'PENDING'
-  return <div className="admin-detail"><dl><div><dt>Granted</dt><dd>{localDate(sailor.consent_granted_at)}</dd></div><div><dt>Revoked</dt><dd>{localDate(sailor.consent_revoked_at)}</dd></div></dl>
-    <ConsentRequestStatus sailor={sailor} busy={busy} onSend={onConsentRequestSend} />
-    <div className="admin-actions">{sailor.operational_group === 'pending_needs_request' && <button disabled={busy} onClick={onRequested}>Mark request sent manually</button>}{pending && <><button disabled={busy} onClick={onConfirm}>Confirm consent</button><button disabled={busy} className="danger" onClick={onRevoke}>Record decline</button></>}{sailor.operational_group === 'active' && <button disabled={busy} className="danger" onClick={onRevoke}>Record withdrawal</button>}{sailor.operational_group === 'revoked' && <button disabled={busy} onClick={onNewCycle}>Start new consent cycle</button>}</div>
-    <PersonalCapabilityControls key={`${sailor.id}-${sailor.personal_capability_path}-${sailor.personal_capability_state}`} sailor={sailor} busy={busy} onRegenerate={onPersonalRegenerate} onRevoke={onPersonalRevoke} />
-    <WelcomeEmailStatus sailor={sailor} busy={busy} onResend={onWelcomeEmailResend} />
-    <h3>Activity history</h3><p className="admin-meta">Activities: {sailor.activity_count} · Sessions: {sailor.session_count}<br />Last sailing: {sailor.last_sailing_end ? `${localDate(sailor.last_sailing_start)}–${localDate(sailor.last_sailing_end)}` : '—'}</p>{activities.length > 0 && <div className="admin-relations">{activities.map((activity) => <RelationButton key={activity.id} label="Activity" id={activity.id} value={`${sailingDate(activity.start_time)} · ${sailingTime(activity.start_time)}`} onFollow={() => onActivitySelect?.(activity.id)} />)}</div>}<h3>Sessions</h3>{sailor.sessions.length === 0 ? <p>No Sessions recorded.</p> : <div className="admin-list">{sailor.sessions.map((session) => {
-      const sailingStart = session.sailing_start!
-      const sailingEnd = session.sailing_end!
-      const hasSailing = Boolean(session.sailing_start && session.sailing_end)
-      const sameDay = hasSailing && sailingDate(sailingStart) === sailingDate(sailingEnd)
-      return <article className="admin-card admin-sailor-session" key={session.session_id}>
-        <div className="admin-card__heading"><div>{hasSailing ? <><time className="admin-sailor-session__date" dateTime={sailingStart}>{sailingDate(sailingStart)}</time><p className="admin-sailor-session__interval">{sameDay ? <><time dateTime={sailingStart}>{sailingTime(sailingStart)}</time> – <time dateTime={sailingEnd}>{sailingTime(sailingEnd)}</time></> : <><time dateTime={sailingStart}>{localDate(sailingStart)}</time> – <time dateTime={sailingEnd}>{localDate(sailingEnd)}</time></>}</p></> : <h4>{session.session_id}</h4>}</div><span className={`state-badge state-${session.capability_state}`}>{capabilityLabels[session.capability_state]}</span></div>
-        <dl className="admin-sailor-session__details"><div><dt>Activities</dt><dd>{session.sailor_activity_count} {session.sailor_activity_count === 1 ? 'Activity' : 'Activities'}</dd></div><div><dt>Expires</dt><dd>{localDate(session.expires_at)}</dd></div></dl>
-        {onSessionSelect && <RelationButton label="Admin Session" id={session.session_id} onFollow={() => onSessionSelect(session.session_id)} />}
-        {session.capability_path && sailor.consent_status === 'ACTIVE' && <section className="admin-sailor-session__access" aria-label="Session access"><h4>Session access</h4><div className="admin-actions"><a className="admin-button" href={session.capability_path}>Open session</a></div></section>}
-      </article>
-    })}</div>}
-    <h3>Consent history</h3>{sailor.consent_events.length === 0 ? <p>No consent events recorded.</p> : <ol className="event-list">{sailor.consent_events.map((event, index) => <li key={`${event.timestamp}-${index}`}><strong>{event.event_type.replaceAll('_', ' ')}</strong><span>{localDate(event.timestamp)} · {event.source}{event.agreement_version ? ` · ${event.agreement_version}` : ''}</span></li>)}</ol>}
+  const request = sailor.consent_request
+  const requestAction = request.state === 'none' ? 'Send consent request' : request.state === 'expired' ? 'Reissue consent request' : request.state === 'valid' ? 'Resend consent request' : null
+  const sendRequest = () => confirmConsentRequestSend(request.state, (message) => window.confirm(message), onConsentRequestSend)
+  const canResendWelcome = sailor.consent_status === 'ACTIVE' && sailor.personal_capability_state === 'active' && sailor.personal_capability_path !== null
+  const boat = sailor.default_boat ? [sailor.default_boat.name, sailor.default_boat.sailing_class, sailor.default_boat.sail_number].filter(Boolean).join(' · ') : null
+  return <div className="admin-sailor-detail">
+    <div className="admin-detail-grid admin-sailor-detail__sections">
+      <section><h3>Current state</h3><dl><div><dt>Name</dt><dd>{sailor.name || '—'}</dd></div><div><dt>Email</dt><dd>{sailor.email}</dd></div><div><dt>Consent</dt><dd>{sailor.consent_status}</dd></div><div><dt>Operational group</dt><dd>{consentLabels[sailor.operational_group]}</dd></div><div><dt>Personal TackBar</dt><dd>{personalCapabilityLabels[sailor.personal_capability_state]}</dd></div><div><dt>Latest sailing</dt><dd>{sailor.last_sailing_end ? `${localDate(sailor.last_sailing_start)}–${localDate(sailor.last_sailing_end)}` : '—'}</dd></div>{boat && <div><dt>Default Boat</dt><dd>{boat}</dd></div>}</dl></section>
+      <ConsentRequestStatus sailor={sailor} />
+      <details className="admin-sailor-disclosure"><summary>Consent timeline</summary>{sailor.consent_events.length === 0 ? <p>No consent events recorded.</p> : <ol className="event-list">{sailor.consent_events.map((event, index) => <li key={`${event.timestamp}-${index}`}><strong>{event.event_type.replaceAll('_', ' ')}</strong><span>{localDate(event.timestamp)} · {event.source}{event.agreement_version ? ` · ${event.agreement_version}` : ''}</span></li>)}</ol>}</details>
+      <PersonalCapabilityControls key={`${sailor.id}-${sailor.personal_capability_path}-${sailor.personal_capability_state}`} sailor={sailor} busy={busy} />
+      <section className="admin-detail-grid__wide"><h3>Traceability</h3><h4>Activities</h4>{activities.length === 0 ? <p>No Activities recorded.</p> : <div className="admin-relations">{activities.map((activity) => <RelationButton key={activity.id} label="Activity" id={activity.id} value={`${sailingDate(activity.start_time)} · ${sailingTime(activity.start_time)}`} onFollow={() => onActivitySelect?.(activity.id)} />)}</div>}<h4>Sessions</h4>{sailor.sessions.length === 0 ? <p>No Sessions recorded.</p> : <div className="admin-relations">{sailor.sessions.map((session) => <RelationButton key={session.session_id} label="Session" id={session.session_id} value={session.sailing_start && session.sailing_end ? `${sessionSailingLabel({ ...session, id: session.session_id, total_activity_count: session.sailor_activity_count, visible_activity_count: 0, sailor_count: 1 })} · ${session.sailor_activity_count} ${session.sailor_activity_count === 1 ? 'Activity' : 'Activities'}` : `${session.sailor_activity_count} ${session.sailor_activity_count === 1 ? 'Activity' : 'Activities'}`} onFollow={() => onSessionSelect?.(session.session_id)} />)}</div>}</section>
+      <WelcomeEmailStatus sailor={sailor} />
+      <section className="admin-detail-grid__wide admin-maintenance"><h3>Maintenance</h3><div className="admin-maintenance-groups"><div><h4>Consent</h4><div className="admin-actions">{sailor.operational_group === 'pending_needs_request' && <button disabled={busy} onClick={onRequested}>Mark request sent manually</button>}{sailor.consent_status === 'PENDING' && requestAction && <button disabled={busy} onClick={sendRequest}>{busy ? 'Sending consent request…' : requestAction}</button>}{pending && <><button disabled={busy} onClick={onConfirm}>Confirm consent</button><button disabled={busy} className="danger" onClick={onRevoke}>Record decline</button></>}{sailor.operational_group === 'active' && <button disabled={busy} className="danger" onClick={onRevoke}>Record withdrawal</button>}{sailor.operational_group === 'revoked' && <button disabled={busy} onClick={onNewCycle}>Start new consent cycle</button>}</div></div><div><h4>Personal TackBar</h4><div className="admin-actions"><button disabled={busy} onClick={onPersonalRegenerate}>Regenerate</button>{(sailor.personal_capability_state === 'active' || sailor.personal_capability_state === 'consent_inactive') && <button className="danger" disabled={busy} onClick={onPersonalRevoke}>Revoke</button>}</div></div>{canResendWelcome && <div><h4>Communication</h4><div className="admin-actions"><button disabled={busy} onClick={onWelcomeEmailResend}>{busy ? 'Resending welcome email…' : 'Resend welcome email'}</button></div></div>}</div></section>
+    </div>
+    <details className="admin-advanced"><summary>Advanced</summary><dl><div><dt>Sailor ID</dt><dd>{sailor.id}</dd></div>{sailor.default_boat && <div><dt>Default Boat ID</dt><dd>{sailor.default_boat.id}</dd></div>}<div><dt>Consent requested</dt><dd>{localDate(sailor.consent_request_sent_at)}</dd></div><div><dt>Consent granted</dt><dd>{localDate(sailor.consent_granted_at)}</dd></div><div><dt>Consent revoked</dt><dd>{localDate(sailor.consent_revoked_at)}</dd></div></dl></details>
+    <DiagnosticJson value={sailor.diagnostic} label="Diagnostic JSON" />
   </div>
 }
 
-export function ConsentRequestStatus({ sailor, busy, onSend }: {
-  sailor: AdminSailorDetail; busy: boolean; onSend: () => void
-}) {
+export function ConsentRequestStatus({ sailor }: { sailor: AdminSailorDetail }) {
   const request = sailor.consent_request
   const failed = request.delivery_last_error !== null
   const status = request.state === 'none' ? 'Not issued'
@@ -450,17 +464,8 @@ export function ConsentRequestStatus({ sailor, busy, onSend }: {
     : failed ? 'Failed'
     : request.delivery_sent_at ? 'Sent'
     : 'Not sent'
-  const action = request.state === 'none' ? 'Send consent request'
-    : request.state === 'expired' ? 'Reissue consent request'
-    : request.state === 'valid' ? 'Resend consent request'
-    : null
-  const send = () => confirmConsentRequestSend(
-    request.state,
-    (message) => window.confirm(message),
-    onSend,
-  )
   return <section className="admin-consent-request" aria-label="Consent request">
-    <h3>Consent request</h3>
+    <h3>Consent</h3>
     <p><strong>Status:</strong> {status}</p>
     {request.agreement_version && <p><strong>Agreement:</strong> {request.agreement_version}</p>}
     {request.created_at && <p><strong>Created:</strong> {localDate(request.created_at)}</p>}
@@ -468,32 +473,24 @@ export function ConsentRequestStatus({ sailor, busy, onSend }: {
     {request.automatic_delivery_attempted_at && <p><strong>Automatic attempt:</strong> {localDate(request.automatic_delivery_attempted_at)}</p>}
     {request.delivery_sent_at && <p><strong>Last delivery:</strong> {localDate(request.delivery_sent_at)}</p>}
     {failed && <p className="admin-error">{request.delivery_last_error}</p>}
-    {sailor.consent_status === 'PENDING' && action && <div className="admin-actions"><button disabled={busy} onClick={send}>{busy ? 'Sending consent request…' : action}</button></div>}
   </section>
 }
 
-export function WelcomeEmailStatus({ sailor, busy, onResend }: {
-  sailor: AdminSailorDetail; busy: boolean; onResend: () => void
-}) {
+export function WelcomeEmailStatus({ sailor }: { sailor: AdminSailorDetail }) {
   const failed = sailor.welcome_email_last_error !== null
   const sent = sailor.welcome_email_sent_at !== null
   const status = failed ? 'Failed' : sent ? 'Sent' : 'Not sent'
-  const eligible = sailor.consent_status === 'ACTIVE'
-    && sailor.personal_capability_state === 'active'
-    && sailor.personal_capability_path !== null
   return <section className="admin-welcome-email" aria-label="Welcome email">
-    <h3>Welcome email</h3>
+    <h3>Communication</h3>
     <p><strong>Welcome email:</strong> {status}</p>
     {sent && <p>Last sent <time dateTime={sailor.welcome_email_sent_at!}>{localDate(sailor.welcome_email_sent_at)}</time></p>}
-    {eligible && <div className="admin-actions"><button disabled={busy} onClick={onResend}>{busy ? 'Resending welcome email…' : 'Resend welcome email'}</button></div>}
   </section>
 }
 
-export function PersonalCapabilityControls({ sailor, busy, onRegenerate, onRevoke }: {
-  sailor: AdminSailorDetail; busy: boolean; onRegenerate: () => void; onRevoke: () => void
-}) {
+const personalCapabilityLabels = { active: 'Active', revoked: 'Revoked', never_generated: 'Never generated', consent_inactive: 'Unavailable · consent inactive' }
+
+export function PersonalCapabilityControls({ sailor, busy }: { sailor: AdminSailorDetail; busy: boolean }) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null)
-  const stateLabels = { active: 'Active', revoked: 'Revoked', never_generated: 'Never generated', consent_inactive: 'Unavailable · consent inactive' }
   const path = sailor.personal_capability_path
   const copyLink = async () => {
     if (!path || busy) return
@@ -504,11 +501,10 @@ export function PersonalCapabilityControls({ sailor, busy, onRegenerate, onRevok
   }
   return <section aria-label="Personal TackBar">
     <h3>Personal TackBar</h3>
-    <p>{stateLabels[sailor.personal_capability_state]}</p>
+    <p>{personalCapabilityLabels[sailor.personal_capability_state]}</p>
     <div className="admin-actions">
       {sailor.personal_capability_state === 'active' && path && <button disabled={busy} onClick={() => void copyLink()}>Copy link</button>}
-      <button disabled={busy} onClick={onRegenerate}>Regenerate</button>
-      {(sailor.personal_capability_state === 'active' || sailor.personal_capability_state === 'consent_inactive') && <button className="danger" disabled={busy} onClick={onRevoke}>Revoke</button>}
+      {sailor.personal_capability_state === 'active' && path && <a className="admin-button" href={path}>Open Personal TackBar</a>}
     </div>
     {copyMessage && <p role="status">{copyMessage}</p>}
   </section>
