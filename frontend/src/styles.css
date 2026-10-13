@@ -1526,11 +1526,32 @@ input:focus-visible {
 .admin-card__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .admin-card__heading > div { min-width: 0; }
 .admin-card h2 { max-width: 100%; margin: 0; overflow: hidden; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-session-card { padding: 0; overflow: hidden; }
 .admin-session-card h2 { overflow: visible; text-overflow: clip; white-space: normal; }
 .admin-session-card.is-selected { border-color: var(--color-blue); outline: 2px solid var(--color-blue); outline-offset: 2px; }
+.admin-card .admin-session-summary { display: block; width: 100%; min-height: 0; padding: 16px; border: 0; border-radius: 15px; color: inherit; background: var(--color-white); text-align: left; }
+.admin-session-summary:hover { background: var(--color-background); }
+.admin-session-summary:focus-visible { outline: 3px solid var(--color-blue); outline-offset: -3px; }
+.admin-session-detail { padding: 18px 16px; border-top: 1px solid var(--color-pale); }
+.admin-session-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
+.admin-session-section:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.admin-session-section h3 { margin: 0 0 10px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.admin-session-section dl, .admin-temporary-share dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.admin-session-section dl div, .admin-temporary-share dl div { min-width: 0; padding: 10px; border-radius: 9px; background: var(--color-background); }
+.admin-session-section dt, .admin-temporary-share dt { color: var(--color-navy); font-size: .72rem; }
+.admin-session-section dd, .admin-temporary-share dd { margin: 4px 0 0; overflow-wrap: anywhere; font-size: .85rem; font-weight: 750; }
+.admin-session-membership { display: grid; gap: 8px; }
+.admin-session-member { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) auto; align-items: center; gap: 8px; }
+.admin-session-member button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-session-access-block + .admin-session-access-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-pale); }
+.admin-session-access-block p { margin: 0; color: var(--color-navy); font-size: .85rem; }
+.admin-temporary-share { margin-top: 10px; border: 1px solid var(--color-pale); border-radius: 9px; }
+.admin-temporary-share summary { padding: 10px 12px; cursor: pointer; font-weight: 750; }
+.admin-temporary-share dl, .admin-temporary-share .admin-actions { margin: 0 12px 12px; }
 .admin-card__heading p, .admin-meta { margin: 5px 0; color: var(--color-navy); font-size: .8rem; }
 .admin-ingestion-list { grid-template-columns: minmax(0, 1fr); }
 .admin-activity-list { grid-template-columns: minmax(0, 1fr); }
+.admin-session-list { grid-template-columns: minmax(0, 1fr); }
 .admin-activity-card { padding: 0; overflow: hidden; }
 .admin-card .admin-activity-summary { display: block; width: 100%; min-height: 0; padding: 16px; border: 0; border-radius: 15px; color: inherit; background: var(--color-white); text-align: left; }
 .admin-activity-summary:hover { background: var(--color-background); }
@@ -1605,7 +1626,8 @@ input:focus-visible {
 .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .event-list { display: grid; gap: 10px; padding-left: 20px; }
 .event-list li span { display: block; color: var(--color-navy); font-size: .76rem; }
-.renew-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
+.renew-form { display: grid; grid-template-columns: minmax(0, 150px) auto; align-items: end; justify-content: start; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
+.admin-session-section .renew-form { margin-top: 0; padding-top: 0; border-top: 0; }
 .renew-form label span { display: block; margin: 3px 0 8px; color: var(--color-navy); font-size: .72rem; font-weight: 500; }
 .admin-error { margin: 0; color: #8a352b; font-weight: 700; }
 .admin-feedback { padding: 12px 16px; background: #fae5e1; }
@@ -1615,6 +1637,7 @@ input:focus-visible {
   .admin-ingestion-section-header { flex-direction: row; align-items: center; justify-content: space-between; }
   .admin-ingestion-list { grid-template-columns: minmax(0, 1fr); }
   .admin-activity-list { grid-template-columns: minmax(0, 1fr); }
+  .admin-session-list { grid-template-columns: minmax(0, 1fr); }
   .admin-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-detail-grid__wide { grid-column: 1 / -1; }
   .admin-relations { grid-template-columns: repeat(3, minmax(0, 1fr)); }

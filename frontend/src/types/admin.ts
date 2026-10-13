@@ -60,21 +60,46 @@ export interface AdminSailorSession {
   capability_path: string | null
 }
 
-export interface AdminSession {
+export interface AdminSessionSummary {
   id: string
-  created_at: string
   expires_at: string
   total_activity_count: number
   visible_activity_count: number
-  capability_state: CapabilityState
-  capability_token: string | null
-  capability_path: string | null
   sailing_start: string | null
   sailing_end: string | null
-  active_sailors: { id: string; label: string }[]
+  sailor_count: number
+}
+
+export interface AdminSessionActivity {
+  id: string
+  sailor_id: string
+  sailor_label: string
+  shareable: boolean
+}
+
+export interface AdminTemporarySessionShare {
+  id: string
+  created_at: string
+  expires_at: string
+  state: 'VALID' | 'EXPIRED' | 'UNAVAILABLE'
+  path: string | null
+}
+
+export interface AdminSession extends AdminSessionSummary {
+  created_at: string
+  capability_state: CapabilityState
+  capability_path: string | null
+  activities: AdminSessionActivity[]
+  temporary_shares: {
+    active_count: number
+    expired_count: number
+    unavailable_count: number
+    active_share: AdminTemporarySessionShare | null
+  }
   consent_active_count: number
   consent_pending_count: number
   consent_revoked_count: number
+  diagnostic: Record<string, unknown>
 }
 
 export interface AdminIngestion {

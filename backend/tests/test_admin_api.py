@@ -52,6 +52,8 @@ EXPIRED_TOKEN = "admin-api-expired-capability-token-0000000000001"
 RESEND_TOKEN = "admin-api-welcome-email-token-00000000000001"
 MANUAL_REQUEST_ID = "50000000-0000-4000-8000-000000000001"
 MANUAL_REQUEST_TOKEN = "manual-consent-request-" + "r" * 40
+TEMP_SESSION_ID = "20000000-0000-4000-8000-000000000079"
+TEMP_ACTIVE_TOKEN = "admin-temporary-active-token-000000000000000079"
 
 
 @dataclass(frozen=True)
@@ -928,10 +930,10 @@ def test_admin_starts_new_consent_cycle_without_restoring_shared_visibility(
     ]
     assert response.json["consent_events"][-1]["source"] == "admin_started_new_consent_cycle"
     assert after_session.json["visible_activity_count"] == before_session.json["visible_activity_count"]
-    assert after_session.json["capability_token"] == before_session.json["capability_token"]
+    assert after_session.json["capability_path"] == before_session.json["capability_path"]
     assert before_private.json["capability_state"] == after_private.json["capability_state"] == "never_generated"
     assert after_private.json["visible_activity_count"] == 0
-    assert after_private.json["capability_token"] is None
+    assert after_private.json["capability_path"] is None
 
 
 def test_new_consent_cycle_rejects_invalid_states_unknown_and_unauthorized(
@@ -954,33 +956,111 @@ def test_new_consent_cycle_rejects_invalid_states_unknown_and_unauthorized(
     assert unauthorized.status_code == 401
 
 
-def test_admin_sessions_include_internal_counts_lifetime_and_all_states(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
+def test_admin_session_summaries_include_compact_operational_context(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
     _use_runtime(monkeypatch, temporary_directory)
     response = _request("GET", "/api/admin/sessions")
     sessions = {item["id"]: item for item in response.json}
 
-    assert {key: sessions[SESSION_ACTIVE][key] for key in ("id", "created_at", "expires_at", "total_activity_count", "visible_activity_count", "capability_state", "capability_token", "capability_path")} == {
+    assert sessions[SESSION_ACTIVE] == {
         "id": SESSION_ACTIVE,
-        "created_at": "2026-01-01T00:00:00Z",
         "expires_at": "2099-03-02T00:00:00Z",
         "total_activity_count": 3,
         "visible_activity_count": 1,
-        "capability_state": "active",
-        "capability_token": ACTIVE_TOKEN,
-        "capability_path": f"/s/{ACTIVE_TOKEN}",
+        "sailing_start": "2026-08-10T09:00:00Z",
+        "sailing_end": "2026-08-10T10:00:00Z",
+        "sailor_count": 3,
     }
-    assert sessions[SESSION_ACTIVE]["sailing_start"] == "2026-08-10T09:00:00Z"
-    assert sessions[SESSION_ACTIVE]["sailing_end"] == "2026-08-10T10:00:00Z"
-    assert sessions[SESSION_ACTIVE]["active_sailors"]
-    assert sessions[SESSION_ACTIVE]["consent_active_count"] == 1
-    assert sessions[SESSION_NEVER]["capability_state"] == "never_generated"
     assert sessions[SESSION_NEVER]["visible_activity_count"] == 0
-    assert sessions[SESSION_NEVER]["capability_token"] is None
-    assert sessions[SESSION_NEVER]["capability_path"] is None
-    assert sessions[SESSION_REVOKED]["capability_state"] == "revoked"
-    assert sessions[SESSION_EXPIRED]["capability_state"] == "expired"
     assert sessions[SESSION_EXPIRED]["total_activity_count"] == 2
-    assert sessions[SESSION_EXPIRED]["capability_token"] is None
+
+
+def test_admin_session_detail_exposes_membership_without_raw_capability_token(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+
+    response = _request("GET", f"/api/admin/sessions/{SESSION_ACTIVE}")
+
+    assert response.status_code == 200
+    assert response.json["capability_state"] == "active"
+    assert response.json["capability_path"] == f"/s/{ACTIVE_TOKEN}"
+    assert "capability_token" not in response.json
+    assert response.json["activities"] == [
+        {"id": ACTIVITY_PENDING, "sailor_id": PENDING_NEEDS, "sailor_label": "needs", "shareable": False},
+        {"id": ACTIVITY_ACTIVE, "sailor_id": ACTIVE, "sailor_label": "active", "shareable": True},
+        {"id": ACTIVITY_REVOKED, "sailor_id": REVOKED, "sailor_label": "revoked", "shareable": False},
+    ]
+    diagnostic = json.dumps(response.json["diagnostic"])
+    assert ACTIVE_TOKEN not in diagnostic
+    assert "originating_capability_fingerprint" not in diagnostic
+
+
+def test_admin_session_detail_summarizes_temporary_shares_using_existing_states(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    now = datetime.now(timezone.utc)
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    sessions.append(_session(
+        TEMP_SESSION_ID,
+        [ACTIVITY_ACTIVE],
+        TEMP_ACTIVE_TOKEN,
+        expires_at=(now + timedelta(days=30)).isoformat(),
+    ))
+    _write_json(root / "sessions.json", sessions)
+    matching_fingerprint = sha256(TEMP_ACTIVE_TOKEN.encode("utf-8")).hexdigest()
+    temporary_token = "admin-temporary-share-token-000000000000000079"
+    _write_json(root / "temporary_session_shares.json", [
+        {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "token": temporary_token,
+            "session_id": TEMP_SESSION_ID,
+            "originating_capability_fingerprint": matching_fingerprint,
+            "created_at": (now - timedelta(hours=1)).isoformat(),
+            "expires_at": (now + timedelta(hours=1)).isoformat(),
+        },
+        {
+            "id": "40000000-0000-4000-8000-000000000002",
+            "token": "admin-expired-share-token-00000000000000000079",
+            "session_id": TEMP_SESSION_ID,
+            "originating_capability_fingerprint": matching_fingerprint,
+            "created_at": (now - timedelta(hours=49)).isoformat(),
+            "expires_at": (now - timedelta(hours=1)).isoformat(),
+        },
+        {
+            "id": "40000000-0000-4000-8000-000000000003",
+            "token": "admin-unavailable-share-token-000000000000000079",
+            "session_id": TEMP_SESSION_ID,
+            "originating_capability_fingerprint": "0" * 64,
+            "created_at": (now - timedelta(hours=1)).isoformat(),
+            "expires_at": (now + timedelta(hours=1)).isoformat(),
+        },
+    ])
+
+    response = _request("GET", f"/api/admin/sessions/{TEMP_SESSION_ID}")
+
+    assert response.status_code == 200
+    assert response.json["temporary_shares"] == {
+        "active_count": 1,
+        "expired_count": 1,
+        "unavailable_count": 1,
+        "active_share": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "created_at": (now - timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+            "expires_at": (now + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+            "state": "VALID",
+            "path": f"/q/{temporary_token}",
+        },
+    }
+    diagnostic = json.dumps(response.json["diagnostic"])
+    assert temporary_token not in diagnostic
+    assert TEMP_ACTIVE_TOKEN not in diagnostic
+    assert matching_fingerprint not in diagnostic
+    assert {item["state"] for item in response.json["diagnostic"]["temporary_shares"]} == {
+        "VALID", "EXPIRED", "UNAVAILABLE",
+    }
 
 
 def test_admin_sessions_are_ordered_by_sailing_start_with_deterministic_fallback(
@@ -1041,7 +1121,7 @@ def test_expired_state_precedes_token_and_revocation_combinations(monkeypatch: p
     assert null_and_expired.json["capability_state"] == "expired"
     assert unexpired_revoked.json["capability_state"] == "revoked"
     for response in (token_present, revoked_and_expired, null_and_expired, unexpired_revoked):
-        assert response.json["capability_token"] is None
+        assert "capability_token" not in response.json
         assert response.json["capability_path"] is None
 
 
@@ -1051,7 +1131,8 @@ def test_capability_revoke_and_regenerate_are_semantic_and_preserve_lifetime(mon
     revoked = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/capability/revoke")
     old_shared = _request("GET", f"/api/shared/sessions/{ACTIVE_TOKEN}", admin_key=None)
     regenerated = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/capability/regenerate")
-    new_token = regenerated.json["capability_token"]
+    assert regenerated.json["capability_path"] is not None
+    new_token = regenerated.json["capability_path"].removeprefix("/s/")
     new_shared = _request("GET", f"/api/shared/sessions/{new_token}", admin_key=None)
 
     assert revoked.json["capability_state"] == "revoked"
@@ -1091,13 +1172,13 @@ def test_session_renewal_resets_lifetime_from_now_and_preserves_capability_state
     after = datetime.now(timezone.utc)
 
     assert active.status_code == expired.status_code == revoked.status_code == never.status_code == 200
-    assert datetime.fromisoformat(active.json["expires_at"].replace("Z", "+00:00")) >= before + timedelta(days=30)
-    assert datetime.fromisoformat(active.json["expires_at"].replace("Z", "+00:00")) <= after + timedelta(days=30)
+    assert datetime.fromisoformat(active.json["expires_at"].replace("Z", "+00:00")) >= before + timedelta(days=90)
+    assert datetime.fromisoformat(active.json["expires_at"].replace("Z", "+00:00")) <= after + timedelta(days=90)
     assert datetime.fromisoformat(expired.json["expires_at"].replace("Z", "+00:00")) >= before + timedelta(days=60)
     assert datetime.fromisoformat(expired.json["expires_at"].replace("Z", "+00:00")) <= after + timedelta(days=60)
     assert active.json["created_at"] == "2026-01-01T00:00:00Z"
-    assert active.json["capability_token"] == ACTIVE_TOKEN
-    assert expired.json["capability_token"] == EXPIRED_TOKEN
+    assert active.json["capability_path"] == f"/s/{ACTIVE_TOKEN}"
+    assert expired.json["capability_path"] == f"/s/{EXPIRED_TOKEN}"
     assert revoked.json["capability_state"] == "revoked"
     assert never.json["capability_state"] == "never_generated"
     assert _request("GET", f"/api/shared/sessions/{EXPIRED_TOKEN}", admin_key=None).status_code == 200

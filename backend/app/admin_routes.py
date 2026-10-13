@@ -12,6 +12,7 @@ from app.admin_api_models import (
     AdminSailorResponse,
     AdminSessionRenewRequest,
     AdminSessionResponse,
+    AdminSessionSummaryResponse,
     AdminIngestionResponse,
     AdminMailboxReviewResponse,
 )
@@ -211,8 +212,8 @@ def _perform_personal_action(sailor_id: str, action: Callable[[PersonalCapabilit
     return get_sailor(sailor_id)
 
 
-@router.get("/sessions", response_model=list[AdminSessionResponse])
-def list_sessions() -> list[AdminSessionResponse]:
+@router.get("/sessions", response_model=list[AdminSessionSummaryResponse])
+def list_sessions() -> list[AdminSessionSummaryResponse]:
     try:
         return _admin_reader().list_sessions()
     except (ValueError, AdminDataIntegrityError) as error:
@@ -339,7 +340,7 @@ def renew_session(
             raise HTTPException(status_code=404, detail="Session not found")
         SessionLifetimeService(sessions).renew_session(
             session_id,
-            days=request.days if request is not None else 30,
+            days=request.days if request is not None else 90,
         )
     except HTTPException:
         raise

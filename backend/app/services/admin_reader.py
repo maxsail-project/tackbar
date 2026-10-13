@@ -7,8 +7,11 @@ from app.admin_api_models import (
     AdminSailorDetailResponse,
     AdminSailorResponse,
     AdminSailorSessionResponse,
+    AdminSessionActivityResponse,
     AdminSessionResponse,
-    AdminSessionSailor,
+    AdminSessionSummaryResponse,
+    AdminTemporarySessionShareResponse,
+    AdminTemporarySessionShareSummaryResponse,
     CapabilityState,
     ConsentOperationalGroup,
 )
@@ -18,12 +21,14 @@ from app.models import (
     Sailor,
     Session,
     StoredActivity,
+    TemporarySessionShareState,
 )
 from app.repositories.activities import ActivityRepository
 from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
+from app.repositories.temporary_session_shares import TemporarySessionShareRepository
 from app.services.consent_requests import (
     CONSENT_REQUEST_DELIVERY_FAILURE,
     ConsentRequestService,
@@ -33,6 +38,8 @@ from app.services.shared_activity_visibility import (
     SharedActivityVisibilityError,
     shareable_sailor,
 )
+from app.services.session_capabilities import SessionCapabilityService
+from app.services.temporary_session_shares import TemporarySessionShareService
 
 
 class AdminDataIntegrityError(Exception):
@@ -48,6 +55,7 @@ class AdminReader:
         activities: ActivityRepository,
         clock: Callable[[], datetime] | None = None,
         consent_requests: ConsentRequestRepository | None = None,
+        temporary_shares: TemporarySessionShareRepository | None = None,
     ) -> None:
         self.sailors = sailors
         self.consent_events = consent_events
@@ -61,6 +69,19 @@ class AdminReader:
             sailors,
             consent_events,
             sessions,
+            clock=self.clock,
+        )
+        self.temporary_shares = TemporarySessionShareService(
+            temporary_shares or TemporarySessionShareRepository(
+                sailors.path.with_name("temporary_session_shares.json")
+            ),
+            SessionCapabilityService(
+                sessions,
+                activities,
+                sailors,
+                clock=self.clock,
+            ),
+            sailors,
             clock=self.clock,
         )
 
@@ -170,11 +191,11 @@ class AdminReader:
                 "Consent event references unknown Sailor"
             )
 
-    def list_sessions(self) -> list[AdminSessionResponse]:
+    def list_sessions(self) -> list[AdminSessionSummaryResponse]:
         activities = {activity.id: activity for activity in self.activities.all()}
         sailors = {sailor.id: sailor for sailor in self.sailors.all()}
         responses = [
-            self._session_response(session, activities, sailors)
+            self._session_summary(session, activities, sailors)
             for session in self.sessions.all()
         ]
         return sorted(
@@ -243,9 +264,90 @@ class AdminReader:
         activities: dict[str, StoredActivity],
         sailors: dict[str, Sailor],
     ) -> AdminSessionResponse:
+        summary = self._session_summary(session, activities, sailors)
+        session_activities = [activities[activity_id] for activity_id in session.activity_ids]
+        represented_sailors = {
+            activity.sailor_id: sailors[activity.sailor_id]
+            for activity in session_activities
+        }
+        state = self._capability_state(session)
+        active_token = session.capability_token if state == "active" else None
+        temporary_resolutions = self.temporary_shares.inspect_session(session.id)
+        temporary_items = []
+        for resolution in temporary_resolutions:
+            share = resolution.share
+            if share is None:
+                continue
+            temporary_items.append(AdminTemporarySessionShareResponse(
+                id=share.id,
+                created_at=share.created_at,
+                expires_at=share.expires_at,
+                state=resolution.state.value,
+                path=(
+                    f"/q/{share.token}"
+                    if resolution.state == TemporarySessionShareState.VALID
+                    else None
+                ),
+            ))
+        active_shares = sorted(
+            (item for item in temporary_items if item.state == "VALID"),
+            key=lambda item: (item.created_at, item.id),
+            reverse=True,
+        )
+        membership = [
+            AdminSessionActivityResponse(
+                id=activity.id,
+                sailor_id=activity.sailor_id,
+                sailor_label=(sailors[activity.sailor_id].name or sailors[activity.sailor_id].email),
+                shareable=sailors[activity.sailor_id].consent_status == ConsentStatus.ACTIVE,
+            )
+            for activity in session_activities
+        ]
+        return AdminSessionResponse(
+            **summary.model_dump(),
+            created_at=session.created_at,
+            capability_state=state,
+            capability_path=f"/s/{active_token}" if active_token is not None else None,
+            activities=membership,
+            temporary_shares=AdminTemporarySessionShareSummaryResponse(
+                active_count=sum(item.state == "VALID" for item in temporary_items),
+                expired_count=sum(item.state == "EXPIRED" for item in temporary_items),
+                unavailable_count=sum(item.state == "UNAVAILABLE" for item in temporary_items),
+                active_share=active_shares[0] if active_shares else None,
+            ),
+            consent_active_count=sum(s.consent_status == ConsentStatus.ACTIVE for s in represented_sailors.values()),
+            consent_pending_count=sum(s.consent_status == ConsentStatus.PENDING for s in represented_sailors.values()),
+            consent_revoked_count=sum(s.consent_status == ConsentStatus.REVOKED for s in represented_sailors.values()),
+            diagnostic={
+                "session": {
+                    "id": session.id,
+                    "created_at": session.created_at.isoformat(),
+                    "expires_at": session.expires_at.isoformat(),
+                    "activity_ids": list(session.activity_ids),
+                    "capability_state": state,
+                },
+                "membership": [item.model_dump() for item in membership],
+                "temporary_shares": [
+                    {
+                        "id": item.id,
+                        "created_at": item.created_at.isoformat(),
+                        "expires_at": item.expires_at.isoformat(),
+                        "state": item.state,
+                    }
+                    for item in temporary_items
+                ],
+            },
+        )
+
+    def _session_summary(
+        self,
+        session: Session,
+        activities: dict[str, StoredActivity],
+        sailors: dict[str, Sailor],
+    ) -> AdminSessionSummaryResponse:
         visible_count = 0
         session_activities = []
-        represented_sailors: dict[str, Sailor] = {}
+        represented_sailor_ids: set[str] = set()
         for activity_id in session.activity_ids:
             activity = activities.get(activity_id)
             if activity is None:
@@ -253,36 +355,22 @@ class AdminReader:
             try:
                 if shareable_sailor(activity, sailors) is not None:
                     visible_count += 1
-                sailor = sailors.get(activity.sailor_id)
-                if sailor is None:
-                    raise AdminDataIntegrityError("Activity references unknown Sailor")
-                session_activities.append(activity)
-                represented_sailors[sailor.id] = sailor
             except SharedActivityVisibilityError as error:
                 raise AdminDataIntegrityError("Activity references unknown Sailor") from error
-        state = self._capability_state(session)
-        active_token = session.capability_token if state == "active" else None
+            if activity.sailor_id not in sailors:
+                raise AdminDataIntegrityError("Activity references unknown Sailor")
+            session_activities.append(activity)
+            represented_sailor_ids.add(activity.sailor_id)
         starts = [activity.start_time for activity in session_activities]
         ends = [activity.end_time for activity in session_activities]
-        active_sailors = sorted(
-            (sailor for sailor in represented_sailors.values() if sailor.consent_status == ConsentStatus.ACTIVE),
-            key=lambda sailor: ((sailor.name or sailor.email).casefold(), sailor.id),
-        )
-        return AdminSessionResponse(
+        return AdminSessionSummaryResponse(
             id=session.id,
-            created_at=session.created_at,
             expires_at=session.expires_at,
             total_activity_count=len(session.activity_ids),
             visible_activity_count=visible_count,
-            capability_state=state,
-            capability_token=active_token,
-            capability_path=f"/s/{active_token}" if active_token is not None else None,
             sailing_start=min(starts) if starts else None,
             sailing_end=max(ends) if ends else None,
-            active_sailors=[AdminSessionSailor(id=sailor.id, label=sailor.name or sailor.email) for sailor in active_sailors],
-            consent_active_count=sum(s.consent_status == ConsentStatus.ACTIVE for s in represented_sailors.values()),
-            consent_pending_count=sum(s.consent_status == ConsentStatus.PENDING for s in represented_sailors.values()),
-            consent_revoked_count=sum(s.consent_status == ConsentStatus.REVOKED for s in represented_sailors.values()),
+            sailor_count=len(represented_sailor_ids),
         )
 
     def _capability_state(self, session: Session) -> CapabilityState:

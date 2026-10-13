@@ -83,6 +83,28 @@ class TemporarySessionShareService:
             session=session if state == TemporarySessionShareState.VALID else None,
         )
 
+    def inspect_session(
+        self,
+        session_id: str,
+    ) -> list[TemporarySessionShareResolution]:
+        """Return existing shares with state derived by the authoritative rules."""
+        now = self._now()
+        resolutions = []
+        for share in self.shares.all():
+            if share.session_id != session_id:
+                continue
+            state = self._state(share, now)
+            resolutions.append(TemporarySessionShareResolution(
+                state=state,
+                share=share,
+                session=(
+                    self.capabilities.sessions.get_by_id(session_id)
+                    if state == TemporarySessionShareState.VALID
+                    else None
+                ),
+            ))
+        return resolutions
+
     def _state(
         self,
         share: TemporarySessionShare,

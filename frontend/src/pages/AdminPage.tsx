@@ -29,7 +29,7 @@ import {
   type IngestionDispositionFilter,
   type IngestionStatusFilter,
 } from '../api/adminApi'
-import type { AdminActivity, AdminActivitySummary, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminSailor, AdminSailorDetail, AdminSession, CapabilityState, ConsentOperationalGroup } from '../types/admin'
+import type { AdminActivity, AdminActivitySummary, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 
 export type Section = 'sailors' | 'sessions' | 'ingestions' | 'activities'
 type AdminDrilldown =
@@ -147,6 +147,24 @@ function sailingDuration(start: string, end: string) {
   return hours > 0 ? `${hours} h ${remainder} min` : `${remainder} min`
 }
 
+function sessionSailingLabel(session: AdminSessionSummary) {
+  if (!session.sailing_start || !session.sailing_end) return 'Sailing time unavailable'
+  const start = new Date(session.sailing_start)
+  const end = new Date(session.sailing_end)
+  const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' })
+  return day.format(start) === day.format(end)
+    ? `${day.format(start)} · ${time.format(start)}–${time.format(end)}`
+    : `${localDate(session.sailing_start)}–${localDate(session.sailing_end)}`
+}
+
+function temporaryShareRemaining(expiresAt: string, now = new Date()) {
+  const minutes = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now.getTime()) / 60_000))
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return hours > 0 ? `${hours} h ${remainder} min remaining` : `${remainder} min remaining`
+}
+
 function errorMessage(error: unknown) {
   if (!(error instanceof AdminApiError) || error.status === null) return 'Cannot reach the Admin backend.'
   if (error.status === 401) return 'Admin authorization failed.'
@@ -172,7 +190,7 @@ export default function AdminPage() {
   const [adminKey, setAdminKey] = useState<string | null>(null)
   const [section, setSection] = useState<Section>(DEFAULT_ADMIN_SECTION)
   const [sailors, setSailors] = useState<AdminSailor[]>([])
-  const [sessions, setSessions] = useState<AdminSession[]>([])
+  const [sessions, setSessions] = useState<AdminSessionSummary[]>([])
   const [ingestions, setIngestions] = useState<AdminIngestion[]>([])
   const [activities, setActivities] = useState<AdminActivitySummary[]>([])
   const [ingestionStatus, setIngestionStatus] = useState<IngestionStatusFilter>('all')
@@ -270,6 +288,12 @@ export default function AdminPage() {
     setBusy(true); setError(null)
     try { setSelectedActivity(await getAdminActivity(adminKey, id)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
+  const selectSession = async (id: string) => {
+    if (selectedSession?.id === id) { setSelectedSession(null); return }
+    if (!adminKey) return
+    setBusy(true); setError(null)
+    try { setSelectedSession(await getAdminSession(adminKey, id)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+  }
   const recalculateManeuvers = async () => {
     if (!adminKey || !selectedActivity) return
     setBusy(true); setError(null)
@@ -314,8 +338,8 @@ export default function AdminPage() {
         <button disabled={busy} onClick={async () => { if (!adminKey) return; setBusy(true); try { setSelectedSailor(await getAdminSailor(adminKey, sailor.id)) } catch (cause) { handleError(cause) } finally { setBusy(false) } }}>View details</button>
         {selectedSailor?.id === sailor.id && <SailorDetail sailor={selectedSailor} activities={activities.filter((activity) => activity.sailor_id === sailor.id)} busy={busy} onActivitySelect={(id) => void followRelation('activity', id)} onSessionSelect={(id) => void followRelation('session', id)} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConsentRequestSend={() => sailorAction(() => sendConsentRequest(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} onPersonalRegenerate={() => { if (window.confirm('Regenerate personal access? The current personal link will stop working.')) void sailorAction(() => regeneratePersonalCapability(adminKey, sailor.id)) }} onPersonalRevoke={() => { if (window.confirm('Revoke personal access? Consent and shared Sessions will remain unchanged.')) void sailorAction(() => revokePersonalCapability(adminKey, sailor.id)) }} onWelcomeEmailResend={() => void sailorAction(() => resendWelcomeEmail(adminKey, sailor.id))} />}
       </article>)}
-    </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><div className="admin-list">
-      {sessions.map((session) => { const displayed = selectedSession?.id === session.id ? selectedSession : session; return <SessionCard key={session.id} session={displayed} activities={activities.filter((activity) => activity.session_id === session.id)} selected={selectedSession?.id === session.id} busy={busy} onActivitySelect={(id) => void followRelation('activity', id)} onSailorSelect={(id) => void followRelation('sailor', id)} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} /> })}
+    </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><div className="admin-list admin-session-list">
+      {sessions.map((session) => <SessionCard key={session.id} session={session} detail={selectedSession?.id === session.id ? selectedSession : null} busy={busy} onSelect={() => void selectSession(session.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSailorSelect={(id) => void followRelation('sailor', id)} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
     </div></section> : <section className="admin-content"><IngestionSectionHeader busy={busy} onReview={() => void mailboxAction()} /><IngestionFilters status={ingestionStatus} disposition={ingestionDisposition} sailor={ingestionSailor} search={ingestionSearch} sailors={sailorOptions} busy={busy} onChange={changeIngestionFilters} onSailorChange={(value) => { setIngestionSailor(value); setDrilldown([]) }} onSearchChange={(value) => { setIngestionSearch(value); setDrilldown([]) }} />{reviewSummary && <p className="admin-meta">{reviewSummary}</p>}{<>{visibleIngestions.length === 0 && <p className="admin-meta">No Ingestions match the active filters.</p>}<div className="admin-list admin-ingestion-list">{visibleIngestions.map((item) => {
       const selected = drilldown.length === 1 && drilldown[0].kind === 'ingestion' && drilldown[0].value.id === item.id ? drilldown[0].value : null
       return <IngestionCard key={item.id} ingestion={item} detail={selected} busy={busy} onSelect={() => void selectIngestion(item.id)} onFollow={(kind, id) => void followRelation(kind, id)} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} onDiscard={() => void ingestionDispositionAction(item.id, () => discardIngestion(adminKey!, item.id))} onRestore={() => void ingestionDispositionAction(item.id, () => restoreIngestion(adminKey!, item.id))} />
@@ -490,23 +514,43 @@ export function PersonalCapabilityControls({ sailor, busy, onRegenerate, onRevok
   </section>
 }
 
-export function SessionCard({ session, activities = [], selected = false, busy, onActivitySelect, onSailorSelect, onRegenerate, onRevoke, onRenew }: { session: AdminSession, activities?: AdminActivitySummary[], selected?: boolean, busy: boolean, onActivitySelect?: (id: string) => void, onSailorSelect?: (id: string) => void, onRegenerate: () => void, onRevoke: () => void, onRenew: (days: number) => void }) {
-  const [days, setDays] = useState(30)
-  const usable = session.capability_state === 'active' && !!session.capability_path
-  const url = usable ? `${window.location.origin}${session.capability_path}` : null
-  const sailing = session.sailing_start && session.sailing_end ? (() => { const start = new Date(session.sailing_start); const end = new Date(session.sailing_end); const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }); const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }); return day.format(start) === day.format(end) ? `${day.format(start)} · ${time.format(start)}–${time.format(end)}` : `${localDate(session.sailing_start)}–${localDate(session.sailing_end)}` })() : '—'
-  const consentParts: Array<[string, number]> = [['ACTIVE', session.consent_active_count], ['PENDING', session.consent_pending_count], ['REVOKED', session.consent_revoked_count]]
-  const consent = consentParts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join(' · ')
+export function SessionCard({ session, detail = null, busy, onSelect, onActivitySelect, onSailorSelect, onRegenerate, onRevoke, onRenew }: { session: AdminSessionSummary, detail?: AdminSession | null, busy: boolean, onSelect: () => void, onActivitySelect?: (id: string) => void, onSailorSelect?: (id: string) => void, onRegenerate: () => void, onRevoke: () => void, onRenew: (days: number) => void }) {
   const lifetime = sessionLifetimePresentation(session.expires_at)
-  return <article className={`admin-card admin-session-card${selected ? ' is-selected' : ''}`} aria-current={selected ? 'true' : undefined}><div className="admin-card__heading"><div><h2 title={session.id}>Session · {sailing}</h2><p>{session.id} · Created {localDate(session.created_at)}</p></div><span className={`state-badge state-${lifetime.state}`}>{lifetime.state.toUpperCase()}</span></div>
-    <p className="admin-session-expiration">{lifetime.expiration}</p>
-    <p className="admin-meta"><strong>Sailing:</strong> {sailing}<br /><strong>Sailors:</strong> {session.active_sailors.length === 0 ? '—' : session.active_sailors.map((sailor, index) => <span key={sailor.id}>{index > 0 && ' · '}{onSailorSelect ? <button className="admin-inline-relation" type="button" onClick={() => onSailorSelect(sailor.id)}>{sailor.label}</button> : sailor.label}</span>)}<br /><strong>Consent:</strong> {consent}</p>
-    <dl className="session-counts"><div><dt>Internal tracks</dt><dd>{session.total_activity_count}</dd></div><div><dt>Shareable now</dt><dd>{session.visible_activity_count}</dd></div></dl>
-    {activities.length > 0 && <section className="admin-session-activities"><h3>Activities</h3><div className="admin-relations">{activities.map((activity) => <RelationButton key={activity.id} label="Activity" id={activity.id} value={`${activity.sailor_label} · ${sailingTime(activity.start_time)}`} onFollow={() => onActivitySelect?.(activity.id)} />)}</div></section>}
-    <section className="admin-session-capability"><h3>Shared capability</h3><span className={`state-badge state-${session.capability_state}`}>{capabilityLabels[session.capability_state]}</span>
-      {url && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(url)}>Copy link</button><a className="admin-button" href={session.capability_path!} target="_blank" rel="noreferrer">Open session</a></div>}
+  return <article className={`admin-card admin-session-card${detail ? ' is-expanded is-selected' : ''}`} aria-current={detail ? 'true' : undefined}>
+    <button className="admin-session-summary" type="button" aria-expanded={Boolean(detail)} disabled={busy} onClick={onSelect}>
+      <div className="admin-card__heading"><div><h2>{sessionSailingLabel(session)}</h2><p>{session.total_activity_count} Activities · {session.visible_activity_count} shareable now · {session.sailor_count} Sailors</p></div><span className={`state-badge state-${lifetime.state}`}>{lifetime.state.toUpperCase()}</span></div>
+      <p className="admin-session-expiration">{lifetime.expiration}</p>
+    </button>
+    {detail && <SessionOperationalDetail session={detail} busy={busy} onActivitySelect={onActivitySelect} onSailorSelect={onSailorSelect} onRegenerate={onRegenerate} onRevoke={onRevoke} onRenew={onRenew} />}
+  </article>
+}
+
+export function SessionOperationalDetail({ session, busy, onActivitySelect, onSailorSelect, onRegenerate, onRevoke, onRenew }: { session: AdminSession, busy: boolean, onActivitySelect?: (id: string) => void, onSailorSelect?: (id: string) => void, onRegenerate: () => void, onRevoke: () => void, onRenew: (days: number) => void }) {
+  const [days, setDays] = useState(90)
+  const lifetime = sessionLifetimePresentation(session.expires_at)
+  const capabilityUrl = session.capability_state === 'active' && session.capability_path ? `${window.location.origin}${session.capability_path}` : null
+  const activeShare = session.temporary_shares.active_share
+  const temporaryUrl = activeShare?.path ? `${window.location.origin}${activeShare.path}` : null
+  return <div className="admin-session-detail">
+    <section className="admin-session-section" aria-label="Membership and traceability"><h3>Membership / traceability</h3>
+      <div className="admin-session-membership">{session.activities.map((activity) => <div className="admin-session-member" key={activity.id}>
+        <button type="button" title={activity.id} onClick={() => onActivitySelect?.(activity.id)}>Activity {compactId(activity.id)}</button>
+        <button type="button" title={activity.sailor_id} onClick={() => onSailorSelect?.(activity.sailor_id)}>{activity.sailor_label}</button>
+        <span className={`state-badge state-${activity.shareable ? 'active' : 'revoked'}`}>{activity.shareable ? 'SHAREABLE' : 'NOT SHARED'}</span>
+      </div>)}</div>
+    </section>
+    <section className="admin-session-section" aria-label="Shared access"><h3>Shared access</h3>
+      <div className="admin-session-access-block"><p><strong>Original capability:</strong> {capabilityLabels[session.capability_state]}</p>{capabilityUrl && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(capabilityUrl)}>Copy link</button><a className="admin-button" href={session.capability_path!} target="_blank" rel="noreferrer">Open session</a></div>}</div>
+      <div className="admin-session-access-block"><p><strong>Temporary QR shares:</strong> Active {session.temporary_shares.active_count} · Expired {session.temporary_shares.expired_count} · Unavailable {session.temporary_shares.unavailable_count}</p>
+        {activeShare && <details className="admin-temporary-share"><summary>Active temporary share</summary><dl><div><dt>Created</dt><dd>{localDate(activeShare.created_at)}</dd></div><div><dt>Expires</dt><dd>{localDate(activeShare.expires_at)}</dd></div><div><dt>Remaining</dt><dd>{temporaryShareRemaining(activeShare.expires_at)}</dd></div><div><dt>State</dt><dd>VALID</dd></div></dl>{temporaryUrl && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(temporaryUrl)}>Copy temporary link</button><a className="admin-button" href={activeShare.path!} target="_blank" rel="noreferrer">Open temporary share</a></div>}</details>}
+      </div>
+    </section>
+    <section className="admin-session-section" aria-label="Lifetime"><h3>Lifetime</h3><dl><div><dt>Created</dt><dd>{localDate(session.created_at)}</dd></div><div><dt>Expires</dt><dd>{localDate(session.expires_at)}</dd></div><div><dt>Status</dt><dd>{lifetime.expiration}</dd></div></dl></section>
+    <section className="admin-session-section" aria-label="Maintenance"><h3>Maintenance</h3>
+      <form className="renew-form" onSubmit={(event) => { event.preventDefault(); if (days >= 1 && days <= 365) onRenew(days) }}><label>Renew Session <span>Sets expiry to days from now</span><input type="number" min="1" max="365" value={days} onChange={(event) => setDays(Number(event.target.value))} /></label><button disabled={busy || days < 1 || days > 365}>Renew</button></form>
       <div className="admin-actions"><button disabled={busy} onClick={onRegenerate}>Regenerate capability</button><button disabled={busy} className="danger" onClick={onRevoke}>Revoke capability</button></div>
     </section>
-    <form className="renew-form" onSubmit={(event) => { event.preventDefault(); if (days >= 1 && days <= 365) onRenew(days) }}><label>Renew Session <span>Sets expiry to days from now</span><input type="number" min="1" max="365" value={days} onChange={(event) => setDays(Number(event.target.value))} /></label><button disabled={busy || days < 1 || days > 365}>Renew</button></form>
-  </article>
+    <details className="admin-advanced"><summary>Advanced</summary><dl><div><dt>Session ID</dt><dd>{session.id}</dd></div><div><dt>Technical Activities</dt><dd>{session.total_activity_count}</dd></div><div><dt>Shareable now</dt><dd>{session.visible_activity_count}</dd></div><div><dt>Consent coverage</dt><dd>ACTIVE {session.consent_active_count} · PENDING {session.consent_pending_count} · REVOKED {session.consent_revoked_count}</dd></div></dl></details>
+    <DiagnosticJson value={session.diagnostic} label="Diagnostic JSON" />
+  </div>
 }

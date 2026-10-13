@@ -1,4 +1,4 @@
-import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession } from '../types/admin'
+import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary } from '../types/admin'
 
 export type IngestionStatusFilter = 'all' | 'processed' | 'failed'
 export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
@@ -62,7 +62,7 @@ export const revokePersonalCapability = (key: string, id: string) =>
 export const resendWelcomeEmail = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/welcome-email/resend`, key, 'POST')
 export const listAdminSessions = (key: string) =>
-  adminRequest<AdminSession[]>('/api/admin/sessions', key)
+  adminRequest<AdminSessionSummary[]>('/api/admin/sessions', key)
 export const getAdminSession = (key: string, id: string) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}`, key)
 export const regenerateCapability = (key: string, id: string) =>

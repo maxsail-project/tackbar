@@ -15,8 +15,15 @@ const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetai
 const session = (state: AdminSession['capability_state']): AdminSession => ({
   id: 'session-123', created_at: '2026-08-01T10:00:00Z', expires_at: '2026-09-30T10:00:00Z',
   total_activity_count: 3, visible_activity_count: 1, capability_state: state,
-  capability_token: state === 'active' ? 'token' : null, capability_path: state === 'active' ? '/s/token' : null,
-  sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', active_sailors: [{ id: 'sailor-1', label: 'Test Sailor' }], consent_active_count: 1, consent_pending_count: 0, consent_revoked_count: 0,
+  capability_path: state === 'active' ? '/s/token' : null,
+  sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', sailor_count: 2,
+  activities: [
+    { id: 'activity-123456789', sailor_id: 'sailor-1', sailor_label: 'Test Sailor', shareable: true },
+    { id: 'activity-987654321', sailor_id: 'sailor-2', sailor_label: 'Pending Sailor', shareable: false },
+  ],
+  temporary_shares: { active_count: 1, expired_count: 2, unavailable_count: 1, active_share: { id: 'share-1', created_at: '2026-09-18T10:00:00Z', expires_at: '2026-09-19T10:00:00Z', state: 'VALID', path: '/q/temporary-token' } },
+  consent_active_count: 1, consent_pending_count: 1, consent_revoked_count: 0,
+  diagnostic: { session: { id: 'session-123' }, temporary_shares: [{ id: 'share-1', state: 'VALID' }] },
 })
 const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
 
@@ -226,23 +233,51 @@ describe('minimal Admin UI', () => {
     expect(busy).toContain('disabled=""')
   })
 
-  it('shows counts, active link actions and renewal-from-now wording', () => {
+  it('keeps the Session summary compact and expands the ordered operational detail', () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-18T12:00:00Z'))
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
-    const callbacks = { busy: false, onRegenerate: () => undefined, onRevoke: () => undefined, onRenew: () => undefined }
-    const markup = renderToStaticMarkup(<SessionCard session={session('active')} {...callbacks} />)
+    const callbacks = { busy: false, onSelect: () => undefined, onRegenerate: () => undefined, onRevoke: () => undefined, onRenew: () => undefined }
+    const detail = session('active')
+    const collapsed = renderToStaticMarkup(<SessionCard session={detail} {...callbacks} />)
+    const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} {...callbacks} />)
 
+    expect(collapsed).toContain('aria-expanded="false"')
+    expect(collapsed).toContain('3 Activities · 1 shareable now · 2 Sailors')
+    expect(collapsed).not.toContain('Session ID')
+    expect(collapsed).not.toContain('Created')
+    expect(collapsed).not.toContain('Shared access')
     expect(markup).toContain('>ACTIVE<')
     expect(markup).toContain('Expires')
     expect(markup).toContain('12 days remaining')
-    expect(markup).toContain('Shared capability')
-    expect(markup).toContain('Internal tracks')
+    expect(markup).toContain('Shared access')
+    expect(markup).toContain('Technical Activities')
     expect(markup).toContain('Shareable now')
     expect(markup).toContain('Copy link')
     expect(markup).toContain('Open session')
     expect(markup).not.toContain('Open shared Session')
     expect(markup).toContain('Sets expiry to days from now')
-    expect(markup).toContain('value="30"')
+    expect(markup).toContain('value="90"')
+    const sectionLabels = ['Membership / traceability', 'Shared access', 'Lifetime', 'Maintenance', '>Advanced<', '>Diagnostic JSON<']
+    for (let index = 1; index < sectionLabels.length; index += 1) {
+      expect(markup.indexOf(sectionLabels[index - 1])).toBeLessThan(markup.indexOf(sectionLabels[index]))
+    }
+  })
+
+  it('shows temporary-share counts and only expands the currently active share', () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-18T12:00:00Z'))
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const detail = session('active')
+    const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+
+    expect(markup).toContain('Temporary QR shares:</strong> Active 1 · Expired 2 · Unavailable 1')
+    expect(markup).toContain('Active temporary share')
+    expect(markup).toContain('22 h 0 min remaining')
+    expect(markup).toContain('>VALID<')
+    expect(markup).toContain('href="/q/temporary-token"')
+    expect(markup).toContain('Copy temporary link')
+    expect(markup).toContain('Open temporary share')
+    expect(markup).not.toContain('originating_capability_fingerprint')
+    expect(markup).not.toContain('/s/token&quot;')
   })
 
   it('organizes Sailor Session history around sailing, details and access without changing the capability href', () => {
@@ -296,24 +331,27 @@ describe('minimal Admin UI', () => {
 
     vi.useFakeTimers(); vi.setSystemTime(now)
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
-    const revoked = renderToStaticMarkup(<SessionCard session={session('revoked')} busy={false} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
-    const expired = renderToStaticMarkup(<SessionCard session={{ ...session('active'), expires_at: '2026-09-01T10:00:00Z' }} busy={false} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+    const revokedSession = session('revoked')
+    const expiredSession = { ...session('active'), expires_at: '2026-09-01T10:00:00Z' }
+    const revoked = renderToStaticMarkup(<SessionCard session={revokedSession} detail={revokedSession} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+    const expired = renderToStaticMarkup(<SessionCard session={expiredSession} detail={expiredSession} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(revoked).toContain('>ACTIVE<')
-    expect(revoked).toContain('Shared capability')
-    expect(revoked).toContain('>Revoked<')
+    expect(revoked).toContain('Shared access')
+    expect(revoked).toContain('Original capability:</strong> Revoked')
     expect(expired).toContain('>EXPIRED<')
     expect(expired).toContain('Expired')
-    expect(expired).toContain('>Active<')
+    expect(expired).toContain('Original capability:</strong> Active')
     expect(expired).toContain('Renew')
   })
 
   it('marks a cross-navigation Session selection and exposes related Sailors without nesting Sailor detail', () => {
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
-    const markup = renderToStaticMarkup(<SessionCard session={session('active')} selected busy={false} onSailorSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+    const detail = session('active')
+    const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy={false} onSelect={() => undefined} onSailorSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(markup).toContain('aria-current="true"')
-    expect(markup).toContain('admin-session-card is-selected')
+    expect(markup).toContain('admin-session-card is-expanded is-selected')
     expect(markup).toContain('>Test Sailor</button>')
     expect(markup).not.toContain('Personal TackBar')
     expect(markup).not.toContain('Consent request')
@@ -323,11 +361,12 @@ describe('minimal Admin UI', () => {
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
     const callbacks = { onRequested: () => undefined, onConsentRequestSend: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined, onPersonalRegenerate: () => undefined, onPersonalRevoke: () => undefined, onWelcomeEmailResend: () => undefined }
     const sailorMarkup = renderToStaticMarkup(<SailorDetail sailor={sailor('active')} activities={[activity]} busy={false} onActivitySelect={() => undefined} {...callbacks} />)
-    const sessionMarkup = renderToStaticMarkup(<SessionCard session={session('active')} activities={[activity]} busy={false} onActivitySelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+    const detail = session('active')
+    const sessionMarkup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy={false} onSelect={() => undefined} onActivitySelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(sailorMarkup).toContain('>Activity</span>')
-    expect(sessionMarkup).toContain('<h3>Activities</h3>')
-    expect(sessionMarkup).toContain('Pilot')
+    expect(sessionMarkup).toContain('Membership / traceability')
+    expect(sessionMarkup).toContain('Activity activity…')
     for (const markup of [sailorMarkup, sessionMarkup]) {
       expect(markup).not.toContain('Recalculate maneuvers')
       expect(markup).not.toContain('Read-only JSON')
@@ -336,7 +375,8 @@ describe('minimal Admin UI', () => {
 
   it('hides active link actions while a mutation or refresh is pending', () => {
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
-    const markup = renderToStaticMarkup(<SessionCard session={session('active')} busy onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+    const detail = session('active')
+    const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(markup).not.toContain('Copy link')
     expect(markup).not.toContain('Open session')
@@ -344,7 +384,8 @@ describe('minimal Admin UI', () => {
 
   it.each(['expired', 'revoked', 'never_generated'] as const)('does not expose a usable link for %s capability', (state) => {
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
-    const markup = renderToStaticMarkup(<SessionCard session={session(state)} busy={false} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+    const detail = session(state)
+    const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(markup).not.toContain('Copy link')
     expect(markup).not.toContain('Open session')

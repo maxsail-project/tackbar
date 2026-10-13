@@ -11,6 +11,7 @@ ConsentOperationalGroup = Literal[
     "revoked",
 ]
 CapabilityState = Literal["never_generated", "active", "revoked", "expired"]
+TemporaryShareState = Literal["VALID", "EXPIRED", "UNAVAILABLE"]
 ConsentRequestAdminState = Literal[
     "none",
     "valid",
@@ -72,30 +73,52 @@ class AdminSailorSessionResponse(BaseModel):
     capability_path: str | None
 
 
-class AdminSessionResponse(BaseModel):
+class AdminSessionSummaryResponse(BaseModel):
     id: str
-    created_at: datetime
     expires_at: datetime
     total_activity_count: int
     visible_activity_count: int
-    capability_state: CapabilityState
-    capability_token: str | None
-    capability_path: str | None
     sailing_start: datetime | None
     sailing_end: datetime | None
-    active_sailors: list["AdminSessionSailor"]
+    sailor_count: int
+
+
+class AdminSessionActivityResponse(BaseModel):
+    id: str
+    sailor_id: str
+    sailor_label: str
+    shareable: bool
+
+
+class AdminTemporarySessionShareResponse(BaseModel):
+    id: str
+    created_at: datetime
+    expires_at: datetime
+    state: TemporaryShareState
+    path: str | None
+
+
+class AdminTemporarySessionShareSummaryResponse(BaseModel):
+    active_count: int
+    expired_count: int
+    unavailable_count: int
+    active_share: AdminTemporarySessionShareResponse | None
+
+
+class AdminSessionResponse(AdminSessionSummaryResponse):
+    created_at: datetime
+    capability_state: CapabilityState
+    capability_path: str | None
+    activities: list[AdminSessionActivityResponse]
+    temporary_shares: AdminTemporarySessionShareSummaryResponse
     consent_active_count: int
     consent_pending_count: int
     consent_revoked_count: int
-
-
-class AdminSessionSailor(BaseModel):
-    id: str
-    label: str
+    diagnostic: dict[str, object]
 
 
 class AdminSessionRenewRequest(BaseModel):
-    days: StrictInt = 30
+    days: StrictInt = 90
 
 
 class AdminIngestionResponse(BaseModel):
