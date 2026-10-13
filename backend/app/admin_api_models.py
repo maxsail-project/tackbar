@@ -112,11 +112,54 @@ class AdminIngestionResponse(BaseModel):
     last_error: str | None
     activity_id: str | None
     session_id: str | None
+    sailor_id: str | None
+    sailor_label: str | None
+    sailor_email: str | None
     sailor_consent_status: Literal["PENDING", "ACTIVE", "REVOKED"] | None
     original_available: bool
     activity_start_time: datetime | None
     activity_end_time: datetime | None
     activity_sample_count: int | None
+
+
+class AdminSessionResultNotificationResponse(BaseModel):
+    status: Literal["eligible", "attempted", "sent", "failed"]
+    attempted_at: datetime | None
+    sent_at: datetime | None
+    last_error: str | None
+
+
+class AdminIngestionDetailResponse(AdminIngestionResponse):
+    activity_created_by_ingestion: bool | None
+    session_result_notification_candidate: bool | None
+    session_result_notification: AdminSessionResultNotificationResponse | None
+    attachment_sha256: str | None
+    diagnostic: dict[str, object]
+
+
+class AdminActivityBoatResponse(BaseModel):
+    id: str
+    name: str | None
+    sailing_class: str | None
+    sail_number: str | None
+
+
+class AdminActivityResponse(BaseModel):
+    id: str
+    sailor_id: str
+    sailor_label: str
+    boat: AdminActivityBoatResponse | None
+    source: str
+    device_name: str
+    original_filename: str
+    start_time: datetime
+    end_time: datetime
+    sample_count: int
+    attachment_sha256: str
+    track_available: bool
+    session_id: str | None
+    source_ingestion_id: str | None
+    diagnostic: dict[str, object]
 
 
 class AdminMailboxReviewResponse(BaseModel):

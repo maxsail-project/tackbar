@@ -1514,16 +1514,47 @@ input:focus-visible {
 .admin-tabs button.is-active { border-color: var(--color-blue); color: var(--color-navy); }
 .admin-content { width: min(100%, 920px); margin: 0 auto; padding: 22px 16px 44px; }
 .admin-content h1 { margin: 0 0 18px; }
+.admin-ingestion-section-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-ingestion-section-header h1 { margin: 0; }
+.admin-section-action { flex: 0 0 auto; max-width: 100%; min-height: 44px; padding: 0 14px; border: 1px solid var(--color-pale); border-radius: 9px; color: var(--color-navy); background: var(--color-white); font-weight: 750; cursor: pointer; }
 .admin-list { display: grid; gap: 14px; }
 .admin-filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; }
-.admin-filters label { display: grid; gap: 4px; font-size: .8rem; font-weight: 750; }
-.admin-filters select { min-height: 44px; padding: 0 10px; border: 1px solid var(--color-pale); border-radius: 9px; background: var(--color-white); }
+.admin-filters label { display: grid; flex: 1 1 150px; gap: 4px; font-size: .8rem; font-weight: 750; }
+.admin-filters__search { flex-basis: 100% !important; }
+.admin-filters select, .admin-filters input { width: 100%; min-height: 44px; padding: 0 10px; border: 1px solid var(--color-pale); border-radius: 9px; background: var(--color-white); }
 .admin-card { min-width: 0; padding: 16px; border: 1px solid var(--color-pale); border-radius: 15px; background: var(--color-white); box-shadow: 0 6px 18px var(--color-pale); }
 .admin-card__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .admin-card__heading > div { min-width: 0; }
 .admin-card h2 { max-width: 100%; margin: 0; overflow: hidden; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
 .admin-session-card h2 { overflow: visible; text-overflow: clip; white-space: normal; }
 .admin-card__heading p, .admin-meta { margin: 5px 0; color: var(--color-navy); font-size: .8rem; }
+.admin-ingestion-list { grid-template-columns: minmax(0, 1fr); }
+.admin-ingestion-card { padding: 0; overflow: hidden; }
+.admin-card .admin-ingestion-summary { display: block; width: 100%; min-height: 0; padding: 16px; border: 0; border-radius: 15px; color: inherit; background: var(--color-white); text-align: left; }
+.admin-ingestion-summary:hover { background: var(--color-background); }
+.admin-ingestion-summary:focus-visible { outline: 3px solid var(--color-blue); outline-offset: -3px; }
+.admin-ingestion-summary__context { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 14px; margin-top: 10px; color: var(--color-navy); font-size: .8rem; }
+.admin-ingestion-detail { padding: 18px 16px; border-top: 1px solid var(--color-pale); }
+.admin-detail-grid { display: grid; gap: 12px; }
+.admin-detail-grid > section { min-width: 0; padding: 14px; border-radius: 10px; background: var(--color-background); }
+.admin-detail-grid h3, .admin-maintenance h3 { margin: 0 0 10px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.admin-detail-grid dl, .admin-advanced dl, .admin-related-summary { display: grid; gap: 8px; margin: 0; }
+.admin-detail-grid dl div, .admin-advanced dl div, .admin-related-summary div { min-width: 0; }
+.admin-detail-grid dt, .admin-advanced dt, .admin-related-summary dt { color: var(--color-navy); font-size: .72rem; }
+.admin-detail-grid dd, .admin-advanced dd, .admin-related-summary dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: .85rem; font-weight: 750; }
+.admin-detail-grid section > p { margin: 6px 0; color: var(--color-navy); font-size: .85rem; }
+.admin-relations { display: grid; gap: 8px; }
+.admin-card .admin-relation { display: grid; grid-template-columns: minmax(70px, auto) minmax(0, 1fr) auto; gap: 10px; width: 100%; min-height: 48px; text-align: left; }
+.admin-relation strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-relation--unavailable { display: grid; grid-template-columns: minmax(70px, auto) minmax(0, 1fr); gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--color-pale); border-radius: 9px; color: var(--color-navy); background: var(--color-white); font-size: .85rem; }
+.admin-maintenance { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
+.admin-advanced, .admin-diagnostics { margin-top: 14px; border: 1px solid var(--color-pale); border-radius: 10px; background: var(--color-white); }
+.admin-advanced summary, .admin-diagnostics summary { padding: 12px; cursor: pointer; font-weight: 800; }
+.admin-advanced dl, .admin-diagnostics p { margin: 0; padding: 0 12px 12px; }
+.admin-diagnostics pre { max-height: 380px; margin: 0; padding: 14px; overflow: auto; border-radius: 0 0 10px 10px; color: #e9f3f5; background: var(--color-navy); font-size: .72rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-related-detail > h2 { margin: 18px 0 12px; }
+.admin-related-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 14px; }
+.admin-related-summary div { padding: 10px; border-radius: 9px; background: var(--color-background); }
 .admin-ingestion-sailing { margin: 16px 0; color: var(--color-navy); }
 .admin-ingestion-sailing__date, .admin-ingestion-sailing__interval { display: block; color: var(--color-navy); font-size: 1.12rem; font-weight: 800; }
 .admin-ingestion-sailing__date { margin: 0; text-transform: uppercase; }
@@ -1574,6 +1605,11 @@ input:focus-visible {
 
 @media (min-width: 700px) {
   .admin-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-ingestion-section-header { flex-direction: row; align-items: center; justify-content: space-between; }
+  .admin-ingestion-list { grid-template-columns: minmax(0, 1fr); }
+  .admin-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-detail-grid__wide { grid-column: 1 / -1; }
+  .admin-relations { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .admin-header { padding-right: max(28px, calc((100vw - 920px) / 2)); padding-left: max(28px, calc((100vw - 920px) / 2)); }
 }
 

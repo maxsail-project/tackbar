@@ -12,6 +12,9 @@ import {
   listAdminIngestions,
   reprocessIngestion,
   discardIngestion,
+  getAdminActivity,
+  getAdminIngestion,
+  getAdminSession,
   restoreIngestion,
 } from './adminApi'
 
@@ -137,6 +140,22 @@ describe('Admin API client', () => {
       expect(options).toEqual(expect.objectContaining({ method: 'POST' }))
       expect(options.headers['X-TackBar-Admin-Key']).toBe('key')
     }
+  })
+
+  it('fetches encoded Admin drill-down details through protected boundaries', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response('{}', { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getAdminIngestion('key', 'ingestion/id')
+    await getAdminActivity('key', 'activity/id')
+    await getAdminSession('key', 'session/id')
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/admin/ingestions/ingestion%2Fid',
+      '/api/admin/activities/activity%2Fid',
+      '/api/admin/sessions/session%2Fid',
+    ])
+    for (const [, options] of fetchMock.mock.calls) expect(options.headers['X-TackBar-Admin-Key']).toBe('key')
   })
 })
 

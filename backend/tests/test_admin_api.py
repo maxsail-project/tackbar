@@ -251,7 +251,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 21
+    assert len(admin_router.routes) == 22
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -1232,6 +1232,9 @@ def test_admin_ingestion_inspection_and_reprocess_are_protected_and_path_safe(
     assert listing.json[0]["activity_start_time"] is None
     assert listing.json[0]["activity_end_time"] is None
     assert listing.json[0]["activity_sample_count"] is None
+    assert listing.json[0]["sailor_id"] is None
+    assert listing.json[0]["sailor_label"] is None
+    assert listing.json[0]["sailor_email"] is None
     assert listing.json[0]["sailor_consent_status"] is None
     assert "original_file" not in listing.json[0]
     assert "attachment_sha256" not in listing.json[0]
@@ -1265,11 +1268,91 @@ def test_admin_ingestion_exposes_current_resolved_sailor_consent_status(
     updated = _request("GET", f"/api/admin/ingestions/{records[1]['id']}")
 
     statuses = {item["provider_message_id"]: item["sailor_consent_status"] for item in initial.json}
+    sailor_ids = {item["provider_message_id"]: item["sailor_id"] for item in initial.json}
+    sailor_emails = {item["provider_message_id"]: item["sailor_email"] for item in initial.json}
     assert initial.status_code == confirmed.status_code == updated.status_code == 200
     assert statuses == {"active": "ACTIVE", "pending": "PENDING", "revoked": "REVOKED", "unresolved": None}
+    assert sailor_ids == {"active": ACTIVE, "pending": PENDING_NEEDS, "revoked": REVOKED, "unresolved": None}
+    assert sailor_emails == {"active": "active@example.com", "pending": "needs@example.com", "revoked": "revoked@example.com", "unresolved": None}
     assert updated.json["sailor_consent_status"] == "ACTIVE"
     assert history.get(records[1]["id"]) is not None
     assert "sailor_consent_status" not in history.get(records[1]["id"])
+
+
+def test_admin_ingestion_detail_exposes_safe_traceability_notification_and_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory(root / "ingestion_history.json")
+    record = history.create("ovh", "provider-77", "active@example.com", "pilot.csv.gz", "a" * 64)
+    record.update(
+        status="processed",
+        activity_id=ACTIVITY_ACTIVE,
+        session_id=SESSION_ACTIVE,
+        activity_created_by_ingestion=True,
+        session_result_notification_candidate=True,
+        session_result_notification={
+            "status": "sent",
+            "attempted_at": "2026-08-10T10:05:00+00:00",
+            "sent_at": "2026-08-10T10:05:01+00:00",
+            "last_error": None,
+        },
+    )
+    history.replace(record)
+
+    response = _request("GET", f"/api/admin/ingestions/{record['id']}")
+
+    assert response.status_code == 200
+    assert response.json["sailor_id"] == ACTIVE
+    assert response.json["sailor_label"] == "active"
+    assert response.json["sailor_email"] == "active@example.com"
+    assert response.json["activity_created_by_ingestion"] is True
+    assert response.json["session_result_notification"]["status"] == "sent"
+    assert response.json["attachment_sha256"] == "a" * 64
+    assert response.json["diagnostic"]["original_available"] is False
+    assert "original_file" not in response.json["diagnostic"]
+    assert "pending_onboarding_reservation" not in response.json["diagnostic"]
+    assert str(root) not in json.dumps(response.json)
+
+
+def test_admin_activity_detail_uses_authoritative_source_ingestion_and_safe_json(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory(root / "ingestion_history.json")
+    source = history.create("ovh", "source-77", "active@example.com", "demo.csv.gz", "1" * 64)
+    source.update(
+        status="processed",
+        activity_id=ACTIVITY_ACTIVE,
+        session_id=SESSION_ACTIVE,
+        activity_created_by_ingestion=True,
+    )
+    history.replace(source)
+    reused = history.create("ovh", "reused-77", "active@example.com", "copy.csv.gz", "2" * 64)
+    reused.update(
+        status="processed",
+        activity_id=ACTIVITY_ACTIVE,
+        session_id=SESSION_ACTIVE,
+        activity_created_by_ingestion=False,
+    )
+    history.replace(reused)
+
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    unauthorized = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}", admin_key=None)
+    missing = _request("GET", "/api/admin/activities/missing")
+
+    assert response.status_code == 200
+    assert unauthorized.status_code == 401
+    assert missing.status_code == 404
+    assert response.json["source_ingestion_id"] == source["id"]
+    assert response.json["sailor_id"] == ACTIVE
+    assert response.json["session_id"] == SESSION_ACTIVE
+    assert response.json["track_available"] is False
+    assert response.json["diagnostic"]["source_ingestion_id"] == source["id"]
+    assert "track_file" not in response.json["diagnostic"]
+    assert str(root) not in json.dumps(response.json)
 
 
 def test_admin_ingestions_are_ordered_by_received_at_before_attempt_time(

@@ -83,7 +83,43 @@ export interface AdminIngestion {
   disposition: 'active' | 'discarded'
   attempts: number; last_attempt_at: string | null; last_error: string | null
   activity_id: string | null; session_id: string | null; original_available: boolean
+  sailor_id: string | null
+  sailor_label: string | null
+  sailor_email: string | null
   sailor_consent_status: 'PENDING' | 'ACTIVE' | 'REVOKED' | null
   activity_start_time: string | null; activity_end_time: string | null; activity_sample_count: number | null
+}
+
+export interface AdminSessionResultNotification {
+  status: 'eligible' | 'attempted' | 'sent' | 'failed'
+  attempted_at: string | null
+  sent_at: string | null
+  last_error: string | null
+}
+
+export interface AdminIngestionDetail extends AdminIngestion {
+  activity_created_by_ingestion: boolean | null
+  session_result_notification_candidate: boolean | null
+  session_result_notification: AdminSessionResultNotification | null
+  attachment_sha256: string | null
+  diagnostic: Record<string, unknown>
+}
+
+export interface AdminActivity {
+  id: string
+  sailor_id: string
+  sailor_label: string
+  boat: { id: string; name: string | null; sailing_class: string | null; sail_number: string | null } | null
+  source: string
+  device_name: string
+  original_filename: string
+  start_time: string
+  end_time: string
+  sample_count: number
+  attachment_sha256: string
+  track_available: boolean
+  session_id: string | null
+  source_ingestion_id: string | null
+  diagnostic: Record<string, unknown>
 }
 export interface AdminMailboxReview { discovered_candidates: number; processed: number; skipped_already_processed: number; known_failed: number; failed: number }

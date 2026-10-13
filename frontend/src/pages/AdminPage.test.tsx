@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdminIngestion, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ADMIN_SECTION_ORDER, AdminAccessForm, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, IngestionCard, IngestionFilters, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard, WelcomeEmailStatus } from './AdminPage'
+import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminSailorDetail, AdminSession } from '../types/admin'
+import { ActivityAdminDetail, ADMIN_SECTION_ORDER, AdminAccessForm, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminIngestions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
@@ -25,6 +25,19 @@ describe('minimal Admin UI', () => {
   it('presents the Admin sections in operational order and starts at Ingestions', () => {
     expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'sailors', 'sessions'])
     expect(DEFAULT_ADMIN_SECTION).toBe('ingestions')
+  })
+
+  it('groups the Ingestions title and secondary mailbox action in a responsive section header', () => {
+    const markup = renderToStaticMarkup(<IngestionSectionHeader busy={false} onReview={() => undefined} />)
+    const busy = renderToStaticMarkup(<IngestionSectionHeader busy onReview={() => undefined} />)
+
+    expect(markup).toContain('admin-ingestion-section-header')
+    expect(markup).toContain('<h1>Ingestions</h1>')
+    expect(markup).toContain('class="admin-section-action"')
+    expect(markup).toContain('>Review mailbox</button>')
+    expect(markup).not.toContain('Review mailbox now')
+    expect(markup.indexOf('Ingestions')).toBeLessThan(markup.indexOf('Review mailbox'))
+    expect(busy).toContain('disabled=""')
   })
 
   it('renders a password credential form without putting a key in markup', () => {
@@ -277,17 +290,15 @@ describe('minimal Admin UI', () => {
     expect(markup).not.toContain('Open session')
   })
 
-  it('renders operational ingestion success and failure cards', () => {
-    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', disposition: 'active', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, sailor_consent_status: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
-    const actions = { onReprocess: () => undefined, onDiscard: () => undefined, onRestore: () => undefined }
+  it('keeps ingestion rows compact and makes the whole summary the open control', () => {
+    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', disposition: 'active', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, sailor_id: null, sailor_label: null, sailor_email: null, sailor_consent_status: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
+    const actions = { onSelect: () => undefined, onFollow: () => undefined, onReprocess: () => undefined, onDiscard: () => undefined, onRestore: () => undefined }
     const failed = renderToStaticMarkup(<IngestionCard ingestion={base} busy={false} {...actions} />)
-    const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-1', session_id: 'session-1', sailor_consent_status: 'PENDING', disposition: 'discarded' }} busy={false} {...actions} />)
-    expect(failed).toContain('Failed'); expect(failed).toContain('Active'); expect(failed).toContain('Discard'); expect(failed).toContain('Invalid attachment'); expect(failed).toContain('Received:'); expect(failed).toContain('Received:</strong> —'); expect(failed).toContain('Attempts:</strong> 2'); expect(failed).toContain('Last attempt:'); expect(failed).toContain('Reprocess')
-    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).toContain('Restore'); expect(processed).toContain('Reprocess'); expect(processed).toContain('Result'); expect(processed).toContain('Sailor identified:'); expect(processed).toContain('Sailor status:'); expect(processed).toContain('Pending'); expect(processed).not.toContain('<strong>Status:</strong>'); expect(processed).toContain('Activity created/reused:'); expect(processed).toContain('Session associated:'); expect(processed).toContain('activity-1'); expect(processed).toContain('session-1')
+    const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-123456789', session_id: 'session-123456789', disposition: 'discarded' }} busy={false} {...actions} />)
+    expect(failed).toContain('aria-expanded="false"'); expect(failed).toContain('Failed'); expect(failed).toContain('track.csv.gz'); expect(failed).toContain('sailor@example.test'); expect(failed).not.toContain('Invalid attachment'); expect(failed).not.toContain('Received'); expect(failed).not.toContain('Attempts'); expect(failed).not.toContain('Reprocess')
+    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).toContain('Activity activity…'); expect(processed).toContain('Session session-…'); expect(processed).not.toContain('Restore'); expect(processed).not.toContain('Read-only JSON')
     expect(failed).toContain('state-badge state-expired')
     expect(processed).toContain('state-badge state-active')
-    expect(failed).not.toContain('Ingestion result')
-    expect(failed).not.toContain('Review mailbox')
   })
 
   it('puts the sailing interval and sample count ahead of operational metadata', () => {
@@ -295,22 +306,98 @@ describe('minimal Admin UI', () => {
       id: 'ing-2', provider: 'gmail', provider_message_id: 'message-2', sender_email: 'leandro@example.test',
       received_at: '2026-09-07T16:13:00Z', attachment_name: 'Vakaros Lea 32050.csv.gz', status: 'processed', disposition: 'active',
       attempts: 1, last_attempt_at: '2026-09-10T10:32:00Z', last_error: null, activity_id: 'activity-2', session_id: 'session-2',
-      sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: '2026-09-05T13:49:00Z', activity_end_time: '2026-09-05T17:21:00Z', activity_sample_count: 25453,
+      sailor_id: 'sailor-2', sailor_label: 'Leandro', sailor_email: 'leandro@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: '2026-09-05T13:49:00Z', activity_end_time: '2026-09-05T17:21:00Z', activity_sample_count: 25453,
     }
-    const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} busy={false} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} busy={false} onSelect={() => undefined} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
 
-    expect(markup).toContain('admin-ingestion-sailing')
+    expect(markup).toContain('admin-ingestion-summary__context')
     expect(markup).toMatch(/25[,.]453 samples/)
-    expect(markup.indexOf('admin-ingestion-sailing')).toBeLessThan(markup.indexOf('admin-ingestion-ops'))
-    expect(markup).toContain('Disposition:')
-    expect(markup).toContain('Attempts:')
+    expect(markup).not.toContain('Received')
+    expect(markup).not.toContain('Attempts')
+  })
+
+  it('groups expanded ingestion operations, traceability, outbound result and diagnostics', () => {
+    const detail: AdminIngestionDetail = {
+      id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'provider-message-77', sender_email: 'sailor@example.test', received_at: '2026-09-07T16:13:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 2, last_attempt_at: '2026-09-10T10:32:00Z', last_error: null, activity_id: 'activity-123456789', session_id: 'session-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: '2026-09-05T13:49:00Z', activity_end_time: '2026-09-05T17:21:00Z', activity_sample_count: 25453,
+      activity_created_by_ingestion: false, session_result_notification_candidate: true, session_result_notification: { status: 'sent', attempted_at: '2026-09-10T10:33:00Z', sent_at: '2026-09-10T10:33:01Z', last_error: null }, attachment_sha256: 'abc123', diagnostic: { id: 'ingestion-123456789', status: 'processed' },
+    }
+    const markup = renderToStaticMarkup(<IngestionOperationalDetail ingestion={detail} busy={false} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+
+    for (const heading of ['Sailing', 'Source', 'Traceability', 'Processing', 'Outbound result', 'Actions', 'Advanced details', 'Read-only JSON']) expect(markup).toContain(heading)
+    expect(markup).toContain('Reused existing Activity')
+    expect(markup).toContain('Sent')
+    expect(markup).toContain('Outbound delivery does not change the ingestion result.')
+    expect(markup).toContain('Pilot')
+    expect(markup).toContain('activity…')
+    expect(markup).toContain('session-…')
+    expect(markup).toContain('&quot;status&quot;: &quot;processed&quot;')
+    const notApplicable = renderToStaticMarkup(<IngestionOperationalDetail ingestion={{ ...detail, session_result_notification_candidate: false, session_result_notification: null }} busy={false} onFollow={() => undefined} />)
+    const attempted = renderToStaticMarkup(<IngestionOperationalDetail ingestion={{ ...detail, session_result_notification: { status: 'attempted', attempted_at: '2026-09-10T10:33:00Z', sent_at: null, last_error: null } }} busy={false} onFollow={() => undefined} />)
+    const failed = renderToStaticMarkup(<IngestionOperationalDetail ingestion={{ ...detail, session_result_notification: { status: 'failed', attempted_at: '2026-09-10T10:33:00Z', sent_at: null, last_error: 'Session-result email delivery failed' } }} busy={false} onFollow={() => undefined} />)
+    expect(notApplicable).toContain('Not applicable / not attempted')
+    expect(attempted).toContain('Attempted')
+    expect(failed).toContain('Failed')
+    expect(failed).toContain('Session-result email delivery failed')
+  })
+
+  it('renders reusable read-only Activity traceability without viewer features', () => {
+    const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', diagnostic: { id: 'activity-123456789' } }
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={activity} onFollow={() => undefined} />)
+
+    expect(markup).toContain('Sailing'); expect(markup).toContain('Source'); expect(markup).toContain('Traceability'); expect(markup).toContain('Pilot'); expect(markup).toContain('Zafar · Snipe · ESP 1'); expect(markup).toContain('Source Ingestion'); expect(markup).toContain('Read-only JSON')
+    expect(markup).not.toContain('Map'); expect(markup).not.toContain('Metrics')
   })
 
   it('exposes independent ingestion status and disposition filters', () => {
-    const markup = renderToStaticMarkup(<IngestionFilters status="all" disposition="all" busy={false} onChange={() => undefined} />)
-    for (const label of ['Status', 'All', 'Processed', 'Failed', 'Disposition', 'Active', 'Discarded']) expect(markup).toContain(label)
-    const busy = renderToStaticMarkup(<IngestionFilters status="all" disposition="all" busy onChange={() => undefined} />)
-    expect(busy.match(/disabled=""/g)).toHaveLength(2)
+    const props = { status: 'all' as const, disposition: 'all' as const, sailor: 'all', search: '', sailors: [{ value: 'sailor-1', label: 'Maxi · maxi@example.test' }], onChange: () => undefined, onSailorChange: () => undefined, onSearchChange: () => undefined }
+    const markup = renderToStaticMarkup(<IngestionFilters {...props} busy={false} />)
+    for (const label of ['Search', 'Status', 'All', 'Processed', 'Failed', 'Disposition', 'Active', 'Discarded', 'Sailor', 'All sailors', 'Maxi']) expect(markup).toContain(label)
+    const busy = renderToStaticMarkup(<IngestionFilters {...props} busy />)
+    expect(busy.match(/disabled=""/g)).toHaveLength(4)
+  })
+})
+
+describe('Admin Ingestion search and Sailor filters', () => {
+  const ingestion = (overrides: Partial<AdminIngestion>): AdminIngestion => ({
+    id: 'ingestion-1', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'sender@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: null, last_error: null, activity_id: 'activity-alpha', session_id: 'session-alpha', sailor_id: 'sailor-maxi', sailor_label: 'Maxi', sailor_email: 'maxi@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null,
+    ...overrides,
+  })
+  const records = [
+    ingestion({ id: 'one', attachment_name: 'Shim training.csv.gz' }),
+    ingestion({ id: 'two', status: 'failed', disposition: 'discarded', sender_email: 'juan@example.test', attachment_name: 'other.csv.gz', activity_id: 'activity-bravo', session_id: 'session-bravo', sailor_id: 'sailor-juan', sailor_label: 'Juan Pérez', sailor_email: 'juan.perez@example.test' }),
+    ingestion({ id: 'three', status: 'failed', sender_email: 'unknown@example.test', attachment_name: 'unresolved.csv.gz', activity_id: null, session_id: null, sailor_id: null, sailor_label: null, sailor_email: null, sailor_consent_status: null }),
+  ]
+  const all = { status: 'all' as const, disposition: 'all' as const, sailor: 'all', search: '' }
+
+  it('builds represented Sailor choices and includes unresolved only when applicable', () => {
+    expect(ingestionSailorOptions(records)).toEqual([
+      { value: 'sailor-juan', label: 'Juan Pérez · juan.perez@example.test' },
+      { value: 'sailor-maxi', label: 'Maxi · maxi@example.test' },
+      { value: UNRESOLVED_SAILOR_FILTER, label: 'Unknown / unresolved' },
+    ])
+    expect(ingestionSailorOptions(records.slice(0, 2))).not.toContainEqual(expect.objectContaining({ value: UNRESOLVED_SAILOR_FILTER }))
+  })
+
+  it('filters by the resolved Sailor and by unresolved relationships', () => {
+    expect(filterAdminIngestions(records, { ...all, sailor: 'sailor-maxi' }).map((item) => item.id)).toEqual(['one'])
+    expect(filterAdminIngestions(records, { ...all, sailor: UNRESOLVED_SAILOR_FILTER }).map((item) => item.id)).toEqual(['three'])
+  })
+
+  it.each([
+    ['attachment name', 'shim', 'one'],
+    ['sender email', 'JUAN@EXAMPLE', 'two'],
+    ['resolved Sailor name', 'pérez', 'two'],
+    ['resolved Sailor email', 'juan.perez@', 'two'],
+    ['Activity ID', 'activity-bravo', 'two'],
+    ['Session ID', 'session-alpha', 'one'],
+  ])('matches operational search by %s', (_field, search, expected) => {
+    expect(filterAdminIngestions(records, { ...all, search }).map((item) => item.id)).toEqual([expected])
+  })
+
+  it('composes Search, Status, Disposition and Sailor while preserving existing filters', () => {
+    expect(filterAdminIngestions(records, { status: 'failed', disposition: 'discarded', sailor: 'sailor-juan', search: 'BRAVO' }).map((item) => item.id)).toEqual(['two'])
+    expect(filterAdminIngestions(records, { ...all, status: 'failed' }).map((item) => item.id)).toEqual(['two', 'three'])
+    expect(filterAdminIngestions(records, { ...all, disposition: 'discarded' }).map((item) => item.id)).toEqual(['two'])
   })
 })
 

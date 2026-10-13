@@ -4,6 +4,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.admin_api_models import (
+    AdminActivityBoatResponse,
+    AdminActivityResponse,
+    AdminIngestionDetailResponse,
     AdminSailorDetailResponse,
     AdminSailorResponse,
     AdminSessionRenewRequest,
@@ -45,6 +48,7 @@ from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_processing import reprocess_ingestion
 from app.repositories.boats import BoatRepository
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
+from app.storage.track_storage import TrackStorage
 from app.services.mailbox_review import MailboxReviewError, review_mailbox_now
 
 
@@ -239,13 +243,13 @@ def review_mailbox() -> AdminMailboxReviewResponse:
         raise HTTPException(status_code=503, detail="Mailbox review unavailable") from error
 
 
-@router.get("/ingestions/{ingestion_id}", response_model=AdminIngestionResponse)
-def get_ingestion(ingestion_id: str) -> AdminIngestionResponse:
+@router.get("/ingestions/{ingestion_id}", response_model=AdminIngestionDetailResponse)
+def get_ingestion(ingestion_id: str) -> AdminIngestionDetailResponse:
     try: record = IngestionHistory().get(ingestion_id)
     except ValueError as error: raise _admin_integrity_error() from error
     if record is None: raise HTTPException(status_code=404, detail="Ingestion not found")
     try:
-        return _ingestion_response(record)
+        return _ingestion_detail_response(record)
     except AdminDataIntegrityError as error:
         raise _admin_integrity_error() from error
 
@@ -285,6 +289,67 @@ def restore_ingestion(ingestion_id: str) -> AdminIngestionResponse:
 @router.get("/sessions/{session_id}", response_model=AdminSessionResponse)
 def get_session(session_id: str) -> AdminSessionResponse:
     return _get_admin_session(session_id)
+
+
+@router.get("/activities/{activity_id}", response_model=AdminActivityResponse)
+def get_activity(activity_id: str) -> AdminActivityResponse:
+    try:
+        activity = ActivityRepository().get_by_id(activity_id)
+        if activity is None:
+            raise HTTPException(status_code=404, detail="Activity not found")
+        sailor = SailorRepository().get_by_id(activity.sailor_id)
+        if sailor is None:
+            raise AdminDataIntegrityError("Activity references unknown Sailor")
+        boat = BoatRepository().get_by_id(activity.boat_id) if activity.boat_id else None
+        if activity.boat_id is not None and boat is None:
+            raise AdminDataIntegrityError("Activity references unknown Boat")
+        session = SessionRepository().find_by_activity_id(activity.id)
+        history = IngestionHistory().records()
+        source_ingestions = [
+            record for record in history
+            if record["activity_id"] == activity.id
+            and record["activity_created_by_ingestion"] is True
+        ]
+        if len(source_ingestions) > 1:
+            raise AdminDataIntegrityError("Activity has multiple source Ingestions")
+        track_available = TrackStorage().track_path(activity.id).is_file()
+        source_ingestion_id = source_ingestions[0]["id"] if source_ingestions else None
+        diagnostic = {
+            "id": activity.id,
+            "sailor_id": activity.sailor_id,
+            "boat_id": activity.boat_id,
+            "source": activity.source,
+            "device_name": activity.device_name,
+            "original_filename": activity.original_filename,
+            "start_time": activity.start_time.isoformat(),
+            "end_time": activity.end_time.isoformat(),
+            "sample_count": activity.sample_count,
+            "attachment_sha256": activity.attachment_sha256,
+            "track_available": track_available,
+            "session_id": session.id if session else None,
+            "source_ingestion_id": source_ingestion_id,
+        }
+        return AdminActivityResponse(
+            id=activity.id,
+            sailor_id=activity.sailor_id,
+            sailor_label=sailor.name or sailor.email,
+            boat=AdminActivityBoatResponse(**boat.__dict__) if boat else None,
+            source=activity.source,
+            device_name=activity.device_name,
+            original_filename=activity.original_filename,
+            start_time=activity.start_time,
+            end_time=activity.end_time,
+            sample_count=activity.sample_count,
+            attachment_sha256=activity.attachment_sha256,
+            track_available=track_available,
+            session_id=session.id if session else None,
+            source_ingestion_id=source_ingestion_id,
+            diagnostic=diagnostic,
+        )
+    except HTTPException:
+        raise
+    except (ValueError, AdminDataIntegrityError) as error:
+        raise _admin_integrity_error() from error
 
 
 @router.post(
@@ -432,11 +497,53 @@ def _ingestion_response(record: dict) -> AdminIngestionResponse:
         try: IngestionOriginalStorage().read(record["original_file"]); available = True
         except (FileNotFoundError, ValueError): pass
     activity = None
+    sailor_id = None
+    sailor_label = None
+    sailor_email = None
     sailor_consent_status = None
     if record["activity_id"] is not None:
         activity = ActivityRepository().get_by_id(record["activity_id"])
         if activity is None:
             raise AdminDataIntegrityError("Ingestion references unknown Activity")
         sailor = SailorRepository().get_by_id(activity.sailor_id)
-        sailor_consent_status = sailor.consent_status.value if sailor is not None else None
-    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, sailor_consent_status=sailor_consent_status, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
+        if sailor is not None:
+            sailor_id = sailor.id
+            sailor_label = sailor.name or sailor.email
+            sailor_email = sailor.email
+            sailor_consent_status = sailor.consent_status.value
+    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, sailor_id=sailor_id, sailor_label=sailor_label, sailor_email=sailor_email, sailor_consent_status=sailor_consent_status, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
+
+
+def _ingestion_detail_response(record: dict) -> AdminIngestionDetailResponse:
+    summary = _ingestion_response(record)
+    if record["activity_id"] is not None and summary.sailor_id is None:
+        raise AdminDataIntegrityError("Activity references unknown Sailor")
+    notification = record["session_result_notification"]
+    diagnostic = {
+        "id": record["id"],
+        "provider": record["provider"],
+        "provider_message_id": record["provider_message_id"],
+        "sender_email": record["sender_email"],
+        "received_at": record["received_at"],
+        "attachment_name": record["attachment_name"],
+        "attachment_sha256": record["attachment_sha256"],
+        "status": record["status"],
+        "disposition": record["disposition"],
+        "attempts": record["attempts"],
+        "last_attempt_at": record["last_attempt_at"],
+        "last_error": record["last_error"],
+        "activity_id": record["activity_id"],
+        "session_id": record["session_id"],
+        "activity_created_by_ingestion": record["activity_created_by_ingestion"],
+        "session_result_notification_candidate": record["session_result_notification_candidate"],
+        "session_result_notification": notification,
+        "original_available": summary.original_available,
+    }
+    return AdminIngestionDetailResponse(
+        **summary.model_dump(),
+        activity_created_by_ingestion=record["activity_created_by_ingestion"],
+        session_result_notification_candidate=record["session_result_notification_candidate"],
+        session_result_notification=notification,
+        attachment_sha256=record["attachment_sha256"],
+        diagnostic=diagnostic,
+    )

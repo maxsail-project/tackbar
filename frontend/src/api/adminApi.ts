@@ -1,4 +1,4 @@
-import type { AdminIngestion, AdminMailboxReview, AdminSailor, AdminSailorDetail, AdminSession } from '../types/admin'
+import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminSailor, AdminSailorDetail, AdminSession } from '../types/admin'
 
 export type IngestionStatusFilter = 'all' | 'processed' | 'failed'
 export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
@@ -63,6 +63,8 @@ export const resendWelcomeEmail = (key: string, id: string) =>
   adminRequest<AdminSailorDetail>(`/api/admin/sailors/${encodeURIComponent(id)}/welcome-email/resend`, key, 'POST')
 export const listAdminSessions = (key: string) =>
   adminRequest<AdminSession[]>('/api/admin/sessions', key)
+export const getAdminSession = (key: string, id: string) =>
+  adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}`, key)
 export const regenerateCapability = (key: string, id: string) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/capability/regenerate`, key, 'POST')
 export const revokeCapability = (key: string, id: string) =>
@@ -71,6 +73,10 @@ export const renewSession = (key: string, id: string, days: number) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/renew`, key, 'POST', { days })
 export const listAdminIngestions = (key: string, status: IngestionStatusFilter = 'all', disposition: IngestionDispositionFilter = 'all') =>
   adminRequest<AdminIngestion[]>(`/api/admin/ingestions?status=${status}&disposition=${disposition}`, key)
+export const getAdminIngestion = (key: string, id: string) =>
+  adminRequest<AdminIngestionDetail>(`/api/admin/ingestions/${encodeURIComponent(id)}`, key)
+export const getAdminActivity = (key: string, id: string) =>
+  adminRequest<AdminActivity>(`/api/admin/activities/${encodeURIComponent(id)}`, key)
 export const reprocessIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/reprocess`, key, 'POST')
 export const discardIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/discard`, key, 'POST')
 export const restoreIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/restore`, key, 'POST')
