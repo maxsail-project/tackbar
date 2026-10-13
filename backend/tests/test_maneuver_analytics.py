@@ -14,6 +14,7 @@ from app.services.maneuver_analytics import (
     MANEUVER_ALGORITHM_VERSION,
     generate_maneuver_analytics,
     get_or_generate_maneuver_analytics,
+    inspect_maneuver_analytics,
 )
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
@@ -220,6 +221,47 @@ def test_missing_artifact_is_generated_and_persisted(
 
     assert artifact["status"] == "available"
     assert analytics.read(ACTIVITY_ID) == artifact
+
+
+def test_inspection_reports_missing_without_generating(
+    temporary_directory: Path,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
+
+    inspection = inspect_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+
+    assert inspection.artifact_currency == "missing"
+    assert inspection.detector_status is None
+    assert inspection.detected_count is None
+    assert inspection.current_algorithm_version == MANEUVER_ALGORITHM_VERSION
+    assert not analytics.artifact_path(ACTIVITY_ID).exists()
+
+
+def test_inspection_reuses_validation_for_current_stale_and_unavailable_states(
+    temporary_directory: Path,
+) -> None:
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(
+        ACTIVITY_ID,
+        _canonical_track(ACTIVITY_ID, with_hdg=False),
+    )
+    generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+
+    current = inspect_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+    artifact = analytics.read(ACTIVITY_ID)
+    artifact["algorithm_version"] = MANEUVER_ALGORITHM_VERSION - 1
+    analytics.write(ACTIVITY_ID, artifact)
+    stale = inspect_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+
+    assert current.artifact_currency == "current"
+    assert current.detector_status == "unavailable"
+    assert current.unavailable_reason == "missing_hdg"
+    assert current.detected_count == 0
+    assert stale.artifact_currency == "stale"
+    assert stale.artifact_algorithm_version == MANEUVER_ALGORITHM_VERSION - 1
 
 
 def test_version_five_artifact_is_regenerated_for_entry_reference_v6(

@@ -15,6 +15,8 @@ import {
   getAdminActivity,
   getAdminIngestion,
   getAdminSession,
+  listAdminActivities,
+  recalculateAdminActivityManeuvers,
   restoreIngestion,
 } from './adminApi'
 
@@ -156,6 +158,18 @@ describe('Admin API client', () => {
       '/api/admin/sessions/session%2Fid',
     ])
     for (const [, options] of fetchMock.mock.calls) expect(options.headers['X-TackBar-Admin-Key']).toBe('key')
+  })
+
+  it('lists Activities and recalculates maneuvers through protected endpoints', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response('[]', { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listAdminActivities('key')
+    await recalculateAdminActivityManeuvers('key', 'activity/id')
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/activities')
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/activities/activity%2Fid/maneuvers/recalculate')
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'POST' }))
   })
 })
 

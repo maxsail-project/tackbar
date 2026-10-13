@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.admin_api_models import (
-    AdminActivityBoatResponse,
     AdminActivityResponse,
+    AdminActivitySummaryResponse,
+    AdminManeuverStateResponse,
     AdminIngestionDetailResponse,
     AdminSailorDetailResponse,
     AdminSailorResponse,
@@ -21,6 +22,7 @@ from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.admin_reader import AdminDataIntegrityError, AdminReader
+from app.services.admin_activities import AdminActivityReader
 from app.services.admin_consent_requests import (
     AdminConsentRequestEligibilityError,
     AdminConsentRequestService,
@@ -48,7 +50,6 @@ from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_processing import reprocess_ingestion
 from app.repositories.boats import BoatRepository
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
-from app.storage.track_storage import TrackStorage
 from app.services.mailbox_review import MailboxReviewError, review_mailbox_now
 
 
@@ -291,65 +292,37 @@ def get_session(session_id: str) -> AdminSessionResponse:
     return _get_admin_session(session_id)
 
 
+@router.get("/activities", response_model=list[AdminActivitySummaryResponse])
+def list_activities() -> list[AdminActivitySummaryResponse]:
+    try:
+        return AdminActivityReader().list_activities()
+    except (ValueError, AdminDataIntegrityError) as error:
+        raise _admin_integrity_error() from error
+
+
 @router.get("/activities/{activity_id}", response_model=AdminActivityResponse)
 def get_activity(activity_id: str) -> AdminActivityResponse:
     try:
-        activity = ActivityRepository().get_by_id(activity_id)
-        if activity is None:
-            raise HTTPException(status_code=404, detail="Activity not found")
-        sailor = SailorRepository().get_by_id(activity.sailor_id)
-        if sailor is None:
-            raise AdminDataIntegrityError("Activity references unknown Sailor")
-        boat = BoatRepository().get_by_id(activity.boat_id) if activity.boat_id else None
-        if activity.boat_id is not None and boat is None:
-            raise AdminDataIntegrityError("Activity references unknown Boat")
-        session = SessionRepository().find_by_activity_id(activity.id)
-        history = IngestionHistory().records()
-        source_ingestions = [
-            record for record in history
-            if record["activity_id"] == activity.id
-            and record["activity_created_by_ingestion"] is True
-        ]
-        if len(source_ingestions) > 1:
-            raise AdminDataIntegrityError("Activity has multiple source Ingestions")
-        track_available = TrackStorage().track_path(activity.id).is_file()
-        source_ingestion_id = source_ingestions[0]["id"] if source_ingestions else None
-        diagnostic = {
-            "id": activity.id,
-            "sailor_id": activity.sailor_id,
-            "boat_id": activity.boat_id,
-            "source": activity.source,
-            "device_name": activity.device_name,
-            "original_filename": activity.original_filename,
-            "start_time": activity.start_time.isoformat(),
-            "end_time": activity.end_time.isoformat(),
-            "sample_count": activity.sample_count,
-            "attachment_sha256": activity.attachment_sha256,
-            "track_available": track_available,
-            "session_id": session.id if session else None,
-            "source_ingestion_id": source_ingestion_id,
-        }
-        return AdminActivityResponse(
-            id=activity.id,
-            sailor_id=activity.sailor_id,
-            sailor_label=sailor.name or sailor.email,
-            boat=AdminActivityBoatResponse(**boat.__dict__) if boat else None,
-            source=activity.source,
-            device_name=activity.device_name,
-            original_filename=activity.original_filename,
-            start_time=activity.start_time,
-            end_time=activity.end_time,
-            sample_count=activity.sample_count,
-            attachment_sha256=activity.attachment_sha256,
-            track_available=track_available,
-            session_id=session.id if session else None,
-            source_ingestion_id=source_ingestion_id,
-            diagnostic=diagnostic,
-        )
-    except HTTPException:
-        raise
+        activity = AdminActivityReader().get_activity(activity_id)
     except (ValueError, AdminDataIntegrityError) as error:
         raise _admin_integrity_error() from error
+    if activity is None:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return activity
+
+
+@router.post(
+    "/activities/{activity_id}/maneuvers/recalculate",
+    response_model=AdminManeuverStateResponse,
+)
+def recalculate_activity_maneuvers(activity_id: str) -> AdminManeuverStateResponse:
+    try:
+        state = AdminActivityReader().recalculate_maneuvers(activity_id)
+    except (FileNotFoundError, ValueError) as error:
+        raise HTTPException(status_code=409, detail="Maneuver recalculation unavailable") from error
+    if state is None:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return state
 
 
 @router.post(

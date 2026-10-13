@@ -1,4 +1,4 @@
-import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminSailor, AdminSailorDetail, AdminSession } from '../types/admin'
+import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession } from '../types/admin'
 
 export type IngestionStatusFilter = 'all' | 'processed' | 'failed'
 export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
@@ -77,6 +77,10 @@ export const getAdminIngestion = (key: string, id: string) =>
   adminRequest<AdminIngestionDetail>(`/api/admin/ingestions/${encodeURIComponent(id)}`, key)
 export const getAdminActivity = (key: string, id: string) =>
   adminRequest<AdminActivity>(`/api/admin/activities/${encodeURIComponent(id)}`, key)
+export const listAdminActivities = (key: string) =>
+  adminRequest<AdminActivitySummary[]>('/api/admin/activities', key)
+export const recalculateAdminActivityManeuvers = (key: string, id: string) =>
+  adminRequest<AdminManeuverState>(`/api/admin/activities/${encodeURIComponent(id)}/maneuvers/recalculate`, key, 'POST')
 export const reprocessIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/reprocess`, key, 'POST')
 export const discardIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/discard`, key, 'POST')
 export const restoreIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/restore`, key, 'POST')

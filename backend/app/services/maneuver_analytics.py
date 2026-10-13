@@ -1,8 +1,9 @@
 """Generate and persist one Activity's derived maneuver analytics."""
 
 import hashlib
+from dataclasses import dataclass
 from math import isfinite
-from typing import Any
+from typing import Any, Literal
 
 from app.analytics.maneuver_detector import detect_maneuvers
 from app.analytics.maneuver_metrics import calculate_maneuver_metrics
@@ -37,6 +38,78 @@ _OPTIONAL_METRIC_FIELDS = {
     "speed_loss_time_s",
 }
 _UNAVAILABLE_REASONS = {"missing_hdg", "insufficient_hdg"}
+
+
+@dataclass(frozen=True)
+class ManeuverAnalyticsInspection:
+    artifact_currency: Literal["current", "stale", "missing"]
+    detector_status: Literal["available", "unavailable"] | None
+    unavailable_reason: str | None
+    detected_count: int | None
+    artifact_algorithm_version: int | None
+    current_algorithm_version: int
+
+
+def inspect_maneuver_analytics(
+    activity_id: str,
+    track_storage: TrackStorage,
+    analytics_storage: ManeuverAnalyticsStorage,
+) -> ManeuverAnalyticsInspection:
+    """Inspect persisted analytics without generating or replacing an artifact."""
+    activity_id = canonical_activity_id(activity_id)
+    if not analytics_storage.artifact_path(activity_id).is_file():
+        return _inspection("missing")
+
+    try:
+        artifact = analytics_storage.read(activity_id)
+    except (OSError, ValueError):
+        return _inspection("stale")
+
+    version = artifact.get("algorithm_version")
+    artifact_version = (
+        version
+        if isinstance(version, int) and not isinstance(version, bool)
+        else None
+    )
+    if not _is_valid_artifact(artifact, activity_id):
+        return _inspection("stale", artifact_algorithm_version=artifact_version)
+
+    try:
+        track_sha256 = _track_sha256(activity_id, track_storage)
+    except OSError:
+        currency: Literal["current", "stale"] = "stale"
+    else:
+        currency = (
+            "current"
+            if _is_current_artifact(artifact, activity_id, track_sha256)
+            else "stale"
+        )
+    status = artifact["status"]
+    return _inspection(
+        currency,
+        detector_status=status,
+        unavailable_reason=artifact.get("reason"),
+        detected_count=len(artifact["maneuvers"]),
+        artifact_algorithm_version=artifact_version,
+    )
+
+
+def _inspection(
+    currency: Literal["current", "stale", "missing"],
+    *,
+    detector_status: Literal["available", "unavailable"] | None = None,
+    unavailable_reason: str | None = None,
+    detected_count: int | None = None,
+    artifact_algorithm_version: int | None = None,
+) -> ManeuverAnalyticsInspection:
+    return ManeuverAnalyticsInspection(
+        artifact_currency=currency,
+        detector_status=detector_status,
+        unavailable_reason=unavailable_reason,
+        detected_count=detected_count,
+        artifact_algorithm_version=artifact_algorithm_version,
+        current_algorithm_version=MANEUVER_ALGORITHM_VERSION,
+    )
 
 
 def get_or_generate_maneuver_analytics(
@@ -123,6 +196,13 @@ def _is_current_artifact(
         return False
     if artifact.get("track_sha256") != track_sha256:
         return False
+    return _is_valid_artifact(artifact, activity_id)
+
+
+def _is_valid_artifact(
+    artifact: dict[str, Any],
+    activity_id: str,
+) -> bool:
     status = artifact.get("status")
     expected_fields = {
         "activity_id",
@@ -138,6 +218,12 @@ def _is_current_artifact(
     if set(artifact) != expected_fields:
         return False
     if artifact.get("activity_id") != activity_id:
+        return False
+    version = artifact.get("algorithm_version")
+    if not isinstance(version, int) or isinstance(version, bool):
+        return False
+    track_sha256 = artifact.get("track_sha256")
+    if not isinstance(track_sha256, str) or len(track_sha256) != 64:
         return False
     if status == "unavailable" and (
         artifact.get("reason") not in _UNAVAILABLE_REASONS

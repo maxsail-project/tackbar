@@ -144,21 +144,34 @@ class AdminActivityBoatResponse(BaseModel):
     sail_number: str | None
 
 
-class AdminActivityResponse(BaseModel):
+class AdminActivitySummaryResponse(BaseModel):
     id: str
     sailor_id: str
     sailor_label: str
+    start_time: datetime
+    end_time: datetime
+    sample_count: int
+    session_id: str | None
+
+
+class AdminManeuverStateResponse(BaseModel):
+    artifact_currency: Literal["current", "stale", "missing"]
+    detector_status: Literal["available", "unavailable"] | None
+    unavailable_reason: Literal["missing_hdg", "insufficient_hdg"] | None
+    detected_count: int | None
+    artifact_algorithm_version: int | None
+    current_algorithm_version: int
+
+
+class AdminActivityResponse(AdminActivitySummaryResponse):
     boat: AdminActivityBoatResponse | None
     source: str
     device_name: str
     original_filename: str
-    start_time: datetime
-    end_time: datetime
-    sample_count: int
     attachment_sha256: str
     track_available: bool
-    session_id: str | None
     source_ingestion_id: str | None
+    maneuvers: AdminManeuverStateResponse
     diagnostic: dict[str, object]
 
 

@@ -28,6 +28,8 @@ from app.services.mailbox_review import MailboxReviewSummary
 from app.services.sailor_consent import SailorConsentService
 from app.services.welcome_email_delivery import WelcomeEmailDeliveryError
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
+from app.normalization.track_normalizer import normalize_track
+from app.storage.track_storage import TrackStorage
 
 
 ADMIN_KEY = "test-admin-key-never-use-in-production"
@@ -251,7 +253,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 22
+    assert len(admin_router.routes) == 24
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -1353,6 +1355,97 @@ def test_admin_activity_detail_uses_authoritative_source_ingestion_and_safe_json
     assert response.json["diagnostic"]["source_ingestion_id"] == source["id"]
     assert "track_file" not in response.json["diagnostic"]
     assert str(root) not in json.dumps(response.json)
+
+
+def test_admin_activity_collection_is_newest_first_compact_and_protected(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    records = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    records[0]["start_time"] = "2026-08-12T09:00:00+00:00"
+    records[0]["end_time"] = "2026-08-12T10:00:00+00:00"
+    _write_json(root / "activities.json", records)
+
+    response = _request("GET", "/api/admin/activities")
+    unauthorized = _request("GET", "/api/admin/activities", admin_key=None)
+
+    assert response.status_code == 200
+    assert unauthorized.status_code == 401
+    assert response.json[0] == {
+        "id": ACTIVITY_ACTIVE,
+        "sailor_id": ACTIVE,
+        "sailor_label": "active",
+        "start_time": "2026-08-12T09:00:00Z",
+        "end_time": "2026-08-12T10:00:00Z",
+        "sample_count": 2,
+        "session_id": SESSION_ACTIVE,
+    }
+    assert "attachment_sha256" not in response.json[0]
+    assert "source" not in response.json[0]
+
+
+def test_admin_activity_read_does_not_generate_and_recalculation_uses_canonical_track(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    start = datetime(2026, 8, 10, 9, tzinfo=timezone.utc)
+    samples = [
+        {
+            "utc": (start + timedelta(seconds=index)).isoformat(),
+            "lat": 0.1,
+            "lon": -30.1,
+            "hdg": None,
+        }
+        for index in range(12)
+    ]
+    tracks = TrackStorage(root)
+    tracks.write_normalized_track(
+        ACTIVITY_ACTIVE,
+        normalize_track(ACTIVITY_ACTIVE, samples),
+    )
+    canonical_before = tracks.track_path(ACTIVITY_ACTIVE).read_bytes()
+    artifact_path = root / "analytics" / f"{ACTIVITY_ACTIVE}.maneuvers.json"
+
+    detail = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    assert detail.status_code == 200
+    assert detail.json["maneuvers"]["artifact_currency"] == "missing"
+    assert not artifact_path.exists()
+
+    recalculated = _request(
+        "POST",
+        f"/api/admin/activities/{ACTIVITY_ACTIVE}/maneuvers/recalculate",
+    )
+
+    assert recalculated.status_code == 200
+    assert recalculated.json == {
+        "artifact_currency": "current",
+        "detector_status": "unavailable",
+        "unavailable_reason": "missing_hdg",
+        "detected_count": 0,
+        "artifact_algorithm_version": 6,
+        "current_algorithm_version": 6,
+    }
+    assert artifact_path.is_file()
+    assert tracks.track_path(ACTIVITY_ACTIVE).read_bytes() == canonical_before
+
+
+def test_admin_activity_recalculation_reports_missing_track_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+
+    response = _request(
+        "POST",
+        f"/api/admin/activities/{ACTIVITY_ACTIVE}/maneuvers/recalculate",
+    )
+    missing = _request("POST", "/api/admin/activities/10000000-0000-4000-8000-999999999999/maneuvers/recalculate")
+
+    assert response.status_code == 409
+    assert response.json == {"detail": "Maneuver recalculation unavailable"}
+    assert missing.status_code == 404
 
 
 def test_admin_ingestions_are_ordered_by_received_at_before_attempt_time(

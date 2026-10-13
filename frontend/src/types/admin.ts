@@ -105,21 +105,34 @@ export interface AdminIngestionDetail extends AdminIngestion {
   diagnostic: Record<string, unknown>
 }
 
-export interface AdminActivity {
+export interface AdminActivitySummary {
   id: string
   sailor_id: string
   sailor_label: string
+  start_time: string
+  end_time: string
+  sample_count: number
+  session_id: string | null
+}
+
+export interface AdminManeuverState {
+  artifact_currency: 'current' | 'stale' | 'missing'
+  detector_status: 'available' | 'unavailable' | null
+  unavailable_reason: 'missing_hdg' | 'insufficient_hdg' | null
+  detected_count: number | null
+  artifact_algorithm_version: number | null
+  current_algorithm_version: number
+}
+
+export interface AdminActivity extends AdminActivitySummary {
   boat: { id: string; name: string | null; sailing_class: string | null; sail_number: string | null } | null
   source: string
   device_name: string
   original_filename: string
-  start_time: string
-  end_time: string
-  sample_count: number
   attachment_sha256: string
   track_available: boolean
-  session_id: string | null
   source_ingestion_id: string | null
+  maneuvers: AdminManeuverState
   diagnostic: Record<string, unknown>
 }
 export interface AdminMailboxReview { discovered_candidates: number; processed: number; skipped_already_processed: number; known_failed: number; failed: number }

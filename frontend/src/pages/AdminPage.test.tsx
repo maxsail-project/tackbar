@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ActivityAdminDetail, ADMIN_SECTION_ORDER, AdminAccessForm, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, ContextualActivityDetail, DEFAULT_ADMIN_SECTION, filterAdminIngestions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
+import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminIngestions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
@@ -18,12 +18,13 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   capability_token: state === 'active' ? 'token' : null, capability_path: state === 'active' ? '/s/token' : null,
   sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', active_sailors: [{ id: 'sailor-1', label: 'Test Sailor' }], consent_active_count: 1, consent_pending_count: 0, consent_revoked_count: 0,
 })
+const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('minimal Admin UI', () => {
   it('presents the Admin sections in operational order and starts at Ingestions', () => {
-    expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'sailors', 'sessions'])
+    expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'activities', 'sailors', 'sessions'])
     expect(DEFAULT_ADMIN_SECTION).toBe('ingestions')
   })
 
@@ -35,6 +36,9 @@ describe('minimal Admin UI', () => {
     ['sailor', 'ingestions', 'sailors'],
     ['session', 'ingestions', 'sessions'],
     ['ingestion', 'sessions', 'ingestions'],
+    ['activity', 'ingestions', 'activities'],
+    ['activity', 'sailors', 'activities'],
+    ['activity', 'sessions', 'activities'],
   ] as const)('routes %s from %s to its %s home section and preserves the selected ID', (kind, origin, expectedSection) => {
     expect(adminNavigationTarget(kind, `${kind}-123`, origin)).toEqual({
       section: expectedSection,
@@ -43,14 +47,12 @@ describe('minimal Admin UI', () => {
     })
   })
 
-  it('keeps Activity contextual in its origin section with an identifiable view and contextual Back action', () => {
-    const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123', sailor_label: 'Pilot', boat: null, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123', source_ingestion_id: 'ingestion-123', diagnostic: { id: 'activity-123456789' } }
+  it('routes Activity to its own section and renders no contextual foreign detail shell', () => {
     const target = adminNavigationTarget('activity', activity.id, 'ingestions')
-    const markup = renderToStaticMarkup(<ContextualActivityDetail activity={activity} origin="ingestions" onBack={() => undefined} onFollow={() => undefined} />)
+    const markup = renderToStaticMarkup(<ActivityCard activity={activity} detail={activity} busy={false} onSelect={() => undefined} onFollow={() => undefined} onRecalculate={() => undefined} />)
 
-    expect(target).toEqual({ section: 'ingestions', selected: { kind: 'activity', id: activity.id }, contextual: true })
-    expect(markup).toContain('<h1>Activity</h1>')
-    expect(markup).toContain('Back to Ingestion')
+    expect(target).toEqual({ section: 'activities', selected: { kind: 'activity', id: activity.id }, contextual: false })
+    expect(markup).not.toContain('Back to Ingestion')
     expect(markup).toContain('Source Ingestion')
     expect(markup).not.toContain('Personal TackBar')
     expect(markup).not.toContain('Shared capability')
@@ -316,6 +318,21 @@ describe('minimal Admin UI', () => {
     expect(markup).not.toContain('Consent request')
   })
 
+  it('exposes Activity relationships from Sailor and Session without nesting Activity detail', () => {
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const callbacks = { onRequested: () => undefined, onConsentRequestSend: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined, onPersonalRegenerate: () => undefined, onPersonalRevoke: () => undefined, onWelcomeEmailResend: () => undefined }
+    const sailorMarkup = renderToStaticMarkup(<SailorDetail sailor={sailor('active')} activities={[activity]} busy={false} onActivitySelect={() => undefined} {...callbacks} />)
+    const sessionMarkup = renderToStaticMarkup(<SessionCard session={session('active')} activities={[activity]} busy={false} onActivitySelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+
+    expect(sailorMarkup).toContain('>Activity</span>')
+    expect(sessionMarkup).toContain('<h3>Activities</h3>')
+    expect(sessionMarkup).toContain('Pilot')
+    for (const markup of [sailorMarkup, sessionMarkup]) {
+      expect(markup).not.toContain('Recalculate maneuvers')
+      expect(markup).not.toContain('Read-only JSON')
+    }
+  })
+
   it('hides active link actions while a mutation or refresh is pending', () => {
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
     const markup = renderToStaticMarkup(<SessionCard session={session('active')} busy onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
@@ -383,10 +400,9 @@ describe('minimal Admin UI', () => {
   })
 
   it('renders reusable read-only Activity traceability without viewer features', () => {
-    const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', diagnostic: { id: 'activity-123456789' } }
     const markup = renderToStaticMarkup(<ActivityAdminDetail activity={activity} onFollow={() => undefined} />)
 
-    expect(markup).toContain('Sailing'); expect(markup).toContain('Source'); expect(markup).toContain('Traceability'); expect(markup).toContain('Pilot'); expect(markup).toContain('Zafar · Snipe · ESP 1'); expect(markup).toContain('Source Ingestion'); expect(markup).toContain('Read-only JSON')
+    expect(markup).toContain('Track'); expect(markup).toContain('Owner / context'); expect(markup).toContain('Source'); expect(markup).toContain('Maneuvers'); expect(markup).toContain('CURRENT'); expect(markup).toContain('>4</dd>'); expect(markup).toContain('Pilot'); expect(markup).toContain('Zafar · Snipe · ESP 1'); expect(markup).toContain('Source Ingestion'); expect(markup).toContain('Recalculate maneuvers'); expect(markup).toContain('Read-only JSON')
     expect(markup).not.toContain('Map'); expect(markup).not.toContain('Metrics')
   })
 

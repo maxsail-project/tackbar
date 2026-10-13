@@ -1509,7 +1509,7 @@ input:focus-visible {
 }
 .admin-header span { color: var(--color-pale); font-size: .78rem; }
 .admin-header button { border: 1px solid var(--color-pale); border-radius: 10px; color: var(--color-white); background: transparent; }
-.admin-tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 10px 16px; background: var(--color-white); }
+.admin-tabs { display: grid; grid-template-columns: repeat(4, 1fr); padding: 10px 16px; background: var(--color-white); }
 .admin-tabs button { border: 0; border-bottom: 3px solid transparent; background: transparent; font-weight: 800; }
 .admin-tabs button.is-active { border-color: var(--color-blue); color: var(--color-navy); }
 .admin-content { width: min(100%, 920px); margin: 0 auto; padding: 22px 16px 44px; }
@@ -1530,6 +1530,12 @@ input:focus-visible {
 .admin-session-card.is-selected { border-color: var(--color-blue); outline: 2px solid var(--color-blue); outline-offset: 2px; }
 .admin-card__heading p, .admin-meta { margin: 5px 0; color: var(--color-navy); font-size: .8rem; }
 .admin-ingestion-list { grid-template-columns: minmax(0, 1fr); }
+.admin-activity-list { grid-template-columns: minmax(0, 1fr); }
+.admin-activity-card { padding: 0; overflow: hidden; }
+.admin-card .admin-activity-summary { display: block; width: 100%; min-height: 0; padding: 16px; border: 0; border-radius: 15px; color: inherit; background: var(--color-white); text-align: left; }
+.admin-activity-summary:hover { background: var(--color-background); }
+.admin-activity-summary:focus-visible { outline: 3px solid var(--color-blue); outline-offset: -3px; }
+.admin-activity-detail { padding: 18px 16px; border-top: 1px solid var(--color-pale); }
 .admin-ingestion-card { padding: 0; overflow: hidden; }
 .admin-card .admin-ingestion-summary { display: block; width: 100%; min-height: 0; padding: 16px; border: 0; border-radius: 15px; color: inherit; background: var(--color-white); text-align: left; }
 .admin-ingestion-summary:hover { background: var(--color-background); }
@@ -1580,8 +1586,8 @@ input:focus-visible {
 .admin-detail dd, .session-counts dd { margin: 4px 0 0; font-weight: 800; }
 .session-counts dd { font-size: 1.35rem; }
 .admin-session-expiration { margin: 14px 0; color: var(--color-navy); font-size: .9rem; font-weight: 750; }
-.admin-session-capability { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
-.admin-session-capability h3 { margin: 0 0 8px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.admin-session-activities, .admin-session-capability { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
+.admin-session-activities h3, .admin-session-capability h3 { margin: 0 0 8px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
 .admin-welcome-email { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
 .admin-consent-request { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-pale); }
 .admin-welcome-email h3, .admin-consent-request h3 { margin: 0 0 8px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
@@ -1608,6 +1614,7 @@ input:focus-visible {
   .admin-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-ingestion-section-header { flex-direction: row; align-items: center; justify-content: space-between; }
   .admin-ingestion-list { grid-template-columns: minmax(0, 1fr); }
+  .admin-activity-list { grid-template-columns: minmax(0, 1fr); }
   .admin-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-detail-grid__wide { grid-column: 1 / -1; }
   .admin-relations { grid-template-columns: repeat(3, minmax(0, 1fr)); }
