@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ActivityAdminDetail, ADMIN_SECTION_ORDER, AdminAccessForm, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminIngestions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
+import { ActivityAdminDetail, ADMIN_SECTION_ORDER, AdminAccessForm, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, ContextualActivityDetail, DEFAULT_ADMIN_SECTION, filterAdminIngestions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorDetail, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
@@ -25,6 +25,36 @@ describe('minimal Admin UI', () => {
   it('presents the Admin sections in operational order and starts at Ingestions', () => {
     expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'sailors', 'sessions'])
     expect(DEFAULT_ADMIN_SECTION).toBe('ingestions')
+  })
+
+  it.each([
+    ['sailor', 'ingestions', 'sailors'],
+    ['session', 'ingestions', 'sessions'],
+    ['sailor', 'sessions', 'sailors'],
+    ['session', 'sailors', 'sessions'],
+    ['sailor', 'ingestions', 'sailors'],
+    ['session', 'ingestions', 'sessions'],
+    ['ingestion', 'sessions', 'ingestions'],
+  ] as const)('routes %s from %s to its %s home section and preserves the selected ID', (kind, origin, expectedSection) => {
+    expect(adminNavigationTarget(kind, `${kind}-123`, origin)).toEqual({
+      section: expectedSection,
+      selected: { kind, id: `${kind}-123` },
+      contextual: false,
+    })
+  })
+
+  it('keeps Activity contextual in its origin section with an identifiable view and contextual Back action', () => {
+    const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123', sailor_label: 'Pilot', boat: null, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123', source_ingestion_id: 'ingestion-123', diagnostic: { id: 'activity-123456789' } }
+    const target = adminNavigationTarget('activity', activity.id, 'ingestions')
+    const markup = renderToStaticMarkup(<ContextualActivityDetail activity={activity} origin="ingestions" onBack={() => undefined} onFollow={() => undefined} />)
+
+    expect(target).toEqual({ section: 'ingestions', selected: { kind: 'activity', id: activity.id }, contextual: true })
+    expect(markup).toContain('<h1>Activity</h1>')
+    expect(markup).toContain('Back to Ingestion')
+    expect(markup).toContain('Source Ingestion')
+    expect(markup).not.toContain('Personal TackBar')
+    expect(markup).not.toContain('Shared capability')
+    expect(markup).not.toContain('Outbound result')
   })
 
   it('groups the Ingestions title and secondary mailbox action in a responsive section header', () => {
@@ -223,7 +253,7 @@ describe('minimal Admin UI', () => {
         sailor_activity_count: 2, expires_at: '2026-10-30T10:00:00Z', capability_state: 'expired', capability_path: null,
       }],
     }
-    const markup = renderToStaticMarkup(<SailorDetail sailor={detail} busy={false} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
+    const markup = renderToStaticMarkup(<SailorDetail sailor={detail} busy={false} onSessionSelect={() => undefined} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
 
     expect(markup).toContain('admin-sailor-session__date')
     expect(markup).toContain('admin-sailor-session__interval')
@@ -236,6 +266,7 @@ describe('minimal Admin UI', () => {
     expect(markup.indexOf('Session access')).toBeGreaterThan(markup.indexOf('>Expires</dt>'))
     expect(markup).toContain('href="/s/token"')
     expect(markup).toContain('>Open session</a>')
+    expect(markup).toContain('Admin Session')
     expect(markup).not.toContain('Open shared Session')
   })
 
@@ -272,6 +303,17 @@ describe('minimal Admin UI', () => {
     expect(expired).toContain('Expired')
     expect(expired).toContain('>Active<')
     expect(expired).toContain('Renew')
+  })
+
+  it('marks a cross-navigation Session selection and exposes related Sailors without nesting Sailor detail', () => {
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const markup = renderToStaticMarkup(<SessionCard session={session('active')} selected busy={false} onSailorSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+
+    expect(markup).toContain('aria-current="true"')
+    expect(markup).toContain('admin-session-card is-selected')
+    expect(markup).toContain('>Test Sailor</button>')
+    expect(markup).not.toContain('Personal TackBar')
+    expect(markup).not.toContain('Consent request')
   })
 
   it('hides active link actions while a mutation or refresh is pending', () => {
