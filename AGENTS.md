@@ -95,6 +95,16 @@ Evidence-driven evolution does not authorize unrelated feature expansion,
 speculative refactoring or silent changes to domain, consent, persistence,
 ingestion, Session or frontend semantics.
 
+For any work affecting Admin UI, Admin navigation, Admin information hierarchy,
+or Admin cross-entity traceability, also read:
+
+- `docs/admin-ux-ui-guidelines.md`
+
+Do not read this document for unrelated backend/domain work.
+
+Treat it as the source of truth for Admin interaction semantics, entity-list/detail
+patterns, cross-entity navigation, responsive layout and visual consistency.
+
 ## Instruction hierarchy
 
 Interpret repository instructions in this order:
