@@ -36,6 +36,7 @@ describe('minimal Admin UI', () => {
     ['sailor', 'ingestions', 'sailors'],
     ['session', 'ingestions', 'sessions'],
     ['ingestion', 'sessions', 'ingestions'],
+    ['ingestion', 'activities', 'ingestions'],
     ['activity', 'ingestions', 'activities'],
     ['activity', 'sailors', 'activities'],
     ['activity', 'sessions', 'activities'],
@@ -411,7 +412,7 @@ describe('minimal Admin UI', () => {
     expect(markup).not.toContain('Map'); expect(markup).not.toContain('Metrics')
   })
 
-  it('shows authoritative source Ingestion as unavailable without a navigation control', () => {
+  it('shows an absent source Ingestion as unavailable without a navigation control', () => {
     const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_id: null, source_ingestion_resolution: 'none' }} onFollow={() => undefined} />)
     const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Source</h3>'))
 
