@@ -2,6 +2,138 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.11 Californian — Admin Operational Clarity (Release-ready — production validation pending)
+
+### English
+
+Improves day-to-day Admin clarity by identifying the deployed release,
+correcting quaternion telemetry evidence and separating inbound email timing
+from sailing and processing time.
+
+### Added
+
+* Production release builds now inject the exact deployed release tag into the
+  frontend, and Admin shows it in the existing header. Local development and
+  test builds preserve the previous header without an empty separator when no
+  release tag is available.
+
+### Fixed
+
+* Activity technical-track evidence now reports `QUATERNION` as one logical
+  available telemetry channel when at least one canonical sample contains all
+  four W/X/Y/Z quaternion components. Partial components spread across samples
+  do not count as available, and existing channel order and detection remain
+  unchanged.
+
+### Changed
+
+* Compact Ingestion summaries now show sender, provider and the inbound email
+  receipt timestamp separately from the explicitly labelled Activity sailing
+  interval and sample count.
+* Expanded Ingestion detail keeps `Email received` with the original message
+  provenance under Source, keeps processing-attempt timing under Processing,
+  and retains outbound notification timing as a separate opposite-direction
+  communication state.
+* Existing deployment selection, canonical track schema, normalization,
+  persistence, ingestion, retry/reprocess, outbound notification, Activity,
+  Session, consent, capability, maneuver, Viewer and backend/API semantics
+  remain unchanged outside the completed Admin increments.
+
+### Issues
+
+- [#84](https://github.com/maxsail-project/tackbar/issues/84) — [#84] Admin Activity technical track omits Quaternion availability
+- [#85](https://github.com/maxsail-project/tackbar/issues/85) — [#85] Improve Ingestion email timing and inbound/outbound traceability
+- [#86](https://github.com/maxsail-project/tackbar/issues/86) — [#86] Show deployed release version in Admin header
+
+### Validation
+
+Before release preparation, Issues #84, #85 and #86 recorded implementation
+acceptance and manual validation PASS. Their recorded automated validation
+covered 11 focused backend Admin Activity tests, 74 focused Admin frontend
+tests, 2 deployment-script tests, frontend typecheck, frontend production
+build and `git diff --check` as applicable. No dependencies were added or
+removed.
+
+Release preparation performed release-range and completed-Issue
+reconciliation, documentation consistency, bilingual release-entry and
+publication-body equivalence review, final diff and whitespace checks, and
+repository/remote publication-state verification. The implementation checks
+were not rerun during this documentation-only preparation.
+
+Production deployment remains pending. The deployed Admin release label and
+the clarified operational evidence have not yet been validated in the
+production runtime. No tag, GitHub Release or production deployment is part of
+release preparation.
+
+---
+
+## v0.7.11 Californian — Claridad operativa de Admin (Lista para release — validación de producción pendiente)
+
+### Español
+
+Mejora la claridad cotidiana de Admin identificando la release desplegada,
+corrigiendo la evidencia de telemetría quaternion y separando el momento de
+recepción del email de los tiempos de navegación y procesamiento.
+
+### Añadido
+
+* Los builds de releases de producción inyectan ahora en el frontend el tag
+  exacto de la release desplegada, y Admin lo muestra en el encabezado
+  existente. El desarrollo local y los builds de tests conservan el encabezado
+  anterior sin un separador vacío cuando no hay tag de release disponible.
+
+### Corregido
+
+* La evidencia del track técnico de Activity muestra ahora `QUATERNION` como un
+  único canal lógico de telemetría disponible cuando al menos una muestra
+  canónica contiene los cuatro componentes quaternion W/X/Y/Z. Los componentes
+  parciales repartidos entre muestras no cuentan como disponibles, y el orden y
+  la detección de los canales existentes permanecen sin cambios.
+
+### Cambiado
+
+* Los resúmenes compactos de Ingestion muestran ahora remitente, proveedor y
+  timestamp de recepción del email entrante separados del intervalo de
+  navegación de la Activity, etiquetado explícitamente, y del número de muestras.
+* El detalle expandido de Ingestion mantiene `Email received` con la procedencia
+  del mensaje original en Source, conserva los tiempos de intentos en Processing
+  y mantiene los tiempos de notificación saliente como un estado de comunicación
+  separado y en dirección opuesta.
+* Las semánticas existentes de selección del despliegue, esquema de track
+  canónico, normalización, persistencia, ingestión, reintentos/reprocesamiento,
+  notificación saliente, Activity, Session, consentimiento, capabilities,
+  maniobras, Viewer y backend/API permanecen sin cambios fuera de los
+  incrementos Admin completados.
+
+### Issues
+
+- [#84](https://github.com/maxsail-project/tackbar/issues/84) — [#84] Admin Activity technical track omits Quaternion availability
+- [#85](https://github.com/maxsail-project/tackbar/issues/85) — [#85] Improve Ingestion email timing and inbound/outbound traceability
+- [#86](https://github.com/maxsail-project/tackbar/issues/86) — [#86] Show deployed release version in Admin header
+
+### Validación
+
+Antes de preparar la release, los Issues #84, #85 y #86 registraron aceptación
+de implementación y validación manual PASS. Su validación automatizada
+registrada cubrió 11 tests backend focalizados de Admin Activity, 74 tests
+frontend focalizados de Admin, 2 tests del script de despliegue, typecheck
+frontend, build de producción frontend y `git diff --check` según correspondía.
+No se añadieron ni eliminaron dependencias.
+
+La preparación de la release comprobó el rango de release y la reconciliación
+de Issues completados, la consistencia documental, la entrada bilingüe y la
+equivalencia del cuerpo de publicación, el diff final y los espacios en blanco,
+y el estado del repositorio, del remoto y de publicación. Los checks de
+implementación no se volvieron a ejecutar durante esta preparación solo
+documental.
+
+El despliegue en producción sigue pendiente. La etiqueta de release desplegada
+en Admin y la evidencia operativa aclarada aún no se han validado en el runtime
+de producción. La preparación no incluye ningún tag, GitHub Release ni
+despliegue a producción.
+
+---
+
 ## v0.7.10 Californian — Admin Operations & Traceability (Release-ready — production validation pending)
 
 ### English
