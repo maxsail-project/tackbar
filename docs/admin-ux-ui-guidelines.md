@@ -166,14 +166,78 @@ Operators should not need raw JSON to answer normal operational questions.
 
 Advanced is optional.
 
-Use it for:
+Use it for lower-frequency technical evidence that is useful for investigation but not required for normal Admin operation.
+
+Typical content includes:
 
 - full identifiers;
 - hashes;
-- denser technical context;
-- lower-frequency diagnostic metadata.
+- technical traceability;
+- lower-frequency timestamps;
+- source-specific technical metadata;
+- technical track metadata;
+- other denser diagnostic context.
 
 Do not place routine operational information in Advanced merely to reduce UI work.
+
+#### Technical traceability
+
+When exact identifiers are useful for investigation, expose them in a compact `TECHNICAL TRACEABILITY` group inside Advanced.
+
+Prefer this hierarchy:
+
+```text
+TRACEABILITY
+human-readable entity identity and navigation
+
+ADVANCED
+TECHNICAL TRACEABILITY
+exact IDs and lower-frequency technical relationships
+
+DIAGNOSTIC JSON
+deepest structured evidence
+```
+
+Operational TRACEABILITY should prefer human-readable identity.
+
+Examples:
+
+- Sailor → name, then email, then compact ID as final fallback;
+- Activity → sailing date and time/interval;
+- Session → sailing date and interval;
+- Source Ingestion → attachment/filename and useful temporal context where available.
+
+Full UUIDs should not be the primary operational identity when a meaningful human-readable representation exists.
+
+Technical Traceability may include, where relevant:
+
+- Sailor ID;
+- Activity ID;
+- Session ID;
+- Source Ingestion ID;
+- Default Boat ID;
+- exact related-entity identifiers useful for investigation.
+
+When a relationship is ambiguous, Advanced may expose the related candidate identifiers as diagnostic evidence, provided that:
+
+- the ambiguity is explicit;
+- no candidate is presented as authoritative;
+- normal operational TRACEABILITY does not guess or silently select a target.
+
+#### Technical track detail
+
+For an Activity, Advanced may expose technical information about the canonical normalized track when useful for operational investigation.
+
+Suitable information includes:
+
+- sample count;
+- duration;
+- approximate/effective sample frequency;
+- available telemetry channels such as SOG, COG, HDG, HEEL and TRIM.
+
+This is technical track evidence, not a second analytics surface.
+
+Do not add analytical summaries such as average, minimum, maximum or performance metrics merely because the raw telemetry exists unless a separate requirement explicitly promotes them.
 
 ### Diagnostic JSON
 
@@ -189,28 +253,6 @@ It must:
 - never substitute for an incomplete operational UI.
 
 If operators repeatedly need JSON to answer a normal operational question, promote the relevant information to an earlier layer.
-
----
-
-## Interaction grammar
-
-Every visible Admin element should have a clear semantic role.
-
-The primary roles are:
-
-```text
-DATA
-RELATION
-ACTION
-STATUS
-DISCLOSURE
-```
-
-These roles must remain visually distinguishable.
-
-The semantic role of an element is more important than the entity in which it appears.
-
-A Sailor relation, Activity relation, Session relation or Ingestion relation should therefore use the same interaction language when they perform the same kind of navigation.
 
 ---
 
@@ -497,16 +539,28 @@ Use the same section name when the same semantic concept appears across Admin.
 
 Preferred vocabulary includes:
 
+- CURRENT STATE;
+- CONSENT;
+- CONSENT TIMELINE;
+- PERSONAL TACKBAR;
 - TRACK;
 - TRACEABILITY;
 - SOURCE;
 - MEMBERSHIP / TRACEABILITY;
-- SHARED ACCESS;
+- SESSION ACCESS;
+- TEMPORARY QR ACCESS;
+- COMMUNICATION;
 - LIFETIME;
 - MAINTENANCE;
 - MANEUVERS;
 - ADVANCED;
 - DIAGNOSTIC JSON.
+
+Use `SESSION ACCESS` for the Session's original capability.
+
+Use `TEMPORARY QR ACCESS` for temporary QR-based access delegation to that same Session.
+
+Do not use `SHARED ACCESS` when it would blur these two different access mechanisms.
 
 Do not introduce alternate labels for an existing concept without a product reason.
 
@@ -661,37 +715,48 @@ Maintenance controls should generally appear after the facts needed to understan
 
 ---
 
-## Shared access layout
+## Session access layout
 
-Use `SHARED ACCESS` for access mechanisms related to a Session or personal surface.
+For Session Admin detail, distinguish the Session's original capability from temporary QR-based access delegation.
 
-Separate:
-
-- state;
-- usable access actions;
-- maintenance actions.
-
-For example:
+Use two sections with equivalent operational weight:
 
 ```text
-SHARED ACCESS
+SESSION ACCESS
 
 Original capability
 Active
+
 [ Copy link ] [ Open session ]
 
-Temporary QR shares
-1 active · 2 expired
+
+TEMPORARY QR ACCESS
+
+1 active · 2 expired · 0 unavailable
 
 Active temporary share
 Expires Oct 15 · 09:20
 47h remaining
-[ Copy link ] [ Open temporary share ]
+
+[ Copy temporary link ] [ Open temporary share ]
 ```
 
-`Regenerate` and `Revoke` belong in `MAINTENANCE`, not mixed with routine Copy/Open access actions when the entity detail already has a Maintenance section.
+`SESSION ACCESS` represents the Session's original capability.
 
-Historical or unavailable temporary shares should not consume normal operational space unless required for diagnosis.
+`TEMPORARY QR ACCESS` represents temporary access delegation to the same Session.
+
+A temporary QR share:
+
+- is not a separate Session;
+- must not be described as a "Temporary Session";
+- does not change Session membership;
+- does not replace the original capability.
+
+Keep current access state and usable Copy/Open actions inside their respective access sections.
+
+`Regenerate` and `Revoke` belong in `MAINTENANCE`, not mixed with routine Copy/Open access actions.
+
+Historical expired or unavailable temporary shares should remain summarized in normal operational detail unless deeper investigation is required.
 
 ---
 

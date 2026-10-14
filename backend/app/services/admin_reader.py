@@ -342,6 +342,7 @@ class AdminReader:
                 sailing_start=item.sailing_start,
                 sailing_end=item.sailing_end,
                 sailor_activity_count=item.sailor_activity_count,
+                total_activity_count=len(session.activity_ids),
                 expires_at=session.expires_at,
                 capability_state=state,
                 capability_path=f"/s/{token}" if token else None,

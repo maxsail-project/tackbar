@@ -287,6 +287,15 @@ def test_sailor_groups_and_history_are_explicit(monkeypatch: pytest.MonkeyPatch,
         "source": "admin_confirmed_email",
         "agreement_version": CURRENT_CONSENT_AGREEMENT_VERSION,
     }]
+    session_counts = {
+        item["session_id"]: (
+            item["sailor_activity_count"], item["total_activity_count"]
+        )
+        for item in detail.json["sessions"]
+    }
+    assert session_counts[SESSION_ACTIVE] == (1, 3)
+    assert session_counts[SESSION_REVOKED] == (1, 1)
+    assert session_counts[SESSION_EXPIRED] == (1, 2)
 
 
 def test_admin_sailor_detail_resolves_default_boat_and_safe_diagnostics(
@@ -1463,6 +1472,8 @@ def test_admin_activity_detail_uses_authoritative_source_ingestion_and_safe_json
     assert missing.status_code == 404
     assert response.json["source_ingestion_id"] == source["id"]
     assert response.json["source_ingestion_resolution"] == "authoritative"
+    assert response.json["related_ingestions"] == []
+    assert response.json["technical_track"] is None
     assert response.json["sailor_id"] == ACTIVE
     assert response.json["session_id"] == SESSION_ACTIVE
     assert response.json["track_available"] is False
@@ -1505,6 +1516,7 @@ def test_admin_activity_detail_uses_single_related_ingestion_without_changing_pr
     assert response.status_code == 200
     assert response.json["source_ingestion_id"] == related["id"]
     assert response.json["source_ingestion_resolution"] == expected_resolution
+    assert response.json["related_ingestions"] == []
     assert response.json["diagnostic"]["source_ingestion_activity_created_by_ingestion"] is provenance
     assert history.get(related["id"])["activity_created_by_ingestion"] is provenance
 
@@ -1520,6 +1532,7 @@ def test_admin_activity_detail_reports_no_related_ingestion(
     assert response.status_code == 200
     assert response.json["source_ingestion_id"] is None
     assert response.json["source_ingestion_resolution"] == "none"
+    assert response.json["related_ingestions"] == []
     assert response.json["diagnostic"]["related_ingestion_count"] == 0
 
 
@@ -1529,6 +1542,7 @@ def test_admin_activity_detail_reports_ambiguous_related_ingestions_without_gues
 ) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
     history = IngestionHistory(root / "ingestion_history.json")
+    expected_candidates = []
     for index, provenance in enumerate((False, None)):
         related = history.create(
             "ovh",
@@ -1539,18 +1553,72 @@ def test_admin_activity_detail_reports_ambiguous_related_ingestions_without_gues
         )
         related.update(
             status="processed",
+            received_at=f"2026-09-{12 + index:02d}T17:25:00Z",
             activity_id=ACTIVITY_ACTIVE,
             session_id=SESSION_ACTIVE,
             activity_created_by_ingestion=provenance,
         )
         history.replace(related)
+        expected_candidates.append({
+            "id": related["id"],
+            "attachment_name": f"demo-{index}.csv.gz",
+            "received_at": f"2026-09-{12 + index:02d}T17:25:00Z",
+        })
 
     response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
 
     assert response.status_code == 200
     assert response.json["source_ingestion_id"] is None
     assert response.json["source_ingestion_resolution"] == "ambiguous"
+    assert response.json["related_ingestions"] == expected_candidates
+    assert all(
+        set(candidate) == {"id", "attachment_name", "received_at"}
+        for candidate in response.json["related_ingestions"]
+    )
     assert response.json["diagnostic"]["related_ingestion_count"] == 2
+
+
+def test_admin_activity_detail_reports_canonical_technical_track_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    start = datetime(2026, 9, 12, 10, tzinfo=timezone.utc)
+    samples = [
+        {
+            "utc": (start + timedelta(milliseconds=500 * index)).isoformat(
+                timespec="milliseconds"
+            ),
+            "lat": 38.1 + index * 0.001,
+            "lon": -0.5 - index * 0.001,
+            "sog": 4.0 + index,
+            "cog": 350.0 + index,
+            "hdg": 10.0 + index,
+            "heel": -2.0 + index,
+            "trim": 1.0 + index,
+        }
+        for index in range(3)
+    ]
+    TrackStorage(root).write_normalized_track(
+        ACTIVITY_ACTIVE,
+        normalize_track(ACTIVITY_ACTIVE, samples),
+    )
+
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+
+    assert response.status_code == 200
+    assert response.json["technical_track"] == {
+        "sample_count": 3,
+        "duration_seconds": 1.0,
+        "effective_sample_frequency_hz": 2.0,
+        "available_channels": ["SOG", "COG", "HDG", "HEEL", "TRIM"],
+    }
+    assert set(response.json["technical_track"]) == {
+        "sample_count",
+        "duration_seconds",
+        "effective_sample_frequency_hz",
+        "available_channels",
+    }
 
 
 def test_admin_activity_collection_is_newest_first_compact_and_protected(
@@ -1572,13 +1640,15 @@ def test_admin_activity_collection_is_newest_first_compact_and_protected(
         "id": ACTIVITY_ACTIVE,
         "sailor_id": ACTIVE,
         "sailor_label": "active",
+        "source": "vakaros",
+        "device_name": "demo",
+        "original_filename": "demo.csv.gz",
         "start_time": "2026-08-12T09:00:00Z",
         "end_time": "2026-08-12T10:00:00Z",
         "sample_count": 2,
         "session_id": SESSION_ACTIVE,
     }
     assert "attachment_sha256" not in response.json[0]
-    assert "source" not in response.json[0]
 
 
 def test_admin_activity_read_does_not_generate_and_recalculation_uses_canonical_track(

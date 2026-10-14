@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminIngestions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorCard, SailorDetail, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
+import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
@@ -25,7 +25,8 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   consent_active_count: 1, consent_pending_count: 1, consent_revoked_count: 0,
   diagnostic: { session: { id: 'session-123' }, temporary_shares: [{ id: 'share-1', state: 'VALID' }] },
 })
-const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
+const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
+const sourceIngestion: AdminIngestion = { id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'pilot@example.test', received_at: '2026-09-05T17:25:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: '2026-09-05T17:26:00Z', last_error: null, activity_id: activity.id, session_id: activity.session_id, sailor_id: activity.sailor_id, sailor_label: activity.sailor_label, sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: activity.start_time, activity_end_time: activity.end_time, activity_sample_count: activity.sample_count }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
@@ -60,6 +61,9 @@ describe('minimal Admin UI', () => {
     const markup = renderToStaticMarkup(<ActivityCard activity={activity} detail={activity} busy={false} onSelect={() => undefined} onFollow={() => undefined} onRecalculate={() => undefined} />)
 
     expect(target).toEqual({ section: 'activities', selected: { kind: 'activity', id: activity.id }, contextual: false })
+    expect(markup).toContain('admin-entity-summary admin-activity-summary')
+    expect(markup).toContain('admin-disclosure-affordance is-expanded')
+    expect(markup).toContain('aria-current="true"')
     expect(markup).not.toContain('Back to Ingestion')
     expect(markup).toContain('Source Ingestion')
     expect(markup).not.toContain('Personal TackBar')
@@ -89,6 +93,15 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('Enter Admin')
   })
 
+  it('uses one Search control pattern without making diagnostic IDs the primary prompt', () => {
+    const markup = renderToStaticMarkup(<AdminSearch value="pilot" busy={false} placeholder="Name or email" onChange={() => undefined} />)
+
+    expect(markup).toContain('class="admin-search"')
+    expect(markup).toContain('type="search"')
+    expect(markup).toContain('value="pilot"')
+    expect(markup).toContain('placeholder="Name or email"')
+  })
+
   it('uses operational user-facing state labels', () => {
     expect(consentLabels.pending_needs_request).toContain('request needed')
     expect(consentLabels.pending_awaiting_response).toContain('awaiting response')
@@ -96,6 +109,12 @@ describe('minimal Admin UI', () => {
     expect(consentLabels.revoked).toBe('Revoked')
     expect(capabilityLabels.never_generated).toBe('Never generated')
     expect(capabilityLabels.expired).toBe('Expired')
+  })
+
+  it('uses the confirmed Sailor identity fallback order', () => {
+    expect(sailorIdentity('Maxi', 'maxi@example.test', 'sailor-123456789')).toBe('Maxi')
+    expect(sailorIdentity(null, 'maxi@example.test', 'sailor-123456789')).toBe('maxi@example.test')
+    expect(sailorIdentity(null, null, 'sailor-123456789')).toBe('sailor-1…')
   })
 
   it('shows controlled authorization feedback', () => {
@@ -239,6 +258,8 @@ describe('minimal Admin UI', () => {
     const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} {...callbacks} />)
 
     expect(collapsed).toContain('aria-expanded="false"')
+    expect(collapsed).toContain('admin-entity-summary admin-session-summary')
+    expect(collapsed).toContain('admin-disclosure-affordance')
     expect(collapsed).toContain('3 Activities · 1 shareable now · 2 Sailors')
     expect(collapsed).not.toContain('Session ID')
     expect(collapsed).not.toContain('Created')
@@ -246,7 +267,9 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('>ACTIVE<')
     expect(markup).toContain('Expires')
     expect(markup).toContain('12 days remaining')
-    expect(markup).toContain('Shared access')
+    expect(markup).toContain('Session access')
+    expect(markup).toContain('Temporary QR access')
+    expect(markup).not.toContain('Shared access')
     expect(markup).toContain('Technical Activities')
     expect(markup).toContain('Shareable now')
     expect(markup).toContain('Copy link')
@@ -254,7 +277,10 @@ describe('minimal Admin UI', () => {
     expect(markup).not.toContain('Open shared Session')
     expect(markup).toContain('Sets expiry to days from now')
     expect(markup).toContain('value="90"')
-    const sectionLabels = ['Membership / traceability', 'Shared access', 'Lifetime', 'Maintenance', '>Advanced<', '>Diagnostic JSON<']
+    expect(markup).toContain('<h4>Technical traceability</h4>')
+    expect(markup).toContain('<dt>Activity IDs</dt><dd>activity-123456789 · activity-987654321</dd>')
+    expect(markup).toContain('<dt>Sailor IDs</dt><dd>sailor-1 · sailor-2</dd>')
+    const sectionLabels = ['Membership / traceability', 'Session access', 'Temporary QR access', 'Lifetime', 'Maintenance', '>Advanced<', '>Diagnostic JSON<']
     for (let index = 1; index < sectionLabels.length; index += 1) {
       expect(markup.indexOf(sectionLabels[index - 1])).toBeLessThan(markup.indexOf(sectionLabels[index]))
     }
@@ -266,7 +292,10 @@ describe('minimal Admin UI', () => {
     const detail = session('active')
     const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
-    expect(markup).toContain('Temporary QR shares:</strong> Active 1 · Expired 2 · Unavailable 1')
+    expect(markup).toContain('Temporary QR access:</strong> Active 1 · Expired 2 · Unavailable 1')
+    expect(markup).toContain('aria-label="Session access"')
+    expect(markup).toContain('aria-label="Temporary QR access"')
+    expect(markup).not.toContain('Temporary Session')
     expect(markup).toContain('Active temporary share')
     expect(markup).toContain('22 h 0 min remaining')
     expect(markup).toContain('>VALID<')
@@ -282,24 +311,70 @@ describe('minimal Admin UI', () => {
       ...sailor('active'),
       sessions: [{
         session_id: 'session-123', sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z',
-        sailor_activity_count: 1, expires_at: '2026-09-30T10:00:00Z', capability_state: 'active', capability_path: '/s/token',
+        sailor_activity_count: 1, total_activity_count: 3, expires_at: '2026-09-30T10:00:00Z', capability_state: 'active', capability_path: '/s/token',
       }, {
         session_id: 'session-456', sailing_start: '2026-08-02T08:00:00Z', sailing_end: '2026-08-02T10:00:00Z',
-        sailor_activity_count: 2, expires_at: '2026-10-30T10:00:00Z', capability_state: 'expired', capability_path: null,
+        sailor_activity_count: 2, total_activity_count: 4, expires_at: '2026-10-30T10:00:00Z', capability_state: 'expired', capability_path: null,
       }],
     }
     const markup = renderToStaticMarkup(<SailorDetail sailor={detail} busy={false} onSessionSelect={() => undefined} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
 
     expect(markup).toContain('>Traceability</h3>')
     expect(markup).toContain('>Session</span>')
-    expect(markup).toContain('title="session-123"')
-    expect(markup).toContain('1 Activity')
-    expect(markup).toContain('2 Activities')
+    const traceability = markup.slice(markup.indexOf('>Traceability</h3>'), markup.indexOf('>Communication</h3>'))
+    expect(traceability).not.toContain('session-123')
+    expect(markup).toContain('3 Activities')
+    expect(markup).toContain('4 Activities')
+    expect(markup).not.toContain(' · 1 Activity</strong>')
+    expect(markup).not.toContain(' · 2 Activities</strong>')
     expect(markup).not.toContain('admin-sailor-session')
     expect(markup).not.toContain('Session access')
     expect(markup).not.toContain('href="/s/token"')
     expect(markup).not.toContain('Open session')
     expect(markup).not.toContain('capability')
+    expect(markup).toContain('<h4>Technical traceability</h4>')
+    expect(markup).toContain('<dt>Session IDs</dt><dd>session-123 · session-456</dd>')
+  })
+
+  it('uses the same total-Activity Session identity across Admin traceability sections', () => {
+    const relatedSession = {
+      ...session('active'),
+      id: activity.session_id!,
+      sailing_start: activity.start_time,
+      sailing_end: activity.end_time,
+    }
+    const ingestionDetail: AdminIngestionDetail = {
+      ...sourceIngestion,
+      activity_created_by_ingestion: true,
+      session_result_notification_candidate: false,
+      session_result_notification: null,
+      attachment_sha256: activity.attachment_sha256,
+      diagnostic: { id: sourceIngestion.id },
+    }
+    const sailorDetail: AdminSailorDetail = {
+      ...sailor('active'),
+      sessions: [{
+        session_id: relatedSession.id,
+        sailing_start: relatedSession.sailing_start,
+        sailing_end: relatedSession.sailing_end,
+        sailor_activity_count: 1,
+        total_activity_count: relatedSession.total_activity_count,
+        expires_at: relatedSession.expires_at,
+        capability_state: relatedSession.capability_state,
+        capability_path: relatedSession.capability_path,
+      }],
+    }
+    const ingestionMarkup = renderToStaticMarkup(<IngestionOperationalDetail ingestion={ingestionDetail} session={relatedSession} busy={false} onFollow={() => undefined} />)
+    const activityMarkup = renderToStaticMarkup(<ActivityAdminDetail activity={activity} session={relatedSession} sourceIngestion={sourceIngestion} onFollow={() => undefined} />)
+    const sailorMarkup = renderToStaticMarkup(<SailorDetail sailor={sailorDetail} busy={false} onSessionSelect={() => undefined} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
+    const sessionIdentity = (markup: string) => markup.match(/<span>Session<\/span><strong>([^<]+)<\/strong>/)?.[1]
+
+    const expected = sessionIdentity(ingestionMarkup)
+    expect(expected).toContain('2026')
+    expect(expected).toContain('3 Activities')
+    expect(sessionIdentity(activityMarkup)).toBe(expected)
+    expect(sessionIdentity(sailorMarkup)).toBe(expected)
+    expect(expected).not.toContain(relatedSession.id)
   })
 
   it('keeps Sailor Session history links unavailable when consent or capability conditions do not permit them', () => {
@@ -307,7 +382,7 @@ describe('minimal Admin UI', () => {
       ...sailor('pending_needs_request'),
       sessions: [{
         session_id: 'session-123', sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z',
-        sailor_activity_count: 1, expires_at: '2026-09-30T10:00:00Z', capability_state: 'active', capability_path: '/s/token',
+        sailor_activity_count: 1, total_activity_count: 3, expires_at: '2026-09-30T10:00:00Z', capability_state: 'active', capability_path: '/s/token',
       }],
     }
     const markup = renderToStaticMarkup(<SailorDetail sailor={unavailable} busy={false} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
@@ -331,7 +406,7 @@ describe('minimal Admin UI', () => {
     const expired = renderToStaticMarkup(<SessionCard session={expiredSession} detail={expiredSession} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(revoked).toContain('>ACTIVE<')
-    expect(revoked).toContain('Shared access')
+    expect(revoked).toContain('Session access')
     expect(revoked).toContain('Original capability:</strong> Revoked')
     expect(expired).toContain('>EXPIRED<')
     expect(expired).toContain('Expired')
@@ -345,8 +420,8 @@ describe('minimal Admin UI', () => {
     const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy={false} onSelect={() => undefined} onSailorSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(markup).toContain('aria-current="true"')
-    expect(markup).toContain('admin-session-card is-expanded is-selected')
-    expect(markup).toContain('>Test Sailor</button>')
+    expect(markup).toContain('admin-entity-card admin-session-card is-expanded is-selected')
+    expect(markup).toContain('<span>Sailor</span><strong>Test Sailor</strong><span aria-hidden="true">›</span>')
     expect(markup).not.toContain('Personal TackBar')
     expect(markup).not.toContain('Consent request')
   })
@@ -356,11 +431,12 @@ describe('minimal Admin UI', () => {
     const callbacks = { onRequested: () => undefined, onConsentRequestSend: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined, onPersonalRegenerate: () => undefined, onPersonalRevoke: () => undefined, onWelcomeEmailResend: () => undefined }
     const sailorMarkup = renderToStaticMarkup(<SailorDetail sailor={sailor('active')} activities={[activity]} busy={false} onActivitySelect={() => undefined} {...callbacks} />)
     const detail = session('active')
-    const sessionMarkup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy={false} onSelect={() => undefined} onActivitySelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+    const sessionMarkup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} activities={[activity]} busy={false} onSelect={() => undefined} onActivitySelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
 
     expect(sailorMarkup).toContain('>Activity</span>')
     expect(sessionMarkup).toContain('Membership / traceability')
-    expect(sessionMarkup).toContain('Activity activity…')
+    expect(sessionMarkup).toContain('<span>Activity</span><strong>')
+    expect(sessionMarkup).toMatch(/<span>Activity<\/span><strong>[^<]*2026[^<]*<\/strong>/)
     for (const markup of [sailorMarkup, sessionMarkup]) {
       expect(markup).not.toContain('Recalculate maneuvers')
       expect(markup).not.toContain('Read-only JSON')
@@ -378,9 +454,11 @@ describe('minimal Admin UI', () => {
     }
     const actions = { onRequested: () => undefined, onConsentRequestSend: () => undefined, onConfirm: () => undefined, onRevoke: () => undefined, onNewCycle: () => undefined, onPersonalRegenerate: () => undefined, onPersonalRevoke: () => undefined, onWelcomeEmailResend: () => undefined }
     const collapsed = renderToStaticMarkup(<SailorCard sailor={detail} detail={null} activities={[]} busy={false} onSelect={() => undefined} {...actions} />)
-    const markup = renderToStaticMarkup(<SailorCard sailor={detail} detail={detail} activities={[]} busy={false} onSelect={() => undefined} {...actions} />)
+    const markup = renderToStaticMarkup(<SailorCard sailor={detail} detail={detail} activities={[activity]} busy={false} onSelect={() => undefined} {...actions} />)
 
     expect(collapsed).toContain('admin-sailor-summary')
+    expect(collapsed).toContain('admin-entity-summary')
+    expect(collapsed).toContain('admin-disclosure-affordance')
     expect(collapsed).toContain('aria-expanded="false"')
     expect(collapsed).not.toContain('Current state')
     expect(markup).toContain('aria-current="true"')
@@ -391,7 +469,13 @@ describe('minimal Admin UI', () => {
     expect(markup.indexOf('>Communication</h3>')).toBeLessThan(markup.indexOf('>Maintenance</h3>'))
     expect(markup.indexOf('<summary>Advanced</summary>')).toBeLessThan(markup.indexOf('<summary>Diagnostic JSON</summary>'))
     expect(markup).toContain('Zafar · Snipe · ESP 1')
+    expect(markup).toContain('<ul class="event-list">')
+    expect(markup).not.toContain('<ol class="event-list">')
     expect(markup.indexOf('consent granted')).toBeLessThan(markup.indexOf('consent requested'))
+    expect(markup).toContain('<h4>Technical traceability</h4>')
+    expect(markup).toContain('<dt>Sailor ID</dt><dd>sailor-1</dd>')
+    expect(markup).toContain('<dt>Default Boat ID</dt><dd>boat-1</dd>')
+    expect(markup).toContain(`<dt>Activity IDs</dt><dd>${activity.id}</dd>`)
   })
 
   it('hides active link actions while a mutation or refresh is pending', () => {
@@ -418,7 +502,9 @@ describe('minimal Admin UI', () => {
     const failed = renderToStaticMarkup(<IngestionCard ingestion={base} busy={false} {...actions} />)
     const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-123456789', session_id: 'session-123456789', disposition: 'discarded' }} busy={false} {...actions} />)
     expect(failed).toContain('aria-expanded="false"'); expect(failed).toContain('Failed'); expect(failed).toContain('track.csv.gz'); expect(failed).toContain('sailor@example.test'); expect(failed).not.toContain('Invalid attachment'); expect(failed).not.toContain('Received'); expect(failed).not.toContain('Attempts'); expect(failed).not.toContain('Reprocess')
-    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).toContain('Activity activity…'); expect(processed).toContain('Session session-…'); expect(processed).not.toContain('Restore'); expect(processed).not.toContain('Read-only JSON')
+    expect(failed).toContain('admin-entity-summary admin-ingestion-summary')
+    expect(failed).toContain('admin-disclosure-affordance')
+    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).not.toContain('Activity activity…'); expect(processed).not.toContain('Session session-…'); expect(processed).not.toContain('Restore'); expect(processed).not.toContain('Read-only JSON')
     expect(failed).toContain('state-badge state-expired')
     expect(processed).toContain('state-badge state-active')
   })
@@ -438,20 +524,26 @@ describe('minimal Admin UI', () => {
     expect(markup).not.toContain('Attempts')
   })
 
-  it('groups expanded ingestion operations, traceability, outbound result and diagnostics', () => {
+  it('groups expanded ingestion operations, traceability, outbound notification and diagnostics', () => {
     const detail: AdminIngestionDetail = {
       id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'provider-message-77', sender_email: 'sailor@example.test', received_at: '2026-09-07T16:13:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 2, last_attempt_at: '2026-09-10T10:32:00Z', last_error: null, activity_id: 'activity-123456789', session_id: 'session-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: '2026-09-05T13:49:00Z', activity_end_time: '2026-09-05T17:21:00Z', activity_sample_count: 25453,
       activity_created_by_ingestion: false, session_result_notification_candidate: true, session_result_notification: { status: 'sent', attempted_at: '2026-09-10T10:33:00Z', sent_at: '2026-09-10T10:33:01Z', last_error: null }, attachment_sha256: 'abc123', diagnostic: { id: 'ingestion-123456789', status: 'processed' },
     }
-    const markup = renderToStaticMarkup(<IngestionOperationalDetail ingestion={detail} busy={false} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    const relatedSession = { ...session('active'), id: detail.session_id! }
+    const markup = renderToStaticMarkup(<IngestionOperationalDetail ingestion={detail} session={relatedSession} busy={false} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
 
-    for (const heading of ['Sailing', 'Source', 'Traceability', 'Processing', 'Outbound result', 'Actions', 'Advanced details', 'Read-only JSON']) expect(markup).toContain(heading)
+    for (const heading of ['Sailing', 'Source', 'Traceability', 'Processing', 'Outbound notification', 'Maintenance', 'Advanced details', 'Read-only JSON']) expect(markup).toContain(heading)
+    expect(markup).not.toContain('Outbound result')
     expect(markup).toContain('Reused existing Activity')
     expect(markup).toContain('Sent')
-    expect(markup).toContain('Outbound delivery does not change the ingestion result.')
+    expect(markup).toContain('Outbound notification delivery does not change the technical Ingestion result.')
     expect(markup).toContain('Pilot')
-    expect(markup).toContain('activity…')
-    expect(markup).toContain('session-…')
+    expect(markup).toMatch(/<span>Activity<\/span><strong>[^<]*2026[^<]*<\/strong>/)
+    expect(markup).toContain('3 Activities')
+    expect(markup).not.toContain('>activity…</strong>')
+    expect(markup).not.toContain('>session-…</strong>')
+    expect(markup).toContain('<h4>Technical traceability</h4>')
+    expect(markup).toContain('<dt>Sailor ID</dt><dd>sailor-123456789</dd>')
     expect(markup).toContain('&quot;status&quot;: &quot;processed&quot;')
     const notApplicable = renderToStaticMarkup(<IngestionOperationalDetail ingestion={{ ...detail, session_result_notification_candidate: false, session_result_notification: null }} busy={false} onFollow={() => undefined} />)
     const attempted = renderToStaticMarkup(<IngestionOperationalDetail ingestion={{ ...detail, session_result_notification: { status: 'attempted', attempted_at: '2026-09-10T10:33:00Z', sent_at: null, last_error: null } }} busy={false} onFollow={() => undefined} />)
@@ -463,31 +555,70 @@ describe('minimal Admin UI', () => {
   })
 
   it('separates Activity traceability relationships from source metadata', () => {
-    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={activity} onFollow={() => undefined} />)
-    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Source</h3>'))
-    const source = markup.slice(markup.indexOf('<h3>Source</h3>'), markup.indexOf('<h3>Maneuvers</h3>'))
+    const relatedSession = { ...session('active'), id: activity.session_id! }
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={activity} session={relatedSession} sourceIngestion={sourceIngestion} onFollow={() => undefined} />)
+    const source = markup.slice(markup.indexOf('<h3>Source</h3>'), markup.indexOf('<h3>Traceability</h3>'))
+    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Maneuvers</h3>'))
 
     expect(traceability).toContain('Sailor'); expect(traceability).toContain('Pilot'); expect(traceability).toContain('Boat'); expect(traceability).toContain('Zafar · Snipe · ESP 1'); expect(traceability).toContain('Session'); expect(traceability).toContain('<button class="admin-relation" type="button"><span>Source Ingestion</span>')
+    expect(traceability).toContain('3 Activities')
+    expect(traceability).toContain('pilot.csv.gz')
+    expect(traceability).not.toContain('>session-…</strong>')
+    expect(traceability).not.toContain('>ingestio…</strong>')
     expect(source).toContain('Provider/source'); expect(source).toContain('Device'); expect(source).toContain('Original filename'); expect(source).not.toContain('Source Ingestion')
     expect(markup).toContain('Track'); expect(markup).toContain('Maneuvers'); expect(markup).toContain('CURRENT'); expect(markup).toContain('>4</dd>'); expect(markup).toContain('Recalculate maneuvers'); expect(markup).toContain('<summary>Advanced</summary>'); expect(markup).toContain('<summary>Diagnostic JSON</summary>')
-    expect(markup.indexOf('<h3>Track</h3>')).toBeLessThan(markup.indexOf('<h3>Traceability</h3>')); expect(markup.indexOf('<h3>Traceability</h3>')).toBeLessThan(markup.indexOf('<h3>Source</h3>')); expect(markup.indexOf('<h3>Source</h3>')).toBeLessThan(markup.indexOf('<h3>Maneuvers</h3>')); expect(markup.indexOf('<h3>Maneuvers</h3>')).toBeLessThan(markup.indexOf('<summary>Advanced</summary>')); expect(markup.indexOf('<summary>Advanced</summary>')).toBeLessThan(markup.indexOf('<summary>Diagnostic JSON</summary>'))
+    expect(markup.indexOf('<h3>Track</h3>')).toBeLessThan(markup.indexOf('<h3>Source</h3>')); expect(markup.indexOf('<h3>Source</h3>')).toBeLessThan(markup.indexOf('<h3>Traceability</h3>')); expect(markup.indexOf('<h3>Traceability</h3>')).toBeLessThan(markup.indexOf('<h3>Maneuvers</h3>')); expect(markup.indexOf('<h3>Maneuvers</h3>')).toBeLessThan(markup.indexOf('<summary>Advanced</summary>')); expect(markup.indexOf('<summary>Advanced</summary>')).toBeLessThan(markup.indexOf('<summary>Diagnostic JSON</summary>'))
+    expect(markup).toContain('<h4>Technical traceability</h4>')
+    expect(markup).toContain('<h4>Technical track</h4>')
+    expect(markup).toContain('<dt>Sample count</dt>')
+    expect(markup).toMatch(/<dt>Duration<\/dt><dd>12[,.]720 s<\/dd>/)
+    expect(markup).toContain('<dt>Effective sample frequency</dt><dd>2 Hz</dd>')
+    expect(markup).toContain('<dt>Available telemetry channels</dt><dd>SOG · COG · HDG · HEEL · TRIM</dd>')
+    for (const id of [activity.id, activity.sailor_id, activity.session_id, activity.source_ingestion_id]) expect(markup).toContain(`<dd>${id}</dd>`)
     expect(markup).not.toContain('Map'); expect(markup).not.toContain('Metrics')
   })
 
   it('shows an absent source Ingestion as unavailable without a navigation control', () => {
     const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_id: null, source_ingestion_resolution: 'none' }} onFollow={() => undefined} />)
-    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Source</h3>'))
+    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Maneuvers</h3>'))
 
     expect(traceability).toContain('<span>Source Ingestion</span><strong>Unavailable</strong>')
-    expect(traceability).not.toContain('title="ingestion-')
+    expect(traceability).not.toContain('<button class="admin-relation" type="button"><span>Source Ingestion</span>')
+  })
+
+  it('keeps a single related non-authoritative Ingestion navigable without promoting its provenance', () => {
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_resolution: 'related' }} sourceIngestion={sourceIngestion} onFollow={() => undefined} />)
+    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Maneuvers</h3>'))
+    const advanced = markup.slice(markup.indexOf('<summary>Advanced</summary>'), markup.indexOf('<summary>Diagnostic JSON</summary>'))
+
+    expect(traceability).toContain('<button class="admin-relation" type="button"><span>Source Ingestion</span>')
+    expect(traceability).toContain('pilot.csv.gz')
+    expect(advanced).toContain(`<dt>Source Ingestion ID</dt><dd>${sourceIngestion.id}</dd>`)
+    expect(advanced).not.toContain('Related Ingestions')
+    expect(markup).not.toContain('AMBIGUOUS')
   })
 
   it('shows ambiguous related Ingestions without guessing a navigation target', () => {
-    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_id: null, source_ingestion_resolution: 'ambiguous' }} onFollow={() => undefined} />)
-    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Source</h3>'))
+    const candidates = [
+      { id: 'ingestion-candidate-one', attachment_name: 'track-12-09.csv.gz', received_at: '2026-09-12T17:25:00Z' },
+      { id: 'ingestion-candidate-two', attachment_name: 'track-copy.csv.gz', received_at: '2026-09-13T17:25:00Z' },
+    ]
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, source_ingestion_id: null, source_ingestion_resolution: 'ambiguous', related_ingestions: candidates }} onFollow={() => undefined} />)
+    const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Maneuvers</h3>'))
+    const advanced = markup.slice(markup.indexOf('<summary>Advanced</summary>'), markup.indexOf('<summary>Diagnostic JSON</summary>'))
 
     expect(traceability).toContain('<span>Source Ingestion</span><strong>Ambiguous · multiple related Ingestions</strong>')
-    expect(traceability).not.toContain('title="ingestion-')
+    expect(traceability).not.toContain('<button class="admin-relation" type="button"><span>Source Ingestion</span>')
+    expect(traceability).not.toContain('ingestion-candidate')
+    expect(advanced).toContain('<dt>Source Ingestion</dt><dd>AMBIGUOUS</dd>')
+    expect(advanced).toContain('Related Ingestions')
+    for (const candidate of candidates) {
+      expect(advanced).toContain(candidate.attachment_name)
+      expect(advanced).toContain(candidate.id)
+    }
+    expect(advanced).toContain('2026')
+    expect(advanced).not.toContain('<button')
+    expect(advanced).not.toContain('Source Ingestion ID')
   })
 
   it('exposes independent ingestion status and disposition filters', () => {
@@ -526,6 +657,7 @@ describe('Admin Ingestion search and Sailor filters', () => {
   })
 
   it.each([
+    ['Ingestion ID', 'two', 'two'],
     ['attachment name', 'shim', 'one'],
     ['sender email', 'JUAN@EXAMPLE', 'two'],
     ['resolved Sailor name', 'pérez', 'two'],
@@ -540,6 +672,52 @@ describe('Admin Ingestion search and Sailor filters', () => {
     expect(filterAdminIngestions(records, { status: 'failed', disposition: 'discarded', sailor: 'sailor-juan', search: 'BRAVO' }).map((item) => item.id)).toEqual(['two'])
     expect(filterAdminIngestions(records, { ...all, status: 'failed' }).map((item) => item.id)).toEqual(['two', 'three'])
     expect(filterAdminIngestions(records, { ...all, disposition: 'discarded' }).map((item) => item.id)).toEqual(['two'])
+  })
+})
+
+describe('shared Admin entity search', () => {
+  const secondActivity = {
+    ...activity,
+    id: 'activity-second',
+    sailor_id: 'sailor-2',
+    sailor_label: 'Leandro Alonso',
+    session_id: 'session-july',
+    source: 'garmin',
+    device_name: 'Quatix',
+    original_filename: 'leandro-track.fit',
+  }
+
+  it.each([
+    ['Sailor identity', 'pilot', activity.id],
+    ['Session ID', 'session-july', secondActivity.id],
+    ['Activity ID', 'activity-second', secondActivity.id],
+    ['source', 'GARMIN', secondActivity.id],
+    ['device', 'quatix', secondActivity.id],
+    ['original filename', 'leandro-track', secondActivity.id],
+  ])('filters Activities by %s', (_field, search, expected) => {
+    expect(filterAdminActivities([activity, secondActivity], search).map((item) => item.id)).toEqual([expected])
+  })
+
+  it('filters Sailors by name, email and diagnostic ID', () => {
+    const sailors = [sailor('active'), { ...sailor('revoked'), id: 'sailor-leandro', name: 'Leandro Alonso', email: 'lea@example.test' }]
+
+    expect(filterAdminSailors(sailors, 'leandro').map((item) => item.id)).toEqual(['sailor-leandro'])
+    expect(filterAdminSailors(sailors, 'LEA@').map((item) => item.id)).toEqual(['sailor-leandro'])
+    expect(filterAdminSailors(sailors, 'sailor-1').map((item) => item.id)).toEqual(['sailor-1'])
+  })
+
+  it.each(['Sep 2026', 'September 2026', 'Sep', 'September'])('matches useful Session date context for %s', (search) => {
+    const september = { ...session('active'), id: 'session-september', sailing_start: '2026-09-16T11:45:00Z', sailing_end: '2026-09-16T16:11:00Z' }
+    expect(filterAdminSessions([september], [], search).map((item) => item.id)).toEqual(['session-september'])
+  })
+
+  it('filters Sessions by ID and represented Sailor or Activity identity', () => {
+    const september = { ...session('active'), id: 'session-september', sailing_start: '2026-09-16T11:45:00Z', sailing_end: '2026-09-16T16:11:00Z' }
+    const member = { ...activity, session_id: september.id }
+
+    expect(filterAdminSessions([september], [member], 'session-sept').map((item) => item.id)).toEqual([september.id])
+    expect(filterAdminSessions([september], [member], 'Pilot').map((item) => item.id)).toEqual([september.id])
+    expect(filterAdminSessions([september], [member], 'activity-123').map((item) => item.id)).toEqual([september.id])
   })
 })
 

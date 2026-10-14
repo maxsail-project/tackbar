@@ -77,6 +77,7 @@ class AdminSailorSessionResponse(BaseModel):
     sailing_start: datetime | None
     sailing_end: datetime | None
     sailor_activity_count: int
+    total_activity_count: int
     expires_at: datetime
     capability_state: CapabilityState
     capability_path: str | None
@@ -180,6 +181,9 @@ class AdminActivitySummaryResponse(BaseModel):
     id: str
     sailor_id: str
     sailor_label: str
+    source: str
+    device_name: str
+    original_filename: str
     start_time: datetime
     end_time: datetime
     sample_count: int
@@ -195,6 +199,19 @@ class AdminManeuverStateResponse(BaseModel):
     current_algorithm_version: int
 
 
+class AdminActivityRelatedIngestionResponse(BaseModel):
+    id: str
+    attachment_name: str | None
+    received_at: datetime | None
+
+
+class AdminActivityTechnicalTrackResponse(BaseModel):
+    sample_count: int
+    duration_seconds: float
+    effective_sample_frequency_hz: float | None
+    available_channels: list[Literal["SOG", "COG", "HDG", "HEEL", "TRIM"]]
+
+
 class AdminActivityResponse(AdminActivitySummaryResponse):
     boat: AdminActivityBoatResponse | None
     source: str
@@ -206,6 +223,8 @@ class AdminActivityResponse(AdminActivitySummaryResponse):
     source_ingestion_resolution: Literal[
         "authoritative", "related", "none", "ambiguous"
     ]
+    related_ingestions: list[AdminActivityRelatedIngestionResponse]
+    technical_track: AdminActivityTechnicalTrackResponse | None
     maneuvers: AdminManeuverStateResponse
     diagnostic: dict[str, object]
 

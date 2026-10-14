@@ -62,6 +62,7 @@ export interface AdminSailorSession {
   sailing_start: string | null
   sailing_end: string | null
   sailor_activity_count: number
+  total_activity_count: number
   expires_at: string
   capability_state: CapabilityState
   capability_path: string | null
@@ -141,6 +142,9 @@ export interface AdminActivitySummary {
   id: string
   sailor_id: string
   sailor_label: string
+  source: string
+  device_name: string
+  original_filename: string
   start_time: string
   end_time: string
   sample_count: number
@@ -165,6 +169,17 @@ export interface AdminActivity extends AdminActivitySummary {
   track_available: boolean
   source_ingestion_id: string | null
   source_ingestion_resolution: 'authoritative' | 'related' | 'none' | 'ambiguous'
+  related_ingestions: Array<{
+    id: string
+    attachment_name: string | null
+    received_at: string | null
+  }>
+  technical_track: {
+    sample_count: number
+    duration_seconds: number
+    effective_sample_frequency_hz: number | null
+    available_channels: Array<'SOG' | 'COG' | 'HDG' | 'HEEL' | 'TRIM'>
+  } | null
   maneuvers: AdminManeuverState
   diagnostic: Record<string, unknown>
 }

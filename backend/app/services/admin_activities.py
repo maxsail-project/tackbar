@@ -2,10 +2,14 @@
 
 from dataclasses import asdict
 
+import pandas as pd
+
 from app.admin_api_models import (
     AdminActivityBoatResponse,
+    AdminActivityRelatedIngestionResponse,
     AdminActivityResponse,
     AdminActivitySummaryResponse,
+    AdminActivityTechnicalTrackResponse,
     AdminManeuverStateResponse,
 )
 from app.models import StoredActivity
@@ -73,7 +77,22 @@ class AdminActivityReader:
         source_ingestion_id = (
             source_ingestion["id"] if source_ingestion else None
         )
+        ambiguous_related_ingestions = (
+            [
+                AdminActivityRelatedIngestionResponse(
+                    id=record["id"],
+                    attachment_name=record["attachment_name"],
+                    received_at=record["received_at"],
+                )
+                for record in related_ingestions
+            ]
+            if source_ingestion_resolution == "ambiguous"
+            else []
+        )
         track_available = self.tracks.track_path(activity.id).is_file()
+        technical_track = (
+            self._technical_track(activity.id) if track_available else None
+        )
         diagnostic = {
             "id": activity.id,
             "sailor_id": activity.sailor_id,
@@ -98,13 +117,12 @@ class AdminActivityReader:
         return AdminActivityResponse(
             **summary.model_dump(),
             boat=AdminActivityBoatResponse(**boat.__dict__) if boat else None,
-            source=activity.source,
-            device_name=activity.device_name,
-            original_filename=activity.original_filename,
             attachment_sha256=activity.attachment_sha256,
             track_available=track_available,
             source_ingestion_id=source_ingestion_id,
             source_ingestion_resolution=source_ingestion_resolution,
+            related_ingestions=ambiguous_related_ingestions,
+            technical_track=technical_track,
             maneuvers=self._maneuver_state(activity.id),
             diagnostic=diagnostic,
         )
@@ -127,6 +145,9 @@ class AdminActivityReader:
             id=activity.id,
             sailor_id=activity.sailor_id,
             sailor_label=sailor.name or sailor.email,
+            source=activity.source,
+            device_name=activity.device_name,
+            original_filename=activity.original_filename,
             start_time=activity.start_time,
             end_time=activity.end_time,
             sample_count=activity.sample_count,
@@ -142,4 +163,37 @@ class AdminActivityReader:
                     self.analytics,
                 )
             )
+        )
+
+    def _technical_track(
+        self,
+        activity_id: str,
+    ) -> AdminActivityTechnicalTrackResponse:
+        track = self.tracks.read_normalized_track(activity_id)
+        timestamps = pd.to_datetime(track["utc"], format="mixed", utc=True)
+        duration_seconds = float(
+            (timestamps.max() - timestamps.min()).total_seconds()
+        )
+        sample_count = len(track)
+        frequency = (
+            (sample_count - 1) / duration_seconds
+            if sample_count > 1 and duration_seconds > 0
+            else None
+        )
+        available_channels = [
+            label
+            for label, column in (
+                ("SOG", "sog"),
+                ("COG", "cog"),
+                ("HDG", "hdg"),
+                ("HEEL", "heel"),
+                ("TRIM", "trim"),
+            )
+            if track[column].notna().any()
+        ]
+        return AdminActivityTechnicalTrackResponse(
+            sample_count=sample_count,
+            duration_seconds=duration_seconds,
+            effective_sample_frequency_hz=frequency,
+            available_channels=available_channels,
         )
