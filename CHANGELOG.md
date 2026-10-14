@@ -2,6 +2,167 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.10 Californian — Admin Operations & Traceability (Release-ready — production validation pending)
+
+### English
+
+Makes TackBar Admin a coherent operational surface for following an inbound
+track through Ingestion, Activity, Sailor and Session while preserving the
+existing pilot, domain and Viewer semantics.
+
+### Added
+
+* Activities are now a first-class Admin section with compact searchable
+  summaries, full-width operational detail, canonical track/source context,
+  Sailor, Session and source-Ingestion traceability, read-only diagnostics and
+  explicit maneuver-artifact status and recalculation.
+* Admin Activity traceability resolves an authoritative source Ingestion when
+  available, keeps a single reused or legacy relation navigable, represents
+  multiple non-authoritative candidates as ambiguous without guessing, and
+  exposes those candidates only as advanced diagnostic evidence.
+* All four top-level Admin entity lists provide consistent client-side search
+  over their already-loaded human-readable operational context, with exact IDs
+  retained as a secondary traceability aid.
+
+### Changed
+
+* Ingestions, Activities, Sailors and Sessions now use one compact
+  single-column list and full-width expanded-detail model. Cross-entity
+  relations navigate to each entity's owning section with human-readable
+  identity and consistent unavailable or ambiguous states.
+* Admin presentation now uses a shared interaction grammar that keeps data,
+  relations, actions, status and disclosure visually distinct across mobile,
+  tablet and desktop, with consistent fact grids, relation rows, section
+  hierarchy, maintenance groups and read-only diagnostics.
+* Ingestion detail more clearly separates what arrived, processing history,
+  outcome, produced Activity and related Sailor/Session context while
+  preserving processing, deduplication, disposition and reprocessing behavior.
+* Sailor detail now separates current state, consent, Personal TackBar access,
+  Activity/Session traceability, communication state and eligible maintenance
+  actions without changing consent or authorization semantics.
+* Session detail now distinguishes technical membership and current
+  shareability, original Session access, temporary QR access, lifetime and
+  maintenance. The normal Admin renewal value is 90 days while generic
+  lifetime-service behavior remains unchanged.
+* Existing Activity identity, Session matching and membership, ingestion
+  provenance, consent, ACTIVE-only visibility, capability and temporary-share
+  lifecycle, maneuver analytics, Viewer and persistence semantics remain
+  unchanged outside the completed Admin increments.
+
+### Issues
+
+- [#77](https://github.com/maxsail-project/tackbar/issues/77) — [#77] Review Admin Ingestion cards for operational readability and traceability
+- [#78](https://github.com/maxsail-project/tackbar/issues/78) — [#78] Review Admin Sailor cards for operational readability and traceability
+- [#79](https://github.com/maxsail-project/tackbar/issues/79) — [#79] Review Admin Session cards for operational readability and traceability
+- [#80](https://github.com/maxsail-project/tackbar/issues/80) — [#80] Introduce Activities as a first-class Admin operational section
+- [#81](https://github.com/maxsail-project/tackbar/issues/81) — [#81] Review and consolidate Admin cross-section UX/UI consistency
+
+### Validation
+
+Before release preparation, Issues #77, #79 and #80 recorded implementation
+review and manual validation PASS together with focused backend/frontend tests,
+frontend typecheck, frontend production build and `git diff --check` as
+applicable. Issue #78 was closed as completed for the Sailor increment, and
+Issue #81 recorded final manual Admin validation PASS across Ingestions,
+Activities, Sailors and Sessions after the consolidated interaction grammar
+and its documentation correction were accepted. No dependencies were added or
+removed.
+
+Release preparation performed release-range and completed-Issue
+reconciliation, documentation consistency, bilingual release-entry and
+publication-body equivalence review, final diff and whitespace checks, and
+repository/remote publication-state verification. The implementation checks
+were not rerun during this documentation-only preparation.
+
+Production deployment and end-to-end validation of the consolidated Admin
+workflows with real production pilot data remain pending. No tag, GitHub
+Release or production deployment is part of release preparation.
+
+---
+
+## v0.7.10 Californian — Operaciones y trazabilidad de Admin (Lista para release — validación de producción pendiente)
+
+### Español
+
+Convierte TackBar Admin en una superficie operativa coherente para seguir un
+track entrante a través de Ingestion, Activity, Sailor y Session, conservando
+las semánticas existentes del piloto, del dominio y del Viewer.
+
+### Añadido
+
+* Activities es ahora una sección Admin de primer nivel con resúmenes compactos
+  y buscables, detalle operativo a ancho completo, contexto de track canónico y
+  origen, trazabilidad hacia Sailor, Session e Ingestion de origen, diagnósticos
+  de solo lectura y estado y recálculo explícitos del artefacto de maniobras.
+* La trazabilidad Admin de Activity resuelve una Ingestion de origen autoritativa
+  cuando está disponible, mantiene navegable una única relación reutilizada o
+  legacy, representa múltiples candidatos no autoritativos como ambiguos sin
+  adivinar y expone esos candidatos solo como evidencia diagnóstica avanzada.
+* Las cuatro listas de entidades Admin de primer nivel ofrecen una búsqueda
+  client-side consistente sobre el contexto operativo legible ya cargado, con
+  los IDs exactos conservados como ayuda secundaria de trazabilidad.
+
+### Cambiado
+
+* Ingestions, Activities, Sailors y Sessions usan ahora un único modelo de lista
+  compacta de una columna y detalle expandido a ancho completo. Las relaciones
+  entre entidades navegan a la sección propietaria de cada entidad con identidad
+  legible y estados no disponibles o ambiguos consistentes.
+* La presentación Admin usa ahora una gramática de interacción compartida que
+  mantiene visualmente distintos datos, relaciones, acciones, estados y
+  disclosures en móvil, tablet y escritorio, con grids de hechos, filas de
+  relación, jerarquía de secciones, grupos de mantenimiento y diagnósticos de
+  solo lectura consistentes.
+* El detalle de Ingestion separa con más claridad lo recibido, el historial de
+  procesamiento, el resultado, la Activity producida y el contexto relacionado
+  de Sailor/Session, conservando el procesamiento, la deduplicación, la
+  disposición administrativa y el reprocesamiento.
+* El detalle de Sailor separa ahora estado actual, consentimiento, acceso a
+  Personal TackBar, trazabilidad de Activities/Sessions, comunicación y acciones
+  de mantenimiento elegibles sin cambiar las semánticas de consentimiento o
+  autorización.
+* El detalle de Session distingue ahora membresía técnica y compartibilidad
+  actual, acceso original a Session, acceso QR temporal, ciclo de vida y
+  mantenimiento. El valor normal de renovación en Admin es de 90 días, mientras
+  el comportamiento genérico del servicio de ciclo de vida permanece sin cambios.
+* Las semánticas existentes de identidad de Activity, matching y membresía de
+  Session, procedencia de Ingestion, consentimiento, visibilidad solo ACTIVE,
+  ciclo de vida de capabilities y shares temporales, analítica de maniobras,
+  Viewer y persistencia permanecen sin cambios fuera de los incrementos Admin
+  completados.
+
+### Issues
+
+- [#77](https://github.com/maxsail-project/tackbar/issues/77) — [#77] Review Admin Ingestion cards for operational readability and traceability
+- [#78](https://github.com/maxsail-project/tackbar/issues/78) — [#78] Review Admin Sailor cards for operational readability and traceability
+- [#79](https://github.com/maxsail-project/tackbar/issues/79) — [#79] Review Admin Session cards for operational readability and traceability
+- [#80](https://github.com/maxsail-project/tackbar/issues/80) — [#80] Introduce Activities as a first-class Admin operational section
+- [#81](https://github.com/maxsail-project/tackbar/issues/81) — [#81] Review and consolidate Admin cross-section UX/UI consistency
+
+### Validación
+
+Antes de preparar la release, los Issues #77, #79 y #80 registraron revisión de
+implementación y validación manual PASS junto con tests backend/frontend
+focalizados, typecheck frontend, build de producción frontend y
+`git diff --check` según correspondía. El Issue #78 se cerró como completado
+para el incremento de Sailor, y el Issue #81 registró la validación manual Admin
+final PASS en Ingestions, Activities, Sailors y Sessions tras aceptar la
+gramática de interacción consolidada y su corrección documental. No se
+añadieron ni eliminaron dependencias.
+
+La preparación de la release comprobó el rango de release y la reconciliación
+de Issues completados, la consistencia documental, la entrada bilingüe y la
+equivalencia del cuerpo de publicación, el diff final y los espacios en blanco,
+y el estado del repositorio, del remoto y de publicación. Los checks de
+implementación no se volvieron a ejecutar durante esta preparación solo
+documental.
+
+El despliegue en producción y la validación end-to-end de los flujos Admin
+consolidados con datos reales del piloto en producción siguen pendientes. La
+preparación no incluye ningún tag, GitHub Release ni despliegue a producción.
+
+---
+
 ## v0.7.9 Californian — Versus (VS) Analytics (Release-ready — production validation pending)
 
 ### English
