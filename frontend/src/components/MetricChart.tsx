@@ -298,18 +298,6 @@ export default function MetricChart({
             )}
             {isCog ? (
               <>
-                <Line
-                  type="linear"
-                  data={primaryCogPoints}
-                  dataKey="cog"
-                  name={primaryLabel}
-                  stroke={ACTIVITY_COLORS.primary}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                  connectNulls={false}
-                />
                 {comparisonSamples && (
                   <Line
                     type="linear"
@@ -317,6 +305,7 @@ export default function MetricChart({
                     dataKey="cog"
                     name={comparisonLabel ?? 'Compare'}
                     stroke={ACTIVITY_COLORS.comparison}
+                    strokeOpacity={0.55}
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 4 }}
@@ -324,59 +313,80 @@ export default function MetricChart({
                     connectNulls={false}
                   />
                 )}
+                <Line
+                  type="linear"
+                  data={primaryCogPoints}
+                  dataKey="cog"
+                  name={primaryLabel}
+                  stroke={ACTIVITY_COLORS.primary}
+                  strokeOpacity={comparisonSamples ? 0.85 : undefined}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                  connectNulls={false}
+                />
               </>
             ) : isSignedOrientation ? (
-              <Line
-                data={primaryScalarPoints}
-                type="linear"
-                dataKey="value"
-                name={primaryLabel}
-                stroke={ACTIVITY_COLORS.primary}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-                isAnimationActive={false}
-                connectNulls={false}
-              />
+              <>
+                {comparisonSamples && (
+                  <Line
+                    data={comparisonScalarPoints}
+                    type="linear"
+                    dataKey="value"
+                    name={comparisonLabel ?? 'Compare'}
+                    stroke={ACTIVITY_COLORS.comparison}
+                    strokeOpacity={0.55}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    isAnimationActive={false}
+                    connectNulls={false}
+                  />
+                )}
+                <Line
+                  data={primaryScalarPoints}
+                  type="linear"
+                  dataKey="value"
+                  name={primaryLabel}
+                  stroke={ACTIVITY_COLORS.primary}
+                  strokeOpacity={comparisonSamples ? 0.85 : undefined}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                  connectNulls={false}
+                />
+              </>
             ) : (
-              <Line
-                type="linear"
-                dataKey="primarySog"
-                name={primaryLabel}
-                stroke={ACTIVITY_COLORS.primary}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-                isAnimationActive={false}
-                connectNulls
-              />
-            )}
-            {isSignedOrientation && comparisonSamples && (
-              <Line
-                data={comparisonScalarPoints}
-                type="linear"
-                dataKey="value"
-                name={comparisonLabel ?? 'Compare'}
-                stroke={ACTIVITY_COLORS.comparison}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-                isAnimationActive={false}
-                connectNulls={false}
-              />
-            )}
-            {metric === 'SOG' && comparisonSamples && (
-              <Line
-                type="linear"
-                dataKey="comparisonSog"
-                name={comparisonLabel ?? 'Compare'}
-                stroke={ACTIVITY_COLORS.comparison}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-                isAnimationActive={false}
-                connectNulls
-              />
+              <>
+                {comparisonSamples && (
+                  <Line
+                    type="linear"
+                    dataKey="comparisonSog"
+                    name={comparisonLabel ?? 'Compare'}
+                    stroke={ACTIVITY_COLORS.comparison}
+                    strokeOpacity={0.55}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    isAnimationActive={false}
+                    connectNulls
+                  />
+                )}
+                <Line
+                  type="linear"
+                  dataKey="primarySog"
+                  name={primaryLabel}
+                  stroke={ACTIVITY_COLORS.primary}
+                  strokeOpacity={comparisonSamples ? 0.85 : undefined}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+              </>
             )}
           </LineChart>
         </ResponsiveContainer>
