@@ -385,7 +385,7 @@ export default function AdminPage() {
   if (!adminKey) return <AdminAccessForm onEnter={enter} error={error} busy={busy} />
 
   return <main className="admin-page">
-    <header className="admin-header"><div><TackBarBrand inverted /><span>Admin · Real Sailing Pilot</span></div><button onClick={refresh} disabled={busy}>Refresh</button></header>
+    <AdminHeader busy={busy} onRefresh={refresh} />
     <nav className="admin-tabs" aria-label="Admin sections">
       {ADMIN_SECTION_ORDER.map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => { setSection(item); setDrilldown([]) }}>{item[0].toUpperCase() + item.slice(1)}</button>)}
     </nav>
@@ -401,6 +401,11 @@ export default function AdminPage() {
       return <IngestionCard key={item.id} ingestion={item} detail={selected} session={sessions.find((session) => session.id === item.session_id)} busy={busy} onSelect={() => void selectIngestion(item.id)} onFollow={(kind, id) => void followRelation(kind, id)} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} onDiscard={() => void ingestionDispositionAction(item.id, () => discardIngestion(adminKey!, item.id))} onRestore={() => void ingestionDispositionAction(item.id, () => restoreIngestion(adminKey!, item.id))} />
     })}</div></>}</section>}
   </main>
+}
+
+export function AdminHeader({ busy, onRefresh, version = import.meta.env.VITE_APP_VERSION }: { busy: boolean, onRefresh: () => void, version?: string }) {
+  const releaseSuffix = version?.trim()
+  return <header className="admin-header"><div><TackBarBrand inverted /><span>Admin · Real Sailing Pilot{releaseSuffix ? ` · ${releaseSuffix}` : ''}</span></div><button onClick={onRefresh} disabled={busy}>Refresh</button></header>
 }
 
 export function IngestionSectionHeader({ busy, onReview }: { busy: boolean, onReview: () => void }) {

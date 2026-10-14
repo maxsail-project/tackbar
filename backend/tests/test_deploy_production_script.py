@@ -35,7 +35,7 @@ def test_frontend_preparation_restores_checkout_before_publication_on_failure():
     detection = script.index("frontend_manifests_changed=false")
     checkout = script.index('git checkout --detach "$target_ref"')
     verification = script.index("elif ! npm ls --all; then")
-    build = script.index("npm run build")
+    build = script.index('VITE_APP_VERSION="$target_tag" npm run build')
     restoration = script.index(
         'git -C "$checkout_dir" checkout --detach "$current_commit"'
     )
@@ -53,3 +53,4 @@ def test_frontend_preparation_restores_checkout_before_publication_on_failure():
     )
     assert 'if [ "$frontend_manifests_changed" = true ]; then' in script
     assert "npm ci || return" in script
+    assert script.count('VITE_APP_VERSION="$target_tag" npm run build') == 1

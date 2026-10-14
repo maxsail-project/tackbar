@@ -85,7 +85,7 @@ prepare_frontend() {
     npm ci || return
   fi
 
-  npm run build
+  VITE_APP_VERSION="$target_tag" npm run build
 }
 
 if prepare_frontend; then

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
+import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminHeader, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
@@ -34,6 +34,15 @@ describe('minimal Admin UI', () => {
   it('presents the Admin sections in operational order and starts at Ingestions', () => {
     expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'activities', 'sailors', 'sessions'])
     expect(DEFAULT_ADMIN_SECTION).toBe('ingestions')
+  })
+
+  it('shows the deployed release in the Admin header and preserves the local fallback', () => {
+    const deployed = renderToStaticMarkup(<AdminHeader busy={false} onRefresh={() => undefined} version="v0.7.10" />)
+    const local = renderToStaticMarkup(<AdminHeader busy={false} onRefresh={() => undefined} version="" />)
+
+    expect(deployed).toContain('Admin · Real Sailing Pilot · v0.7.10')
+    expect(local).toContain('Admin · Real Sailing Pilot</span>')
+    expect(local).not.toContain('Admin · Real Sailing Pilot ·')
   })
 
   it.each([
