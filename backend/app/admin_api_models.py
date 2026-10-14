@@ -209,7 +209,9 @@ class AdminActivityTechnicalTrackResponse(BaseModel):
     sample_count: int
     duration_seconds: float
     effective_sample_frequency_hz: float | None
-    available_channels: list[Literal["SOG", "COG", "HDG", "HEEL", "TRIM"]]
+    available_channels: list[
+        Literal["SOG", "COG", "HDG", "HEEL", "TRIM", "QUATERNION"]
+    ]
 
 
 class AdminActivityResponse(AdminActivitySummaryResponse):

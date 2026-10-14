@@ -191,6 +191,9 @@ class AdminActivityReader:
             )
             if track[column].notna().any()
         ]
+        quaternion_columns = ["quat_w", "quat_x", "quat_y", "quat_z"]
+        if track[quaternion_columns].notna().all(axis=1).any():
+            available_channels.append("QUATERNION")
         return AdminActivityTechnicalTrackResponse(
             sample_count=sample_count,
             duration_seconds=duration_seconds,

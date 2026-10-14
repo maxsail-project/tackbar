@@ -178,7 +178,7 @@ export interface AdminActivity extends AdminActivitySummary {
     sample_count: number
     duration_seconds: number
     effective_sample_frequency_hz: number | null
-    available_channels: Array<'SOG' | 'COG' | 'HDG' | 'HEEL' | 'TRIM'>
+    available_channels: Array<'SOG' | 'COG' | 'HDG' | 'HEEL' | 'TRIM' | 'QUATERNION'>
   } | null
   maneuvers: AdminManeuverState
   diagnostic: Record<string, unknown>

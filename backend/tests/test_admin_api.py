@@ -1621,6 +1621,56 @@ def test_admin_activity_detail_reports_canonical_technical_track_evidence(
     }
 
 
+@pytest.mark.parametrize(
+    ("quaternions", "expected_available"),
+    [
+        (
+            [
+                {"quat_w": 1.0, "quat_x": 0.1, "quat_y": 0.2, "quat_z": 0.3},
+                {},
+            ],
+            True,
+        ),
+        (
+            [
+                {"quat_w": 1.0, "quat_x": 0.1},
+                {"quat_y": 0.2, "quat_z": 0.3},
+            ],
+            False,
+        ),
+    ],
+)
+def test_admin_activity_technical_track_requires_one_complete_quaternion_sample(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    quaternions: list[dict[str, float]],
+    expected_available: bool,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    start = datetime(2026, 9, 12, 10, tzinfo=timezone.utc)
+    samples = [
+        {
+            "utc": (start + timedelta(seconds=index)).isoformat(),
+            "lat": 38.1 + index * 0.001,
+            "lon": -0.5 - index * 0.001,
+            **quaternion,
+        }
+        for index, quaternion in enumerate(quaternions)
+    ]
+    TrackStorage(root).write_normalized_track(
+        ACTIVITY_ACTIVE,
+        normalize_track(ACTIVITY_ACTIVE, samples),
+    )
+
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+
+    assert response.status_code == 200
+    channels = response.json["technical_track"]["available_channels"]
+    assert ("QUATERNION" in channels) is expected_available
+    if expected_available:
+        assert channels == ["QUATERNION"]
+
+
 def test_admin_activity_collection_is_newest_first_compact_and_protected(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,
