@@ -9,6 +9,7 @@ function sample(
   seconds: number,
   sog: number | null = 4,
   cog: number | null = 1,
+  heel: number | null = null,
 ): TrackSample {
   return {
     utc: new Date(BASE_TIME + seconds * 1_000).toISOString(),
@@ -18,7 +19,7 @@ function sample(
     sog,
     cog,
     hdg: null,
-    heel: null,
+    heel,
     trim: null,
   }
 }
@@ -32,6 +33,7 @@ function regularlySampled(frequencyHz: number) {
       seconds,
       seconds < 5 ? 4 : 6,
       seconds < 5 ? 359 : 91,
+      seconds < 5 ? -4 : 6,
     ))
   }
   return samples
@@ -49,6 +51,7 @@ function percentages(samples: TrackSample[]) {
   return {
     sog: result.sogBins.map((bin) => bin.primaryPercentage),
     cog: result.primary.cog.sectorPercentages,
+    heel: result.heelBins.map((bin) => bin.primaryPercentage),
   }
 }
 
@@ -62,11 +65,17 @@ describe('time-weighted VS distributions', () => {
     expect(oneHz.sog).toEqual(tenHz.sog)
     expect(twoHz.cog).toEqual(tenHz.cog)
     expect(oneHz.cog).toEqual(tenHz.cog)
+    expect(twoHz.heel).toEqual(tenHz.heel)
+    expect(oneHz.heel).toEqual(tenHz.heel)
     expect(tenHz.sog.reduce<number>(
       (total, percentage) => total + (percentage ?? 0),
       0,
     )).toBeCloseTo(100)
     expect(tenHz.cog.reduce((total, percentage) => total + percentage, 0)).toBeCloseTo(100)
+    expect(tenHz.heel.reduce<number>(
+      (total, percentage) => total + (percentage ?? 0),
+      0,
+    )).toBeCloseTo(100)
   })
 
   it('uses actual irregular interval durations', () => {
@@ -177,6 +186,127 @@ describe('time-weighted VS distributions', () => {
     expect(result.comparison).toBeNull()
     expect(result.sogBins[0].comparisonPercentage).toBeNull()
     expect(result.primary.sog.eligible).toBe(true)
+  })
+})
+
+describe('signed linear HEEL bins', () => {
+  it('preserves sign and places exact boundaries, including zero, in deterministic bins', () => {
+    const result = calculateVsDistributions([
+      sample(0, 4, 90, -4),
+      sample(1, 4, 90, -2),
+      sample(2, 4, 90, 0),
+      sample(3, 4, 90, 2),
+      sample(4, 4, 90, 20),
+    ], null, window(0, 4))
+
+    expect(result.heelBins.find((bin) => bin.start === -4)?.primaryPercentage).toBe(25)
+    expect(result.heelBins.find((bin) => bin.start === -2)?.primaryPercentage).toBe(25)
+    expect(result.heelBins.find((bin) => bin.start === 0)?.primaryPercentage).toBe(25)
+    expect(result.heelBins.find((bin) => bin.start === 2)?.primaryPercentage).toBe(25)
+    expect(result.primary.heel.binTimeSeconds.has(-1)).toBe(true)
+    expect(result.primary.heel.binTimeSeconds.has(0)).toBe(true)
+  })
+
+  it('expands one symmetric shared domain in 2° steps for eligible P/C extremes', () => {
+    const result = calculateVsDistributions(
+      [sample(0, 4, 90, -41), sample(1, 4, 90, -41)],
+      [sample(0, 4, 90, 43), sample(1, 4, 90, 43)],
+      window(0, 1),
+    )
+
+    expect(result.heelDomainMaximum).toBe(44)
+    expect(result.heelBins[0].start).toBe(-44)
+    expect(result.heelBins.at(-1)?.end).toBe(44)
+    expect(result.heelBins.find((bin) => bin.start === -42)?.primaryPercentage).toBe(100)
+    expect(result.heelBins.find((bin) => bin.start === 42)?.comparisonPercentage).toBe(100)
+  })
+
+  it('keeps the initial symmetric domain when eligible data stays within ±40°', () => {
+    const result = calculateVsDistributions([
+      sample(0, 4, 90, -40),
+      sample(1, 4, 90, 39.9),
+    ], null, window(0, 1))
+
+    expect(result.heelDomainMaximum).toBe(VS_CONFIG.heelInitialDomainDeg)
+    expect(result.heelBins[0].start).toBe(-40)
+    expect(result.heelBins.at(-1)?.end).toBe(40)
+  })
+
+  it('uses clipped real irregular intervals and excludes gaps above the VS maximum', () => {
+    const clipped = calculateVsDistributions([
+      sample(0, 4, 90, -2),
+      sample(0.5, 4, 90, 0),
+      sample(1.5, 4, 90, 2),
+      sample(3, 4, 90, 20),
+    ], null, window(0.25, 2.5))
+
+    expect(clipped.primary.heel.coverage).toBe(1)
+    expect(clipped.primary.heel.validTimeSeconds).toBe(2.25)
+    expect(clipped.heelBins.find((bin) => bin.start === -2)?.primaryPercentage)
+      .toBeCloseTo(0.25 / 2.25 * 100)
+    expect(clipped.heelBins.find((bin) => bin.start === 0)?.primaryPercentage)
+      .toBeCloseTo(1 / 2.25 * 100)
+    expect(clipped.heelBins.find((bin) => bin.start === 2)?.primaryPercentage)
+      .toBeCloseTo(1 / 2.25 * 100)
+
+    const gapped = calculateVsDistributions([
+      sample(0, 4, 90, -2),
+      sample(1.5, 4, 90, 0),
+      sample(3.01, 4, 90, 2),
+    ], null, window(0, 3.01))
+    expect(gapped.primary.heel.validTimeSeconds).toBe(1.5)
+    expect(gapped.primary.heel.coverage).toBeCloseTo(1.5 / 3.01)
+  })
+
+  it('treats missing and non-finite HEEL as unavailable without affecting SOG/COG', () => {
+    const result = calculateVsDistributions([
+      sample(0, 4, 90, null),
+      sample(1, 4, 90, Number.NaN),
+      sample(2, 4, 90, Number.POSITIVE_INFINITY),
+      sample(3, 4, 90, -2),
+      sample(4, 4, 90, 0),
+    ], null, window(0, 4))
+
+    expect(result.primary.heel.coverage).toBe(0.25)
+    expect(result.primary.heel.eligible).toBe(false)
+    expect(result.primary.sog.coverage).toBe(1)
+    expect(result.primary.cog.coverage).toBe(1)
+  })
+
+  it('applies coverage eligibility independently and preserves partial P/C availability', () => {
+    const primarySamples = Array.from({ length: 11 }, (_unused, seconds) => (
+      sample(seconds, 4, 90, seconds < 8 ? -2 : null)
+    ))
+    const comparisonSamples = Array.from({ length: 11 }, (_unused, seconds) => (
+      sample(seconds, 4, 90, seconds < 7 ? 2 : null)
+    ))
+    const result = calculateVsDistributions(
+      primarySamples,
+      comparisonSamples,
+      window(0, 10),
+    )
+
+    expect(result.primary.heel.coverage).toBe(VS_CONFIG.minCoverage)
+    expect(result.primary.heel.eligible).toBe(true)
+    expect(result.comparison?.heel.coverage).toBe(0.7)
+    expect(result.comparison?.heel.eligible).toBe(false)
+    expect(result.heelBins.find((bin) => bin.start === -2)?.primaryPercentage).toBe(100)
+    expect(result.heelBins.every((bin) => bin.comparisonPercentage === null)).toBe(true)
+  })
+
+  it('returns Primary-only HEEL without changing existing SOG/COG results', () => {
+    const result = calculateVsDistributions([
+      sample(0, 4, 359, -2),
+      sample(1, 6, 91, 2),
+      sample(2, 8, 180, 4),
+    ], null, window(0, 2))
+
+    expect(result.comparison).toBeNull()
+    expect(result.heelBins.every((bin) => bin.comparisonPercentage === null)).toBe(true)
+    expect(result.sogBins.find((bin) => bin.start === 4)?.primaryPercentage).toBe(50)
+    expect(result.sogBins.find((bin) => bin.start === 6)?.primaryPercentage).toBe(50)
+    expect(result.primary.cog.sectorPercentages[cogSectorIndex(359, 10)]).toBe(50)
+    expect(result.primary.cog.sectorPercentages[cogSectorIndex(91, 10)]).toBe(50)
   })
 })
 

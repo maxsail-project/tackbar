@@ -6,6 +6,7 @@ import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import {
   calculateVsDistributions,
   type ActivityVsDistribution,
+  type HeelDistributionBin,
   type MetricDistribution,
   type SogDistributionBin,
 } from '../utils/vsDistribution'
@@ -62,7 +63,7 @@ function UnavailableMessages({
   comparison,
 }: {
   title: string
-  metric: 'SOG' | 'COG'
+  metric: 'SOG' | 'COG' | 'HEEL'
   primary: MetricDistribution
   comparison: MetricDistribution | null
 }) {
@@ -371,6 +372,206 @@ function CogRose({
   )
 }
 
+function semicirclePoint(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  angleDegrees: number,
+) {
+  const radians = angleDegrees * Math.PI / 180
+  return {
+    x: centerX + radius * Math.sin(radians),
+    y: centerY - radius * Math.cos(radians),
+  }
+}
+
+export function heelAngleDegrees(heel: number, domainMaximum: number) {
+  return heel / domainMaximum * 90
+}
+
+function semicircleArcPath(centerX: number, centerY: number, radius: number) {
+  const start = semicirclePoint(centerX, centerY, radius, -90)
+  const end = semicirclePoint(centerX, centerY, radius, 90)
+  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 0 1 ${end.x} ${end.y}`
+}
+
+function heelSectorPath(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  startAngle: number,
+  endAngle: number,
+) {
+  const start = semicirclePoint(centerX, centerY, radius, startAngle)
+  const end = semicirclePoint(centerX, centerY, radius, endAngle)
+  return [
+    `M ${centerX} ${centerY}`,
+    `L ${start.x} ${start.y}`,
+    `A ${radius} ${radius} 0 0 1 ${end.x} ${end.y}`,
+    'Z',
+  ].join(' ')
+}
+
+function formatSignedDegrees(value: number) {
+  const formatted = Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 1 })
+  if (value < 0) return `-${formatted}°`
+  if (value > 0) return `+${formatted}°`
+  return '0°'
+}
+
+function HeelSemicircle({
+  bins,
+  domainMaximum,
+}: {
+  bins: HeelDistributionBin[]
+  domainMaximum: number
+}) {
+  const {
+    heelWidth: width,
+    heelHeight: height,
+    heelRadius: radius,
+    heelCenterY: centerY,
+  } = VS_CONFIG
+  const centerX = width / 2
+  let maxPercentage = 0
+  bins.forEach((bin) => {
+    maxPercentage = Math.max(
+      maxPercentage,
+      bin.primaryPercentage ?? 0,
+      bin.comparisonPercentage ?? 0,
+    )
+  })
+  const scaleMaximum = nicePercentageCeiling(maxPercentage)
+  const radialLabelPoint = semicirclePoint(
+    centerX,
+    centerY,
+    radius,
+    VS_CONFIG.heelRadialLabelAngle,
+  )
+  const renderSectors = (
+    role: 'comparison' | 'primary',
+    color: string,
+    opacity: number,
+    strokeWidth: number,
+  ) => bins.map((bin) => {
+    const percentage = role === 'primary'
+      ? bin.primaryPercentage
+      : bin.comparisonPercentage
+    return percentage !== null && percentage > 0 && (
+      <path
+        data-activity-role={role}
+        data-heel-bin={`${bin.start}:${bin.end}`}
+        key={`${role}-${bin.start}`}
+        d={heelSectorPath(
+          centerX,
+          centerY,
+          percentage / scaleMaximum * radius,
+          heelAngleDegrees(bin.start, domainMaximum),
+          heelAngleDegrees(bin.end, domainMaximum),
+        )}
+        fill={color}
+        fillOpacity={opacity}
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+    )
+  })
+  const degreeLabels = [
+    -domainMaximum,
+    -domainMaximum / 2,
+    0,
+    domainMaximum / 2,
+    domainMaximum,
+  ]
+
+  return (
+    <svg
+      className="vs-distribution__semicircle"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label="Time-weighted signed HEEL semicircular distribution"
+    >
+      {Array.from({ length: VS_CONFIG.heelRingCount }, (_unused, index) => (
+        <path
+          data-guide="heel"
+          key={index}
+          d={semicircleArcPath(
+            centerX,
+            centerY,
+            radius * (index + 1) / (VS_CONFIG.heelRingCount + 1),
+          )}
+          fill="none"
+          stroke={VS_CONFIG.guideColor}
+          strokeWidth={VS_CONFIG.guideStrokeWidth}
+        />
+      ))}
+      <path
+        data-guide="heel-boundary"
+        d={semicircleArcPath(centerX, centerY, radius)}
+        className="vs-distribution__axis"
+      />
+      <line
+        data-guide="heel-axis"
+        x1={centerX - radius}
+        y1={centerY}
+        x2={centerX + radius}
+        y2={centerY}
+        className="vs-distribution__axis"
+      />
+      <line
+        data-guide="heel-axis"
+        x1={centerX}
+        y1={centerY}
+        x2={centerX}
+        y2={centerY - radius}
+        className="vs-distribution__axis"
+      />
+      {renderSectors(
+        'comparison',
+        ACTIVITY_COLORS.comparison,
+        VS_CONFIG.comparisonOpacity,
+        VS_CONFIG.comparisonStrokeWidth,
+      )}
+      {renderSectors(
+        'primary',
+        ACTIVITY_COLORS.primary,
+        VS_CONFIG.primaryOpacity,
+        VS_CONFIG.primaryStrokeWidth,
+      )}
+      <text
+        x={radialLabelPoint.x - VS_CONFIG.heelRadialLabelOffset}
+        y={radialLabelPoint.y}
+        textAnchor="end"
+        dominantBaseline="middle"
+        className="vs-distribution__tick vs-distribution__heel-radial-label"
+      >
+        {formatPercentageTick(scaleMaximum)}
+      </text>
+      {degreeLabels.map((degrees) => {
+        const point = semicirclePoint(
+          centerX,
+          centerY,
+          radius + VS_CONFIG.heelDegreeLabelOffset,
+          heelAngleDegrees(degrees, domainMaximum),
+        )
+        return (
+          <text
+            data-heel-degree={degrees}
+            key={degrees}
+            x={point.x}
+            y={point.y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className="vs-distribution__angular-label"
+          >
+            {formatSignedDegrees(degrees)}
+          </text>
+        )
+      })}
+    </svg>
+  )
+}
+
 export default function VsDistributionView({
   primarySamples,
   comparisonSamples,
@@ -384,9 +585,10 @@ export default function VsDistributionView({
     ),
     [analysisWindow, comparisonSamples, primarySamples],
   )
-  const { primary, comparison, sogBins } = distributions
+  const { primary, comparison, sogBins, heelBins, heelDomainMaximum } = distributions
   const hasSog = primary.sog.eligible || comparison?.sog.eligible === true
   const hasCog = primary.cog.eligible || comparison?.cog.eligible === true
+  const hasHeel = primary.heel.eligible || comparison?.heel.eligible === true
 
   return (
     <section className="vs-distribution" aria-label="VS Analysis Window distributions">
@@ -420,6 +622,22 @@ export default function VsDistributionView({
           metric="COG"
           primary={primary.cog}
           comparison={comparison?.cog ?? null}
+        />
+      </article>
+      <article className="vs-distribution__panel">
+        <header>
+          <strong>Heel distribution</strong>
+          <span>Time-weighted signed HEEL</span>
+        </header>
+        <Coverage primary={primary.heel} comparison={comparison?.heel ?? null} />
+        {hasHeel
+          ? <HeelSemicircle bins={heelBins} domainMaximum={heelDomainMaximum} />
+          : <p className="vs-distribution__empty">Heel distribution unavailable</p>}
+        <UnavailableMessages
+          title="Heel distribution"
+          metric="HEEL"
+          primary={primary.heel}
+          comparison={comparison?.heel ?? null}
         />
       </article>
     </section>

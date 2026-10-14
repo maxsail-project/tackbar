@@ -17,12 +17,25 @@ export interface CogDistribution extends MetricDistribution {
   sectorPercentages: number[]
 }
 
+export interface HeelDistribution extends MetricDistribution {
+  binTimeSeconds: ReadonlyMap<number, number>
+}
+
 export interface ActivityVsDistribution {
   sog: SogDistribution
   cog: CogDistribution
+  heel: HeelDistribution
 }
 
 export interface SogDistributionBin {
+  start: number
+  end: number
+  center: number
+  primaryPercentage: number | null
+  comparisonPercentage: number | null
+}
+
+export interface HeelDistributionBin {
   start: number
   end: number
   center: number
@@ -34,6 +47,8 @@ export interface VsDistributions {
   primary: ActivityVsDistribution
   comparison: ActivityVsDistribution | null
   sogBins: SogDistributionBin[]
+  heelBins: HeelDistributionBin[]
+  heelDomainMaximum: number
 }
 
 interface VsCalculationConfig {
@@ -41,6 +56,8 @@ interface VsCalculationConfig {
   maxGapSeconds: number
   sogBinKt: number
   cogBinDeg: number
+  heelBinDeg: number
+  heelInitialDomainDeg: number
 }
 
 interface MutableActivityDistribution {
@@ -48,6 +65,8 @@ interface MutableActivityDistribution {
   sogValidTimeMs: number
   cogSectorTimeMs: number[]
   cogValidTimeMs: number
+  heelBinTimeMs: Map<number, number>
+  heelValidTimeMs: number
 }
 
 function normalizeCog(cog: number) {
@@ -85,6 +104,8 @@ function emptyMutableDistribution(cogBinCount: number): MutableActivityDistribut
     sogValidTimeMs: 0,
     cogSectorTimeMs: Array<number>(cogBinCount).fill(0),
     cogValidTimeMs: 0,
+    heelBinTimeMs: new Map(),
+    heelValidTimeMs: 0,
   }
 }
 
@@ -125,6 +146,15 @@ function accumulateActivity(
       result.cogSectorTimeMs[binIndex] += representedDt
       result.cogValidTimeMs += representedDt
     }
+
+    if (sample.heel !== null && Number.isFinite(sample.heel)) {
+      const binIndex = Math.floor(sample.heel / config.heelBinDeg)
+      result.heelBinTimeMs.set(
+        binIndex,
+        (result.heelBinTimeMs.get(binIndex) ?? 0) + representedDt,
+      )
+      result.heelValidTimeMs += representedDt
+    }
   }
 
   return result
@@ -141,6 +171,7 @@ function finalizeActivity(
 ): ActivityVsDistribution {
   const sogCoverage = coverage(distribution.sogValidTimeMs, windowDurationMs)
   const cogCoverage = coverage(distribution.cogValidTimeMs, windowDurationMs)
+  const heelCoverage = coverage(distribution.heelValidTimeMs, windowDurationMs)
 
   return {
     sog: {
@@ -160,6 +191,14 @@ function finalizeActivity(
           ? timeMs / distribution.cogValidTimeMs * 100
           : 0
       )),
+    },
+    heel: {
+      coverage: heelCoverage,
+      eligible: heelCoverage >= config.minCoverage,
+      validTimeSeconds: distribution.heelValidTimeMs / 1_000,
+      binTimeSeconds: new Map(
+        Array.from(distribution.heelBinTimeMs, ([bin, timeMs]) => [bin, timeMs / 1_000]),
+      ),
     },
   }
 }
@@ -214,6 +253,52 @@ function buildSharedSogBins(
   return bins
 }
 
+function eligibleHeelDomainBins(
+  distribution: ActivityVsDistribution,
+): number | null {
+  if (!distribution.heel.eligible || distribution.heel.binTimeSeconds.size === 0) return null
+
+  let domainBins = 0
+  distribution.heel.binTimeSeconds.forEach((_time, bin) => {
+    domainBins = Math.max(domainBins, bin < 0 ? -bin : bin + 1)
+  })
+  return domainBins
+}
+
+function buildSharedHeelBins(
+  primary: ActivityVsDistribution,
+  comparison: ActivityVsDistribution | null,
+  binSize: number,
+  initialDomain: number,
+) {
+  const initialDomainBins = Math.ceil(initialDomain / binSize)
+  const domainBins = Math.max(
+    initialDomainBins,
+    eligibleHeelDomainBins(primary) ?? 0,
+    comparison ? eligibleHeelDomainBins(comparison) ?? 0 : 0,
+  )
+  const bins: HeelDistributionBin[] = []
+
+  for (let bin = -domainBins; bin < domainBins; bin += 1) {
+    bins.push({
+      start: bin * binSize,
+      end: (bin + 1) * binSize,
+      center: (bin + 0.5) * binSize,
+      primaryPercentage: primary.heel.eligible && primary.heel.validTimeSeconds > 0
+        ? (primary.heel.binTimeSeconds.get(bin) ?? 0) / primary.heel.validTimeSeconds * 100
+        : null,
+      comparisonPercentage: comparison?.heel.eligible && comparison.heel.validTimeSeconds > 0
+        ? (comparison.heel.binTimeSeconds.get(bin) ?? 0) / comparison.heel.validTimeSeconds * 100
+        : null,
+    })
+  }
+
+  return {
+    bins,
+    domainMaximum: domainBins * binSize,
+  }
+}
+
 export function calculateVsDistributions(
   primarySamples: TrackSample[],
   comparisonSamples: TrackSample[] | null,
@@ -224,6 +309,15 @@ export function calculateVsDistributions(
   validateCogBinSize(config.cogBinDeg)
   if (!Number.isFinite(config.sogBinKt) || config.sogBinKt <= 0) {
     throw new Error('SOG bin size must be positive')
+  }
+  if (!Number.isFinite(config.heelBinDeg) || config.heelBinDeg <= 0) {
+    throw new Error('HEEL bin size must be positive')
+  }
+  if (
+    !Number.isFinite(config.heelInitialDomainDeg)
+    || config.heelInitialDomainDeg <= 0
+  ) {
+    throw new Error('HEEL initial domain must be positive')
   }
 
   const windowDurationMs = window.end - window.start
@@ -239,10 +333,18 @@ export function calculateVsDistributions(
         windowDurationMs,
         config,
       )
+  const heel = buildSharedHeelBins(
+    primary,
+    comparison,
+    config.heelBinDeg,
+    config.heelInitialDomainDeg,
+  )
 
   return {
     primary,
     comparison,
     sogBins: buildSharedSogBins(primary, comparison, config.sogBinKt),
+    heelBins: heel.bins,
+    heelDomainMaximum: heel.domainMaximum,
   }
 }
