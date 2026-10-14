@@ -518,7 +518,7 @@ describe('minimal Admin UI', () => {
     expect(processed).toContain('state-badge state-active')
   })
 
-  it('puts the sailing interval and sample count ahead of operational metadata', () => {
+  it('keeps the receipt timestamp distinct from sailing context in the compact summary', () => {
     const ingestion: AdminIngestion = {
       id: 'ing-2', provider: 'gmail', provider_message_id: 'message-2', sender_email: 'leandro@example.test',
       received_at: '2026-09-07T16:13:00Z', attachment_name: 'Vakaros Lea 32050.csv.gz', status: 'processed', disposition: 'active',
@@ -528,9 +528,11 @@ describe('minimal Admin UI', () => {
     const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} busy={false} onSelect={() => undefined} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
 
     expect(markup).toContain('admin-ingestion-summary__context')
+    expect(markup).toMatch(/leandro@example\.test · gmail · [^<]*2026[^<]*<\/p>/)
+    expect(markup).toMatch(/Sailing <strong>[^<]*2026<\/strong>/)
     expect(markup).toMatch(/25[,.]453 samples/)
-    expect(markup).not.toContain('Received')
     expect(markup).not.toContain('Attempts')
+    expect(markup.indexOf('leandro@example.test · gmail')).toBeLessThan(markup.indexOf('Sailing <strong>'))
   })
 
   it('groups expanded ingestion operations, traceability, outbound notification and diagnostics', () => {
@@ -540,12 +542,22 @@ describe('minimal Admin UI', () => {
     }
     const relatedSession = { ...session('active'), id: detail.session_id! }
     const markup = renderToStaticMarkup(<IngestionOperationalDetail ingestion={detail} session={relatedSession} busy={false} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    const source = markup.slice(markup.indexOf('<h3>Source</h3>'), markup.indexOf('<h3>Traceability</h3>'))
+    const processing = markup.slice(markup.indexOf('<h3>Processing</h3>'), markup.indexOf('<h3>Outbound notification</h3>'))
+    const outbound = markup.slice(markup.indexOf('<h3>Outbound notification</h3>'), markup.indexOf('</section>', markup.indexOf('<h3>Outbound notification</h3>')))
 
     for (const heading of ['Sailing', 'Source', 'Traceability', 'Processing', 'Outbound notification', 'Maintenance', 'Advanced details', 'Read-only JSON']) expect(markup).toContain(heading)
+    expect(source).toContain('<dt>Email received</dt><dd>')
+    expect(source).toContain('2026')
+    expect(processing).not.toContain('<dt>Received</dt>')
+    expect(processing).toContain('<dt>Last attempt</dt><dd>')
     expect(markup).not.toContain('Outbound result')
     expect(markup).toContain('Reused existing Activity')
     expect(markup).toContain('Sent')
     expect(markup).toContain('Outbound notification delivery does not change the technical Ingestion result.')
+    expect(outbound).toContain('<strong>Status:</strong> Sent')
+    expect(outbound).toContain('<strong>Attempted:</strong>')
+    expect(outbound).toContain('<strong>Sent:</strong>')
     expect(markup).toContain('Pilot')
     expect(markup).toMatch(/<span>Activity<\/span><strong>[^<]*2026[^<]*<\/strong>/)
     expect(markup).toContain('3 Activities')
