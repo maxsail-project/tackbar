@@ -256,6 +256,28 @@ If operators repeatedly need JSON to answer a normal operational question, promo
 
 ---
 
+## Interaction grammar
+
+Every visible Admin element should have a clear semantic role.
+
+The primary roles are:
+
+```text
+DATA
+RELATION
+ACTION
+STATUS
+DISCLOSURE
+```
+
+These roles must remain visually distinguishable.
+
+The semantic role of an element is more important than the entity in which it appears.
+
+A Sailor relation, Activity relation, Session relation or Ingestion relation should therefore use the same interaction language when they perform the same kind of navigation.
+
+---
+
 ## Data
 
 Data is read-only information.
