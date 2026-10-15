@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { COG_SIGNAL_TUNING } from '../config/cogSignal'
+import { HEEL_SIGNAL_TUNING } from '../config/heelSignal'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
 import type { SailingMetric } from '../types/session'
 import type { TrackSample } from '../types/track'
@@ -107,6 +108,16 @@ function cogLegendRoleTag(markup: string, role: string) {
   const tag = markup.match(new RegExp(`<line[^>]*data-cog-legend-role="${role}"[^>]*>`))?.[0]
   expect(tag).toBeDefined()
   return tag ?? ''
+}
+
+function heelSeriesTag(markup: string, series: string) {
+  const tag = markup.match(new RegExp(`<path[^>]*data-heel-series="${series}"[^>]*>`))?.[0]
+  expect(tag).toBeDefined()
+  return tag ?? ''
+}
+
+function heelSeriesPath(markup: string, series: string) {
+  return heelSeriesTag(markup, series).match(/ d="([^"]+)"/)?.[1] ?? ''
 }
 
 describe('MetricChart series rendering hierarchy', () => {
@@ -348,8 +359,104 @@ describe('MetricChart series rendering hierarchy', () => {
     expect(markup).not.toContain('data-recharts-tooltip')
   })
 
-  it.each(['HEEL', 'TRIM'] as const)('preserves Recharts Comparison below Primary for %s', (metric) => {
-    const markup = renderChart(metric, true)
+  it('renders P/C HEEL as native SVG in Comparison then Primary order', () => {
+    const markup = renderChart('HEEL', true)
+    const series = [...markup.matchAll(/data-heel-series="([^"]+)"/g)]
+      .map((match) => match[1])
+
+    expect(markup).toContain('<svg viewBox="0 0 1000 200"')
+    expect(markup).not.toContain('data-recharts-chart')
+    expect(series).toEqual(['comparison', 'primary'])
+    expect(heelSeriesTag(markup, 'comparison'))
+      .toContain(`stroke="${ACTIVITY_COLORS.comparison}"`)
+    expect(heelSeriesTag(markup, 'primary'))
+      .toContain(`stroke="${ACTIVITY_COLORS.primary}"`)
+  })
+
+  it('renders P-only HEEL with the same configured raw trace treatment', () => {
+    const markup = renderChart('HEEL', false)
+    const primary = heelSeriesTag(markup, 'primary')
+    const traceStyle = `stroke-width="${HEEL_SIGNAL_TUNING.traceStrokeWidth}" stroke-opacity="${HEEL_SIGNAL_TUNING.traceOpacity}"`
+
+    expect([...markup.matchAll(/data-heel-series="([^"]+)"/g)].map((match) => match[1]))
+      .toEqual(['primary'])
+    expect(primary).toContain(traceStyle)
+  })
+
+  it('uses equal P/C HEEL styling from centralized tuning', () => {
+    const markup = renderChart('HEEL', true)
+    const traceStyle = `stroke-width="${HEEL_SIGNAL_TUNING.traceStrokeWidth}" stroke-opacity="${HEEL_SIGNAL_TUNING.traceOpacity}"`
+
+    expect(HEEL_SIGNAL_TUNING).toEqual({
+      traceOpacity: 0.6,
+      traceStrokeWidth: 0.8,
+      rawPointBudget: 800,
+    })
+    expect(heelSeriesTag(markup, 'comparison')).toContain(traceStyle)
+    expect(heelSeriesTag(markup, 'primary')).toContain(traceStyle)
+  })
+
+  it('reduces the rendered HEEL path to the configured point budget', () => {
+    const denseSamples = Array.from({ length: 900 }, (_, index): TrackSample => ({
+      ...samples[0],
+      utc: new Date(Date.parse(samples[0].utc) + index * 100).toISOString(),
+      heel: (index % 21) - 10,
+    }))
+    const markup = renderChart('HEEL', false, denseSamples)
+
+    expect(heelSeriesPath(markup, 'primary').match(/[ML]/g))
+      .toHaveLength(HEEL_SIGNAL_TUNING.rawPointBudget)
+  })
+
+  it('keeps signed HEEL, the zero reference, and the playback cursor visible', () => {
+    const chartSamples: TrackSample[] = [
+      { ...samples[0], utc: '2026-09-05T12:00:00Z', heel: -10 },
+      { ...samples[0], utc: '2026-09-05T12:00:01Z', heel: null },
+      { ...samples[0], utc: '2026-09-05T12:00:02Z', heel: 10 },
+    ]
+    const markup = renderChart(
+      'HEEL',
+      false,
+      chartSamples,
+      Date.parse('2026-09-05T12:00:01Z'),
+    )
+
+    expect(heelSeriesPath(markup, 'primary'))
+      .toBe('M0.00,192.00 M1000.00,8.00')
+    expect(markup).toContain('data-heel-zero-reference="true"')
+    expect(markup).toContain('y1="100" y2="100"')
+    expect(markup).toContain('data-heel-playback-cursor="true" x1="500" x2="500"')
+  })
+
+  it('updates the native-SVG HEEL UTC axis from Analysis Window-filtered samples', () => {
+    const full = renderChart('HEEL', false, [
+      { ...samples[0], utc: '2026-09-05T12:00:00Z' },
+      { ...samples[0], utc: '2026-09-05T12:00:10Z' },
+    ])
+    const narrowed = renderChart('HEEL', false, [
+      { ...samples[0], utc: '2026-09-05T12:00:02Z' },
+      { ...samples[0], utc: '2026-09-05T12:00:08Z' },
+    ])
+
+    expect(full).toContain('>12:00:00</time>')
+    expect(full).toContain('>12:00:10</time>')
+    expect(narrowed).toContain('>12:00:02</time>')
+    expect(narrowed).toContain('>12:00:08</time>')
+  })
+
+  it('has no HEEL local zoom, Reset, Recharts chart, tooltip, or smoothing role', () => {
+    const markup = renderChart('HEEL', false)
+
+    expect(markup).toContain('class="heel-signal-chart__x-axis"')
+    expect(markup).not.toContain('metric-chart__reset')
+    expect(markup).not.toContain('>Reset</button>')
+    expect(markup).not.toContain('data-recharts-chart')
+    expect(markup).not.toContain('data-recharts-tooltip')
+    expect(markup).not.toContain('Smoothed')
+  })
+
+  it('preserves Recharts Comparison below Primary for TRIM', () => {
+    const markup = renderChart('TRIM', true)
 
     expect(markup).toContain('data-recharts-chart="true"')
     expect(markup.indexOf('data-series="Comparison"')).toBeLessThan(markup.indexOf('data-series="Primary"'))
@@ -357,8 +464,8 @@ describe('MetricChart series rendering hierarchy', () => {
     expect(markup).toContain('data-series="Primary" data-stroke-opacity="0.85"')
   })
 
-  it.each(['HEEL', 'TRIM'] as const)('preserves full-opacity Recharts Primary-only rendering for %s', (metric) => {
-    const markup = renderChart(metric, false)
+  it('preserves full-opacity Recharts Primary-only rendering for TRIM', () => {
+    const markup = renderChart('TRIM', false)
 
     expect(markup).toContain('data-series="Primary"')
     expect(markup).not.toContain('data-series="Comparison"')

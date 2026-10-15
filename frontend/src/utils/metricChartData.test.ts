@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { COG_SIGNAL_TUNING } from '../config/cogSignal'
+import { HEEL_SIGNAL_TUNING } from '../config/heelSignal'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
 import { SAILING_METRICS } from '../types/session'
 import type { TrackSample } from '../types/track'
@@ -7,6 +8,8 @@ import {
   buildCogChartPoints,
   buildCanonicalCogChartPoints,
   buildCogSignalPath,
+  buildHeelChartPoints,
+  buildHeelSignalPath,
   buildSmoothedCogChartPoints,
   buildScalarChartPoints,
   buildSogChartPoints,
@@ -14,6 +17,9 @@ import {
   buildSogTrendPoints,
   reduceRawSogChartPoints,
   reduceRawCogChartPoints,
+  reduceRawHeelChartPoints,
+  resolveHeelSignalDomain,
+  heelSignalXPosition,
   sogSignalXPosition,
   type ScalarChartMetric,
 } from './metricChartData'
@@ -122,6 +128,94 @@ describe('scalar chart data', () => {
     expect(points.map((point) => point.time)).toEqual(
       samples.map((sample) => Date.parse(sample.utc)),
     )
+  })
+})
+
+describe('native-SVG HEEL presentation data', () => {
+  it('uses centralized HEEL-specific raw trace tuning', () => {
+    expect(HEEL_SIGNAL_TUNING).toEqual({
+      traceOpacity: 0.6,
+      traceStrokeWidth: 0.8,
+      rawPointBudget: 800,
+    })
+  })
+
+  it('preserves signed finite HEEL and missing/non-finite gaps', () => {
+    const points = buildHeelChartPoints(samplesWithScalarValues('HEEL', [
+      6,
+      0,
+      -4,
+      null,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      -8,
+    ]))
+
+    expect(points.map((point) => point.value)).toEqual([
+      6,
+      0,
+      -4,
+      null,
+      null,
+      null,
+      -8,
+    ])
+  })
+
+  it('reduces only the raw presentation and preserves endpoints and a gap', () => {
+    const samples = samplesWithScalarValues(
+      'HEEL',
+      Array.from({ length: 900 }, (_, index) => index === 450 ? null : index - 450),
+    )
+    const canonical = buildHeelChartPoints(samples)
+    const originalHeel = samples.map((sample) => sample.heel)
+    const reduced = reduceRawHeelChartPoints(canonical)
+
+    expect(reduced).toHaveLength(HEEL_SIGNAL_TUNING.rawPointBudget)
+    expect(reduced[0]).toEqual(canonical[0])
+    expect(reduced[reduced.length - 1]).toEqual(canonical[canonical.length - 1])
+    expect(reduced.some((point) => point.value === null)).toBe(true)
+    expect(samples.map((sample) => sample.heel)).toEqual(originalHeel)
+  })
+
+  it('auto-ranges signed HEEL while always retaining zero', () => {
+    expect(resolveHeelSignalDomain([[
+      { time: BASE_TIME, value: -8.2 },
+      { time: BASE_TIME + 1_000, value: 6.1 },
+    ]])).toEqual({ minimum: -9, maximum: 7 })
+    expect(resolveHeelSignalDomain([[
+      { time: BASE_TIME, value: 2.1 },
+      { time: BASE_TIME + 1_000, value: 6.1 },
+    ]])).toEqual({ minimum: 0, maximum: 7 })
+    expect(resolveHeelSignalDomain([[
+      { time: BASE_TIME, value: -8.2 },
+      { time: BASE_TIME + 1_000, value: -2.1 },
+    ]])).toEqual({ minimum: -9, maximum: 0 })
+    expect(resolveHeelSignalDomain([[
+      { time: BASE_TIME, value: 0 },
+    ]])).toEqual({ minimum: -1, maximum: 1 })
+  })
+
+  it('generates a signed path with explicit missing-data breaks', () => {
+    expect(buildHeelSignalPath([
+      { time: BASE_TIME, value: -10 },
+      { time: BASE_TIME + 1_000, value: null },
+      { time: BASE_TIME + 2_000, value: 10 },
+    ], {
+      start: BASE_TIME,
+      end: BASE_TIME + 2_000,
+    }, {
+      minimum: -10,
+      maximum: 10,
+    })).toBe('M0.00,192.00 M1000.00,8.00')
+  })
+
+  it('positions and clamps the HEEL playback cursor on shared UTC', () => {
+    const range = { start: BASE_TIME, end: BASE_TIME + 2_000 }
+
+    expect(heelSignalXPosition(BASE_TIME - 1_000, range)).toBe(0)
+    expect(heelSignalXPosition(BASE_TIME + 1_000, range)).toBe(500)
+    expect(heelSignalXPosition(BASE_TIME + 3_000, range)).toBe(1_000)
   })
 })
 

@@ -1,6 +1,7 @@
 import type { SailingMetric } from '../types/session'
 import type { TrackSample } from '../types/track'
 import { COG_SIGNAL_TUNING } from '../config/cogSignal'
+import { HEEL_SIGNAL_TUNING } from '../config/heelSignal'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
 import { timestampToMilliseconds } from './replay'
 import {
@@ -14,6 +15,18 @@ export type ScalarChartMetric = Extract<SailingMetric, 'HEEL' | 'TRIM'>
 export interface ScalarChartPoint {
   time: number
   value: number | null
+}
+
+export type HeelChartPoint = ScalarChartPoint
+
+export interface HeelSignalRange {
+  start: number
+  end: number
+}
+
+export interface HeelSignalDomain {
+  minimum: number
+  maximum: number
 }
 
 export interface CogChartPoint {
@@ -52,6 +65,9 @@ const COG_SMOOTHING_MAX_GAP_MILLISECONDS = COG_SIGNAL_TUNING.maxGapSeconds * 1_0
 const COG_SIGNAL_PLOT_BAND = { top: 8, bottom: 192 }
 export const COG_SIGNAL_VIEWBOX_WIDTH = 1_000
 export const COG_SIGNAL_VIEWBOX_HEIGHT = 200
+const HEEL_SIGNAL_PLOT_BAND = { top: 8, bottom: 192 }
+export const HEEL_SIGNAL_VIEWBOX_WIDTH = 1_000
+export const HEEL_SIGNAL_VIEWBOX_HEIGHT = 200
 
 const SCALAR_SAMPLE_FIELDS: Record<
   ScalarChartMetric,
@@ -74,6 +90,110 @@ export function buildScalarChartPoints(
       value: value !== null && Number.isFinite(value) ? value : null,
     }
   })
+}
+
+export function buildHeelChartPoints(samples: TrackSample[]): HeelChartPoint[] {
+  return buildScalarChartPoints(samples, 'HEEL')
+    .sort((first, second) => first.time - second.time)
+}
+
+function heelBucketRepresentative(points: HeelChartPoint[]) {
+  const gapPoint = points.find((point) => point.value === null)
+  if (gapPoint !== undefined) return { ...gapPoint }
+  if (points.length === 0) return null
+  return { ...points[Math.floor(points.length / 2)] }
+}
+
+export function reduceRawHeelChartPoints(
+  points: HeelChartPoint[],
+  maximumPoints: number = HEEL_SIGNAL_TUNING.rawPointBudget,
+): HeelChartPoint[] {
+  if (maximumPoints < 2) throw new Error('HEEL point budget must be at least 2')
+  if (points.length <= maximumPoints) return [...points]
+
+  const first = points[0]
+  const last = points[points.length - 1]
+  if (maximumPoints === 2) return [first, last]
+
+  const interior = points.slice(1, -1)
+  const bucketCount = maximumPoints - 2
+  const reduced = [first]
+  for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
+    const start = Math.floor((bucketIndex * interior.length) / bucketCount)
+    const end = Math.floor(((bucketIndex + 1) * interior.length) / bucketCount)
+    const representative = heelBucketRepresentative(interior.slice(start, end))
+    if (representative !== null) reduced.push(representative)
+  }
+
+  return reduced.concat(last)
+}
+
+export function resolveHeelSignalDomain(
+  pointCollections: HeelChartPoint[][],
+): HeelSignalDomain | null {
+  let minimum = 0
+  let maximum = 0
+  let hasFiniteValue = false
+  pointCollections.forEach((points) => {
+    points.forEach((point) => {
+      if (point.value === null || !Number.isFinite(point.value)) return
+      minimum = Math.min(minimum, point.value)
+      maximum = Math.max(maximum, point.value)
+      hasFiniteValue = true
+    })
+  })
+  if (!hasFiniteValue) return null
+
+  minimum = Math.floor(minimum)
+  maximum = Math.ceil(maximum)
+  if (minimum === maximum) return { minimum: -1, maximum: 1 }
+  return { minimum, maximum }
+}
+
+export function heelSignalYPosition(
+  value: number,
+  domain: HeelSignalDomain,
+) {
+  const domainHeight = domain.maximum - domain.minimum
+  const plotHeight = HEEL_SIGNAL_PLOT_BAND.bottom - HEEL_SIGNAL_PLOT_BAND.top
+  if (domainHeight <= 0) return HEEL_SIGNAL_PLOT_BAND.bottom
+  return HEEL_SIGNAL_PLOT_BAND.bottom
+    - ((value - domain.minimum) / domainHeight) * plotHeight
+}
+
+export function buildHeelSignalPath(
+  points: HeelChartPoint[],
+  range: HeelSignalRange,
+  domain: HeelSignalDomain,
+) {
+  const duration = range.end - range.start
+  if (duration <= 0 || domain.maximum <= domain.minimum) return ''
+
+  let path = ''
+  let beginsSegment = true
+  points.forEach((point) => {
+    if (point.value === null) {
+      beginsSegment = true
+      return
+    }
+
+    const x = ((point.time - range.start) / duration) * HEEL_SIGNAL_VIEWBOX_WIDTH
+    const y = heelSignalYPosition(point.value, domain)
+    path += `${beginsSegment ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)} `
+    beginsSegment = false
+  })
+
+  return path.trim()
+}
+
+export function heelSignalXPosition(
+  timestamp: number,
+  range: HeelSignalRange,
+) {
+  const duration = range.end - range.start
+  if (duration <= 0) return 0
+  const ratio = (timestamp - range.start) / duration
+  return Math.min(1, Math.max(0, ratio)) * HEEL_SIGNAL_VIEWBOX_WIDTH
 }
 
 export function normalizeCogDegrees(value: number) {

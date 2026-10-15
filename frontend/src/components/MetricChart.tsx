@@ -29,6 +29,7 @@ import {
 } from '../utils/metricChartZoom'
 import { formatGpsTime, timestampToMilliseconds } from '../utils/replay'
 import CogSignalChart from './CogSignalChart'
+import HeelSignalChart from './HeelSignalChart'
 import SogSignalChart from './SogSignalChart'
 
 interface MetricChartProps {
@@ -41,7 +42,7 @@ interface MetricChartProps {
 }
 
 interface RechartsMetricChartProps extends Omit<MetricChartProps, 'metric'> {
-  metric: Exclude<SailingMetric, 'SOG' | 'COG'>
+  metric: Extract<SailingMetric, 'TRIM'>
 }
 
 function formatAxisTime(timestamp: number) {
@@ -290,6 +291,18 @@ export default function MetricChart(props: MetricChartProps) {
   if (props.metric === 'COG') {
     return (
       <CogSignalChart
+        primarySamples={props.primarySamples}
+        comparisonSamples={props.comparisonSamples}
+        playbackTime={props.playbackTime}
+        primaryLabel={props.primaryLabel}
+        comparisonLabel={props.comparisonLabel}
+      />
+    )
+  }
+
+  if (props.metric === 'HEEL') {
+    return (
+      <HeelSignalChart
         primarySamples={props.primarySamples}
         comparisonSamples={props.comparisonSamples}
         playbackTime={props.playbackTime}
