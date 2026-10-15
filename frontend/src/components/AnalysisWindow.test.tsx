@@ -114,10 +114,10 @@ describe('Analysis Window SOG timeline', () => {
     avgSogKnots: 5.2,
     maxSogKnots: 6,
     dominantCogDegrees: 90,
-    avgPositiveHeelDegrees: null,
-    avgNegativeHeelDegrees: null,
-    avgPositiveTrimDegrees: null,
-    avgNegativeTrimDegrees: null,
+    medianPositiveHeelDegrees: null,
+    medianNegativeHeelDegrees: null,
+    medianPositiveTrimDegrees: null,
+    medianNegativeTrimDegrees: null,
   }
 
   function replay(overrides: Partial<AnalysisWindowReplay> = {}): AnalysisWindowReplay {

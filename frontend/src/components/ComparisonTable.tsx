@@ -22,10 +22,16 @@ function formatNullable(
   return value === null ? '—' : `${value.toFixed(fractionDigits)}${unit}`
 }
 
+function formatSignedDegrees(value: number | null) {
+  if (value === null) return '—'
+  const sign = value > 0 ? '+' : '−'
+  return `${sign}${Math.abs(value).toFixed(1)}°`
+}
+
 const rows: SummaryRow[] = [
   {
     label: 'Distance',
-    format: (metrics) => `${metrics.distanceNm.toFixed(2)} NM`,
+    format: (metrics) => `${Math.round(metrics.distanceMeters)} m`,
   },
   {
     label: 'Avg SOG',
@@ -40,35 +46,27 @@ const rows: SummaryRow[] = [
     format: (metrics) => formatNullable(metrics.dominantCogDegrees, 0, '°'),
   },
   {
-    label: 'Avg HEEL +',
-    format: (metrics) => formatNullable(
-      metrics.avgPositiveHeelDegrees,
-      1,
-      '°',
+    label: 'Median HEEL +',
+    format: (metrics) => formatSignedDegrees(
+      metrics.medianPositiveHeelDegrees,
     ),
   },
   {
-    label: 'Avg HEEL −',
-    format: (metrics) => formatNullable(
-      metrics.avgNegativeHeelDegrees,
-      1,
-      '°',
+    label: 'Median HEEL −',
+    format: (metrics) => formatSignedDegrees(
+      metrics.medianNegativeHeelDegrees,
     ),
   },
   {
-    label: 'Avg TRIM +',
-    format: (metrics) => formatNullable(
-      metrics.avgPositiveTrimDegrees,
-      1,
-      '°',
+    label: 'Median TRIM +',
+    format: (metrics) => formatSignedDegrees(
+      metrics.medianPositiveTrimDegrees,
     ),
   },
   {
-    label: 'Avg TRIM −',
-    format: (metrics) => formatNullable(
-      metrics.avgNegativeTrimDegrees,
-      1,
-      '°',
+    label: 'Median TRIM −',
+    format: (metrics) => formatSignedDegrees(
+      metrics.medianNegativeTrimDegrees,
     ),
   },
 ]

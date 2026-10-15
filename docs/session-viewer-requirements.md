@@ -35,7 +35,11 @@ without rewriting the historical v0.3.x baseline below:
 - Replay is temporal-only: play/pause, scrubber, current `playbackTime`, and
   x1/x2/x5/x10 speed. It does not duplicate the selected chart metric.
 - The delivered Summary rows are Distance, Avg SOG, Max SOG, Dominant COG,
-  Avg HEEL +, Avg HEEL −, Avg TRIM + and Avg TRIM −.
+  Median HEEL +, Median HEEL −, Median TRIM + and Median TRIM −.
+- Summary Distance displays the existing accumulated distance in whole metres.
+  Other distance presentations retain their existing units.
+- The four signed HEEL/TRIM Summary metrics are independent time-weighted
+  medians over the Analysis Window. Zero belongs to neither sign group.
 - The frontend consumes persisted Sessions and canonical Activity tracks
   through the read-only FastAPI API; it has no runtime Session/track fixture
   fallback or direct storage access.
@@ -528,7 +532,9 @@ Window behavior:
 
 Display unit:
 
-- nautical miles (`nm`).
+- whole metres (`m`) in the Summary table, rounded to the nearest metre from
+  the existing accumulated distance. Other distance presentations retain
+  their existing units.
 
 No interpolation at exact window boundaries is required for the PoC.
 
@@ -617,34 +623,42 @@ Circular interpretation is approximately:
 
 This is a specific lesson carried forward from MaxSail Analytics and must be protected by automated tests.
 
-### MR-06 — Average HEEL
+### MR-06 — Signed median HEEL
 
 Display unit:
 
 - degrees (`°`).
 
-Use available normalized `heel` values inside the selected window.
+Calculate independent positive and negative time-weighted medians from
+available normalized `heel` values. Zero belongs to neither sign group.
 
-Because sources may have different sample frequencies, calculations should avoid unnecessary dependence on sample count. A time-weighted mean is preferred when practical.
+Use actual adjacent UTC intervals, clipped to the Analysis Window, with each
+eligible interval assigning its represented duration to the starting sample
+value. Exclude nonpositive or out-of-order intervals and do not bridge gaps
+longer than 1.5 seconds. For each sign, select the smallest value whose
+cumulative represented-time fraction is at least 0.50; do not interpolate.
+No additional coverage threshold applies.
 
-If no HEEL data exists:
+If one HEEL sign group has no valid represented time:
 
-- return unavailable/null;
+- return unavailable/null for that sign only;
 - do not derive HEEL from other fields.
 
-### MR-07 — Average TRIM
+### MR-07 — Signed median TRIM
 
 Display unit:
 
 - degrees (`°`).
 
-Use available normalized `trim` values inside the selected window.
+Calculate independent positive and negative time-weighted medians from
+available normalized `trim` values. Zero belongs to neither sign group.
 
-A time-weighted mean is preferred when practical.
+Use the same adjacent-UTC-interval, Analysis Window clipping, 1.5-second
+maximum-gap and deterministic weighted-median rules defined in MR-06.
 
-If no TRIM data exists:
+If one TRIM sign group has no valid represented time:
 
-- return unavailable/null;
+- return unavailable/null for that sign only;
 - do not derive TRIM from other fields.
 
 ---
@@ -1020,7 +1034,9 @@ Changing the shared Analysis Window updates both visible tracks.
 
 ### AC-07
 
-The comparison table shows Distance, Average SOG, Dominant COG, Average HEEL and Average TRIM for the same selected window.
+The comparison table shows whole-metre Distance, Average SOG, Max SOG,
+Dominant COG, and independent positive/negative time-weighted median HEEL and
+TRIM for the same selected window.
 
 ### AC-08
 

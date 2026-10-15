@@ -397,16 +397,16 @@ export function SessionViewer({
     [analysisWindow, comparisonTrack],
   )
   const primarySummaryMetrics = useMemo(
-    () => primaryWindowSamples.length > 0
-      ? calculateSummaryMetrics(primaryWindowSamples)
+    () => primaryWindowSamples.length > 0 && primaryTrack && analysisWindow
+      ? calculateSummaryMetrics(primaryTrack.samples, analysisWindow)
       : null,
-    [primaryWindowSamples],
+    [analysisWindow, primaryTrack, primaryWindowSamples],
   )
   const comparisonSummaryMetrics = useMemo(
-    () => comparisonWindowSamples.length > 0
-      ? calculateSummaryMetrics(comparisonWindowSamples)
+    () => comparisonWindowSamples.length > 0 && comparisonTrack && analysisWindow
+      ? calculateSummaryMetrics(comparisonTrack.samples, analysisWindow)
       : null,
-    [comparisonWindowSamples],
+    [analysisWindow, comparisonTrack, comparisonWindowSamples],
   )
   const [playbackTime, setPlaybackTime] = useState(windowStart ?? 0)
   const [selectedManeuverKey, setSelectedManeuverKey] = useState<string | null>(null)

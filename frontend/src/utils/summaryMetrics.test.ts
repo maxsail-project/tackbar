@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { TrackSample } from '../types/track'
-import { calculateSummaryMetrics } from './summaryMetrics'
+import {
+  calculateSummaryMetrics as calculateSummaryMetricsForWindow,
+} from './summaryMetrics'
+
+const TEST_START = Date.parse('2031-06-15T10:00:00Z')
 
 function sample(
   utc: string,
@@ -18,6 +22,23 @@ function sample(
     trim: null,
     ...values,
   }
+}
+
+function timedSample(
+  offsetMilliseconds: number,
+  values: Partial<Omit<TrackSample, 'utc'>> = {},
+) {
+  return sample(new Date(TEST_START + offsetMilliseconds).toISOString(), values)
+}
+
+function calculateSummaryMetrics(samples: TrackSample[]) {
+  const timestamps = samples.map((item) => Date.parse(item.utc))
+  const start = timestamps.length > 0 ? Math.min(...timestamps) : TEST_START
+  const latest = timestamps.length > 0 ? Math.max(...timestamps) : start
+  return calculateSummaryMetricsForWindow(samples, {
+    start,
+    end: Math.max(start + 1, latest),
+  })
 }
 
 describe('summary metrics', () => {
@@ -128,94 +149,123 @@ describe('summary metrics', () => {
     expect(tied.dominantCogDegrees).toBe(10)
   })
 
-  it('averages positive and negative HEEL independently', () => {
+  it('calculates positive and negative HEEL/TRIM medians from irregular represented time', () => {
     const metrics = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z', { heel: -6 }),
-      sample('2031-06-15T10:00:01Z', { heel: 2 }),
-      sample('2031-06-15T10:00:02Z', { heel: 4 }),
-      sample('2031-06-15T10:00:03Z', { heel: -10 }),
-      sample('2031-06-15T10:00:04Z', { heel: 0 }),
-      sample('2031-06-15T10:00:05Z', { heel: null }),
+      timedSample(0, { heel: 2, trim: -8 }),
+      timedSample(1_000, { heel: 4, trim: 1 }),
+      timedSample(1_500, { heel: 8, trim: 3 }),
+      timedSample(3_000, { heel: -10, trim: -4 }),
+      timedSample(3_500, { heel: -6, trim: 5 }),
+      timedSample(4_500, { heel: -6, trim: -2 }),
+      timedSample(5_000),
     ])
 
-    expect(metrics.avgPositiveHeelDegrees).toBe(3)
-    expect(metrics.avgNegativeHeelDegrees).toBe(-8)
+    expect(metrics.medianPositiveHeelDegrees).toBe(4)
+    expect(metrics.medianNegativeHeelDegrees).toBe(-6)
+    expect(metrics.medianPositiveTrimDegrees).toBe(3)
+    expect(metrics.medianNegativeTrimDegrees).toBe(-8)
   })
 
-  it('keeps absent HEEL sign groups independently unavailable', () => {
-    const positiveOnly = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z', { heel: 2 }),
-      sample('2031-06-15T10:00:01Z', { heel: 4 }),
-    ])
-    const negativeOnly = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z', { heel: -6 }),
-      sample('2031-06-15T10:00:01Z', { heel: -10 }),
-    ])
-
-    expect(positiveOnly.avgPositiveHeelDegrees).toBe(3)
-    expect(positiveOnly.avgNegativeHeelDegrees).toBeNull()
-    expect(negativeOnly.avgPositiveHeelDegrees).toBeNull()
-    expect(negativeOnly.avgNegativeHeelDegrees).toBe(-8)
-  })
-
-  it('averages positive and negative TRIM independently', () => {
+  it('selects the smaller value at an exact cumulative 50% boundary', () => {
     const metrics = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z', { trim: 3 }),
-      sample('2031-06-15T10:00:01Z', { trim: -1 }),
-      sample('2031-06-15T10:00:02Z', { trim: 5 }),
-      sample('2031-06-15T10:00:03Z', { trim: -3 }),
-      sample('2031-06-15T10:00:04Z', { trim: 0 }),
-      sample('2031-06-15T10:00:05Z', { trim: null }),
+      timedSample(0, { heel: 1 }),
+      timedSample(1_000, { heel: 9 }),
+      timedSample(2_000),
     ])
 
-    expect(metrics.avgPositiveTrimDegrees).toBe(4)
-    expect(metrics.avgNegativeTrimDegrees).toBe(-2)
+    expect(metrics.medianPositiveHeelDegrees).toBe(1)
   })
 
-  it('keeps absent TRIM sign groups independently unavailable', () => {
-    const positiveOnly = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z', { trim: 3 }),
-      sample('2031-06-15T10:00:01Z', { trim: 5 }),
-    ])
-    const negativeOnly = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z', { trim: -1 }),
-      sample('2031-06-15T10:00:01Z', { trim: -3 }),
-    ])
-
-    expect(positiveOnly.avgPositiveTrimDegrees).toBe(4)
-    expect(positiveOnly.avgNegativeTrimDegrees).toBeNull()
-    expect(negativeOnly.avgPositiveTrimDegrees).toBeNull()
-    expect(negativeOnly.avgNegativeTrimDegrees).toBe(-2)
-  })
-
-  it('excludes zero from HEEL and TRIM sign groups', () => {
+  it('combines repeated values before selecting the weighted median', () => {
     const metrics = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z', { heel: 0, trim: 0 }),
+      timedSample(0, { trim: 5 }),
+      timedSample(500, { trim: 9 }),
+      timedSample(1_000, { trim: 5 }),
+      timedSample(1_500),
     ])
 
-    expect(metrics.avgPositiveHeelDegrees).toBeNull()
-    expect(metrics.avgNegativeHeelDegrees).toBeNull()
-    expect(metrics.avgPositiveTrimDegrees).toBeNull()
-    expect(metrics.avgNegativeTrimDegrees).toBeNull()
+    expect(metrics.medianPositiveTrimDegrees).toBe(5)
   })
 
-  it('ignores missing and non-finite HEEL and TRIM values', () => {
+  it('clips adjacent intervals to the Analysis Window', () => {
+    const metrics = calculateSummaryMetricsForWindow([
+      timedSample(0, { heel: 2 }),
+      timedSample(1_000, { heel: 8 }),
+      timedSample(2_000),
+    ], {
+      start: TEST_START + 500,
+      end: TEST_START + 1_500,
+    })
+
+    expect(metrics.medianPositiveHeelDegrees).toBe(2)
+  })
+
+  it('excludes nonpositive, out-of-order and over-1.5-second intervals', () => {
+    const metrics = calculateSummaryMetricsForWindow([
+      timedSample(0, { heel: 1 }),
+      timedSample(0, { heel: 2 }),
+      timedSample(-1_000, { heel: 3 }),
+      timedSample(1_000, { heel: 9 }),
+      timedSample(2_000),
+    ], {
+      start: TEST_START - 1_000,
+      end: TEST_START + 2_000,
+    })
+
+    expect(metrics.medianPositiveHeelDegrees).toBe(9)
+  })
+
+  it('excludes zero, missing and non-finite values from every sign group', () => {
     const metrics = calculateSummaryMetrics([
-      sample('2031-06-15T10:00:00Z'),
-      sample('2031-06-15T10:00:01Z', {
+      timedSample(0, { heel: 0, trim: 0 }),
+      timedSample(500),
+      timedSample(1_000, {
         heel: Number.POSITIVE_INFINITY,
         trim: Number.NEGATIVE_INFINITY,
       }),
-      sample('2031-06-15T10:00:02Z', {
+      timedSample(1_500, {
         heel: Number.NaN,
         trim: Number.NaN,
       }),
+      timedSample(2_000),
     ])
 
-    expect(metrics.avgPositiveHeelDegrees).toBeNull()
-    expect(metrics.avgNegativeHeelDegrees).toBeNull()
-    expect(metrics.avgPositiveTrimDegrees).toBeNull()
-    expect(metrics.avgNegativeTrimDegrees).toBeNull()
+    expect(metrics.medianPositiveHeelDegrees).toBeNull()
+    expect(metrics.medianNegativeHeelDegrees).toBeNull()
+    expect(metrics.medianPositiveTrimDegrees).toBeNull()
+    expect(metrics.medianNegativeTrimDegrees).toBeNull()
+  })
+
+  it('keeps missing sign groups independently unavailable', () => {
+    const metrics = calculateSummaryMetrics([
+      timedSample(0, { heel: 4, trim: -3 }),
+      timedSample(1_000),
+    ])
+
+    expect(metrics.medianPositiveHeelDegrees).toBe(4)
+    expect(metrics.medianNegativeHeelDegrees).toBeNull()
+    expect(metrics.medianPositiveTrimDegrees).toBeNull()
+    expect(metrics.medianNegativeTrimDegrees).toBe(-3)
+  })
+
+  it('produces equivalent medians for equivalent 1/2/10 Hz telemetry', () => {
+    function piecewiseSamples(hertz: number) {
+      const stepMilliseconds = 1_000 / hertz
+      const samples: TrackSample[] = []
+      for (let offset = 0; offset <= 10_000; offset += stepMilliseconds) {
+        samples.push(timedSample(offset, {
+          heel: offset < 4_000 ? 2 : 8,
+          trim: offset < 4_000 ? -8 : -2,
+        }))
+      }
+      return samples
+    }
+
+    for (const hertz of [1, 2, 10]) {
+      const metrics = calculateSummaryMetrics(piecewiseSamples(hertz))
+      expect(metrics.medianPositiveHeelDegrees).toBe(8)
+      expect(metrics.medianNegativeTrimDegrees).toBe(-2)
+    }
   })
 
   it('returns unavailable COG without valid values', () => {
