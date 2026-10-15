@@ -1,7 +1,7 @@
 export const SOG_SIGNAL_TUNING = {
-  rawOpacity: 0.25,
-  rawStrokeWidth: 1,
-  smoothedOpacity: 0.95,
-  smoothedStrokeWidth: 3.25,
-  smoothingWindowSeconds: 2,
+  rawOpacity: 0.6,
+  rawStrokeWidth: 1.0,
+  smoothedOpacity: 1.0,
+  smoothedStrokeWidth: 4.0,
+  smoothingWindowSeconds: 8,
 } as const

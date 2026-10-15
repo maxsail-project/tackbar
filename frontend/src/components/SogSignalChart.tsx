@@ -23,7 +23,7 @@ interface SogSignalChartProps {
   comparisonLabel?: string
 }
 
-const RAW_POINT_BUDGET = 240
+const RAW_POINT_BUDGET = 800
 const RAW_STYLE = {
   strokeWidth: SOG_SIGNAL_TUNING.rawStrokeWidth,
   strokeOpacity: SOG_SIGNAL_TUNING.rawOpacity,
@@ -182,6 +182,8 @@ export default function SogSignalChart({
                   fill="none"
                   stroke={ACTIVITY_COLORS.comparison}
                   {...SMOOTHED_STYLE}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   vectorEffect="non-scaling-stroke"
                 />
               )}
@@ -192,6 +194,8 @@ export default function SogSignalChart({
                   fill="none"
                   stroke={ACTIVITY_COLORS.primary}
                   {...SMOOTHED_STYLE}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   vectorEffect="non-scaling-stroke"
                 />
               )}

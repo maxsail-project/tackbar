@@ -115,18 +115,24 @@ describe('scalar chart data', () => {
 })
 
 describe('native-SVG SOG presentation data', () => {
-  it('uses the centralized two-second smoothing window', () => {
-    expect(SOG_SIGNAL_TUNING.smoothingWindowSeconds).toBe(2)
+  it('uses the centralized eight-second smoothing window', () => {
+    expect(SOG_SIGNAL_TUNING.smoothingWindowSeconds).toBe(8)
   })
 
-  it('calculates a centered two-second time-weighted trend', () => {
+  it('calculates a centered eight-second time-weighted trend', () => {
     const trend = buildSogTrendPoints(buildSogChartPoints(samplesWithSog([
       [0, 0],
-      [1_000, 2],
+      [1_000, 0],
       [2_000, 0],
+      [3_000, 0],
+      [4_000, 8],
+      [5_000, 0],
+      [6_000, 0],
+      [7_000, 0],
+      [8_000, 0],
     ])))
 
-    expect(trend.map((point) => point.sog)).toEqual([1, 1, 1])
+    expect(trend[4].sog).toBe(1)
   })
 
   it('weights irregular timestamps by represented time', () => {
@@ -136,11 +142,7 @@ describe('native-SVG SOG presentation data', () => {
       [2_000, 2],
     ])))
 
-    expect(trend.map((point) => point.sog)).toEqual([
-      1.5,
-      2.5 / 1.5,
-      2,
-    ])
+    expect(trend.map((point) => point.sog)).toEqual([1.75, 1.75, 1.75])
   })
 
   it('produces equivalent trends for equivalent 1, 2, and 10 Hz telemetry', () => {

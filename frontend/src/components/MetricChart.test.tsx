@@ -130,12 +130,16 @@ describe('MetricChart series rendering hierarchy', () => {
     expect(comparisonSmoothed).toContain(smoothedStyle)
     expect(primarySmoothed).toContain(smoothedStyle)
     expect(SOG_SIGNAL_TUNING).toEqual({
-      rawOpacity: 0.25,
-      rawStrokeWidth: 1,
-      smoothedOpacity: 0.95,
-      smoothedStrokeWidth: 3.25,
-      smoothingWindowSeconds: 2,
+      rawOpacity: 0.08,
+      rawStrokeWidth: 0.75,
+      smoothedOpacity: 1,
+      smoothedStrokeWidth: 4.5,
+      smoothingWindowSeconds: 8,
     })
+    expect(comparisonSmoothed).toContain('stroke-linecap="round"')
+    expect(comparisonSmoothed).toContain('stroke-linejoin="round"')
+    expect(primarySmoothed).toContain('stroke-linecap="round"')
+    expect(primarySmoothed).toContain('stroke-linejoin="round"')
   })
 
   it('reduces only raw native-SVG paths while retaining full trend inputs', () => {
