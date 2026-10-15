@@ -1274,7 +1274,8 @@ input:focus-visible {
 
 .vs-distribution__histogram,
 .vs-distribution__rose,
-.vs-distribution__semicircle {
+.vs-distribution__semicircle,
+.vs-distribution__boxplot {
   display: block;
   width: 100%;
   height: auto;
@@ -1287,6 +1288,10 @@ input:focus-visible {
 
 .vs-distribution__semicircle {
   max-height: 220px;
+}
+
+.vs-distribution__boxplot {
+  max-height: 230px;
 }
 
 .vs-distribution__axis {

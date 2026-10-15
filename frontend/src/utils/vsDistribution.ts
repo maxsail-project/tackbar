@@ -21,10 +21,29 @@ export interface HeelDistribution extends MetricDistribution {
   binTimeSeconds: ReadonlyMap<number, number>
 }
 
+export interface TrimStatistics {
+  minimum: number
+  q1: number
+  median: number
+  q3: number
+  maximum: number
+  iqr: number
+  lowerWhisker: number
+  upperWhisker: number
+  lowOutlierPercentage: number
+  highOutlierPercentage: number
+}
+
+export interface TrimDistribution extends MetricDistribution {
+  statistics: TrimStatistics | null
+  valueTimeSeconds: ReadonlyMap<number, number>
+}
+
 export interface ActivityVsDistribution {
   sog: SogDistribution
   cog: CogDistribution
   heel: HeelDistribution
+  trim: TrimDistribution
 }
 
 export interface SogDistributionBin {
@@ -67,6 +86,8 @@ interface MutableActivityDistribution {
   cogValidTimeMs: number
   heelBinTimeMs: Map<number, number>
   heelValidTimeMs: number
+  trimValueTimeMs: Map<number, number>
+  trimValidTimeMs: number
 }
 
 function normalizeCog(cog: number) {
@@ -106,6 +127,8 @@ function emptyMutableDistribution(cogBinCount: number): MutableActivityDistribut
     cogValidTimeMs: 0,
     heelBinTimeMs: new Map(),
     heelValidTimeMs: 0,
+    trimValueTimeMs: new Map(),
+    trimValidTimeMs: 0,
   }
 }
 
@@ -160,6 +183,14 @@ function accumulateActivity(
       )
       result.heelValidTimeMs += representedDt
     }
+
+    if (sample.trim !== null && Number.isFinite(sample.trim)) {
+      result.trimValueTimeMs.set(
+        sample.trim,
+        (result.trimValueTimeMs.get(sample.trim) ?? 0) + representedDt,
+      )
+      result.trimValidTimeMs += representedDt
+    }
   }
 
   return result
@@ -167,6 +198,66 @@ function accumulateActivity(
 
 function coverage(validTimeMs: number, windowDurationMs: number) {
   return Math.min(1, Math.max(0, validTimeMs / windowDurationMs))
+}
+
+function weightedQuantile(
+  entries: Array<readonly [number, number]>,
+  totalWeight: number,
+  quantile: number,
+) {
+  const targetWeight = totalWeight * quantile
+  let cumulativeWeight = 0
+  for (const [value, weight] of entries) {
+    cumulativeWeight += weight
+    if (cumulativeWeight >= targetWeight) return value
+  }
+  return entries.at(-1)?.[0] ?? 0
+}
+
+export function calculateWeightedTrimStatistics(
+  valueTimeSeconds: ReadonlyMap<number, number>,
+): TrimStatistics | null {
+  const entries = Array.from(valueTimeSeconds.entries())
+    .filter(([value, weight]) => Number.isFinite(value) && Number.isFinite(weight) && weight > 0)
+    .sort(([first], [second]) => first - second)
+  const totalWeight = entries.reduce((total, [, weight]) => total + weight, 0)
+  if (entries.length === 0 || totalWeight <= 0) return null
+
+  const q1 = weightedQuantile(entries, totalWeight, 0.25)
+  const median = weightedQuantile(entries, totalWeight, 0.5)
+  const q3 = weightedQuantile(entries, totalWeight, 0.75)
+  const iqr = q3 - q1
+  const lowerFence = q1 - 1.5 * iqr
+  const upperFence = q3 + 1.5 * iqr
+  const lowerWhisker = entries.find(([value]) => value >= lowerFence)?.[0] ?? q1
+  let upperWhisker = q3
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (entries[index][0] <= upperFence) {
+      upperWhisker = entries[index][0]
+      break
+    }
+  }
+  const lowOutlierTime = entries.reduce(
+    (total, [value, weight]) => total + (value < lowerWhisker ? weight : 0),
+    0,
+  )
+  const highOutlierTime = entries.reduce(
+    (total, [value, weight]) => total + (value > upperWhisker ? weight : 0),
+    0,
+  )
+
+  return {
+    minimum: entries[0][0],
+    q1,
+    median,
+    q3,
+    maximum: entries[entries.length - 1][0],
+    iqr,
+    lowerWhisker,
+    upperWhisker,
+    lowOutlierPercentage: lowOutlierTime / totalWeight * 100,
+    highOutlierPercentage: highOutlierTime / totalWeight * 100,
+  }
 }
 
 function finalizeActivity(
@@ -177,6 +268,10 @@ function finalizeActivity(
   const sogCoverage = coverage(distribution.sogValidTimeMs, windowDurationMs)
   const cogCoverage = coverage(distribution.cogValidTimeMs, windowDurationMs)
   const heelCoverage = coverage(distribution.heelValidTimeMs, windowDurationMs)
+  const trimCoverage = coverage(distribution.trimValidTimeMs, windowDurationMs)
+  const trimValueTimeSeconds = new Map(
+    Array.from(distribution.trimValueTimeMs, ([value, timeMs]) => [value, timeMs / 1_000]),
+  )
 
   return {
     sog: {
@@ -204,6 +299,13 @@ function finalizeActivity(
       binTimeSeconds: new Map(
         Array.from(distribution.heelBinTimeMs, ([bin, timeMs]) => [bin, timeMs / 1_000]),
       ),
+    },
+    trim: {
+      coverage: trimCoverage,
+      eligible: trimCoverage >= config.minCoverage,
+      validTimeSeconds: distribution.trimValidTimeMs / 1_000,
+      statistics: calculateWeightedTrimStatistics(trimValueTimeSeconds),
+      valueTimeSeconds: trimValueTimeSeconds,
     },
   }
 }

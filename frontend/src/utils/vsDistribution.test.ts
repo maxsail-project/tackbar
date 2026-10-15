@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { VS_CONFIG } from '../config/vs'
 import type { TrackSample } from '../types/track'
-import { calculateVsDistributions, cogSectorIndex } from './vsDistribution'
+import {
+  calculateVsDistributions,
+  calculateWeightedTrimStatistics,
+  cogSectorIndex,
+} from './vsDistribution'
 
 const BASE_TIME = Date.parse('2026-10-12T12:00:00Z')
 
@@ -10,6 +14,7 @@ function sample(
   sog: number | null = 4,
   cog: number | null = 1,
   heel: number | null = null,
+  trim: number | null = null,
 ): TrackSample {
   return {
     utc: new Date(BASE_TIME + seconds * 1_000).toISOString(),
@@ -20,7 +25,7 @@ function sample(
     cog,
     hdg: null,
     heel,
-    trim: null,
+    trim,
   }
 }
 
@@ -34,6 +39,7 @@ function regularlySampled(frequencyHz: number) {
       seconds < 5 ? 4 : 6,
       seconds < 5 ? 359 : 91,
       seconds < 5 ? -4 : 6,
+      seconds < 5 ? -3 : 3,
     ))
   }
   return samples
@@ -52,6 +58,7 @@ function percentages(samples: TrackSample[]) {
     sog: result.sogBins.map((bin) => bin.primaryPercentage),
     cog: result.primary.cog.sectorPercentages,
     heel: result.heelBins.map((bin) => bin.primaryPercentage),
+    trim: result.primary.trim.statistics,
   }
 }
 
@@ -67,6 +74,8 @@ describe('time-weighted VS distributions', () => {
     expect(oneHz.cog).toEqual(tenHz.cog)
     expect(twoHz.heel).toEqual(tenHz.heel)
     expect(oneHz.heel).toEqual(tenHz.heel)
+    expect(twoHz.trim).toEqual(tenHz.trim)
+    expect(oneHz.trim).toEqual(tenHz.trim)
     expect(tenHz.sog.reduce<number>(
       (total, percentage) => total + (percentage ?? 0),
       0,
@@ -186,6 +195,132 @@ describe('time-weighted VS distributions', () => {
     expect(result.comparison).toBeNull()
     expect(result.sogBins[0].comparisonPercentage).toBeNull()
     expect(result.primary.sog.eligible).toBe(true)
+  })
+})
+
+describe('time-weighted signed TRIM statistics', () => {
+  it('uses deterministic weighted empirical quantiles at exact cumulative boundaries', () => {
+    const statistics = calculateWeightedTrimStatistics(new Map([
+      [-2, 1],
+      [0, 2],
+      [4, 1],
+    ]))
+
+    expect(statistics).toEqual({
+      minimum: -2,
+      q1: -2,
+      median: 0,
+      q3: 0,
+      maximum: 4,
+      iqr: 2,
+      lowerWhisker: -2,
+      upperWhisker: 0,
+      lowOutlierPercentage: 0,
+      highOutlierPercentage: 25,
+    })
+  })
+
+  it('uses observed in-fence values for Tukey whiskers and weighted outlier percentages', () => {
+    const statistics = calculateWeightedTrimStatistics(new Map([
+      [-10, 1],
+      [-2, 2],
+      [0, 4],
+      [2, 2],
+      [10, 1],
+    ]))
+
+    expect(statistics).toMatchObject({
+      q1: -2,
+      median: 0,
+      q3: 2,
+      iqr: 4,
+      lowerWhisker: -2,
+      upperWhisker: 2,
+      lowOutlierPercentage: 10,
+      highOutlierPercentage: 10,
+    })
+  })
+
+  it('keeps zero-IQR results deterministic without inventing spread', () => {
+    const statistics = calculateWeightedTrimStatistics(new Map([
+      [-10, 1],
+      [2, 8],
+      [10, 1],
+    ]))
+
+    expect(statistics).toMatchObject({
+      q1: 2,
+      median: 2,
+      q3: 2,
+      iqr: 0,
+      lowerWhisker: 2,
+      upperWhisker: 2,
+      lowOutlierPercentage: 10,
+      highOutlierPercentage: 10,
+    })
+  })
+
+  it('aggregates repeated values using clipped irregular interval durations', () => {
+    const result = calculateVsDistributions([
+      sample(0, 4, 90, 0, -2),
+      sample(0.5, 4, 90, 0, 0),
+      sample(1.5, 4, 90, 0, 2),
+      sample(3, 4, 90, 0, 20),
+    ], null, window(0.25, 2.5))
+
+    expect(result.primary.trim.coverage).toBe(1)
+    expect(result.primary.trim.validTimeSeconds).toBe(2.25)
+    expect(result.primary.trim.valueTimeSeconds.get(-2)).toBe(0.25)
+    expect(result.primary.trim.valueTimeSeconds.get(0)).toBe(1)
+    expect(result.primary.trim.valueTimeSeconds.get(2)).toBe(1)
+    expect(result.primary.trim.statistics).toMatchObject({
+      q1: 0,
+      median: 0,
+      q3: 2,
+    })
+  })
+
+  it('excludes missing, non-finite, and over-gap TRIM intervals', () => {
+    const missing = calculateVsDistributions([
+      sample(0, 4, 90, 0, null),
+      sample(1, 4, 90, 0, Number.NaN),
+      sample(2, 4, 90, 0, Number.POSITIVE_INFINITY),
+      sample(3, 4, 90, 0, -2),
+      sample(4, 4, 90, 0, 0),
+    ], null, window(0, 4))
+    expect(missing.primary.trim.validTimeSeconds).toBe(1)
+    expect(missing.primary.trim.coverage).toBe(0.25)
+    expect(missing.primary.trim.eligible).toBe(false)
+
+    const gapped = calculateVsDistributions([
+      sample(0, 4, 90, 0, -2),
+      sample(1.5, 4, 90, 0, 0),
+      sample(3.01, 4, 90, 0, 2),
+    ], null, window(0, 3.01))
+    expect(gapped.primary.trim.validTimeSeconds).toBe(1.5)
+    expect(gapped.primary.trim.coverage).toBeCloseTo(1.5 / 3.01)
+  })
+
+  it('applies coverage independently to partially available P/C TRIM', () => {
+    const primarySamples = Array.from({ length: 11 }, (_unused, seconds) => (
+      sample(seconds, 4, 90, 0, seconds < 8 ? -2 : null)
+    ))
+    const comparisonSamples = Array.from({ length: 11 }, (_unused, seconds) => (
+      sample(seconds, 4, 90, 0, seconds < 7 ? 2 : null)
+    ))
+    const result = calculateVsDistributions(
+      primarySamples,
+      comparisonSamples,
+      window(0, 10),
+    )
+
+    expect(result.primary.trim.coverage).toBe(VS_CONFIG.minCoverage)
+    expect(result.primary.trim.eligible).toBe(true)
+    expect(result.comparison?.trim.coverage).toBe(0.7)
+    expect(result.comparison?.trim.eligible).toBe(false)
+    expect(result.primary.sog.coverage).toBe(1)
+    expect(result.primary.cog.coverage).toBe(1)
+    expect(result.primary.heel.coverage).toBe(1)
   })
 })
 

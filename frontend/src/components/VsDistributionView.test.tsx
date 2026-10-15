@@ -6,6 +6,7 @@ import type { TrackSample } from '../types/track'
 import VsDistributionView, {
   heelAngleDegrees,
   nicePercentageCeiling,
+  trimAxisDomain,
 } from './VsDistributionView'
 
 const START = Date.parse('2026-10-12T12:00:00Z')
@@ -15,6 +16,7 @@ function sample(
   sog: number | null,
   cog: number | null,
   heel: number | null = 0,
+  trim: number | null = 0,
 ): TrackSample {
   return {
     utc: new Date(START + seconds * 1_000).toISOString(),
@@ -25,7 +27,7 @@ function sample(
     cog,
     hdg: null,
     heel,
-    trim: null,
+    trim,
   }
 }
 
@@ -71,6 +73,7 @@ describe('VS distribution presentation', () => {
     const histogramStart = markup.indexOf('Time-weighted SOG histogram')
     const roseStart = markup.indexOf('Time-weighted COG circular rose')
     const heelStart = markup.indexOf('Time-weighted signed HEEL semicircular distribution')
+    const trimStart = markup.indexOf('Time-weighted signed TRIM boxplot')
     const comparisonHistogram = markup.indexOf('data-activity-role="comparison"', histogramStart)
     const primaryHistogram = markup.indexOf('data-activity-role="primary"', histogramStart)
     const lastComparisonHistogram = markup.lastIndexOf(
@@ -86,6 +89,9 @@ describe('VS distribution presentation', () => {
     const comparisonHeel = markup.indexOf('data-activity-role="comparison"', heelStart)
     const primaryHeel = markup.indexOf('data-activity-role="primary"', heelStart)
     const lastHeelAngleGuide = markup.lastIndexOf('data-guide="heel-angle"', comparisonHeel)
+    const lastComparisonHeel = markup.lastIndexOf('data-activity-role="comparison"', trimStart)
+    const comparisonTrim = markup.indexOf('data-activity-role="comparison"', trimStart)
+    const primaryTrim = markup.indexOf('data-activity-role="primary"', trimStart)
 
     expect(comparisonHistogram).toBeGreaterThan(histogramStart)
     expect(primaryHistogram).toBeGreaterThan(comparisonHistogram)
@@ -97,6 +103,9 @@ describe('VS distribution presentation', () => {
     expect(lastHeelAngleGuide).toBeLessThan(comparisonHeel)
     expect(comparisonHeel).toBeGreaterThan(heelStart)
     expect(primaryHeel).toBeGreaterThan(comparisonHeel)
+    expect(lastComparisonHeel).toBeLessThan(primaryHeel)
+    expect(comparisonTrim).toBeGreaterThan(trimStart)
+    expect(primaryTrim).toBeGreaterThan(comparisonTrim)
     expect(VS_CONFIG.primaryOpacity).toBe(VS_CONFIG.comparisonOpacity)
     expect(VS_CONFIG.primaryStrokeWidth).toBe(VS_CONFIG.comparisonStrokeWidth)
 
@@ -200,10 +209,18 @@ describe('VS distribution presentation', () => {
     expect(markup).toContain('P · 100% coverage')
     expect(markup).not.toContain('C ·')
     expect(markup).not.toContain('data-activity-role="comparison"')
+    const trimStart = markup.indexOf('Time-weighted signed TRIM boxplot')
+    expect(markup.indexOf('data-trim-geometry="box"', trimStart)).toBeGreaterThan(trimStart)
+    expect(markup.indexOf('data-trim-geometry="median"', trimStart)).toBeGreaterThan(trimStart)
+    expect(markup).not.toContain('vs-distribution__trim-summaries')
+    expect(markup).not.toContain('vs-distribution__trim-summary')
   })
 
   it('explains metric-specific low coverage without suppressing the other Activity', () => {
-    const lowCoverageComparison = [sample(0, null, null, null), sample(1, 5, 90, 2)]
+    const lowCoverageComparison = [
+      sample(0, null, null, null, null),
+      sample(1, 5, 90, 2, 2),
+    ]
     const markup = renderToStaticMarkup(
       <VsDistributionView
         primarySamples={primary}
@@ -215,6 +232,7 @@ describe('VS distribution presentation', () => {
     expect(markup).toContain('Speed distribution unavailable for Comparison · SOG coverage 0%')
     expect(markup).toContain('Course distribution unavailable for Comparison · COG coverage 0%')
     expect(markup).toContain('Heel distribution unavailable for Comparison · HEEL coverage 0%')
+    expect(markup).toContain('Trim distribution unavailable for Comparison · TRIM coverage 0%')
     expect(markup).toContain('data-activity-role="primary"')
   })
 
@@ -257,5 +275,56 @@ describe('VS distribution presentation', () => {
     expect(heelMarkup).toContain('data-heel-bin="-20:-18"')
     expect(heelMarkup).not.toContain('data-heel-bin="42:44"')
     expect(markup).toContain('Heel distribution unavailable for Comparison · HEEL coverage 0%')
+  })
+})
+
+describe('TRIM boxplot presentation', () => {
+  const statistics = {
+    minimum: -10,
+    q1: -2,
+    median: 0,
+    q3: 2,
+    maximum: 10,
+    iqr: 4,
+    lowerWhisker: -2,
+    upperWhisker: 2,
+    lowOutlierPercentage: 10,
+    highOutlierPercentage: 10,
+  }
+
+  it('uses a whisker-focused padded domain without allowing outliers to expand it', () => {
+    expect(trimAxisDomain([statistics])).toEqual({ minimum: -3, maximum: 3 })
+  })
+
+  it('renders shared-axis P/C boxes and accessible statistics without a visible summary', () => {
+    const primaryTrim = [-10, -2, -2, 0, 0, 0, 0, 2, 2, 10, 0]
+    const comparisonTrim = [-1, -1, -1, 1, 1, 1, 1, 3, 3, 3, 0]
+    const markup = renderToStaticMarkup(
+      <VsDistributionView
+        primarySamples={primaryTrim.map((trim, seconds) => sample(seconds, 4, 1, 0, trim))}
+        comparisonSamples={comparisonTrim.map(
+          (trim, seconds) => sample(seconds, 5, 91, 0, trim),
+        )}
+        analysisWindow={{ start: START, end: START + 10_000 }}
+      />,
+    )
+    const trimStart = markup.indexOf('Time-weighted signed TRIM boxplot')
+    const trimMarkup = markup.slice(trimStart)
+    const comparisonGeometry = trimMarkup.indexOf('data-activity-role="comparison"')
+    const primaryGeometry = trimMarkup.indexOf('data-activity-role="primary"')
+
+    expect(comparisonGeometry).toBeGreaterThan(0)
+    expect(primaryGeometry).toBeGreaterThan(comparisonGeometry)
+    expect(trimMarkup).toContain('data-guide="trim-zero"')
+    expect(trimMarkup).toContain(`stroke="${ACTIVITY_COLORS.comparison}"`)
+    expect(trimMarkup).toContain(`stroke="${ACTIVITY_COLORS.primary}"`)
+    expect(markup).not.toContain('P · Median 0°')
+    expect(markup).not.toContain('Q1–Q3 -2°–+2°')
+    expect(markup).not.toContain('Low outliers 10%')
+    expect(markup).not.toContain('High outliers 10%')
+    expect(trimMarkup).toContain('lower whisker -2°')
+    expect(trimMarkup).toContain('upper whisker +2°')
+    expect(trimMarkup).toContain('low outliers 10%')
+    expect(trimMarkup).toContain('high outliers 10%')
   })
 })

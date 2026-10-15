@@ -9,6 +9,8 @@ import {
   type HeelDistributionBin,
   type MetricDistribution,
   type SogDistributionBin,
+  type TrimDistribution,
+  type TrimStatistics,
 } from '../utils/vsDistribution'
 
 interface VsDistributionViewProps {
@@ -63,7 +65,7 @@ function UnavailableMessages({
   comparison,
 }: {
   title: string
-  metric: 'SOG' | 'COG' | 'HEEL'
+  metric: 'SOG' | 'COG' | 'HEEL' | 'TRIM'
   primary: MetricDistribution
   comparison: MetricDistribution | null
 }) {
@@ -615,6 +617,209 @@ function HeelSemicircle({
   )
 }
 
+export function trimAxisDomain(statistics: TrimStatistics[]) {
+  const whiskerMinimum = Math.min(...statistics.map((entry) => entry.lowerWhisker))
+  const whiskerMaximum = Math.max(...statistics.map((entry) => entry.upperWhisker))
+  const whiskerRange = whiskerMaximum - whiskerMinimum
+  const paddingBasis = whiskerRange > 0
+    ? whiskerRange
+    : Math.max(Math.abs(whiskerMinimum), 1)
+  const padding = Math.max(
+    VS_CONFIG.trimAxisMinPaddingDeg,
+    paddingBasis * VS_CONFIG.trimAxisPaddingFraction,
+  )
+  return {
+    minimum: whiskerMinimum - padding,
+    maximum: whiskerMaximum + padding,
+  }
+}
+
+function trimAccessibleDescription(role: ActivityRole, statistics: TrimStatistics) {
+  return [
+    `${role} TRIM`,
+    `minimum ${formatSignedDegrees(statistics.minimum)}`,
+    `lower whisker ${formatSignedDegrees(statistics.lowerWhisker)}`,
+    `Q1 ${formatSignedDegrees(statistics.q1)}`,
+    `median ${formatSignedDegrees(statistics.median)}`,
+    `Q3 ${formatSignedDegrees(statistics.q3)}`,
+    `upper whisker ${formatSignedDegrees(statistics.upperWhisker)}`,
+    `maximum ${formatSignedDegrees(statistics.maximum)}`,
+    `low outliers ${formatPercentageTick(statistics.lowOutlierPercentage)}`,
+    `high outliers ${formatPercentageTick(statistics.highOutlierPercentage)}`,
+  ].join(', ')
+}
+
+function TrimBoxplot({
+  primary,
+  comparison,
+}: {
+  primary: TrimDistribution
+  comparison: TrimDistribution | null
+}) {
+  const {
+    trimWidth: width,
+    trimHeight: height,
+    trimMargin: margin,
+  } = VS_CONFIG
+  const eligibleStatistics = [
+    ...(primary.eligible && primary.statistics ? [primary.statistics] : []),
+    ...(comparison?.eligible && comparison.statistics ? [comparison.statistics] : []),
+  ]
+  const domain = trimAxisDomain(eligibleStatistics)
+  const chartHeight = height - margin.top - margin.bottom
+  const chartWidth = width - margin.left - margin.right
+  const y = (value: number) => (
+    margin.top
+    + (domain.maximum - value) / (domain.maximum - domain.minimum) * chartHeight
+  )
+  const hasComparison = comparison !== null
+  const positions = {
+    primary: hasComparison ? margin.left + chartWidth * 0.4 : margin.left + chartWidth / 2,
+    comparison: margin.left + chartWidth * 0.65,
+  }
+  const tickValues = [domain.minimum, domain.maximum]
+  if (domain.minimum <= 0 && domain.maximum >= 0) tickValues.splice(1, 0, 0)
+  const renderBox = (
+    role: 'comparison' | 'primary',
+    label: 'Comparison' | 'Primary',
+    distribution: TrimDistribution,
+    color: string,
+    opacity: number,
+    strokeWidth: number,
+  ) => {
+    if (!distribution.eligible || !distribution.statistics) return null
+    const statistics = distribution.statistics
+    const x = positions[role]
+    const boxTop = y(statistics.q3)
+    const boxBottom = y(statistics.q1)
+    return (
+      <g key={role} aria-label={trimAccessibleDescription(label, statistics)}>
+        <line
+          data-activity-role={role}
+          data-trim-geometry="whisker"
+          x1={x}
+          x2={x}
+          y1={y(statistics.upperWhisker)}
+          y2={y(statistics.lowerWhisker)}
+          stroke={color}
+          strokeWidth={strokeWidth}
+        />
+        {([
+          ['lower', statistics.lowerWhisker],
+          ['upper', statistics.upperWhisker],
+        ] as const).map(([whiskerName, whisker]) => (
+          <line
+            data-activity-role={role}
+            data-trim-geometry="whisker-cap"
+            key={whiskerName}
+            x1={x - VS_CONFIG.trimWhiskerCapWidth / 2}
+            x2={x + VS_CONFIG.trimWhiskerCapWidth / 2}
+            y1={y(whisker)}
+            y2={y(whisker)}
+            stroke={color}
+            strokeWidth={strokeWidth}
+          />
+        ))}
+        <rect
+          data-activity-role={role}
+          data-trim-geometry="box"
+          x={x - VS_CONFIG.trimBoxWidth / 2}
+          y={boxTop}
+          width={VS_CONFIG.trimBoxWidth}
+          height={Math.max(0, boxBottom - boxTop)}
+          fill={color}
+          fillOpacity={opacity}
+          stroke={color}
+          strokeWidth={strokeWidth}
+        />
+        <line
+          data-activity-role={role}
+          data-trim-geometry="median"
+          x1={x - VS_CONFIG.trimBoxWidth / 2}
+          x2={x + VS_CONFIG.trimBoxWidth / 2}
+          y1={y(statistics.median)}
+          y2={y(statistics.median)}
+          stroke={color}
+          strokeWidth={VS_CONFIG.trimMedianStrokeWidth}
+        />
+        <text
+          x={x}
+          y={height - 7}
+          textAnchor="middle"
+          className="vs-distribution__axis-label"
+        >
+          {role === 'primary' ? 'P' : 'C'}
+        </text>
+      </g>
+    )
+  }
+
+  return (
+    <svg
+      className="vs-distribution__boxplot"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label="Time-weighted signed TRIM boxplot"
+    >
+      <line
+        x1={margin.left}
+        x2={margin.left}
+        y1={margin.top}
+        y2={height - margin.bottom}
+        className="vs-distribution__axis"
+      />
+      {tickValues.map((value) => (
+        <g key={value}>
+          {value === 0 && (
+            <line
+              data-guide="trim-zero"
+              x1={margin.left}
+              x2={width - margin.right}
+              y1={y(value)}
+              y2={y(value)}
+              stroke={VS_CONFIG.guideColor}
+              strokeWidth={VS_CONFIG.guideStrokeWidth}
+            />
+          )}
+          <line
+            x1={margin.left - 4}
+            x2={margin.left}
+            y1={y(value)}
+            y2={y(value)}
+            className="vs-distribution__axis"
+          />
+          <text
+            data-trim-axis-value={value}
+            x={margin.left - 8}
+            y={y(value)}
+            textAnchor="end"
+            dominantBaseline="middle"
+            className="vs-distribution__tick"
+          >
+            {formatSignedDegrees(value)}
+          </text>
+        </g>
+      ))}
+      {comparison && renderBox(
+        'comparison',
+        'Comparison',
+        comparison,
+        ACTIVITY_COLORS.comparison,
+        VS_CONFIG.comparisonOpacity,
+        VS_CONFIG.comparisonStrokeWidth,
+      )}
+      {renderBox(
+        'primary',
+        'Primary',
+        primary,
+        ACTIVITY_COLORS.primary,
+        VS_CONFIG.primaryOpacity,
+        VS_CONFIG.primaryStrokeWidth,
+      )}
+    </svg>
+  )
+}
+
 export default function VsDistributionView({
   primarySamples,
   comparisonSamples,
@@ -632,6 +837,7 @@ export default function VsDistributionView({
   const hasSog = primary.sog.eligible || comparison?.sog.eligible === true
   const hasCog = primary.cog.eligible || comparison?.cog.eligible === true
   const hasHeel = primary.heel.eligible || comparison?.heel.eligible === true
+  const hasTrim = primary.trim.eligible || comparison?.trim.eligible === true
 
   return (
     <section className="vs-distribution" aria-label="VS Analysis Window distributions">
@@ -681,6 +887,22 @@ export default function VsDistributionView({
           metric="HEEL"
           primary={primary.heel}
           comparison={comparison?.heel ?? null}
+        />
+      </article>
+      <article className="vs-distribution__panel">
+        <header>
+          <strong>Trim distribution</strong>
+          <span>Time-weighted signed TRIM</span>
+        </header>
+        <Coverage primary={primary.trim} comparison={comparison?.trim ?? null} />
+        {hasTrim
+          ? <TrimBoxplot primary={primary.trim} comparison={comparison?.trim ?? null} />
+          : <p className="vs-distribution__empty">Trim distribution unavailable</p>}
+        <UnavailableMessages
+          title="Trim distribution"
+          metric="TRIM"
+          primary={primary.trim}
+          comparison={comparison?.trim ?? null}
         />
       </article>
     </section>
