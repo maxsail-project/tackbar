@@ -3,6 +3,7 @@ import type { TrackSample } from '../types/track'
 import { COG_SIGNAL_TUNING } from '../config/cogSignal'
 import { HEEL_SIGNAL_TUNING } from '../config/heelSignal'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
+import { TRIM_SIGNAL_TUNING } from '../config/trimSignal'
 import { timestampToMilliseconds } from './replay'
 import {
   buildSogTimelinePath,
@@ -25,6 +26,18 @@ export interface HeelSignalRange {
 }
 
 export interface HeelSignalDomain {
+  minimum: number
+  maximum: number
+}
+
+export type TrimChartPoint = ScalarChartPoint
+
+export interface TrimSignalRange {
+  start: number
+  end: number
+}
+
+export interface TrimSignalDomain {
   minimum: number
   maximum: number
 }
@@ -68,6 +81,9 @@ export const COG_SIGNAL_VIEWBOX_HEIGHT = 200
 const HEEL_SIGNAL_PLOT_BAND = { top: 8, bottom: 192 }
 export const HEEL_SIGNAL_VIEWBOX_WIDTH = 1_000
 export const HEEL_SIGNAL_VIEWBOX_HEIGHT = 200
+const TRIM_SIGNAL_PLOT_BAND = { top: 8, bottom: 192 }
+export const TRIM_SIGNAL_VIEWBOX_WIDTH = 1_000
+export const TRIM_SIGNAL_VIEWBOX_HEIGHT = 200
 
 const SCALAR_SAMPLE_FIELDS: Record<
   ScalarChartMetric,
@@ -194,6 +210,110 @@ export function heelSignalXPosition(
   if (duration <= 0) return 0
   const ratio = (timestamp - range.start) / duration
   return Math.min(1, Math.max(0, ratio)) * HEEL_SIGNAL_VIEWBOX_WIDTH
+}
+
+export function buildTrimChartPoints(samples: TrackSample[]): TrimChartPoint[] {
+  return buildScalarChartPoints(samples, 'TRIM')
+    .sort((first, second) => first.time - second.time)
+}
+
+function trimBucketRepresentative(points: TrimChartPoint[]) {
+  const gapPoint = points.find((point) => point.value === null)
+  if (gapPoint !== undefined) return { ...gapPoint }
+  if (points.length === 0) return null
+  return { ...points[Math.floor(points.length / 2)] }
+}
+
+export function reduceRawTrimChartPoints(
+  points: TrimChartPoint[],
+  maximumPoints: number = TRIM_SIGNAL_TUNING.rawPointBudget,
+): TrimChartPoint[] {
+  if (maximumPoints < 2) throw new Error('TRIM point budget must be at least 2')
+  if (points.length <= maximumPoints) return [...points]
+
+  const first = points[0]
+  const last = points[points.length - 1]
+  if (maximumPoints === 2) return [first, last]
+
+  const interior = points.slice(1, -1)
+  const bucketCount = maximumPoints - 2
+  const reduced = [first]
+  for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
+    const start = Math.floor((bucketIndex * interior.length) / bucketCount)
+    const end = Math.floor(((bucketIndex + 1) * interior.length) / bucketCount)
+    const representative = trimBucketRepresentative(interior.slice(start, end))
+    if (representative !== null) reduced.push(representative)
+  }
+
+  return reduced.concat(last)
+}
+
+export function resolveTrimSignalDomain(
+  pointCollections: TrimChartPoint[][],
+): TrimSignalDomain | null {
+  let minimum = 0
+  let maximum = 0
+  let hasFiniteValue = false
+  pointCollections.forEach((points) => {
+    points.forEach((point) => {
+      if (point.value === null || !Number.isFinite(point.value)) return
+      minimum = Math.min(minimum, point.value)
+      maximum = Math.max(maximum, point.value)
+      hasFiniteValue = true
+    })
+  })
+  if (!hasFiniteValue) return null
+
+  minimum = Math.floor(minimum)
+  maximum = Math.ceil(maximum)
+  if (minimum === maximum) return { minimum: -1, maximum: 1 }
+  return { minimum, maximum }
+}
+
+export function trimSignalYPosition(
+  value: number,
+  domain: TrimSignalDomain,
+) {
+  const domainHeight = domain.maximum - domain.minimum
+  const plotHeight = TRIM_SIGNAL_PLOT_BAND.bottom - TRIM_SIGNAL_PLOT_BAND.top
+  if (domainHeight <= 0) return TRIM_SIGNAL_PLOT_BAND.bottom
+  return TRIM_SIGNAL_PLOT_BAND.bottom
+    - ((value - domain.minimum) / domainHeight) * plotHeight
+}
+
+export function buildTrimSignalPath(
+  points: TrimChartPoint[],
+  range: TrimSignalRange,
+  domain: TrimSignalDomain,
+) {
+  const duration = range.end - range.start
+  if (duration <= 0 || domain.maximum <= domain.minimum) return ''
+
+  let path = ''
+  let beginsSegment = true
+  points.forEach((point) => {
+    if (point.value === null) {
+      beginsSegment = true
+      return
+    }
+
+    const x = ((point.time - range.start) / duration) * TRIM_SIGNAL_VIEWBOX_WIDTH
+    const y = trimSignalYPosition(point.value, domain)
+    path += `${beginsSegment ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)} `
+    beginsSegment = false
+  })
+
+  return path.trim()
+}
+
+export function trimSignalXPosition(
+  timestamp: number,
+  range: TrimSignalRange,
+) {
+  const duration = range.end - range.start
+  if (duration <= 0) return 0
+  const ratio = (timestamp - range.start) / duration
+  return Math.min(1, Math.max(0, ratio)) * TRIM_SIGNAL_VIEWBOX_WIDTH
 }
 
 export function normalizeCogDegrees(value: number) {
