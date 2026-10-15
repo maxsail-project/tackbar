@@ -4,12 +4,12 @@ import { HEEL_SIGNAL_TUNING } from '../config/heelSignal'
 import type { TrackSample } from '../types/track'
 import {
   buildHeelChartPoints,
-  buildHeelSignalPath,
+  buildHeelBuckets,
+  buildHeelStepPath,
   heelSignalXPosition,
   heelSignalYPosition,
   HEEL_SIGNAL_VIEWBOX_HEIGHT,
   HEEL_SIGNAL_VIEWBOX_WIDTH,
-  reduceRawHeelChartPoints,
   resolveHeelSignalDomain,
   type HeelChartPoint,
   type HeelSignalRange,
@@ -64,12 +64,12 @@ export default function HeelSignalChart({
     () => buildHeelChartPoints(comparisonSamples ?? []),
     [comparisonSamples],
   )
-  const primaryRawPoints = useMemo(
-    () => reduceRawHeelChartPoints(primaryPoints),
+  const primaryBuckets = useMemo(
+    () => buildHeelBuckets(primaryPoints),
     [primaryPoints],
   )
-  const comparisonRawPoints = useMemo(
-    () => reduceRawHeelChartPoints(comparisonPoints),
+  const comparisonBuckets = useMemo(
+    () => buildHeelBuckets(comparisonPoints),
     [comparisonPoints],
   )
   const range = useMemo(
@@ -77,8 +77,8 @@ export default function HeelSignalChart({
     [comparisonPoints, primaryPoints],
   )
   const domain = useMemo(
-    () => resolveHeelSignalDomain([primaryPoints, comparisonPoints]),
-    [comparisonPoints, primaryPoints],
+    () => resolveHeelSignalDomain([primaryBuckets, comparisonBuckets]),
+    [comparisonBuckets, primaryBuckets],
   )
 
   if (range === null || domain === null || playbackTime === null) {
@@ -89,8 +89,8 @@ export default function HeelSignalChart({
     )
   }
 
-  const primaryPath = buildHeelSignalPath(primaryRawPoints, range, domain)
-  const comparisonPath = buildHeelSignalPath(comparisonRawPoints, range, domain)
+  const primaryPath = buildHeelStepPath(primaryBuckets, range, domain)
+  const comparisonPath = buildHeelStepPath(comparisonBuckets, range, domain)
   const midpoint = range.start + (range.end - range.start) / 2
   const playbackX = heelSignalXPosition(playbackTime, range)
   const zeroY = heelSignalYPosition(0, domain)

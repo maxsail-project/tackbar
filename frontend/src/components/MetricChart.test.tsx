@@ -359,7 +359,7 @@ describe('MetricChart series rendering hierarchy', () => {
       .toContain(`stroke="${ACTIVITY_COLORS.primary}"`)
   })
 
-  it('renders P-only HEEL with the same configured raw trace treatment', () => {
+  it('renders P-only HEEL with the configured stepped trace treatment', () => {
     const markup = renderChart('HEEL', false)
     const primary = heelSeriesTag(markup, 'primary')
     const traceStyle = `stroke-width="${HEEL_SIGNAL_TUNING.traceStrokeWidth}" stroke-opacity="${HEEL_SIGNAL_TUNING.traceOpacity}"`
@@ -374,16 +374,17 @@ describe('MetricChart series rendering hierarchy', () => {
     const traceStyle = `stroke-width="${HEEL_SIGNAL_TUNING.traceStrokeWidth}" stroke-opacity="${HEEL_SIGNAL_TUNING.traceOpacity}"`
 
     expect(HEEL_SIGNAL_TUNING).toEqual({
+      bucketSeconds: 2,
+      maxGapSeconds: 1.5,
       traceOpacity: 0.6,
       traceStrokeWidth: 3,
-      rawPointBudget: 800,
     })
     expect(heelSeriesTag(markup, 'comparison')).toContain(traceStyle)
     expect(heelSeriesTag(markup, 'primary')).toContain(traceStyle)
   })
 
-  it('reduces the rendered HEEL path to the configured point budget', () => {
-    const denseSamples = Array.from({ length: 900 }, (_, index): TrackSample => ({
+  it('renders one step instead of the full raw high-frequency HEEL signal', () => {
+    const denseSamples = Array.from({ length: 21 }, (_, index): TrackSample => ({
       ...samples[0],
       utc: new Date(Date.parse(samples[0].utc) + index * 100).toISOString(),
       heel: (index % 21) - 10,
@@ -391,38 +392,42 @@ describe('MetricChart series rendering hierarchy', () => {
     const markup = renderChart('HEEL', false, denseSamples)
 
     expect(heelSeriesPath(markup, 'primary').match(/[ML]/g))
-      .toHaveLength(HEEL_SIGNAL_TUNING.rawPointBudget)
+      .toHaveLength(2)
   })
 
   it('keeps signed HEEL, the zero reference, and the playback cursor visible', () => {
     const chartSamples: TrackSample[] = [
       { ...samples[0], utc: '2026-09-05T12:00:00Z', heel: -10 },
-      { ...samples[0], utc: '2026-09-05T12:00:01Z', heel: null },
-      { ...samples[0], utc: '2026-09-05T12:00:02Z', heel: 10 },
+      { ...samples[0], utc: '2026-09-05T12:00:01Z', heel: -10 },
+      { ...samples[0], utc: '2026-09-05T12:00:02Z', heel: null },
+      { ...samples[0], utc: '2026-09-05T12:00:03Z', heel: 10 },
+      { ...samples[0], utc: '2026-09-05T12:00:04Z', heel: 10 },
     ]
     const markup = renderChart(
       'HEEL',
       false,
       chartSamples,
-      Date.parse('2026-09-05T12:00:01Z'),
+      Date.parse('2026-09-05T12:00:02Z'),
     )
 
     expect(heelSeriesPath(markup, 'primary'))
-      .toBe('M0.00,192.00 M1000.00,8.00')
+      .toBe('M0.00,192.00 L500.00,192.00 M500.00,8.00 L1000.00,8.00')
     expect(markup).toContain('data-heel-zero-reference="true"')
     expect(markup).toContain('y1="100" y2="100"')
     expect(markup).toContain('data-heel-playback-cursor="true" x1="500" x2="500"')
   })
 
   it('updates the native-SVG HEEL UTC axis from Analysis Window-filtered samples', () => {
-    const full = renderChart('HEEL', false, [
-      { ...samples[0], utc: '2026-09-05T12:00:00Z' },
-      { ...samples[0], utc: '2026-09-05T12:00:10Z' },
-    ])
-    const narrowed = renderChart('HEEL', false, [
-      { ...samples[0], utc: '2026-09-05T12:00:02Z' },
-      { ...samples[0], utc: '2026-09-05T12:00:08Z' },
-    ])
+    const intervalSamples = (startSecond: number, endSecond: number) => Array.from(
+      { length: endSecond - startSecond + 1 },
+      (_, index): TrackSample => ({
+        ...samples[0],
+        utc: new Date(Date.parse('2026-09-05T12:00:00Z') + (startSecond + index) * 1_000)
+          .toISOString(),
+      }),
+    )
+    const full = renderChart('HEEL', false, intervalSamples(0, 10))
+    const narrowed = renderChart('HEEL', false, intervalSamples(2, 8))
 
     expect(full).toContain('>12:00:00</time>')
     expect(full).toContain('>12:00:10</time>')

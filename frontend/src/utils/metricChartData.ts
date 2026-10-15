@@ -20,6 +20,13 @@ export interface ScalarChartPoint {
 
 export type HeelChartPoint = ScalarChartPoint
 
+export interface HeelBucket {
+  start: number
+  end: number
+  value: number | null
+  connectsFromPrevious: boolean
+}
+
 export interface HeelSignalRange {
   start: number
   end: number
@@ -113,48 +120,92 @@ export function buildHeelChartPoints(samples: TrackSample[]): HeelChartPoint[] {
     .sort((first, second) => first.time - second.time)
 }
 
-function heelBucketRepresentative(points: HeelChartPoint[]) {
-  const gapPoint = points.find((point) => point.value === null)
-  if (gapPoint !== undefined) return { ...gapPoint }
-  if (points.length === 0) return null
-  return { ...points[Math.floor(points.length / 2)] }
-}
-
-export function reduceRawHeelChartPoints(
+export function buildHeelBuckets(
   points: HeelChartPoint[],
-  maximumPoints: number = HEEL_SIGNAL_TUNING.rawPointBudget,
-): HeelChartPoint[] {
-  if (maximumPoints < 2) throw new Error('HEEL point budget must be at least 2')
-  if (points.length <= maximumPoints) return [...points]
+  bucketSeconds: number = HEEL_SIGNAL_TUNING.bucketSeconds,
+  maxGapSeconds: number = HEEL_SIGNAL_TUNING.maxGapSeconds,
+): HeelBucket[] {
+  if (bucketSeconds <= 0) throw new Error('HEEL bucket duration must be positive')
+  if (maxGapSeconds <= 0) throw new Error('HEEL maximum gap must be positive')
+  if (points.length < 2) return []
 
-  const first = points[0]
-  const last = points[points.length - 1]
-  if (maximumPoints === 2) return [first, last]
+  const sortedPoints = [...points].sort((first, second) => first.time - second.time)
+  const bucketMilliseconds = bucketSeconds * 1_000
+  const maxGapMilliseconds = maxGapSeconds * 1_000
+  const firstBucketStart = Math.floor(
+    sortedPoints[0].time / bucketMilliseconds,
+  ) * bucketMilliseconds
+  const lastTime = sortedPoints[sortedPoints.length - 1].time
+  const bucketCount = Math.ceil((lastTime - firstBucketStart) / bucketMilliseconds)
+  if (bucketCount <= 0) return []
 
-  const interior = points.slice(1, -1)
-  const bucketCount = maximumPoints - 2
-  const reduced = [first]
-  for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
-    const start = Math.floor((bucketIndex * interior.length) / bucketCount)
-    const end = Math.floor(((bucketIndex + 1) * interior.length) / bucketCount)
-    const representative = heelBucketRepresentative(interior.slice(start, end))
-    if (representative !== null) reduced.push(representative)
+  const accumulators = Array.from({ length: bucketCount }, () => ({
+    representedArea: 0,
+    representedDuration: 0,
+    coversStart: false,
+    coversEnd: false,
+  }))
+
+  for (let index = 1; index < sortedPoints.length; index += 1) {
+    const first = sortedPoints[index - 1]
+    const second = sortedPoints[index]
+    const interval = second.time - first.time
+    if (
+      first.value === null
+      || second.value === null
+      || interval <= 0
+      || interval > maxGapMilliseconds
+    ) {
+      continue
+    }
+
+    let bucketStart = Math.floor(first.time / bucketMilliseconds) * bucketMilliseconds
+    while (bucketStart < second.time) {
+      const bucketEnd = bucketStart + bucketMilliseconds
+      const overlapStart = Math.max(first.time, bucketStart)
+      const overlapEnd = Math.min(second.time, bucketEnd)
+      const representedDuration = overlapEnd - overlapStart
+      if (representedDuration > 0) {
+        const startRatio = (overlapStart - first.time) / interval
+        const endRatio = (overlapEnd - first.time) / interval
+        const startValue = first.value + (second.value - first.value) * startRatio
+        const endValue = first.value + (second.value - first.value) * endRatio
+        const bucketIndex = (bucketStart - firstBucketStart) / bucketMilliseconds
+        const accumulator = accumulators[bucketIndex]
+        accumulator.representedArea += (
+          (startValue + endValue) * representedDuration / 2
+        )
+        accumulator.representedDuration += representedDuration
+        if (overlapStart === bucketStart) accumulator.coversStart = true
+        if (overlapEnd === bucketEnd) accumulator.coversEnd = true
+      }
+      bucketStart = bucketEnd
+    }
   }
 
-  return reduced.concat(last)
+  return accumulators.map((accumulator, index) => ({
+    start: firstBucketStart + index * bucketMilliseconds,
+    end: firstBucketStart + (index + 1) * bucketMilliseconds,
+    value: accumulator.representedDuration > 0
+      ? accumulator.representedArea / accumulator.representedDuration
+      : null,
+    connectsFromPrevious: index > 0
+      && accumulators[index - 1].coversEnd
+      && accumulator.coversStart,
+  }))
 }
 
 export function resolveHeelSignalDomain(
-  pointCollections: HeelChartPoint[][],
+  bucketCollections: Array<Array<Pick<HeelBucket, 'value'>>>,
 ): HeelSignalDomain | null {
   let minimum = 0
   let maximum = 0
   let hasFiniteValue = false
-  pointCollections.forEach((points) => {
-    points.forEach((point) => {
-      if (point.value === null || !Number.isFinite(point.value)) return
-      minimum = Math.min(minimum, point.value)
-      maximum = Math.max(maximum, point.value)
+  bucketCollections.forEach((buckets) => {
+    buckets.forEach((bucket) => {
+      if (bucket.value === null || !Number.isFinite(bucket.value)) return
+      minimum = Math.min(minimum, bucket.value)
+      maximum = Math.max(maximum, bucket.value)
       hasFiniteValue = true
     })
   })
@@ -177,8 +228,8 @@ export function heelSignalYPosition(
     - ((value - domain.minimum) / domainHeight) * plotHeight
 }
 
-export function buildHeelSignalPath(
-  points: HeelChartPoint[],
+export function buildHeelStepPath(
+  buckets: HeelBucket[],
   range: HeelSignalRange,
   domain: HeelSignalDomain,
 ) {
@@ -186,17 +237,26 @@ export function buildHeelSignalPath(
   if (duration <= 0 || domain.maximum <= domain.minimum) return ''
 
   let path = ''
-  let beginsSegment = true
-  points.forEach((point) => {
-    if (point.value === null) {
-      beginsSegment = true
+  let previousBucketEnd: number | null = null
+  buckets.forEach((bucket) => {
+    if (bucket.value === null) {
+      previousBucketEnd = null
       return
     }
 
-    const x = ((point.time - range.start) / duration) * HEEL_SIGNAL_VIEWBOX_WIDTH
-    const y = heelSignalYPosition(point.value, domain)
-    path += `${beginsSegment ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)} `
-    beginsSegment = false
+    const visibleStart = Math.max(bucket.start, range.start)
+    const visibleEnd = Math.min(bucket.end, range.end)
+    if (visibleStart >= visibleEnd) return
+
+    const startX = ((visibleStart - range.start) / duration) * HEEL_SIGNAL_VIEWBOX_WIDTH
+    const endX = ((visibleEnd - range.start) / duration) * HEEL_SIGNAL_VIEWBOX_WIDTH
+    const y = heelSignalYPosition(bucket.value, domain)
+    const continuesPrevious = bucket.connectsFromPrevious
+      && previousBucketEnd === bucket.start
+      && visibleStart === bucket.start
+    path += `${continuesPrevious ? 'L' : 'M'}${startX.toFixed(2)},${y.toFixed(2)} `
+    path += `L${endX.toFixed(2)},${y.toFixed(2)} `
+    previousBucketEnd = bucket.end
   })
 
   return path.trim()

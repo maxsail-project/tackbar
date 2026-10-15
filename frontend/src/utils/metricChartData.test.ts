@@ -9,8 +9,9 @@ import {
   buildCogChartPoints,
   buildCanonicalCogChartPoints,
   buildCogSignalPath,
+  buildHeelBuckets,
   buildHeelChartPoints,
-  buildHeelSignalPath,
+  buildHeelStepPath,
   buildSmoothedCogChartPoints,
   buildScalarChartPoints,
   buildSogChartPoints,
@@ -20,7 +21,6 @@ import {
   buildTrimSignalPath,
   reduceRawSogChartPoints,
   reduceRawCogChartPoints,
-  reduceRawHeelChartPoints,
   reduceRawTrimChartPoints,
   resolveHeelSignalDomain,
   resolveTrimSignalDomain,
@@ -64,6 +64,22 @@ function samplesWithCogAt(
     cog,
     hdg: null,
     heel: null,
+    trim: null,
+  }))
+}
+
+function samplesWithHeelAt(
+  points: Array<[offsetMilliseconds: number, heel: number | null]>,
+): TrackSample[] {
+  return points.map(([offsetMilliseconds, heel], index) => ({
+    utc: new Date(BASE_TIME + offsetMilliseconds).toISOString(),
+    lat: 0.25,
+    lon: -30.75,
+    dist: index === 0 ? 0 : 1,
+    sog: null,
+    cog: null,
+    hdg: null,
+    heel,
     trim: null,
   }))
 }
@@ -138,11 +154,12 @@ describe('scalar chart data', () => {
 })
 
 describe('native-SVG HEEL presentation data', () => {
-  it('uses centralized HEEL-specific raw trace tuning', () => {
+  it('uses centralized HEEL-specific bucket and trace tuning', () => {
     expect(HEEL_SIGNAL_TUNING).toEqual({
+      bucketSeconds: 2,
+      maxGapSeconds: 1.5,
       traceOpacity: 0.6,
       traceStrokeWidth: 3,
-      rawPointBudget: 800,
     })
   })
 
@@ -168,52 +185,184 @@ describe('native-SVG HEEL presentation data', () => {
     ])
   })
 
-  it('reduces only the raw presentation and preserves endpoints and a gap', () => {
-    const samples = samplesWithScalarValues(
-      'HEEL',
-      Array.from({ length: 900 }, (_, index) => index === 450 ? null : index - 450),
-    )
-    const canonical = buildHeelChartPoints(samples)
-    const originalHeel = samples.map((sample) => sample.heel)
-    const reduced = reduceRawHeelChartPoints(canonical)
+  it('aligns two-second buckets to absolute UTC rather than the first sample', () => {
+    const buckets = buildHeelBuckets(buildHeelChartPoints(samplesWithHeelAt([
+      [500, 4],
+      [1_500, 4],
+      [2_500, 4],
+    ])))
 
-    expect(reduced).toHaveLength(HEEL_SIGNAL_TUNING.rawPointBudget)
-    expect(reduced[0]).toEqual(canonical[0])
-    expect(reduced[reduced.length - 1]).toEqual(canonical[canonical.length - 1])
-    expect(reduced.some((point) => point.value === null)).toBe(true)
-    expect(samples.map((sample) => sample.heel)).toEqual(originalHeel)
+    expect(buckets).toEqual([
+      {
+        start: BASE_TIME,
+        end: BASE_TIME + 2_000,
+        value: 4,
+        connectsFromPrevious: false,
+      },
+      {
+        start: BASE_TIME + 2_000,
+        end: BASE_TIME + 4_000,
+        value: 4,
+        connectsFromPrevious: true,
+      },
+    ])
+  })
+
+  it('calculates time-weighted means from actual represented intervals', () => {
+    const buckets = buildHeelBuckets(buildHeelChartPoints(samplesWithHeelAt([
+      [0, 0],
+      [1_000, 0],
+      [2_000, 10],
+    ])))
+
+    expect(buckets).toEqual([{
+      start: BASE_TIME,
+      end: BASE_TIME + 2_000,
+      value: 2.5,
+      connectsFromPrevious: false,
+    }])
+  })
+
+  it('clips irregular represented durations to UTC bucket boundaries', () => {
+    const buckets = buildHeelBuckets(buildHeelChartPoints(samplesWithHeelAt([
+      [0, 0],
+      [500, 2],
+      [2_000, 2],
+    ])))
+
+    expect(buckets[0].value).toBe(1.75)
+  })
+
+  it('produces equivalent buckets for equivalent 1, 2, and 10 Hz telemetry', () => {
+    const bucketValues = (frequency: number) => {
+      const interval = 1_000 / frequency
+      const points = Array.from(
+        { length: 4 * frequency + 1 },
+        (_, index) => {
+          const offset = index * interval
+          return [offset, -4 + 2 * offset / 1_000] as [number, number]
+        },
+      )
+      return buildHeelBuckets(buildHeelChartPoints(samplesWithHeelAt(points)))
+        .map((bucket) => bucket.value)
+    }
+
+    expect(bucketValues(2)).toEqual(bucketValues(1))
+    expect(bucketValues(10)).toEqual(bucketValues(1))
+  })
+
+  it('allows 1.5-second continuity and rejects longer intervals', () => {
+    const allowed = buildHeelBuckets(buildHeelChartPoints(samplesWithHeelAt([
+      [0, 3],
+      [1_500, 3],
+    ])))
+    const rejected = buildHeelBuckets(buildHeelChartPoints(samplesWithHeelAt([
+      [0, 3],
+      [1_501, 3],
+    ])))
+
+    expect(allowed[0].value).toBe(3)
+    expect(rejected[0].value).toBeNull()
+  })
+
+  it('preserves missing and non-finite HEEL as unavailable represented time', () => {
+    const canonical = buildHeelChartPoints(samplesWithHeelAt([
+      [0, 2],
+      [1_000, null],
+      [2_000, Number.NaN],
+      [3_000, Number.POSITIVE_INFINITY],
+      [4_000, 6],
+      [5_000, 6],
+    ]))
+    const buckets = buildHeelBuckets(canonical)
+
+    expect(canonical.map((point) => point.value)).toEqual([2, null, null, null, 6, 6])
+    expect(buckets.map((bucket) => bucket.value)).toEqual([null, null, 6])
+  })
+
+  it('breaks step continuity when missing data separates adjacent available buckets', () => {
+    const buckets = buildHeelBuckets(buildHeelChartPoints(samplesWithHeelAt([
+      [0, 2],
+      [1_000, 2],
+      [2_000, null],
+      [3_000, 6],
+      [4_000, 6],
+    ])))
+
+    expect(buckets.map((bucket) => ({
+      value: bucket.value,
+      connectsFromPrevious: bucket.connectsFromPrevious,
+    }))).toEqual([
+      { value: 2, connectsFromPrevious: false },
+      { value: 6, connectsFromPrevious: false },
+    ])
+  })
+
+  it('returns unavailable buckets when no valid duration is represented', () => {
+    const buckets = buildHeelBuckets(buildHeelChartPoints(samplesWithHeelAt([
+      [0, 2],
+      [1_000, 2],
+      [5_000, 10],
+      [6_000, 10],
+    ])))
+
+    expect(buckets.map((bucket) => bucket.value)).toEqual([2, null, 10])
   })
 
   it('auto-ranges signed HEEL while always retaining zero', () => {
     expect(resolveHeelSignalDomain([[
-      { time: BASE_TIME, value: -8.2 },
-      { time: BASE_TIME + 1_000, value: 6.1 },
+      { value: -8.2 },
+      { value: 6.1 },
     ]])).toEqual({ minimum: -9, maximum: 7 })
     expect(resolveHeelSignalDomain([[
-      { time: BASE_TIME, value: 2.1 },
-      { time: BASE_TIME + 1_000, value: 6.1 },
+      { value: 2.1 },
+      { value: 6.1 },
     ]])).toEqual({ minimum: 0, maximum: 7 })
     expect(resolveHeelSignalDomain([[
-      { time: BASE_TIME, value: -8.2 },
-      { time: BASE_TIME + 1_000, value: -2.1 },
+      { value: -8.2 },
+      { value: -2.1 },
     ]])).toEqual({ minimum: -9, maximum: 0 })
     expect(resolveHeelSignalDomain([[
-      { time: BASE_TIME, value: 0 },
+      { value: 0 },
     ]])).toEqual({ minimum: -1, maximum: 1 })
   })
 
-  it('generates a signed path with explicit missing-data breaks', () => {
-    expect(buildHeelSignalPath([
-      { time: BASE_TIME, value: -10 },
-      { time: BASE_TIME + 1_000, value: null },
-      { time: BASE_TIME + 2_000, value: 10 },
+  it('generates deterministic horizontal steps and breaks unavailable buckets', () => {
+    expect(buildHeelStepPath([
+      {
+        start: BASE_TIME,
+        end: BASE_TIME + 2_000,
+        value: 5,
+        connectsFromPrevious: false,
+      },
+      {
+        start: BASE_TIME + 2_000,
+        end: BASE_TIME + 4_000,
+        value: 10,
+        connectsFromPrevious: true,
+      },
+      {
+        start: BASE_TIME + 4_000,
+        end: BASE_TIME + 6_000,
+        value: null,
+        connectsFromPrevious: false,
+      },
+      {
+        start: BASE_TIME + 6_000,
+        end: BASE_TIME + 8_000,
+        value: -5,
+        connectsFromPrevious: false,
+      },
     ], {
       start: BASE_TIME,
-      end: BASE_TIME + 2_000,
+      end: BASE_TIME + 8_000,
     }, {
       minimum: -10,
       maximum: 10,
-    })).toBe('M0.00,192.00 M1000.00,8.00')
+    })).toBe(
+      'M0.00,54.00 L250.00,54.00 L250.00,8.00 L500.00,8.00 '
+      + 'M750.00,146.00 L1000.00,146.00',
+    )
   })
 
   it('positions and clamps the HEEL playback cursor on shared UTC', () => {
