@@ -1804,6 +1804,10 @@ input:focus-visible {
   border-top: 1px solid #d3e0e2;
 }
 
+.individual-analysis__activity .individual-heel-sog-density {
+  border-top: 1px solid #d3e0e2;
+}
+
 .individual-sog-cog-chart {
   min-width: 0;
   padding: 20px 16px;
@@ -1927,6 +1931,105 @@ input:focus-visible {
   min-height: 230px;
   color: #52717a;
   text-align: center;
+}
+
+.individual-heel-sog-density {
+  min-width: 0;
+  padding: 20px 16px;
+  background: #f8fbfb;
+}
+
+.individual-heel-sog-density__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  color: #17323a;
+}
+
+.individual-heel-sog-density__heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.individual-heel-sog-density__heading strong {
+  font-size: 0.86rem;
+}
+
+.individual-heel-sog-density__heading span {
+  color: #60777e;
+  font-size: 0.72rem;
+}
+
+.individual-heel-sog-density__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.individual-heel-sog-density__key i {
+  width: 22px;
+  height: 9px;
+  border-radius: 2px;
+  opacity: 0.9;
+}
+
+.individual-heel-sog-density__warning {
+  margin: 8px 0 0;
+  color: #98521f;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.individual-heel-sog-density__canvas {
+  width: 100%;
+  min-width: 0;
+  margin-top: 10px;
+}
+
+.individual-heel-sog-density__canvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 340px;
+}
+
+.individual-heel-sog-density__plot-background {
+  fill: #edf4f5;
+  stroke: #c9d9dc;
+  stroke-width: 1;
+}
+
+.individual-heel-sog-density__zero-reference {
+  stroke: #49656d;
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.individual-heel-sog-density__axis line {
+  stroke: #8ca3a9;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.individual-heel-sog-density__axis text,
+.individual-heel-sog-density__empty {
+  fill: #60777e;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.individual-heel-sog-density__axis-label {
+  fill: #49656d;
+  font-weight: 700;
+}
+
+.individual-heel-sog-density__empty {
+  font-weight: 700;
 }
 
 .not-found-page {

@@ -832,6 +832,7 @@ export function SessionViewer({
           id: primaryActivity.id,
           label: formatActivityIdentity(primaryActivity),
           samples: canReplay ? primaryWindowSamples : null,
+          canonicalSamples: primaryTrack?.samples ?? null,
           colorRole: 'primary',
         }}
         comparisonActivity={comparisonActivity && comparisonTrack
@@ -839,10 +840,12 @@ export function SessionViewer({
               id: comparisonActivity.id,
               label: formatActivityIdentity(comparisonActivity),
               samples: comparisonWindowSamples,
+              canonicalSamples: comparisonTrack.samples,
               colorRole: 'comparison',
             }
           : undefined}
         playbackTime={canReplay ? playbackTime : null}
+        analysisWindow={analysisWindow}
       />
     </main>
   )

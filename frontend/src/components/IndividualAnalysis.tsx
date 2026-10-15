@@ -1,12 +1,16 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackSample } from '../types/track'
+import type { AnalysisWindowRange } from '../utils/analysisWindow'
+import { buildHeelSogDensityPresentation } from '../utils/heelSogDensity'
+import IndividualHeelSogDensityChart from './IndividualHeelSogDensityChart'
 import IndividualSogCogChart from './IndividualSogCogChart'
 
 export interface IndividualAnalysisActivity {
   id: string
   label: string
   samples: TrackSample[] | null
+  canonicalSamples: TrackSample[] | null
   colorRole: keyof typeof ACTIVITY_COLORS
 }
 
@@ -14,6 +18,7 @@ interface IndividualAnalysisProps {
   primaryActivity: IndividualAnalysisActivity
   comparisonActivity?: IndividualAnalysisActivity
   playbackTime: number | null
+  analysisWindow: AnalysisWindowRange | null
 }
 
 export function toggleIndividualAnalysis(expanded: boolean) {
@@ -33,13 +38,25 @@ export function resolveIndividualSogColor(
 export function IndividualAnalysisContent({
   activities,
   playbackTime,
+  analysisWindow,
 }: {
   activities: IndividualAnalysisActivity[]
   playbackTime: number | null
+  analysisWindow: AnalysisWindowRange | null
 }) {
+  const densityPresentation = useMemo(
+    () => analysisWindow === null
+      ? null
+      : buildHeelSogDensityPresentation(
+          activities.map((activity) => activity.canonicalSamples ?? []),
+          analysisWindow,
+        ),
+    [activities, analysisWindow],
+  )
+
   return (
     <div className="individual-analysis__content">
-      {activities.map((activity) => (
+      {activities.map((activity, index) => (
         <section
           className="individual-analysis__activity"
           key={activity.id}
@@ -52,6 +69,17 @@ export function IndividualAnalysisContent({
             activityLabel={activity.label}
             sogColor={resolveIndividualSogColor(activity.colorRole)}
           />
+          {densityPresentation === null ? null : (
+            <IndividualHeelSogDensityChart
+              activityLabel={activity.label}
+              color={resolveIndividualSogColor(activity.colorRole)}
+              density={densityPresentation.activities[index]}
+              geometry={densityPresentation.geometry}
+              sharedMaximumCellPercentage={
+                densityPresentation.sharedMaximumCellPercentage
+              }
+            />
+          )}
         </section>
       ))}
     </div>
@@ -62,6 +90,7 @@ export default function IndividualAnalysis({
   primaryActivity,
   comparisonActivity,
   playbackTime,
+  analysisWindow,
 }: IndividualAnalysisProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const activities = comparisonActivity
@@ -77,7 +106,7 @@ export default function IndividualAnalysis({
         <div>
           <h2 id="individual-analysis-heading">Individual Analysis</h2>
           <p className="section-description">
-            Inspect SOG and COG for each selected Activity.
+            Inspect SOG, COG and HEEL versus SOG density for each selected Activity.
           </p>
         </div>
         <button
@@ -95,6 +124,7 @@ export default function IndividualAnalysis({
           <IndividualAnalysisContent
             activities={activities}
             playbackTime={playbackTime}
+            analysisWindow={analysisWindow}
           />
         </div>
       )}

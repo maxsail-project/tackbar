@@ -20,14 +20,30 @@ const samples: TrackSample[] = [
     sog: 5.2,
     cog: 120,
     hdg: null,
-    heel: null,
+    heel: 5,
+    trim: null,
+  },
+  {
+    utc: '2026-09-05T12:00:01Z',
+    lat: 39,
+    lon: 2,
+    dist: 5.2,
+    sog: 5.2,
+    cog: 120,
+    hdg: null,
+    heel: 5,
     trim: null,
   },
 ]
+const analysisWindow = {
+  start: Date.parse(samples[0].utc),
+  end: Date.parse(samples[1].utc),
+}
 const primaryActivity: IndividualAnalysisActivity = {
   id: 'activity-a',
   label: 'Sailor A · Boat A',
   samples,
+  canonicalSamples: samples,
   colorRole: 'primary',
 }
 
@@ -36,6 +52,7 @@ function renderContent(activities: IndividualAnalysisActivity[]) {
     <IndividualAnalysisContent
       activities={activities}
       playbackTime={playbackTime}
+      analysisWindow={analysisWindow}
     />,
   )
 }
@@ -46,6 +63,7 @@ describe('Individual Analysis disclosure', () => {
       <IndividualAnalysis
         primaryActivity={primaryActivity}
         playbackTime={playbackTime}
+        analysisWindow={analysisWindow}
       />,
     )
 
@@ -70,17 +88,20 @@ describe('Individual Analysis disclosure', () => {
 })
 
 describe('Individual Analysis content', () => {
-  it('renders one dual-axis SOG and COG chart for one Activity', () => {
+  it('renders the SOG and COG chart followed by one density map for one Activity', () => {
     const markup = renderContent([primaryActivity])
 
     expect(markup.match(/individual-analysis__activity/g)).toHaveLength(1)
     expect(markup.match(/individual-sog-cog-chart/g)).toHaveLength(1)
-    expect(markup.match(/<svg/g)).toHaveLength(1)
+    expect(markup.match(/<svg/g)).toHaveLength(2)
     expect(markup.match(/data-individual-signal-playback-cursor/g)).toHaveLength(1)
+    expect(markup.match(/individual-heel-sog-density"/g)).toHaveLength(1)
     expect(markup).toContain('SOG + COG over GPS time')
+    expect(markup.indexOf('SOG + COG over GPS time'))
+      .toBeLessThan(markup.indexOf('HEEL vs SOG density'))
   })
 
-  it('renders independent dual-axis charts for two Activities', () => {
+  it('renders independent time-series and density maps for two Activities', () => {
     const markup = renderContent([
       primaryActivity,
       { ...primaryActivity, id: 'activity-b', label: 'Sailor B · Boat B', colorRole: 'comparison' },
@@ -88,11 +109,14 @@ describe('Individual Analysis content', () => {
 
     expect(markup.match(/individual-analysis__activity/g)).toHaveLength(2)
     expect(markup.match(/individual-sog-cog-chart/g)).toHaveLength(2)
-    expect(markup.match(/<svg/g)).toHaveLength(2)
+    expect(markup.match(/<svg/g)).toHaveLength(4)
     expect(markup.match(/data-individual-signal-playback-cursor/g)).toHaveLength(2)
+    expect(markup.match(/individual-heel-sog-density"/g)).toHaveLength(2)
     expect(markup.match(/SOG \+ COG over GPS time/g)).toHaveLength(2)
     expect(markup).toContain('Sailor A · Boat A')
     expect(markup).toContain('Sailor B · Boat B')
+    expect(markup).toContain(`fill="${ACTIVITY_COLORS.primary}"`)
+    expect(markup).toContain(`fill="${ACTIVITY_COLORS.comparison}"`)
   })
 
   it('gives every Activity chart an independent React identity', () => {
@@ -113,6 +137,31 @@ describe('Individual Analysis content', () => {
 
     expect(markup).toContain('SOG + COG over GPS time')
     expect(markup).not.toContain('No SOG or COG track data for this Activity')
+  })
+
+  it('uses canonical samples and the actual window for density boundary coverage', () => {
+    const canonicalSamples = [
+      {
+        ...samples[0],
+        utc: '2026-09-05T11:59:59.500Z',
+      },
+      {
+        ...samples[0],
+        utc: '2026-09-05T12:00:00.500Z',
+      },
+      {
+        ...samples[1],
+        utc: '2026-09-05T12:00:01.500Z',
+      },
+    ]
+    const markup = renderContent([{
+      ...primaryActivity,
+      samples: [canonicalSamples[1]],
+      canonicalSamples,
+    }])
+
+    expect(markup).toContain('100% coverage')
+    expect(markup).toContain('data-density-cell="true"')
   })
 
   it('does not mutate filtered samples or shared playback time', () => {
