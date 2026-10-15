@@ -1378,6 +1378,34 @@ input:focus-visible {
   touch-action: auto;
 }
 
+.sog-signal-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px 10px;
+  margin: 0;
+  padding: 0;
+  color: #647b82;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  list-style: none;
+}
+
+.sog-signal-chart__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.sog-signal-chart__legend svg {
+  width: 24px;
+  height: 8px;
+  overflow: visible;
+  flex: none;
+}
+
 .sog-signal-chart {
   display: grid;
   grid-template-rows: minmax(0, 1fr) 28px;

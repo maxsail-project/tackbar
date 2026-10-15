@@ -115,24 +115,27 @@ describe('scalar chart data', () => {
 })
 
 describe('native-SVG SOG presentation data', () => {
-  it('uses the centralized eight-second smoothing window', () => {
-    expect(SOG_SIGNAL_TUNING.smoothingWindowSeconds).toBe(8)
+  it('uses the centralized ten-second smoothing window and raw point budget', () => {
+    expect(SOG_SIGNAL_TUNING.smoothingWindowSeconds).toBe(10)
+    expect(SOG_SIGNAL_TUNING.rawPointBudget).toBe(800)
   })
 
-  it('calculates a centered eight-second time-weighted trend', () => {
+  it('calculates a centered ten-second time-weighted trend', () => {
     const trend = buildSogTrendPoints(buildSogChartPoints(samplesWithSog([
       [0, 0],
       [1_000, 0],
       [2_000, 0],
       [3_000, 0],
-      [4_000, 8],
-      [5_000, 0],
+      [4_000, 0],
+      [5_000, 10],
       [6_000, 0],
       [7_000, 0],
       [8_000, 0],
+      [9_000, 0],
+      [10_000, 0],
     ])))
 
-    expect(trend[4].sog).toBe(1)
+    expect(trend[5].sog).toBe(1)
   })
 
   it('weights irregular timestamps by represented time', () => {
@@ -198,16 +201,19 @@ describe('native-SVG SOG presentation data', () => {
 
   it('reduces only raw presentation while the trend retains every canonical sample', () => {
     const samples = samplesWithSog(Array.from(
-      { length: 300 },
+      { length: 900 },
       (_, index) => [index * 100, 4 + (index % 7)] as [number, number],
     ))
     const canonicalPoints = buildSogChartPoints(samples)
     const originalSog = samples.map((sample) => sample.sog)
 
-    const rawPoints = reduceRawSogChartPoints(canonicalPoints, 240)
+    const rawPoints = reduceRawSogChartPoints(
+      canonicalPoints,
+      SOG_SIGNAL_TUNING.rawPointBudget,
+    )
     const trendPoints = buildSogTrendPoints(canonicalPoints)
 
-    expect(rawPoints).toHaveLength(240)
+    expect(rawPoints).toHaveLength(SOG_SIGNAL_TUNING.rawPointBudget)
     expect(trendPoints.filter((point) => point.kind === 'sample'))
       .toHaveLength(samples.length)
     expect(samples.map((sample) => sample.sog)).toEqual(originalSog)

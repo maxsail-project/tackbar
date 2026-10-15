@@ -23,7 +23,6 @@ interface SogSignalChartProps {
   comparisonLabel?: string
 }
 
-const RAW_POINT_BUDGET = 800
 const RAW_STYLE = {
   strokeWidth: SOG_SIGNAL_TUNING.rawStrokeWidth,
   strokeOpacity: SOG_SIGNAL_TUNING.rawOpacity,
@@ -83,11 +82,11 @@ export default function SogSignalChart({
     [comparisonSamples],
   )
   const primaryRawPoints = useMemo(
-    () => reduceRawSogChartPoints(primaryPoints, RAW_POINT_BUDGET),
+    () => reduceRawSogChartPoints(primaryPoints, SOG_SIGNAL_TUNING.rawPointBudget),
     [primaryPoints],
   )
   const comparisonRawPoints = useMemo(
-    () => reduceRawSogChartPoints(comparisonPoints, RAW_POINT_BUDGET),
+    () => reduceRawSogChartPoints(comparisonPoints, SOG_SIGNAL_TUNING.rawPointBudget),
     [comparisonPoints],
   )
   const primarySmoothedPoints = useMemo(
@@ -132,6 +131,39 @@ export default function SogSignalChart({
           <strong>SOG over GPS time</strong>
           <span>knots · UTC</span>
         </div>
+        <ul className="sog-signal-chart__legend" aria-label="SOG line roles">
+          <li>
+            <svg viewBox="0 0 24 8" aria-hidden="true">
+              <line
+                data-sog-legend-role="raw"
+                x1="1"
+                x2="23"
+                y1="4"
+                y2="4"
+                stroke="currentColor"
+                {...RAW_STYLE}
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            Raw
+          </li>
+          <li>
+            <svg viewBox="0 0 24 8" aria-hidden="true">
+              <line
+                data-sog-legend-role="smoothed"
+                x1="1"
+                x2="23"
+                y1="4"
+                y2="4"
+                stroke="currentColor"
+                {...SMOOTHED_STYLE}
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            Smoothed
+          </li>
+        </ul>
       </div>
       <div className="metric-chart__canvas metric-chart__canvas--sog">
         <div className="sog-signal-chart">

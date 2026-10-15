@@ -85,6 +85,12 @@ function sogSeriesPath(markup: string, series: string) {
   return tag.match(/ d="([^"]+)"/)?.[1] ?? ''
 }
 
+function sogLegendRoleTag(markup: string, role: string) {
+  const tag = markup.match(new RegExp(`<line[^>]*data-sog-legend-role="${role}"[^>]*>`))?.[0]
+  expect(tag).toBeDefined()
+  return tag ?? ''
+}
+
 describe('MetricChart series rendering hierarchy', () => {
   it('renders P/C SOG as native SVG in C raw, P raw, C smooth, P smooth order', () => {
     const markup = renderChart('SOG', true)
@@ -130,11 +136,12 @@ describe('MetricChart series rendering hierarchy', () => {
     expect(comparisonSmoothed).toContain(smoothedStyle)
     expect(primarySmoothed).toContain(smoothedStyle)
     expect(SOG_SIGNAL_TUNING).toEqual({
-      rawOpacity: 0.08,
-      rawStrokeWidth: 0.75,
+      rawOpacity: 0.6,
+      rawStrokeWidth: 0.8,
       smoothedOpacity: 1,
-      smoothedStrokeWidth: 4.5,
-      smoothingWindowSeconds: 8,
+      smoothedStrokeWidth: 4,
+      smoothingWindowSeconds: 10,
+      rawPointBudget: 800,
     })
     expect(comparisonSmoothed).toContain('stroke-linecap="round"')
     expect(comparisonSmoothed).toContain('stroke-linejoin="round"')
@@ -142,16 +149,34 @@ describe('MetricChart series rendering hierarchy', () => {
     expect(primarySmoothed).toContain('stroke-linejoin="round"')
   })
 
+  it('renders a compact role-only legend using the configured raw and smoothed styles', () => {
+    const markup = renderChart('SOG', true)
+    const legend = markup.match(/<ul class="sog-signal-chart__legend"[^>]*>[\s\S]*?<\/ul>/)?.[0]
+
+    expect(legend).toBeDefined()
+    expect(legend).toContain('Raw')
+    expect(legend).toContain('Smoothed')
+    expect(legend).not.toContain('Primary')
+    expect(legend).not.toContain('Comparison')
+    expect(sogLegendRoleTag(markup, 'raw')).toContain(
+      `stroke-width="${SOG_SIGNAL_TUNING.rawStrokeWidth}" stroke-opacity="${SOG_SIGNAL_TUNING.rawOpacity}"`,
+    )
+    expect(sogLegendRoleTag(markup, 'smoothed')).toContain(
+      `stroke-width="${SOG_SIGNAL_TUNING.smoothedStrokeWidth}" stroke-opacity="${SOG_SIGNAL_TUNING.smoothedOpacity}"`,
+    )
+  })
+
   it('reduces only raw native-SVG paths while retaining full trend inputs', () => {
-    const denseSamples = Array.from({ length: 300 }, (_, index): TrackSample => ({
+    const denseSamples = Array.from({ length: 900 }, (_, index): TrackSample => ({
       ...samples[0],
       utc: new Date(Date.parse(samples[0].utc) + index * 100).toISOString(),
       sog: 4 + (index % 5),
     }))
     const markup = renderChart('SOG', false, denseSamples)
 
-    expect(sogSeriesPath(markup, 'primary-raw').match(/[ML]/g)).toHaveLength(240)
-    expect(sogSeriesPath(markup, 'primary-smoothed').match(/[ML]/g)).toHaveLength(300)
+    expect(sogSeriesPath(markup, 'primary-raw').match(/[ML]/g))
+      .toHaveLength(SOG_SIGNAL_TUNING.rawPointBudget)
+    expect(sogSeriesPath(markup, 'primary-smoothed').match(/[ML]/g)).toHaveLength(900)
   })
 
   it('positions the native-SVG playback cursor on the shared UTC range', () => {
