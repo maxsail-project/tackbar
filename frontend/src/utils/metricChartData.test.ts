@@ -604,7 +604,7 @@ describe('COG chart data', () => {
     expect(COG_SIGNAL_TUNING).toEqual({
       rawOpacity: 0.6,
       rawStrokeWidth: 0.8,
-      smoothedOpacity: 1,
+      smoothedOpacity: 0.6,
       smoothedStrokeWidth: 4,
       smoothingWindowSeconds: 10,
       rawPointBudget: 800,
