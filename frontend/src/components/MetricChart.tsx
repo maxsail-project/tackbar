@@ -14,7 +14,6 @@ import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { SailingMetric } from '../types/session'
 import type { TrackSample } from '../types/track'
 import {
-  buildCogChartPoints,
   buildScalarChartPoints,
   type ScalarChartMetric,
 } from '../utils/metricChartData'
@@ -29,6 +28,7 @@ import {
   updateTemporalPointerSelection,
 } from '../utils/metricChartZoom'
 import { formatGpsTime, timestampToMilliseconds } from '../utils/replay'
+import CogSignalChart from './CogSignalChart'
 import SogSignalChart from './SogSignalChart'
 
 interface MetricChartProps {
@@ -41,7 +41,7 @@ interface MetricChartProps {
 }
 
 interface RechartsMetricChartProps extends Omit<MetricChartProps, 'metric'> {
-  metric: Exclude<SailingMetric, 'SOG'>
+  metric: Exclude<SailingMetric, 'SOG' | 'COG'>
 }
 
 function formatAxisTime(timestamp: number) {
@@ -59,51 +59,13 @@ function RechartsMetricChart({
   const [zoomRange, setZoomRange] = useState<TemporalRange | null>(null)
   const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
   const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
-  const scalarMetric: ScalarChartMetric | null = metric === 'HEEL'
-    || metric === 'TRIM'
-    ? metric
-    : null
-  const chartPoints = useMemo(
-    () => {
-      const pointsByTime = new Map<number, {
-        time: number
-        primarySog?: number | null
-        comparisonSog?: number | null
-      }>()
-
-      primarySamples?.forEach((sample) => {
-        const time = timestampToMilliseconds(sample.utc)
-        pointsByTime.set(time, {
-          ...pointsByTime.get(time),
-          time,
-          primarySog: sample.sog,
-        })
-      })
-      comparisonSamples?.forEach((sample) => {
-        const time = timestampToMilliseconds(sample.utc)
-        pointsByTime.set(time, {
-          ...pointsByTime.get(time),
-          time,
-          comparisonSog: sample.sog,
-        })
-      })
-
-      return [...pointsByTime.values()].sort((first, second) => (
-        first.time - second.time
-      ))
-    },
-    [comparisonSamples, primarySamples],
-  )
+  const scalarMetric: ScalarChartMetric = metric
   const primaryScalarPoints = useMemo(
-    () => scalarMetric
-      ? buildScalarChartPoints(primarySamples ?? [], scalarMetric)
-      : [],
+    () => buildScalarChartPoints(primarySamples ?? [], scalarMetric),
     [primarySamples, scalarMetric],
   )
   const comparisonScalarPoints = useMemo(
-    () => scalarMetric
-      ? buildScalarChartPoints(comparisonSamples ?? [], scalarMetric)
-      : [],
+    () => buildScalarChartPoints(comparisonSamples ?? [], scalarMetric),
     [comparisonSamples, scalarMetric],
   )
   const timelinePoints = useMemo(
@@ -115,21 +77,8 @@ function RechartsMetricChart({
       .map((time) => ({ time })),
     [comparisonScalarPoints, primaryScalarPoints],
   )
-  const primaryCogPoints = useMemo(
-    () => buildCogChartPoints(primarySamples ?? []),
-    [primarySamples],
-  )
-  const comparisonCogPoints = useMemo(
-    () => buildCogChartPoints(comparisonSamples ?? []),
-    [comparisonSamples],
-  )
-  const hasValidCog = primaryCogPoints.some((point) => point.cog !== null)
-    || comparisonCogPoints.some((point) => point.cog !== null)
   const hasValidScalar = primaryScalarPoints.some((point) => point.value !== null)
     || comparisonScalarPoints.some((point) => point.value !== null)
-  const isCog = metric === 'COG'
-  const isSignedOrientation = metric === 'HEEL' || metric === 'TRIM'
-  const hasChartData = isCog ? hasValidCog : hasValidScalar
   const originalRange = useMemo(
     () => createTemporalRange([
       ...(primarySamples ?? []).map((sample) => timestampToMilliseconds(sample.utc)),
@@ -199,7 +148,7 @@ function RechartsMetricChart({
     if (pointerSelectionRef.current?.pointerId === event.pointerId) clearPointerSelection()
   }
 
-  if (!hasChartData || playbackTime === null) {
+  if (!hasValidScalar || playbackTime === null) {
     return (
       <section className="metric-chart metric-chart--empty" aria-label={`${metric} chart unavailable`}>
         <strong>No {metric} track data for the selected Activities</strong>
@@ -237,7 +186,7 @@ function RechartsMetricChart({
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={isSignedOrientation ? timelinePoints : chartPoints}
+            data={timelinePoints}
             margin={{ top: 8, right: 8, bottom: 0, left: -12 }}
             accessibilityLayer
           >
@@ -256,10 +205,7 @@ function RechartsMetricChart({
             />
             <YAxis
               width={42}
-              domain={isCog ? [0, 360] : undefined}
-              ticks={isCog ? [0, 90, 180, 270, 360] : undefined}
               tickFormatter={(value) => `${value}°`}
-              allowDataOverflow={isCog}
               tick={{ fill: '#60777e', fontSize: 11 }}
               tickLine={false}
               axisLine={false}
@@ -287,77 +233,40 @@ function RechartsMetricChart({
                 fillOpacity={0.12}
               />
             )}
-            {isSignedOrientation && (
-              <ReferenceLine
-                y={0}
-                stroke="#91a5aa"
-                strokeDasharray="3 4"
-                ifOverflow="extendDomain"
+            <ReferenceLine
+              y={0}
+              stroke="#91a5aa"
+              strokeDasharray="3 4"
+              ifOverflow="extendDomain"
+            />
+            {comparisonSamples && (
+              <Line
+                data={comparisonScalarPoints}
+                type="linear"
+                dataKey="value"
+                name={comparisonLabel ?? 'Compare'}
+                stroke={ACTIVITY_COLORS.comparison}
+                strokeOpacity={0.55}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+                connectNulls={false}
               />
             )}
-            {isCog ? (
-              <>
-                {comparisonSamples && (
-                  <Line
-                    type="linear"
-                    data={comparisonCogPoints}
-                    dataKey="cog"
-                    name={comparisonLabel ?? 'Compare'}
-                    stroke={ACTIVITY_COLORS.comparison}
-                    strokeOpacity={0.55}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                    isAnimationActive={false}
-                    connectNulls={false}
-                  />
-                )}
-                <Line
-                  type="linear"
-                  data={primaryCogPoints}
-                  dataKey="cog"
-                  name={primaryLabel}
-                  stroke={ACTIVITY_COLORS.primary}
-                  strokeOpacity={comparisonSamples ? 0.85 : undefined}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                  connectNulls={false}
-                />
-              </>
-            ) : (
-              <>
-                {comparisonSamples && (
-                  <Line
-                    data={comparisonScalarPoints}
-                    type="linear"
-                    dataKey="value"
-                    name={comparisonLabel ?? 'Compare'}
-                    stroke={ACTIVITY_COLORS.comparison}
-                    strokeOpacity={0.55}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                    isAnimationActive={false}
-                    connectNulls={false}
-                  />
-                )}
-                <Line
-                  data={primaryScalarPoints}
-                  type="linear"
-                  dataKey="value"
-                  name={primaryLabel}
-                  stroke={ACTIVITY_COLORS.primary}
-                  strokeOpacity={comparisonSamples ? 0.85 : undefined}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                  connectNulls={false}
-                />
-              </>
-            )}
+            <Line
+              data={primaryScalarPoints}
+              type="linear"
+              dataKey="value"
+              name={primaryLabel}
+              stroke={ACTIVITY_COLORS.primary}
+              strokeOpacity={comparisonSamples ? 0.85 : undefined}
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+              isAnimationActive={false}
+              connectNulls={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -369,6 +278,18 @@ export default function MetricChart(props: MetricChartProps) {
   if (props.metric === 'SOG') {
     return (
       <SogSignalChart
+        primarySamples={props.primarySamples}
+        comparisonSamples={props.comparisonSamples}
+        playbackTime={props.playbackTime}
+        primaryLabel={props.primaryLabel}
+        comparisonLabel={props.comparisonLabel}
+      />
+    )
+  }
+
+  if (props.metric === 'COG') {
+    return (
+      <CogSignalChart
         primarySamples={props.primarySamples}
         comparisonSamples={props.comparisonSamples}
         playbackTime={props.playbackTime}

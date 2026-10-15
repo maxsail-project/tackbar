@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { ACTIVITY_COLORS } from '../config/activityColors'
+import { COG_SIGNAL_TUNING } from '../config/cogSignal'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
 import type { SailingMetric } from '../types/session'
 import type { TrackSample } from '../types/track'
@@ -87,6 +88,23 @@ function sogSeriesPath(markup: string, series: string) {
 
 function sogLegendRoleTag(markup: string, role: string) {
   const tag = markup.match(new RegExp(`<line[^>]*data-sog-legend-role="${role}"[^>]*>`))?.[0]
+  expect(tag).toBeDefined()
+  return tag ?? ''
+}
+
+function cogSeriesTag(markup: string, series: string) {
+  const tag = markup.match(new RegExp(`<path[^>]*data-cog-series="${series}"[^>]*>`))?.[0]
+  expect(tag).toBeDefined()
+  return tag ?? ''
+}
+
+function cogSeriesPath(markup: string, series: string) {
+  const tag = cogSeriesTag(markup, series)
+  return tag.match(/ d="([^"]+)"/)?.[1] ?? ''
+}
+
+function cogLegendRoleTag(markup: string, role: string) {
+  const tag = markup.match(new RegExp(`<line[^>]*data-cog-legend-role="${role}"[^>]*>`))?.[0]
   expect(tag).toBeDefined()
   return tag ?? ''
 }
@@ -221,7 +239,116 @@ describe('MetricChart series rendering hierarchy', () => {
     expect(markup).not.toContain('data-recharts-tooltip')
   })
 
-  it.each(['COG', 'HEEL', 'TRIM'] as const)('preserves Recharts Comparison below Primary for %s', (metric) => {
+  it('renders P/C COG as native SVG in C raw, P raw, C smooth, P smooth order', () => {
+    const markup = renderChart('COG', true)
+    const series = [...markup.matchAll(/data-cog-series="([^"]+)"/g)]
+      .map((match) => match[1])
+
+    expect(markup).toContain('<svg viewBox="0 0 1000 200"')
+    expect(markup).not.toContain('data-recharts-chart')
+    expect(series).toEqual([
+      'comparison-raw',
+      'primary-raw',
+      'comparison-smoothed',
+      'primary-smoothed',
+    ])
+    expect(cogSeriesTag(markup, 'comparison-raw'))
+      .toContain(`stroke="${ACTIVITY_COLORS.comparison}"`)
+    expect(cogSeriesTag(markup, 'comparison-smoothed'))
+      .toContain(`stroke="${ACTIVITY_COLORS.comparison}"`)
+    expect(cogSeriesTag(markup, 'primary-raw'))
+      .toContain(`stroke="${ACTIVITY_COLORS.primary}"`)
+    expect(cogSeriesTag(markup, 'primary-smoothed'))
+      .toContain(`stroke="${ACTIVITY_COLORS.primary}"`)
+  })
+
+  it('renders P-only COG with raw context and foreground smoothing', () => {
+    const markup = renderChart('COG', false)
+
+    expect([...markup.matchAll(/data-cog-series="([^"]+)"/g)].map((match) => match[1]))
+      .toEqual(['primary-raw', 'primary-smoothed'])
+  })
+
+  it('uses equal P/C COG role styling and a compact role-only legend', () => {
+    const markup = renderChart('COG', true)
+    const comparisonRaw = cogSeriesTag(markup, 'comparison-raw')
+    const primaryRaw = cogSeriesTag(markup, 'primary-raw')
+    const comparisonSmoothed = cogSeriesTag(markup, 'comparison-smoothed')
+    const primarySmoothed = cogSeriesTag(markup, 'primary-smoothed')
+    const rawStyle = `stroke-width="${COG_SIGNAL_TUNING.rawStrokeWidth}" stroke-opacity="${COG_SIGNAL_TUNING.rawOpacity}"`
+    const smoothedStyle = `stroke-width="${COG_SIGNAL_TUNING.smoothedStrokeWidth}" stroke-opacity="${COG_SIGNAL_TUNING.smoothedOpacity}"`
+    const legend = markup.match(/<ul class="cog-signal-chart__legend"[^>]*>[\s\S]*?<\/ul>/)?.[0]
+
+    expect(comparisonRaw).toContain(rawStyle)
+    expect(primaryRaw).toContain(rawStyle)
+    expect(comparisonSmoothed).toContain(smoothedStyle)
+    expect(primarySmoothed).toContain(smoothedStyle)
+    expect(legend).toContain('Raw')
+    expect(legend).toContain('Smoothed')
+    expect(legend).not.toContain('Primary')
+    expect(legend).not.toContain('Comparison')
+    expect(cogLegendRoleTag(markup, 'raw')).toContain(rawStyle)
+    expect(cogLegendRoleTag(markup, 'smoothed')).toContain(smoothedStyle)
+  })
+
+  it('reduces only raw COG paths while smoothing all canonical samples', () => {
+    const denseSamples = Array.from({ length: 900 }, (_, index): TrackSample => ({
+      ...samples[0],
+      utc: new Date(Date.parse(samples[0].utc) + index * 100).toISOString(),
+      cog: 120 + (index % 5),
+    }))
+    const markup = renderChart('COG', false, denseSamples)
+
+    expect(cogSeriesPath(markup, 'primary-raw').match(/[ML]/g))
+      .toHaveLength(COG_SIGNAL_TUNING.rawPointBudget)
+    expect(cogSeriesPath(markup, 'primary-smoothed').match(/[ML]/g)).toHaveLength(900)
+  })
+
+  it('keeps fixed COG axes and positions the playback cursor on shared UTC', () => {
+    const chartSamples: TrackSample[] = [
+      { ...samples[0], utc: '2026-09-05T12:00:00Z', cog: 359 },
+      { ...samples[0], utc: '2026-09-05T12:00:02Z', cog: 1 },
+    ]
+    const markup = renderChart(
+      'COG',
+      false,
+      chartSamples,
+      Date.parse('2026-09-05T12:00:01Z'),
+    )
+
+    expect(markup).toContain('>360°</span>')
+    expect(markup).toContain('>180°</span>')
+    expect(markup).toContain('>0°</span>')
+    expect(markup).toContain('data-cog-playback-cursor="true" x1="500" x2="500"')
+  })
+
+  it('updates the native-SVG COG UTC axis from Analysis Window-filtered samples', () => {
+    const full = renderChart('COG', false, [
+      { ...samples[0], utc: '2026-09-05T12:00:00Z' },
+      { ...samples[0], utc: '2026-09-05T12:00:10Z' },
+    ])
+    const narrowed = renderChart('COG', false, [
+      { ...samples[0], utc: '2026-09-05T12:00:02Z' },
+      { ...samples[0], utc: '2026-09-05T12:00:08Z' },
+    ])
+
+    expect(full).toContain('>12:00:00</time>')
+    expect(full).toContain('>12:00:10</time>')
+    expect(narrowed).toContain('>12:00:02</time>')
+    expect(narrowed).toContain('>12:00:08</time>')
+  })
+
+  it('has no COG local zoom, Reset, Recharts chart, or tooltip chrome', () => {
+    const markup = renderChart('COG', false)
+
+    expect(markup).toContain('class="cog-signal-chart__x-axis"')
+    expect(markup).not.toContain('metric-chart__reset')
+    expect(markup).not.toContain('>Reset</button>')
+    expect(markup).not.toContain('data-recharts-chart')
+    expect(markup).not.toContain('data-recharts-tooltip')
+  })
+
+  it.each(['HEEL', 'TRIM'] as const)('preserves Recharts Comparison below Primary for %s', (metric) => {
     const markup = renderChart(metric, true)
 
     expect(markup).toContain('data-recharts-chart="true"')
@@ -230,7 +357,7 @@ describe('MetricChart series rendering hierarchy', () => {
     expect(markup).toContain('data-series="Primary" data-stroke-opacity="0.85"')
   })
 
-  it.each(['COG', 'HEEL', 'TRIM'] as const)('preserves full-opacity Recharts Primary-only rendering for %s', (metric) => {
+  it.each(['HEEL', 'TRIM'] as const)('preserves full-opacity Recharts Primary-only rendering for %s', (metric) => {
     const markup = renderChart(metric, false)
 
     expect(markup).toContain('data-series="Primary"')

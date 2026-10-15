@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest'
+import { COG_SIGNAL_TUNING } from '../config/cogSignal'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
 import { SAILING_METRICS } from '../types/session'
 import type { TrackSample } from '../types/track'
 import {
   buildCogChartPoints,
+  buildCanonicalCogChartPoints,
+  buildCogSignalPath,
+  buildSmoothedCogChartPoints,
   buildScalarChartPoints,
   buildSogChartPoints,
   buildSogSignalPath,
   buildSogTrendPoints,
   reduceRawSogChartPoints,
+  reduceRawCogChartPoints,
   sogSignalXPosition,
   type ScalarChartMetric,
 } from './metricChartData'
@@ -32,8 +37,14 @@ function samplesWithSog(
 }
 
 function samplesWithCog(values: Array<number | null>): TrackSample[] {
-  return values.map((cog, index) => ({
-    utc: new Date(Date.UTC(2026, 7, 15, 13, 0, index)).toISOString(),
+  return samplesWithCogAt(values.map((cog, index) => [index * 1_000, cog]))
+}
+
+function samplesWithCogAt(
+  points: Array<[offsetMilliseconds: number, cog: number | null]>,
+): TrackSample[] {
+  return points.map(([offsetMilliseconds, cog], index) => ({
+    utc: new Date(BASE_TIME + offsetMilliseconds).toISOString(),
     lat: 0.25,
     lon: -30.75,
     dist: index === 0 ? 0 : 1,
@@ -252,6 +263,134 @@ describe('native-SVG SOG presentation data', () => {
 })
 
 describe('COG chart data', () => {
+  it('uses centralized COG-specific tuning values', () => {
+    expect(COG_SIGNAL_TUNING).toEqual({
+      rawOpacity: 0.6,
+      rawStrokeWidth: 0.8,
+      smoothedOpacity: 1,
+      smoothedStrokeWidth: 4,
+      smoothingWindowSeconds: 10,
+      rawPointBudget: 800,
+      maxGapSeconds: 1.5,
+      circularMeanTolerance: 1e-6,
+    })
+  })
+
+  it('smooths 359° and 1° around north rather than 180°', () => {
+    const smoothed = buildSmoothedCogChartPoints(buildCanonicalCogChartPoints(
+      samplesWithCog([359, 1]),
+    ))
+
+    smoothed.forEach((point) => {
+      expect(point.cog).not.toBeNull()
+      expect(Math.min(point.cog ?? 180, 360 - (point.cog ?? 180))).toBeLessThan(0.001)
+    })
+  })
+
+  it('calculates an ordinary circular mean away from north', () => {
+    const smoothed = buildSmoothedCogChartPoints(buildCanonicalCogChartPoints(
+      samplesWithCog([90, 110]),
+    ))
+
+    expect(smoothed.map((point) => point.cog)).toEqual([100, 100])
+  })
+
+  it('uses a centered ten-second time window', () => {
+    const smoothed = buildSmoothedCogChartPoints(buildCanonicalCogChartPoints(
+      samplesWithCogAt(Array.from(
+        { length: 13 },
+        (_, index) => [index * 1_000, index === 6 ? 90 : 0] as [number, number],
+      )),
+    ))
+    const centerPoint = smoothed.find((point) => point.time === BASE_TIME + 6_000)
+
+    expect(centerPoint?.cog).toBeCloseTo(6.34, 2)
+  })
+
+  it('weights circular contributions by actual irregular timestamps', () => {
+    const smoothed = buildSmoothedCogChartPoints(buildCanonicalCogChartPoints(
+      samplesWithCogAt([
+        [0, 0],
+        [1_000, 0],
+        [2_500, 90],
+      ]),
+    ))
+
+    smoothed.forEach((point) => expect(point.cog).toBeCloseTo(23.199, 3))
+  })
+
+  it('produces consistent circular trends for equivalent 1, 2, and 10 Hz telemetry', () => {
+    const smoothedAtWholeSeconds = (frequency: number) => {
+      const interval = 1_000 / frequency
+      const points = Array.from(
+        { length: 4 * frequency + 1 },
+        (_, index) => {
+          const offset = index * interval
+          return [offset, 100 + 5 * offset / 1_000] as [number, number]
+        },
+      )
+      return buildSmoothedCogChartPoints(buildCanonicalCogChartPoints(
+        samplesWithCogAt(points),
+      ))
+        .filter((point) => (point.time - BASE_TIME) % 1_000 === 0)
+        .map((point) => point.cog)
+    }
+
+    const oneHertz = smoothedAtWholeSeconds(1)
+    smoothedAtWholeSeconds(2).forEach((value, index) => {
+      expect(value).toBeCloseTo(oneHertz[index] ?? 0, 8)
+    })
+    smoothedAtWholeSeconds(10).forEach((value, index) => {
+      expect(value).toBeCloseTo(oneHertz[index] ?? 0, 8)
+    })
+  })
+
+  it('allows a 1.5-second interval and splits smoothing above it', () => {
+    const smoothed = buildSmoothedCogChartPoints(buildCanonicalCogChartPoints(
+      samplesWithCogAt([
+        [0, 30],
+        [1_500, 30],
+        [3_001, 210],
+        [4_501, 210],
+      ]),
+    ))
+
+    expect(smoothed.filter((point) => point.kind === 'gap')).toEqual([{
+      time: BASE_TIME + 2_250.5,
+      cog: null,
+      kind: 'gap',
+    }])
+    smoothed.filter((point) => point.kind === 'sample').forEach((point, index) => {
+      expect(point.cog).toBeCloseTo(index < 2 ? 30 : 210, 10)
+    })
+  })
+
+  it('preserves missing and non-finite COG as smoothing breaks', () => {
+    const canonical = buildCanonicalCogChartPoints(samplesWithCog([
+      45,
+      null,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      90,
+    ]))
+
+    expect(canonical.map((point) => point.cog)).toEqual([45, null, null, null, 90])
+    expect(buildSmoothedCogChartPoints(canonical).map((point) => point.cog))
+      .toEqual([45, null, null, null, 90])
+  })
+
+  it('returns unavailable for cancelled and near-cancelled circular means', () => {
+    const cancelled = buildSmoothedCogChartPoints(buildCanonicalCogChartPoints(
+      samplesWithCog([0, 180]),
+    ))
+    const nearCancelled = buildSmoothedCogChartPoints(buildCanonicalCogChartPoints(
+      samplesWithCog([0, 180.00001]),
+    ))
+
+    expect(cancelled.map((point) => point.cog)).toEqual([null, null])
+    expect(nearCancelled.map((point) => point.cog)).toEqual([null, null])
+  })
+
   it('keeps an ordinary sequence continuous', () => {
     expect(renderedValues([100, 110, 120])).toEqual([100, 110, 120])
   })
@@ -294,5 +433,44 @@ describe('COG chart data', () => {
     expect(sourcePoints).toHaveLength(values.length)
     expect(sourcePoints.map((point) => point.cog)).toEqual(values)
     expect(points.filter((point) => point.kind === 'wrap-gap')).toHaveLength(1)
+  })
+
+  it('adds wrap breaks independently to the smoothed path', () => {
+    const canonical = buildCanonicalCogChartPoints(samplesWithCogAt(Array.from(
+      { length: 21 },
+      (_, index) => [index * 1_000, index < 10 ? 350 : 10] as [number, number],
+    )))
+    const smoothed = buildSmoothedCogChartPoints(canonical)
+
+    expect(smoothed.some((point) => point.kind === 'wrap-gap')).toBe(true)
+  })
+
+  it('reduces only raw presentation and preserves a wrap break', () => {
+    const canonical = buildCanonicalCogChartPoints(samplesWithCogAt(Array.from(
+      { length: 900 },
+      (_, index) => [index * 100, index < 450 ? 359 : 1] as [number, number],
+    )))
+    const raw = reduceRawCogChartPoints(
+      buildCogChartPoints(samplesWithCogAt(Array.from(
+        { length: 900 },
+        (_, index) => [index * 100, index < 450 ? 359 : 1] as [number, number],
+      ))),
+      COG_SIGNAL_TUNING.rawPointBudget,
+    )
+    const smoothed = buildSmoothedCogChartPoints(canonical)
+
+    expect(raw).toHaveLength(COG_SIGNAL_TUNING.rawPointBudget)
+    expect(raw.some((point) => point.kind === 'wrap-gap')).toBe(true)
+    expect(smoothed.filter((point) => point.kind === 'sample')).toHaveLength(900)
+  })
+
+  it('generates fixed 0°–360° paths with explicit wrap breaks', () => {
+    const range = { start: BASE_TIME, end: BASE_TIME + 2_000 }
+    const path = buildCogSignalPath(buildCogChartPoints(samplesWithCogAt([
+      [0, 359],
+      [2_000, 1],
+    ])), range)
+
+    expect(path).toBe('M0.00,8.51 M1000.00,191.49')
   })
 })
