@@ -29,6 +29,7 @@ import {
   updateTemporalPointerSelection,
 } from '../utils/metricChartZoom'
 import { formatGpsTime, timestampToMilliseconds } from '../utils/replay'
+import SogSignalChart from './SogSignalChart'
 
 interface MetricChartProps {
   metric: SailingMetric
@@ -39,18 +40,22 @@ interface MetricChartProps {
   comparisonLabel?: string
 }
 
+interface RechartsMetricChartProps extends Omit<MetricChartProps, 'metric'> {
+  metric: Exclude<SailingMetric, 'SOG'>
+}
+
 function formatAxisTime(timestamp: number) {
   return formatGpsTime(timestamp).slice(0, 5)
 }
 
-export default function MetricChart({
+function RechartsMetricChart({
   metric,
   primarySamples,
   comparisonSamples,
   playbackTime,
   primaryLabel,
   comparisonLabel,
-}: MetricChartProps) {
+}: RechartsMetricChartProps) {
   const [zoomRange, setZoomRange] = useState<TemporalRange | null>(null)
   const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
   const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
@@ -124,12 +129,7 @@ export default function MetricChart({
     || comparisonScalarPoints.some((point) => point.value !== null)
   const isCog = metric === 'COG'
   const isSignedOrientation = metric === 'HEEL' || metric === 'TRIM'
-  const usesDegrees = metric !== 'SOG'
-  const hasChartData = isCog
-    ? hasValidCog
-    : isSignedOrientation
-      ? hasValidScalar
-      : chartPoints.length > 0
+  const hasChartData = isCog ? hasValidCog : hasValidScalar
   const originalRange = useMemo(
     () => createTemporalRange([
       ...(primarySamples ?? []).map((sample) => timestampToMilliseconds(sample.utc)),
@@ -212,7 +212,7 @@ export default function MetricChart({
       <div className="metric-chart__heading">
         <div>
           <strong>{metric} over GPS time</strong>
-          <span>{usesDegrees ? 'degrees' : 'knots'} · UTC</span>
+          <span>degrees · UTC</span>
         </div>
         {zoomRange && (
           <button
@@ -258,8 +258,7 @@ export default function MetricChart({
               width={42}
               domain={isCog ? [0, 360] : undefined}
               ticks={isCog ? [0, 90, 180, 270, 360] : undefined}
-              tickFormatter={usesDegrees ? (value) => `${value}°` : undefined}
-              unit={usesDegrees ? undefined : ' kt'}
+              tickFormatter={(value) => `${value}°`}
               allowDataOverflow={isCog}
               tick={{ fill: '#60777e', fontSize: 11 }}
               tickLine={false}
@@ -270,7 +269,7 @@ export default function MetricChart({
               formatter={(value, name) => [
                 value === null || value === undefined
                   ? '—'
-                  : `${Number(value).toFixed(1)}${usesDegrees ? '°' : ' kt'}`,
+                  : `${Number(value).toFixed(1)}°`,
                 name,
               ]}
             />
@@ -327,7 +326,7 @@ export default function MetricChart({
                   connectNulls={false}
                 />
               </>
-            ) : isSignedOrientation ? (
+            ) : (
               <>
                 {comparisonSamples && (
                   <Line
@@ -358,39 +357,35 @@ export default function MetricChart({
                   connectNulls={false}
                 />
               </>
-            ) : (
-              <>
-                {comparisonSamples && (
-                  <Line
-                    type="linear"
-                    dataKey="comparisonSog"
-                    name={comparisonLabel ?? 'Compare'}
-                    stroke={ACTIVITY_COLORS.comparison}
-                    strokeOpacity={0.55}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                    isAnimationActive={false}
-                    connectNulls
-                  />
-                )}
-                <Line
-                  type="linear"
-                  dataKey="primarySog"
-                  name={primaryLabel}
-                  stroke={ACTIVITY_COLORS.primary}
-                  strokeOpacity={comparisonSamples ? 0.85 : undefined}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                  connectNulls
-                />
-              </>
             )}
           </LineChart>
         </ResponsiveContainer>
       </div>
     </section>
+  )
+}
+
+export default function MetricChart(props: MetricChartProps) {
+  if (props.metric === 'SOG') {
+    return (
+      <SogSignalChart
+        primarySamples={props.primarySamples}
+        comparisonSamples={props.comparisonSamples}
+        playbackTime={props.playbackTime}
+        primaryLabel={props.primaryLabel}
+        comparisonLabel={props.comparisonLabel}
+      />
+    )
+  }
+
+  return (
+    <RechartsMetricChart
+      metric={props.metric}
+      primarySamples={props.primarySamples}
+      comparisonSamples={props.comparisonSamples}
+      playbackTime={props.playbackTime}
+      primaryLabel={props.primaryLabel}
+      comparisonLabel={props.comparisonLabel}
+    />
   )
 }
