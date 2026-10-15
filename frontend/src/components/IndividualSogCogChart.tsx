@@ -1,30 +1,28 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceArea,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import type { TrackSample } from '../types/track'
-import { buildCogChartPoints } from '../utils/metricChartData'
-import {
-  createTemporalRange,
-  finishTemporalPointerSelection,
-  resolveTemporalPointerTimestamp,
-  resolveTemporalZoomChartPresentation,
-  startTemporalPointerSelection,
-  type TemporalRange,
-  type TemporalPointerSelection,
-  updateTemporalPointerSelection,
-} from '../utils/metricChartZoom'
-import { formatGpsTime, timestampToMilliseconds } from '../utils/replay'
+import { useMemo } from 'react'
 
-interface IndividualSogCogChartProps {
+import { COG_SIGNAL_TUNING } from '../config/cogSignal'
+import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
+import type { TrackSample } from '../types/track'
+import { formatGpsTime } from '../utils/replay'
+import {
+  COG_SIGNAL_VIEWBOX_HEIGHT,
+  COG_SIGNAL_VIEWBOX_WIDTH,
+  buildCanonicalCogChartPoints,
+  buildCogSignalPath,
+  buildSmoothedCogChartPoints,
+  buildSogChartPoints,
+  buildSogSignalPath,
+  buildSogTrendPoints,
+  cogSignalXPosition,
+  insertCogWrapBreaks,
+  reduceRawCogChartPoints,
+  reduceRawSogChartPoints,
+  type CogChartPoint,
+  type CogSignalRange,
+  type SogChartPoint,
+} from '../utils/metricChartData'
+
+type IndividualSogCogChartProps = {
   samples: TrackSample[] | null
   playbackTime: number | null
   activityLabel: string
@@ -32,17 +30,82 @@ interface IndividualSogCogChartProps {
 }
 
 export const INDIVIDUAL_SOG_COG_CHART_CONFIG = {
-  xAxisId: 'time',
-  tooltipXAxisId: 'time',
-  sogAxisId: 'sog',
-  cogAxisId: 'cog',
   cogDomain: [0, 360] as const,
-  cogTicks: [0, 90, 180, 270, 360],
+  cogTicks: [0, 90, 180, 270, 360] as const,
   cogColor: '#60777e',
 } as const
 
-function formatAxisTime(timestamp: number) {
-  return formatGpsTime(timestamp).slice(0, 5)
+type IndividualSignalRange = CogSignalRange
+
+function resolveRange(sogPoints: SogChartPoint[], cogPoints: CogChartPoint[]): IndividualSignalRange | null {
+  const timestamps = [...sogPoints, ...cogPoints].map((point) => point.time)
+  if (timestamps.length === 0) {
+    return null
+  }
+
+  return {
+    start: Math.min(...timestamps),
+    end: Math.max(...timestamps),
+  }
+}
+
+function resolveSogMaximum(sogPoints: SogChartPoint[]) {
+  const maximum = sogPoints.reduce(
+    (currentMaximum, point) =>
+      point.sog === null ? currentMaximum : Math.max(currentMaximum, point.sog),
+    0,
+  )
+  return Math.max(1, Math.ceil(maximum))
+}
+
+function IndividualSogCogLegend() {
+  return (
+    <div className="individual-sog-cog-signal__legend" aria-label="Signal role legend">
+      <span className="individual-sog-cog-signal__legend-item">
+        <span
+          className="individual-sog-cog-signal__legend-line"
+          style={{
+            opacity: SOG_SIGNAL_TUNING.rawOpacity,
+            borderTopWidth: SOG_SIGNAL_TUNING.rawStrokeWidth,
+          }}
+        />
+        Raw
+      </span>
+      <span className="individual-sog-cog-signal__legend-item">
+        <span
+          className="individual-sog-cog-signal__legend-line"
+          style={{
+            opacity: SOG_SIGNAL_TUNING.smoothedOpacity,
+            borderTopWidth: SOG_SIGNAL_TUNING.smoothedStrokeWidth,
+          }}
+        />
+        Smoothed
+      </span>
+    </div>
+  )
+}
+
+function IndividualSogCogYAxis({
+  side,
+  label,
+  ticks,
+}: {
+  side: 'left' | 'right'
+  label: string
+  ticks: readonly string[]
+}) {
+  return (
+    <div
+      className={`individual-sog-cog-signal__y-axis individual-sog-cog-signal__y-axis--${side}`}
+      aria-label={label}
+    >
+      <div className="individual-sog-cog-signal__y-ticks" aria-hidden="true">
+        {ticks.map((tick) => (
+          <span key={tick}>{tick}</span>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function IndividualSogCogChart({
@@ -51,105 +114,51 @@ export default function IndividualSogCogChart({
   activityLabel,
   sogColor,
 }: IndividualSogCogChartProps) {
-  const [zoomRange, setZoomRange] = useState<TemporalRange | null>(null)
-  const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
-  const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
-  const cogPoints = useMemo(
-    () => buildCogChartPoints(samples ?? []),
-    [samples],
-  )
-  const chartPoints = useMemo(
-    () => {
-      const pointsByTime = new Map<number, { time: number, sog: number | null, cog: number | null }>()
-      const sourceSamples = samples ?? []
+  const chart = useMemo(() => {
+    const sogPoints = buildSogChartPoints(samples ?? [])
+    const cogPoints = buildCanonicalCogChartPoints(samples ?? [])
+    const range = resolveRange(sogPoints, cogPoints)
+    const sogMaximum = resolveSogMaximum(sogPoints)
 
-      sourceSamples.forEach((sample) => {
-        const time = timestampToMilliseconds(sample.utc)
-        pointsByTime.set(time, {
-          time,
-          sog: sample.sog !== null && Number.isFinite(sample.sog) ? sample.sog : null,
-          cog: null,
-        })
-      })
-      cogPoints.forEach((point) => {
-        const current = pointsByTime.get(point.time)
-        pointsByTime.set(point.time, {
-          time: point.time,
-          sog: current?.sog ?? null,
-          cog: point.cog,
-        })
-      })
+    if (range === null) {
+      return null
+    }
 
-      return [...pointsByTime.values()].sort((first, second) => first.time - second.time)
-    },
-    [cogPoints, samples],
-  )
-  const originalRange = useMemo(
-    () => createTemporalRange(chartPoints.map((point) => point.time)),
-    [chartPoints],
-  )
-  const zoomPresentation = resolveTemporalZoomChartPresentation(zoomRange)
-  const hasChartData = chartPoints.some((point) => point.sog !== null || point.cog !== null)
-
-  useEffect(() => {
-    setZoomRange(null)
-    pointerSelectionRef.current = null
-    setPointerSelection(null)
-  }, [originalRange?.end, originalRange?.start])
-
-  function updatePointerSelection(nextSelection: TemporalPointerSelection | null) {
-    pointerSelectionRef.current = nextSelection
-    setPointerSelection(nextSelection)
-  }
-
-  function pointerTimestamp(event: ReactPointerEvent<HTMLDivElement>) {
-    const axisLine = event.currentTarget.querySelector('.recharts-xAxis .recharts-cartesian-axis-line')
-    const bounds = (axisLine ?? event.currentTarget).getBoundingClientRect()
-    return resolveTemporalPointerTimestamp(zoomRange ?? originalRange, event.clientX, bounds)
-  }
-
-  function clearPointerSelection() {
-    updatePointerSelection(null)
-  }
-
-  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return
-
-    const nextSelection = startTemporalPointerSelection(event.pointerId, pointerTimestamp(event))
-    if (nextSelection === null) return
-
-    event.currentTarget.setPointerCapture(event.pointerId)
-    updatePointerSelection(nextSelection)
-  }
-
-  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    if (pointerSelectionRef.current?.pointerId !== event.pointerId) return
-
-    updatePointerSelection(updateTemporalPointerSelection(
-      pointerSelectionRef.current,
-      event.pointerId,
-      pointerTimestamp(event),
-    ))
-  }
-
-  function handlePointerUp(event: ReactPointerEvent<HTMLDivElement>) {
-    if (pointerSelectionRef.current?.pointerId !== event.pointerId) return
-
-    const nextZoomRange = finishTemporalPointerSelection(
-      originalRange,
-      pointerSelectionRef.current,
-      event.pointerId,
-      pointerTimestamp(event),
+    const rawSogPoints = reduceRawSogChartPoints(sogPoints, SOG_SIGNAL_TUNING.rawPointBudget)
+    const rawCogPoints = reduceRawCogChartPoints(
+      insertCogWrapBreaks(cogPoints),
+      COG_SIGNAL_TUNING.rawPointBudget,
     )
-    if (nextZoomRange !== null) setZoomRange(nextZoomRange)
-    clearPointerSelection()
-  }
+    const smoothedSogPoints = buildSogTrendPoints(sogPoints)
+    const smoothedCogPoints = buildSmoothedCogChartPoints(cogPoints)
 
-  function cancelPointerSelection(event: ReactPointerEvent<HTMLDivElement>) {
-    if (pointerSelectionRef.current?.pointerId === event.pointerId) clearPointerSelection()
-  }
+    return {
+      range,
+      sogMaximum,
+      hasSog: sogPoints.some((point) => point.sog !== null),
+      hasCog: cogPoints.some((point) => point.cog !== null),
+      rawSogPath: buildSogSignalPath(rawSogPoints, range, sogMaximum),
+      rawCogPath: buildCogSignalPath(rawCogPoints, range),
+      smoothedSogPath: buildSogSignalPath(smoothedSogPoints, range, sogMaximum),
+      smoothedCogPath: buildCogSignalPath(smoothedCogPoints, range),
+    }
+  }, [samples])
 
-  if (!hasChartData || playbackTime === null) {
+  const playbackX =
+    chart === null || playbackTime === null
+      ? null
+      : cogSignalXPosition(playbackTime, chart.range)
+
+  const xTicks =
+    chart === null
+      ? []
+      : [
+          chart.range.start,
+          (chart.range.start + chart.range.end) / 2,
+          chart.range.end,
+        ]
+
+  if (chart === null || (!chart.hasSog && !chart.hasCog) || playbackTime === null) {
     return (
       <section
         className="individual-sog-cog-chart individual-sog-cog-chart--empty"
@@ -162,129 +171,117 @@ export default function IndividualSogCogChart({
 
   return (
     <section
-      className="individual-sog-cog-chart"
+      className="metric-chart metric-chart--individual individual-sog-cog-chart"
       aria-label={`${activityLabel} SOG and COG time-series chart`}
     >
-      <div className="metric-chart__heading">
+      <div className="metric-chart__heading metric-chart__heading--signal">
         <div>
           <strong>SOG + COG over GPS time</strong>
           <span>knots · degrees · UTC</span>
         </div>
-        {zoomRange && (
-          <button
-            className="metric-chart__reset"
-            type="button"
-            onClick={() => setZoomRange(null)}
-          >
-            Reset
-          </button>
-        )}
+        <IndividualSogCogLegend />
       </div>
-      <div
-        className="metric-chart__canvas"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={cancelPointerSelection}
-        onPointerLeave={(event) => {
-          if (!event.currentTarget.hasPointerCapture(event.pointerId)) cancelPointerSelection(event)
-        }}
-        onLostPointerCapture={cancelPointerSelection}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={chartPoints}
-            margin={{ top: 8, right: 8, bottom: 0, left: -12 }}
-            accessibilityLayer
-          >
-            <CartesianGrid stroke="#dbe6e8" strokeDasharray="3 4" vertical={false} />
-            <XAxis
-              xAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.xAxisId}
-              dataKey="time"
-              type="number"
-              scale="time"
-              domain={zoomPresentation.domain}
-              allowDataOverflow={zoomPresentation.allowDataOverflow}
-              tickFormatter={formatAxisTime}
-              minTickGap={28}
-              tick={{ fill: '#60777e', fontSize: 11 }}
-              tickLine={false}
-              axisLine={{ stroke: '#b9cbcf' }}
-            />
-            <YAxis
-              yAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.sogAxisId}
-              width={42}
-              unit=" kt"
-              tick={{ fill: '#60777e', fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis
-              yAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.cogAxisId}
-              orientation="right"
-              width={42}
-              domain={INDIVIDUAL_SOG_COG_CHART_CONFIG.cogDomain}
-              ticks={INDIVIDUAL_SOG_COG_CHART_CONFIG.cogTicks}
-              tickFormatter={(value) => `${value}°`}
-              allowDataOverflow
-              tick={{ fill: '#60777e', fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <Tooltip
-              axisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.tooltipXAxisId}
-              labelFormatter={(value) => `${formatGpsTime(Number(value))} UTC`}
-              formatter={(value, name) => [
-                value === null || value === undefined
-                  ? '—'
-                  : `${Number(value).toFixed(1)}${name === 'COG' ? '°' : ' kt'}`,
-                name,
+
+      <div className="metric-chart__canvas metric-chart__canvas--individual-sog-cog">
+        <div className="individual-sog-cog-signal">
+            <IndividualSogCogYAxis
+              side="left"
+              label="SOG (kn)"
+              ticks={[
+                `${chart.sogMaximum} kn`,
+                `${Number.isInteger(chart.sogMaximum / 2) ? chart.sogMaximum / 2 : (chart.sogMaximum / 2).toFixed(1)} kn`,
+                '0 kn',
               ]}
             />
-            <ReferenceLine
-              xAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.xAxisId}
-              x={playbackTime}
-              stroke="#ed7658"
-              strokeWidth={2}
-              ifOverflow={zoomPresentation.playbackReferenceOverflow}
+            <div className="individual-sog-cog-signal__plot">
+              <svg
+                viewBox={`0 0 ${COG_SIGNAL_VIEWBOX_WIDTH} ${COG_SIGNAL_VIEWBOX_HEIGHT}`}
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={`${activityLabel} SOG and COG signals`}
+              >
+                <g className="individual-sog-cog-signal__grid" aria-hidden="true">
+                  {[8, 54, 100, 146, 192].map((y) => (
+                    <line key={`horizontal-${y}`} x1="0" x2="1000" y1={y} y2={y} />
+                  ))}
+                  {[0, 500, 1000].map((x) => (
+                    <line key={`vertical-${x}`} x1={x} x2={x} y1="8" y2="192" />
+                  ))}
+                </g>
+
+                {chart.rawSogPath ? (
+                  <path
+                    data-individual-signal-series="sog-raw"
+                    d={chart.rawSogPath}
+                    fill="none"
+                    stroke={sogColor}
+                    strokeOpacity={SOG_SIGNAL_TUNING.rawOpacity}
+                    strokeWidth={SOG_SIGNAL_TUNING.rawStrokeWidth}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
+                {chart.rawCogPath ? (
+                  <path
+                    data-individual-signal-series="cog-raw"
+                    d={chart.rawCogPath}
+                    fill="none"
+                    stroke={INDIVIDUAL_SOG_COG_CHART_CONFIG.cogColor}
+                    strokeOpacity={COG_SIGNAL_TUNING.rawOpacity}
+                    strokeWidth={COG_SIGNAL_TUNING.rawStrokeWidth}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
+                {chart.smoothedSogPath ? (
+                  <path
+                    data-individual-signal-series="sog-smoothed"
+                    d={chart.smoothedSogPath}
+                    fill="none"
+                    stroke={sogColor}
+                    strokeOpacity={SOG_SIGNAL_TUNING.smoothedOpacity}
+                    strokeWidth={SOG_SIGNAL_TUNING.smoothedStrokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
+                {chart.smoothedCogPath ? (
+                  <path
+                    data-individual-signal-series="cog-smoothed"
+                    d={chart.smoothedCogPath}
+                    fill="none"
+                    stroke={INDIVIDUAL_SOG_COG_CHART_CONFIG.cogColor}
+                    strokeOpacity={COG_SIGNAL_TUNING.smoothedOpacity}
+                    strokeWidth={COG_SIGNAL_TUNING.smoothedStrokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
+
+                {playbackX === null ? null : (
+                  <line
+                    data-individual-signal-playback-cursor="true"
+                    className="individual-sog-cog-signal__playback-cursor"
+                    x1={playbackX}
+                    x2={playbackX}
+                    y1="8"
+                    y2="192"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+              </svg>
+            </div>
+            <IndividualSogCogYAxis
+              side="right"
+              label="COG (°)"
+              ticks={[...INDIVIDUAL_SOG_COG_CHART_CONFIG.cogTicks].reverse().map((tick) => `${tick}°`)}
             />
-            {pointerSelection !== null && (
-              <ReferenceArea
-                xAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.xAxisId}
-                x1={pointerSelection.start}
-                x2={pointerSelection.end}
-                fill="#168097"
-                fillOpacity={0.12}
-              />
-            )}
-            <Line
-              xAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.xAxisId}
-              yAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.sogAxisId}
-              type="linear"
-              dataKey="sog"
-              name="SOG"
-              stroke={sogColor}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-              isAnimationActive={false}
-              connectNulls
-            />
-            <Line
-              xAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.xAxisId}
-              yAxisId={INDIVIDUAL_SOG_COG_CHART_CONFIG.cogAxisId}
-              type="linear"
-              dataKey="cog"
-              name="COG"
-              stroke={INDIVIDUAL_SOG_COG_CHART_CONFIG.cogColor}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-              isAnimationActive={false}
-              connectNulls={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+            <div className="individual-sog-cog-signal__x-axis" aria-hidden="true">
+              {xTicks.map((tick, index) => (
+                <time key={`${tick}-${index}`} dateTime={new Date(tick).toISOString()}>{formatGpsTime(tick)}</time>
+              ))}
+            </div>
+        </div>
       </div>
     </section>
   )

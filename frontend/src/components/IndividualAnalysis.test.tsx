@@ -75,6 +75,8 @@ describe('Individual Analysis content', () => {
 
     expect(markup.match(/individual-analysis__activity/g)).toHaveLength(1)
     expect(markup.match(/individual-sog-cog-chart/g)).toHaveLength(1)
+    expect(markup.match(/<svg/g)).toHaveLength(1)
+    expect(markup.match(/data-individual-signal-playback-cursor/g)).toHaveLength(1)
     expect(markup).toContain('SOG + COG over GPS time')
   })
 
@@ -86,6 +88,8 @@ describe('Individual Analysis content', () => {
 
     expect(markup.match(/individual-analysis__activity/g)).toHaveLength(2)
     expect(markup.match(/individual-sog-cog-chart/g)).toHaveLength(2)
+    expect(markup.match(/<svg/g)).toHaveLength(2)
+    expect(markup.match(/data-individual-signal-playback-cursor/g)).toHaveLength(2)
     expect(markup.match(/SOG \+ COG over GPS time/g)).toHaveLength(2)
     expect(markup).toContain('Sailor A · Boat A')
     expect(markup).toContain('Sailor B · Boat B')
