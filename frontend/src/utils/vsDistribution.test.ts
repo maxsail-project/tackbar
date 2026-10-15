@@ -209,18 +209,18 @@ describe('signed linear HEEL bins', () => {
 
   it('keeps one fixed symmetric domain aligned to 2° bins', () => {
     const result = calculateVsDistributions([
-      sample(0, 4, 90, -26),
-      sample(1, 4, 90, 25.9),
+      sample(0, 4, 90, -20),
+      sample(1, 4, 90, 19.9),
     ], null, window(0, 1))
 
     expect(result.heelDomainMaximum).toBe(VS_CONFIG.heelDomainDeg)
-    expect(result.heelBins).toHaveLength(26)
-    expect(result.heelBins[0].start).toBe(-26)
-    expect(result.heelBins.at(-1)?.end).toBe(26)
+    expect(result.heelBins).toHaveLength(20)
+    expect(result.heelBins[0].start).toBe(-20)
+    expect(result.heelBins.at(-1)?.end).toBe(20)
   })
 
   it('excludes out-of-domain time from coverage and normalizes over in-domain time', () => {
-    const heels = [-26, -24, 0, 2, -26, -24, 0, 2, 26, -26.001, 0]
+    const heels = [-20, -18, 0, 2, -20, -18, 0, 2, 20, -20.001, 0]
     const result = calculateVsDistributions(
       heels.map((heel, seconds) => sample(seconds, 4, 90, heel)),
       null,
@@ -232,10 +232,10 @@ describe('signed linear HEEL bins', () => {
     expect(result.primary.heel.eligible).toBe(true)
     expect(result.primary.sog.coverage).toBe(1)
     expect(result.primary.cog.coverage).toBe(1)
-    expect(result.primary.heel.binTimeSeconds.has(13)).toBe(false)
-    expect(result.primary.heel.binTimeSeconds.has(-14)).toBe(false)
-    expect(result.heelBins.find((bin) => bin.start === -26)?.primaryPercentage).toBe(25)
-    expect(result.heelBins.find((bin) => bin.start === -24)?.primaryPercentage).toBe(25)
+    expect(result.primary.heel.binTimeSeconds.has(10)).toBe(false)
+    expect(result.primary.heel.binTimeSeconds.has(-11)).toBe(false)
+    expect(result.heelBins.find((bin) => bin.start === -20)?.primaryPercentage).toBe(25)
+    expect(result.heelBins.find((bin) => bin.start === -18)?.primaryPercentage).toBe(25)
     expect(result.heelBins.find((bin) => bin.start === 0)?.primaryPercentage).toBe(25)
     expect(result.heelBins.find((bin) => bin.start === 2)?.primaryPercentage).toBe(25)
   })

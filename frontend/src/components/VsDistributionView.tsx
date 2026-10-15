@@ -476,11 +476,12 @@ function HeelSemicircle({
       />
     )
   })
+  const angleGuides = VS_CONFIG.heelAngleGuideDegrees.flatMap((degrees) => (
+    [-degrees, degrees]
+  )).sort((first, second) => first - second)
   const degreeLabels = [
     -domainMaximum,
-    -domainMaximum / 2,
     0,
-    domainMaximum / 2,
     domainMaximum,
   ]
 
@@ -526,6 +527,27 @@ function HeelSemicircle({
         y2={centerY - radius}
         className="vs-distribution__axis"
       />
+      {angleGuides.map((degrees) => {
+        const point = semicirclePoint(
+          centerX,
+          centerY,
+          radius,
+          heelAngleDegrees(degrees, domainMaximum),
+        )
+        return (
+          <line
+            data-guide="heel-angle"
+            data-heel-guide={degrees}
+            key={degrees}
+            x1={centerX}
+            y1={centerY}
+            x2={point.x}
+            y2={point.y}
+            stroke={VS_CONFIG.guideColor}
+            strokeWidth={VS_CONFIG.guideStrokeWidth}
+          />
+        )
+      })}
       {renderSectors(
         'comparison',
         ACTIVITY_COLORS.comparison,
@@ -547,6 +569,27 @@ function HeelSemicircle({
       >
         {formatPercentageTick(scaleMaximum)}
       </text>
+      {angleGuides.map((degrees) => {
+        const point = semicirclePoint(
+          centerX,
+          centerY,
+          radius + VS_CONFIG.heelDegreeLabelOffset,
+          heelAngleDegrees(degrees, domainMaximum),
+        )
+        return (
+          <text
+            data-heel-guide-label={degrees}
+            key={`guide-label-${degrees}`}
+            x={point.x}
+            y={point.y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className="vs-distribution__angular-label"
+          >
+            {formatSignedDegrees(degrees)}
+          </text>
+        )
+      })}
       {degreeLabels.map((degrees) => {
         const point = semicirclePoint(
           centerX,

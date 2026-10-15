@@ -52,9 +52,9 @@ describe('VS percentage scale ceiling', () => {
 
 describe('HEEL semicircle mapping', () => {
   it('maps negative, zero, and positive HEEL across the upper semicircle', () => {
-    expect(heelAngleDegrees(-26, 26)).toBe(-90)
-    expect(heelAngleDegrees(0, 26)).toBe(0)
-    expect(heelAngleDegrees(26, 26)).toBe(90)
+    expect(heelAngleDegrees(-20, 20)).toBe(-90)
+    expect(heelAngleDegrees(0, 20)).toBe(0)
+    expect(heelAngleDegrees(20, 20)).toBe(90)
   })
 })
 
@@ -85,6 +85,7 @@ describe('VS distribution presentation', () => {
     )
     const comparisonHeel = markup.indexOf('data-activity-role="comparison"', heelStart)
     const primaryHeel = markup.indexOf('data-activity-role="primary"', heelStart)
+    const lastHeelAngleGuide = markup.lastIndexOf('data-guide="heel-angle"', comparisonHeel)
 
     expect(comparisonHistogram).toBeGreaterThan(histogramStart)
     expect(primaryHistogram).toBeGreaterThan(comparisonHistogram)
@@ -92,6 +93,8 @@ describe('VS distribution presentation', () => {
     expect(comparisonRose).toBeGreaterThan(roseStart)
     expect(primaryRose).toBeGreaterThan(comparisonRose)
     expect(lastComparisonRose).toBeLessThan(primaryRose)
+    expect(lastHeelAngleGuide).toBeGreaterThan(heelStart)
+    expect(lastHeelAngleGuide).toBeLessThan(comparisonHeel)
     expect(comparisonHeel).toBeGreaterThan(heelStart)
     expect(primaryHeel).toBeGreaterThan(comparisonHeel)
     expect(VS_CONFIG.primaryOpacity).toBe(VS_CONFIG.comparisonOpacity)
@@ -139,15 +142,22 @@ describe('VS distribution presentation', () => {
     )
     expect(markup.match(/data-guide="heel-boundary"/g)).toHaveLength(1)
     expect(markup.match(/data-guide="heel-axis"/g)).toHaveLength(2)
+    expect(markup.match(/data-guide="heel-angle"/g)).toHaveLength(6)
     expect(markup.match(/vs-distribution__radial-label/g)).toHaveLength(1)
     for (let degrees = 0; degrees < 360; degrees += 30) {
       expect(markup).toContain(`>${degrees}°</text>`)
     }
     expect(markup).not.toMatch(/>N<\/text>|>E<\/text>|>S<\/text>|>W<\/text>/)
     expect(markup).not.toContain('vs-distribution__spoke')
-    expect(markup).toContain('>-26°</text>')
+    expect(markup).toContain('>-20°</text>')
     expect(markup).toContain('>0°</text>')
-    expect(markup).toContain('>+26°</text>')
+    expect(markup).toContain('>+20°</text>')
+    for (const degrees of [-15, -10, -5, 5, 10, 15]) {
+      const label = degrees > 0 ? `+${degrees}°` : `${degrees}°`
+      expect(markup).toContain(`data-heel-guide="${degrees}"`)
+      expect(markup).toContain(`data-heel-guide-label="${degrees}"`)
+      expect(markup).toContain(`>${label}</text>`)
+    }
   })
 
   it('uses independent tight scales with only each chart top label', () => {
@@ -234,7 +244,7 @@ describe('VS distribution presentation', () => {
   it('keeps the fixed domain and reports out-of-domain HEEL as unavailable coverage', () => {
     const markup = renderToStaticMarkup(
       <VsDistributionView
-        primarySamples={[sample(0, 4, 1, -26), sample(1, 4, 1, -26)]}
+        primarySamples={[sample(0, 4, 1, -20), sample(1, 4, 1, -20)]}
         comparisonSamples={[sample(0, 5, 91, 43), sample(1, 5, 91, 43)]}
         analysisWindow={analysisWindow}
       />,
@@ -242,9 +252,9 @@ describe('VS distribution presentation', () => {
 
     const heelStart = markup.indexOf('Time-weighted signed HEEL semicircular distribution')
     const heelMarkup = markup.slice(heelStart)
-    expect(heelMarkup).toContain('>-26°</text>')
-    expect(heelMarkup).toContain('>+26°</text>')
-    expect(heelMarkup).toContain('data-heel-bin="-26:-24"')
+    expect(heelMarkup).toContain('>-20°</text>')
+    expect(heelMarkup).toContain('>+20°</text>')
+    expect(heelMarkup).toContain('data-heel-bin="-20:-18"')
     expect(heelMarkup).not.toContain('data-heel-bin="42:44"')
     expect(markup).toContain('Heel distribution unavailable for Comparison · HEEL coverage 0%')
   })
