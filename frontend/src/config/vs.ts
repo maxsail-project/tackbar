@@ -4,7 +4,7 @@ export const VS_CONFIG = {
   sogBinKt: 0.5,
   cogBinDeg: 10,
   heelBinDeg: 2,
-  heelInitialDomainDeg: 40,
+  heelDomainDeg: 20, // <<<<< AJUSTAR HEEL DOMAIN PARA QUE SE VEA BIEN EL GRAFICO DE HEEL
   primaryOpacity: 0.55,
   comparisonOpacity: 0.55,
   primaryStrokeWidth: 1,

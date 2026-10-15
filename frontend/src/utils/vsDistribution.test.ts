@@ -207,29 +207,37 @@ describe('signed linear HEEL bins', () => {
     expect(result.primary.heel.binTimeSeconds.has(0)).toBe(true)
   })
 
-  it('expands one symmetric shared domain in 2° steps for eligible P/C extremes', () => {
-    const result = calculateVsDistributions(
-      [sample(0, 4, 90, -41), sample(1, 4, 90, -41)],
-      [sample(0, 4, 90, 43), sample(1, 4, 90, 43)],
-      window(0, 1),
-    )
-
-    expect(result.heelDomainMaximum).toBe(44)
-    expect(result.heelBins[0].start).toBe(-44)
-    expect(result.heelBins.at(-1)?.end).toBe(44)
-    expect(result.heelBins.find((bin) => bin.start === -42)?.primaryPercentage).toBe(100)
-    expect(result.heelBins.find((bin) => bin.start === 42)?.comparisonPercentage).toBe(100)
-  })
-
-  it('keeps the initial symmetric domain when eligible data stays within ±40°', () => {
+  it('keeps one fixed symmetric domain aligned to 2° bins', () => {
     const result = calculateVsDistributions([
-      sample(0, 4, 90, -40),
-      sample(1, 4, 90, 39.9),
+      sample(0, 4, 90, -26),
+      sample(1, 4, 90, 25.9),
     ], null, window(0, 1))
 
-    expect(result.heelDomainMaximum).toBe(VS_CONFIG.heelInitialDomainDeg)
-    expect(result.heelBins[0].start).toBe(-40)
-    expect(result.heelBins.at(-1)?.end).toBe(40)
+    expect(result.heelDomainMaximum).toBe(VS_CONFIG.heelDomainDeg)
+    expect(result.heelBins).toHaveLength(26)
+    expect(result.heelBins[0].start).toBe(-26)
+    expect(result.heelBins.at(-1)?.end).toBe(26)
+  })
+
+  it('excludes out-of-domain time from coverage and normalizes over in-domain time', () => {
+    const heels = [-26, -24, 0, 2, -26, -24, 0, 2, 26, -26.001, 0]
+    const result = calculateVsDistributions(
+      heels.map((heel, seconds) => sample(seconds, 4, 90, heel)),
+      null,
+      window(0, 10),
+    )
+
+    expect(result.primary.heel.validTimeSeconds).toBe(8)
+    expect(result.primary.heel.coverage).toBe(VS_CONFIG.minCoverage)
+    expect(result.primary.heel.eligible).toBe(true)
+    expect(result.primary.sog.coverage).toBe(1)
+    expect(result.primary.cog.coverage).toBe(1)
+    expect(result.primary.heel.binTimeSeconds.has(13)).toBe(false)
+    expect(result.primary.heel.binTimeSeconds.has(-14)).toBe(false)
+    expect(result.heelBins.find((bin) => bin.start === -26)?.primaryPercentage).toBe(25)
+    expect(result.heelBins.find((bin) => bin.start === -24)?.primaryPercentage).toBe(25)
+    expect(result.heelBins.find((bin) => bin.start === 0)?.primaryPercentage).toBe(25)
+    expect(result.heelBins.find((bin) => bin.start === 2)?.primaryPercentage).toBe(25)
   })
 
   it('uses clipped real irregular intervals and excludes gaps above the VS maximum', () => {

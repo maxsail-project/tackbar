@@ -57,7 +57,7 @@ interface VsCalculationConfig {
   sogBinKt: number
   cogBinDeg: number
   heelBinDeg: number
-  heelInitialDomainDeg: number
+  heelDomainDeg: number
 }
 
 interface MutableActivityDistribution {
@@ -147,7 +147,12 @@ function accumulateActivity(
       result.cogValidTimeMs += representedDt
     }
 
-    if (sample.heel !== null && Number.isFinite(sample.heel)) {
+    if (
+      sample.heel !== null
+      && Number.isFinite(sample.heel)
+      && sample.heel >= -config.heelDomainDeg
+      && sample.heel < config.heelDomainDeg
+    ) {
       const binIndex = Math.floor(sample.heel / config.heelBinDeg)
       result.heelBinTimeMs.set(
         binIndex,
@@ -253,30 +258,13 @@ function buildSharedSogBins(
   return bins
 }
 
-function eligibleHeelDomainBins(
-  distribution: ActivityVsDistribution,
-): number | null {
-  if (!distribution.heel.eligible || distribution.heel.binTimeSeconds.size === 0) return null
-
-  let domainBins = 0
-  distribution.heel.binTimeSeconds.forEach((_time, bin) => {
-    domainBins = Math.max(domainBins, bin < 0 ? -bin : bin + 1)
-  })
-  return domainBins
-}
-
 function buildSharedHeelBins(
   primary: ActivityVsDistribution,
   comparison: ActivityVsDistribution | null,
   binSize: number,
-  initialDomain: number,
+  domainMaximum: number,
 ) {
-  const initialDomainBins = Math.ceil(initialDomain / binSize)
-  const domainBins = Math.max(
-    initialDomainBins,
-    eligibleHeelDomainBins(primary) ?? 0,
-    comparison ? eligibleHeelDomainBins(comparison) ?? 0 : 0,
-  )
+  const domainBins = domainMaximum / binSize
   const bins: HeelDistributionBin[] = []
 
   for (let bin = -domainBins; bin < domainBins; bin += 1) {
@@ -295,7 +283,7 @@ function buildSharedHeelBins(
 
   return {
     bins,
-    domainMaximum: domainBins * binSize,
+    domainMaximum,
   }
 }
 
@@ -314,10 +302,11 @@ export function calculateVsDistributions(
     throw new Error('HEEL bin size must be positive')
   }
   if (
-    !Number.isFinite(config.heelInitialDomainDeg)
-    || config.heelInitialDomainDeg <= 0
+    !Number.isFinite(config.heelDomainDeg)
+    || config.heelDomainDeg <= 0
+    || !Number.isInteger(config.heelDomainDeg / config.heelBinDeg)
   ) {
-    throw new Error('HEEL initial domain must be positive')
+    throw new Error('HEEL domain must be positive and align with the bin size')
   }
 
   const windowDurationMs = window.end - window.start
@@ -337,7 +326,7 @@ export function calculateVsDistributions(
     primary,
     comparison,
     config.heelBinDeg,
-    config.heelInitialDomainDeg,
+    config.heelDomainDeg,
   )
 
   return {

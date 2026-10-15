@@ -52,9 +52,9 @@ describe('VS percentage scale ceiling', () => {
 
 describe('HEEL semicircle mapping', () => {
   it('maps negative, zero, and positive HEEL across the upper semicircle', () => {
-    expect(heelAngleDegrees(-40, 40)).toBe(-90)
-    expect(heelAngleDegrees(0, 40)).toBe(0)
-    expect(heelAngleDegrees(40, 40)).toBe(90)
+    expect(heelAngleDegrees(-26, 26)).toBe(-90)
+    expect(heelAngleDegrees(0, 26)).toBe(0)
+    expect(heelAngleDegrees(26, 26)).toBe(90)
   })
 })
 
@@ -145,9 +145,9 @@ describe('VS distribution presentation', () => {
     }
     expect(markup).not.toMatch(/>N<\/text>|>E<\/text>|>S<\/text>|>W<\/text>/)
     expect(markup).not.toContain('vs-distribution__spoke')
-    expect(markup).toContain('>-40°</text>')
+    expect(markup).toContain('>-26°</text>')
     expect(markup).toContain('>0°</text>')
-    expect(markup).toContain('>+40°</text>')
+    expect(markup).toContain('>+26°</text>')
   })
 
   it('uses independent tight scales with only each chart top label', () => {
@@ -231,18 +231,21 @@ describe('VS distribution presentation', () => {
     expect(heelMarkup).toContain(`stroke="${ACTIVITY_COLORS.primary}"`)
   })
 
-  it('labels the expanded symmetric domain without clipping eligible HEEL', () => {
+  it('keeps the fixed domain and reports out-of-domain HEEL as unavailable coverage', () => {
     const markup = renderToStaticMarkup(
       <VsDistributionView
-        primarySamples={[sample(0, 4, 1, -41), sample(1, 4, 1, -41)]}
+        primarySamples={[sample(0, 4, 1, -26), sample(1, 4, 1, -26)]}
         comparisonSamples={[sample(0, 5, 91, 43), sample(1, 5, 91, 43)]}
         analysisWindow={analysisWindow}
       />,
     )
 
-    expect(markup).toContain('>-44°</text>')
-    expect(markup).toContain('>+44°</text>')
-    expect(markup).toContain('data-heel-bin="-42:-40"')
-    expect(markup).toContain('data-heel-bin="42:44"')
+    const heelStart = markup.indexOf('Time-weighted signed HEEL semicircular distribution')
+    const heelMarkup = markup.slice(heelStart)
+    expect(heelMarkup).toContain('>-26°</text>')
+    expect(heelMarkup).toContain('>+26°</text>')
+    expect(heelMarkup).toContain('data-heel-bin="-26:-24"')
+    expect(heelMarkup).not.toContain('data-heel-bin="42:44"')
+    expect(markup).toContain('Heel distribution unavailable for Comparison · HEEL coverage 0%')
   })
 })
