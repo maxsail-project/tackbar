@@ -2,6 +2,206 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.12 Californian — Signal Analytics & Individual Analysis (Release-ready — production validation pending)
+
+### English
+
+Deepens the collaborative debrief with clearer, lighter signal views, richer
+time-weighted HEEL/TRIM evidence and a new per-sailor HEEL × SOG view inside
+Individual Analysis.
+
+### Added
+
+* VS now includes a signed HEEL semicircular distribution based on represented
+  time, with fixed `[-20°, +20°)` geometry, 2° bins, explicit signed guides and
+  aligned Primary/Comparison scaling without assigning sailing meaning to the
+  HEEL sign.
+* VS now includes a signed TRIM boxplot using represented-time-weighted
+  quartiles, median and Tukey whiskers. Primary and Comparison share one signed
+  scale, and outlier/statistical detail remains available through accessible
+  SVG markup without adding a dense visible statistics block.
+* Each selected Activity in Individual Analysis now includes its own native-SVG
+  HEEL × SOG represented-time density map below the SOG + COG chart. It uses
+  actual UTC intervals and Analysis Window clipping, fixed signed HEEL bins,
+  shared SOG geometry and intensity comparison, Activity color identity and an
+  explicit low-coverage state without overlaying Primary and Comparison.
+
+### Changed
+
+* The main SOG and COG time-series now use focused native-SVG raw and smoothed
+  signal views. SOG uses a centered time-weighted trend; COG uses a circular-safe
+  centered time-weighted mean and explicit 0°/360° wrap breaks. Both retain the
+  shared Analysis Window and playback cursor while removing chart-local zoom,
+  Reset and tooltip interaction.
+* HEEL now uses a native-SVG stepped signal built from UTC-aligned 2-second
+  represented-time buckets, while TRIM uses a native-SVG signed raw trace with
+  presentation-only point reduction. Both preserve gaps, the signed zero
+  reference, shared playback time and Comparison-before-Primary rendering.
+* Signal charts preserve Primary/Comparison readability through deterministic
+  render order and equal visual weight for equivalent roles; Activity identity
+  remains color-based. SOG and COG raw/smoothed configuration remains
+  centralized, with smoothed traces aligned to opacity `0.6`.
+* Summary keeps its eight-row structure but now reports independent positive
+  and negative represented-time-weighted medians for HEEL and TRIM. Zero belongs
+  to neither sign group, gaps over 1.5 seconds are not bridged, and Summary
+  Distance now displays the existing accumulated distance in whole metres.
+* Individual Analysis keeps one combined SOG + COG chart per Activity but now
+  renders it in native SVG using the accepted SOG and circular-safe COG signal
+  semantics. The Analysis Window remains the only temporal selector and each
+  Activity/Sailor retains an independent presentation.
+* Existing canonical telemetry, map, replay, maneuver analytics, Activity,
+  Session, consent, capability, backend/API and persistence semantics remain
+  unchanged outside the completed Viewer increments.
+
+### Fixed
+
+* SOG and COG smoothed traces now use the same partial opacity in the main
+  comparison charts and Individual Analysis, reducing excess visual weight in
+  dense overlap without changing signal calculations, path geometry, stroke
+  widths, colors or draw order.
+
+### Issues
+
+- [#73](https://github.com/maxsail-project/tackbar/issues/73) — [#73] Fix Primary rendering hierarchy in metric time-series
+- [#88](https://github.com/maxsail-project/tackbar/issues/88) — [#88] PoC native-SVG SOG time-series signal viewer
+- [#89](https://github.com/maxsail-project/tackbar/issues/89) — [#89] PoC native-SVG raw + circular-smoothed COG time-series
+- [#90](https://github.com/maxsail-project/tackbar/issues/90) — [#90] PoC native-SVG stepped HEEL time-series
+- [#91](https://github.com/maxsail-project/tackbar/issues/91) — [#91] Migrate TRIM time-series to native SVG
+- [#92](https://github.com/maxsail-project/tackbar/issues/92) — [#92] Add signed HEEL semicircular distribution to VS
+- [#93](https://github.com/maxsail-project/tackbar/issues/93) — [#93] Add time-weighted signed TRIM P/C boxplot to VS
+- [#94](https://github.com/maxsail-project/tackbar/issues/94) — [#94] Use signed HEEL/TRIM medians and display Distance in metres
+- [#95](https://github.com/maxsail-project/tackbar/issues/95) — [#95] Migrate Individual Analysis SOG + COG time-series to native SVG
+- [#96](https://github.com/maxsail-project/tackbar/issues/96) — [#96] Add HEEL vs SOG time-weighted density map to Individual Analysis
+- [#97](https://github.com/maxsail-project/tackbar/issues/97) — Fix SOG and COG smoothed trace opacity
+
+### Validation
+
+Before release preparation, Issues #73 and #88–#97 recorded implementation
+acceptance and manual validation PASS. Their recorded automated validation
+covered focused Summary, VS, signal-chart, Individual Analysis, Analysis Window
+and Session Viewer regressions, frontend typecheck, frontend production build
+and `git diff --check` as applicable. Issue #96 additionally recorded 33 direct
+density/Individual Analysis tests, a 112-test focused Viewer regression and an
+11-test final density calculation rerun. No dependencies were added or removed.
+
+Release preparation performed release-range and completed-Issue
+reconciliation, documentation consistency, bilingual release-entry and
+publication-body equivalence review, final diff and whitespace checks, and
+repository/remote publication-state verification. The implementation checks
+were not rerun during this documentation-only preparation.
+
+Production deployment remains pending. The signal views, signed Summary/VS
+analytics and expanded Individual Analysis have not yet been validated in the
+production runtime. The existing production-build large-chunk advisory remains
+non-blocking. No tag, GitHub Release or production deployment is part of
+release preparation.
+
+---
+
+## v0.7.12 Californian — Analítica de señales y análisis individual (Lista para release — validación de producción pendiente)
+
+### Español
+
+Profundiza el debrief colaborativo con vistas de señal más claras y ligeras,
+evidencia temporal más rica de HEEL/TRIM y una nueva vista HEEL × SOG por
+navegante dentro de Individual Analysis.
+
+### Añadido
+
+* VS incluye ahora una distribución semicircular de HEEL con signo basada en
+  tiempo representado, geometría fija `[-20°, +20°)`, bins de 2°, guías con
+  signo explícitas y escala Primary/Comparison alineada sin asignar significado
+  náutico al signo de HEEL.
+* VS incluye ahora un boxplot de TRIM con signo que usa cuartiles, mediana y
+  bigotes de Tukey ponderados por tiempo representado. Primary y Comparison
+  comparten una escala con signo, y el detalle estadístico y de outliers sigue
+  disponible mediante markup SVG accesible sin añadir un bloque visual denso.
+* Cada Activity seleccionada en Individual Analysis incluye ahora su propio
+  mapa de densidad HEEL × SOG en SVG nativo debajo del chart SOG + COG. Usa
+  intervalos UTC reales y recorte exacto al Analysis Window, bins fijos de HEEL
+  con signo, geometría e intensidad SOG compartidas, identidad de color de la
+  Activity y un estado explícito de baja cobertura sin superponer Primary y
+  Comparison.
+
+### Cambiado
+
+* Las series temporales principales de SOG y COG usan ahora vistas focalizadas
+  en SVG nativo con señal raw y suavizada. SOG usa una tendencia centrada
+  ponderada por tiempo; COG usa una media centrada, ponderada por tiempo y
+  circularmente segura con cortes explícitos en el cruce 0°/360°. Ambas
+  conservan el Analysis Window y el cursor de replay compartidos y eliminan el
+  zoom local, Reset y la interacción de tooltip del chart.
+* HEEL usa ahora una señal escalonada en SVG nativo construida con buckets
+  absolutos UTC de 2 segundos ponderados por tiempo, mientras TRIM usa un trazo
+  raw con signo en SVG nativo y reducción solo de presentación. Ambos conservan
+  gaps, referencia cero con signo, tiempo de replay compartido y renderizado de
+  Comparison antes de Primary.
+* Los charts de señal preservan la legibilidad Primary/Comparison mediante un
+  orden de renderizado determinista y el mismo peso visual para roles
+  equivalentes; la identidad de Activity sigue dependiendo del color. La
+  configuración raw/suavizada de SOG y COG permanece centralizada, con los
+  trazos suavizados alineados a opacidad `0.6`.
+* Summary conserva su estructura de ocho filas, pero informa ahora medianas
+  positivas y negativas independientes, ponderadas por tiempo representado,
+  para HEEL y TRIM. Cero no pertenece a ninguno de los grupos de signo, no se
+  salvan gaps superiores a 1.5 segundos y Distance muestra ahora la distancia
+  acumulada existente en metros enteros.
+* Individual Analysis mantiene un chart combinado SOG + COG por Activity, pero
+  ahora lo renderiza en SVG nativo usando las semánticas de señal SOG aceptadas
+  y COG circularmente seguras. El Analysis Window sigue siendo el único selector
+  temporal y cada Activity/navegante conserva una presentación independiente.
+* Las semánticas existentes de telemetría canónica, mapa, replay, analítica de
+  maniobras, Activity, Session, consentimiento, capability, backend/API y
+  persistencia permanecen sin cambios fuera de los incrementos Viewer
+  completados.
+
+### Corregido
+
+* Los trazos suavizados de SOG y COG usan ahora la misma opacidad parcial en los
+  charts principales de comparación e Individual Analysis, reduciendo el peso
+  visual excesivo en solapes densos sin cambiar cálculos de señal, geometría de
+  paths, grosores, colores ni orden de renderizado.
+
+### Issues
+
+- [#73](https://github.com/maxsail-project/tackbar/issues/73) — [#73] Fix Primary rendering hierarchy in metric time-series
+- [#88](https://github.com/maxsail-project/tackbar/issues/88) — [#88] PoC native-SVG SOG time-series signal viewer
+- [#89](https://github.com/maxsail-project/tackbar/issues/89) — [#89] PoC native-SVG raw + circular-smoothed COG time-series
+- [#90](https://github.com/maxsail-project/tackbar/issues/90) — [#90] PoC native-SVG stepped HEEL time-series
+- [#91](https://github.com/maxsail-project/tackbar/issues/91) — [#91] Migrate TRIM time-series to native SVG
+- [#92](https://github.com/maxsail-project/tackbar/issues/92) — [#92] Add signed HEEL semicircular distribution to VS
+- [#93](https://github.com/maxsail-project/tackbar/issues/93) — [#93] Add time-weighted signed TRIM P/C boxplot to VS
+- [#94](https://github.com/maxsail-project/tackbar/issues/94) — [#94] Use signed HEEL/TRIM medians and display Distance in metres
+- [#95](https://github.com/maxsail-project/tackbar/issues/95) — [#95] Migrate Individual Analysis SOG + COG time-series to native SVG
+- [#96](https://github.com/maxsail-project/tackbar/issues/96) — [#96] Add HEEL vs SOG time-weighted density map to Individual Analysis
+- [#97](https://github.com/maxsail-project/tackbar/issues/97) — Fix SOG and COG smoothed trace opacity
+
+### Validación
+
+Antes de preparar la release, los Issues #73 y #88–#97 registraron aceptación
+de implementación y validación manual PASS. Su validación automatizada
+registrada cubrió regresiones focalizadas de Summary, VS, charts de señal,
+Individual Analysis, Analysis Window y Session Viewer, typecheck frontend, build
+de producción frontend y `git diff --check` según correspondía. El Issue #96
+registró además 33 tests directos de densidad/Individual Analysis, una regresión
+Viewer focalizada de 112 tests y una ejecución final de 11 tests del cálculo de
+densidad. No se añadieron ni eliminaron dependencias.
+
+La preparación de la release comprobó el rango de release y la reconciliación
+de Issues completados, la consistencia documental, la entrada bilingüe y la
+equivalencia del cuerpo de publicación, el diff final y los espacios en blanco,
+y el estado del repositorio, del remoto y de publicación. Los checks de
+implementación no se volvieron a ejecutar durante esta preparación solo
+documental.
+
+El despliegue en producción sigue pendiente. Las vistas de señal, la analítica
+con signo de Summary/VS y el Individual Analysis ampliado aún no se han validado
+en el runtime de producción. El aviso existente de chunks grandes en el build de
+producción sigue siendo no bloqueante. La preparación no incluye ningún tag,
+GitHub Release ni despliegue a producción.
+
+---
+
 ## v0.7.11 Californian — Admin Operational Clarity (Release-ready — production validation pending)
 
 ### English
