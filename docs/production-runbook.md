@@ -206,10 +206,15 @@ endpoint to succeed. Expected response:
 Production deployments are serialized by the `production-deployment`
 concurrency group and are not cancelled in progress.
 
+A successful workflow run is the authoritative evidence that the exact
+published release completed this standard application deployment path and its
+workflow-owned technical health checks. It does not establish that any
+release-specific manual functional production validation also occurred.
+
 ## Manual retry and operator fallback
 
-For a supported manual retry, dispatch **Deploy Production** with
-`release_tag=<existing GitHub Release tag>`. The workflow applies the same
+For a supported manual retry or redeployment, dispatch **Deploy Production**
+with `release_tag=<existing GitHub Release tag>`. The workflow applies the same
 release validation and exact-tag deployment path as an automatic publication.
 Use this before direct server intervention.
 
@@ -316,13 +321,20 @@ A rollback to a Gmail-based production release also requires restoring the corre
 - Do not redesign deployment infrastructure during a routine upgrade.
 - Treat mailbox provider configuration and application runtime data as separate from repository checkout state.
 
-## Deployment and validation baselines
+## Historical deployment and validation evidence
 
-Current deployed release: **v0.7.12 Californian — Signal Analytics & Individual
-Analysis**, SHA `92227bff34e132a214526db5fbf209b6dc3f7410`. Release-triggered
-workflow run `38796545799` completed successfully and its deployment health
-check passed. This records publication and technical deployment, not a separate
-manual functional validation PASS for the v0.7.12 production features.
+The current production deployment state is established by the successful
+**Deploy Production** workflow history for the exact published release, not by
+a mutable version statement in this runbook. Repository documentation does not
+require a follow-up commit after deployment.
+
+Recorded v0.7.12 technical deployment evidence: **v0.7.12 Californian — Signal
+Analytics & Individual Analysis**, SHA
+`92227bff34e132a214526db5fbf209b6dc3f7410`. Release-triggered workflow run
+`38796545799` completed successfully and its deployment health check passed.
+This is historical evidence, not a statement of the current production version
+or a separate manual functional validation PASS for the v0.7.12 production
+features.
 
 Last separately recorded manual production-validation baseline: **v0.6.1 — OVH
 Mailbox Ingestion — 2026-09-13**. That validation confirmed OVH IMAP acquisition

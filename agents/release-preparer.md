@@ -287,7 +287,10 @@ mutable source of truth for production deployment state.
 
 - the GitHub Release and immutable tag establish that a release was published;
 - successful execution of `.github/workflows/deploy-production.yml` for that
-  exact published release is the authoritative evidence that it was deployed;
+  exact published release is authoritative evidence that it completed the
+  standard application deployment path and the workflow-owned technical
+  checks; it is not evidence of release-specific manual functional production
+  validation;
 - the deployment workflow and `scripts/deploy-production.sh` retain
   responsibility for validating the exact immutable release tag and commit,
   building the intended release, publishing the frontend, restarting the

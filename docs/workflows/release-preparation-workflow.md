@@ -199,10 +199,13 @@ mutable source of truth for production deployment state.
 
 The GitHub Release and immutable tag establish publication. Successful
 execution of `.github/workflows/deploy-production.yml` for that exact published
-release is the authoritative evidence that it was deployed. The workflow and
-`scripts/deploy-production.sh` retain responsibility for validating the exact
-immutable release tag and commit, building the intended release, publishing the
-frontend, restarting the backend and completing the technical health check.
+release is authoritative evidence that it completed the standard application
+deployment path and the technical checks owned by that workflow. It is not
+evidence that release-specific manual functional production validation
+occurred. The workflow and `scripts/deploy-production.sh` retain responsibility
+for validating the exact immutable release tag and commit, building the
+intended release, publishing the frontend, restarting the backend and
+completing the technical health check.
 
 `docs/production-runbook.md` should describe the durable production model and
 operational requirements. Prefer temporally stable wording, such as stating

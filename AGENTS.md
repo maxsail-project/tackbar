@@ -423,14 +423,16 @@ authorize unrelated documentation changes or product-code changes.
 Release preparation and static repository documentation must not become a
 second mutable ledger for production deployment state. The GitHub Release and
 immutable tag establish publication; successful execution of the production
-deployment workflow for that exact release is the authoritative deployment
-evidence. Repository documentation should describe the durable deployment
-model and operational requirements without requiring a follow-up commit to
-record transient deployment status. GitHub Actions must not commit or push
-documentation changes. Do not introduce a Release Finalizer, mandatory
-post-release Issue or post-release documentation gate. Manual production
-validation remains release-specific when explicitly required and is not a
-universal release lifecycle gate.
+deployment workflow is authoritative evidence that the exact published release
+completed the standard application deployment path and the technical checks
+owned by that workflow. It does not establish release-specific manual
+functional production validation. Repository documentation should describe the
+durable deployment model and operational requirements without requiring a
+follow-up commit to record transient deployment status. GitHub Actions must not
+commit or push documentation changes. Do not introduce a Release Finalizer,
+mandatory post-release Issue or post-release documentation gate. Manual
+production validation remains release-specific when explicitly required and is
+not a universal release lifecycle gate.
 
 The Release Preparer has no authority to implement or fix product code, choose
 the version or release-family identity, publish Git tags or GitHub Releases,
