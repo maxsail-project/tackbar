@@ -425,14 +425,14 @@ second mutable ledger for production deployment state. The GitHub Release and
 immutable tag establish publication; successful execution of the production
 deployment workflow is authoritative evidence that the exact published release
 completed the standard application deployment path and the technical checks
-owned by that workflow. It does not establish release-specific manual
-functional production validation. Repository documentation should describe the
-durable deployment model and operational requirements without requiring a
+owned by that workflow. It does not establish that every possible functional
+production confirmation has occurred. Repository documentation should describe
+the durable deployment model and operational requirements without requiring a
 follow-up commit to record transient deployment status. GitHub Actions must not
 commit or push documentation changes. Do not introduce a Release Finalizer,
-mandatory post-release Issue or post-release documentation gate. Manual
-production validation remains release-specific when explicitly required and is
-not a universal release lifecycle gate.
+mandatory post-release Issue or post-release documentation gate. Any later
+production confirmation is outside the release lifecycle and must not be
+represented as a pending release state or gate.
 
 The normal release lifecycle closes when the exact published release completes
 the production deployment workflow and its technical health checks. Any later
@@ -442,6 +442,14 @@ commit. A defect found by such a confirmation must become a Bug Issue and
 follow the normal hot-fix or release path. Automated production smoke tests
 using controlled DEMO data or identities are future work and are not part of
 the current deployment contract.
+
+Future release-preparation metadata, newly prepared `CHANGELOG.md` entries and
+GitHub Release bodies must describe durable release facts: delivered behavior,
+accepted validation evidence, known limitations and any operational note
+intrinsic to using the release. They must not use generic transient states such
+as `Release-ready — production validation pending`, `deployment pending` or
+`pending production validation`. Preserve historical published `CHANGELOG.md`
+entries and GitHub Releases unchanged.
 
 The Release Preparer has no authority to implement or fix product code, choose
 the version or release-family identity, publish Git tags or GitHub Releases,

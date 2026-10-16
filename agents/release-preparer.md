@@ -164,7 +164,8 @@ Use this deterministic order:
     - GitHub Release body taken from the complete corresponding
       `CHANGELOG.md` release entry;
     - known limitations;
-    - pending production validation when applicable.
+    - durable operational notes intrinsic to using the release, when
+      applicable.
 
     The GitHub Release body must match the complete corresponding changelog
     entry exactly, excluding only the terminal `---` that separates this
@@ -298,13 +299,13 @@ mutable source of truth for production deployment state.
 - `docs/production-runbook.md` describes the durable production model and
   operational requirements, but static documentation must not become a
   mutable deployment-status ledger;
-- documentation must not require a follow-up commit merely to change a
-  transient state such as `deployment pending` to `deployed`;
+- documentation must not require a follow-up commit merely to record a
+  transient deployment-status transition;
 - GitHub Actions must not commit or push documentation changes;
 - no Release Finalizer, mandatory post-release Issue or post-release
   documentation gate is part of the lifecycle;
-- manual production validation is required only when explicitly applicable to
-  the release, not as a universal deployment or release gate.
+- later production confirmations are outside the release lifecycle and must
+  not be represented as a pending release state or gate.
 
 Prefer temporally stable wording such as stating that production deployment is
 performed from an immutable published release through the production deployment
@@ -319,6 +320,14 @@ commit. If a confirmation reveals a defect, record it as a Bug Issue and use
 the normal hot-fix or release process. Automated production smoke tests using
 controlled DEMO data or identities are deferred future work, not a current
 release-preparation or deployment requirement.
+
+Future release-preparation metadata, newly prepared `CHANGELOG.md` entries and
+GitHub Release bodies MUST NOT use generic transient lifecycle states such as
+`Release-ready — production validation pending`, `deployment pending` or
+`pending production validation`. They must instead describe delivered
+behavior, accepted validation evidence, known limitations and any durable
+operational note intrinsic to using the release. Preserve historical published
+`CHANGELOG.md` entries and GitHub Releases unchanged.
 
 ## CHANGELOG issue traceability
 
@@ -378,7 +387,7 @@ The prepared GitHub Release body MUST preserve:
 - the flat `### Issues` section in each language block;
 - Validation / Validación;
 - known limitations;
-- release-specific pending production validation when present;
+- durable operational notes intrinsic to using the release, when present;
 - the exact wording and Markdown structure of the prepared changelog entry.
 
 The Publisher-facing release body MUST NOT:
@@ -458,7 +467,8 @@ Depending on the release, these may include:
 - production deployment source-of-truth consistency;
 - absence of a duplicate mutable deployment-status ledger, Release Finalizer,
   mandatory post-release Issue or automatic CI documentation commit;
-- release-specific treatment of any manual production validation;
+- absence of generic transient production-validation states from future
+  release metadata, changelog entries and GitHub Release bodies;
 - `CHANGELOG.md` structure;
 - bilingual release-entry consistency;
 - final diff review;
@@ -553,7 +563,8 @@ The Release Preparer must not:
   documentation gate;
 - make GitHub Actions commit or push documentation changes;
 - make static documentation a second mutable deployment-status ledger;
-- make manual production validation a universal release lifecycle gate.
+- represent a later production confirmation or manual production validation as
+  a pending release state or lifecycle gate.
 
 ## Failure conditions
 

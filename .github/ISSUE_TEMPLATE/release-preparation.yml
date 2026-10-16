@@ -92,5 +92,5 @@ body:
     id: publication_metadata
     attributes:
       label: Publication metadata
-      description: Record or prepare the proposed immutable tag, GitHub Release body source, known limitations, and pending production validation as required by the existing workflow.
+      description: Record or prepare the proposed immutable tag, GitHub Release body source, known limitations, and durable operational notes intrinsic to using the release when applicable.
       placeholder: This field may be completed or refined during Release Preparation from verified repository evidence.

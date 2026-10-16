@@ -216,9 +216,8 @@ repository commit merely to replace transient wording such as
 
 GitHub Actions must not commit or push documentation changes. Do not introduce
 a Release Finalizer, mandatory post-release Issue or post-release documentation
-gate. Manual production validation remains release-specific when explicitly
-required; successful technical deployment does not make it a universal release
-lifecycle gate.
+gate. Later production confirmations are outside the release lifecycle and must
+not be represented as a pending release state or gate.
 
 The normal release lifecycle closes when the exact published release completes
 the production deployment workflow and its technical health checks. Later
@@ -231,6 +230,14 @@ If a production confirmation reveals a defect, record it as a Bug Issue and
 handle the correction through the normal hot-fix or release process. Automated
 production smoke testing with controlled DEMO data or identities is explicitly
 deferred future work and is not part of the current deployment contract.
+
+Future release-preparation metadata, newly prepared `CHANGELOG.md` entries and
+GitHub Release bodies must not use generic transient lifecycle states such as
+`Release-ready — production validation pending`, `deployment pending` or
+`pending production validation`. They must instead describe delivered
+behavior, accepted validation evidence, known limitations and any durable
+operational note intrinsic to using the release. Preserve historical published
+`CHANGELOG.md` entries and GitHub Releases unchanged.
 
 ### Requirements
 
@@ -302,8 +309,7 @@ The entry must:
 - report validation evidence accurately;
 - distinguish previous implementation validation from checks executed during
   release preparation;
-- state release-specific production validation as pending when it is explicitly
-  required and has not occurred;
+- include only durable operational notes intrinsic to using the release;
 - avoid claiming future or unimplemented work.
 
 Every newly prepared release entry must contain a flat `### Issues` section in
@@ -380,7 +386,8 @@ At minimum, validate:
   deployment evidence without a duplicate mutable documentation ledger;
 - absence of a Release Finalizer, mandatory post-release Issue, post-release
   documentation gate or automatic CI documentation commit;
-- release-specific treatment of any manual production validation.
+- absence of generic transient production-validation states from future
+  release metadata, changelog entries and GitHub Release bodies.
 
 Run focused automated checks when release-preparation changes could affect
 executable repository behavior.
@@ -446,7 +453,7 @@ Prepare, but do not publish:
 - proposed immutable Git tag;
 - GitHub Release body;
 - known limitations;
-- release-specific pending production validation when applicable;
+- durable operational notes intrinsic to using the release, when applicable;
 - a short deployment or publication checklist when useful.
 
 The newly prepared `CHANGELOG.md` release entry is the authoritative source for
@@ -462,7 +469,7 @@ entry from `CHANGELOG.md`, preserving:
 - Issues;
 - Validation / Validación;
 - limitations;
-- release-specific pending production validation when present;
+- durable operational notes intrinsic to using the release, when present;
 - wording and Markdown structure.
 
 The terminal `---` used only to separate this release from the next historical
@@ -536,8 +543,9 @@ Verify at minimum:
   production deployment workflow remains the authoritative deployment evidence;
 - no Release Finalizer, mandatory post-release Issue, post-release
   documentation gate or automatic CI documentation commit has been introduced;
-- manual production validation is required only when explicitly applicable to
-  the release;
+- future release metadata contains no generic transient production-validation
+  state, and later production confirmations remain outside the release
+  lifecycle;
 - no `BLOCKED` documentation finding remains;
 - validation evidence is represented accurately;
 - checks claimed as executed were actually executed;
@@ -646,7 +654,8 @@ Release preparation must not:
   documentation gate;
 - make GitHub Actions commit or push documentation changes;
 - make static documentation a second mutable deployment-status ledger;
-- make manual production validation a universal release lifecycle gate;
+- represent a later production confirmation or manual production validation as
+  a pending release state or lifecycle gate;
 - reopen completed product acceptance merely because work is entering a
   release;
 - require a second functional PASS for completed Issues;
