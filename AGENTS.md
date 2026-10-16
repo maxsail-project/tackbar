@@ -434,6 +434,15 @@ mandatory post-release Issue or post-release documentation gate. Manual
 production validation remains release-specific when explicitly required and is
 not a universal release lifecycle gate.
 
+The normal release lifecycle closes when the exact published release completes
+the production deployment workflow and its technical health checks. Any later
+production confirmations are operational checks outside that lifecycle: they
+do not create a release state, Finalizer, post-release Issue or documentation
+commit. A defect found by such a confirmation must become a Bug Issue and
+follow the normal hot-fix or release path. Automated production smoke tests
+using controlled DEMO data or identities are future work and are not part of
+the current deployment contract.
+
 The Release Preparer has no authority to implement or fix product code, choose
 the version or release-family identity, publish Git tags or GitHub Releases,
 deploy production, or perform unrelated Git operations. It must not approve its

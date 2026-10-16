@@ -311,6 +311,15 @@ performed from an immutable published release through the production deployment
 workflow. A future publication or deployment fact remains
 `POST-DEPLOYMENT — DEFER` during preparation.
 
+The normal release lifecycle closes when that workflow succeeds for the exact
+published release and its technical health checks pass. Later production
+confirmations are operational checks outside the release lifecycle; they do
+not create another release state, Finalizer, post-release Issue or documentation
+commit. If a confirmation reveals a defect, record it as a Bug Issue and use
+the normal hot-fix or release process. Automated production smoke tests using
+controlled DEMO data or identities are deferred future work, not a current
+release-preparation or deployment requirement.
+
 ## CHANGELOG issue traceability
 
 Every newly prepared release entry must contain a flat section in this form:

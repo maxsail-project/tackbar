@@ -220,6 +220,18 @@ gate. Manual production validation remains release-specific when explicitly
 required; successful technical deployment does not make it a universal release
 lifecycle gate.
 
+The normal release lifecycle closes when the exact published release completes
+the production deployment workflow and its technical health checks. Later
+production confirmations are operational checks outside that lifecycle. They
+do not create a release gate or state, Finalizer, post-release Issue,
+documentation commit, or change to the published GitHub Release or
+`CHANGELOG.md` entry.
+
+If a production confirmation reveals a defect, record it as a Bug Issue and
+handle the correction through the normal hot-fix or release process. Automated
+production smoke testing with controlled DEMO data or identities is explicitly
+deferred future work and is not part of the current deployment contract.
+
 ### Requirements
 
 Update requirements only when necessary so they accurately describe committed

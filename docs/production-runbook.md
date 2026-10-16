@@ -243,7 +243,32 @@ sudo rsync -a --delete /opt/tackbar/frontend/dist/ /var/www/tackbar/
 `npm run build` creates `/opt/tackbar/frontend/dist`; it does not publish the
 files Caddy serves from `/var/www/tackbar`.
 
+## Post-deployment production confirmations
+
+The normal release lifecycle closes when **Deploy Production** succeeds for the
+exact published release and its technical health checks pass. Any later
+production confirmations are operational checks outside that lifecycle. They
+do not create a release gate or state, Finalizer, post-release Issue,
+repository documentation commit, or change to the published GitHub Release or
+`CHANGELOG.md` entry.
+
+If a production confirmation reveals a defect, create a Bug Issue and handle
+the correction through the normal hot-fix or release process:
+
+```text
+production confirmation
+→ Bug Issue
+→ fix
+→ hot-fix / normal release flow
+```
+
+Automated production smoke tests using controlled DEMO data or identities are
+future work. They are not part of the current deployment contract.
+
 ## Mailbox smoke test
+
+This is a release-specific operational confirmation outside the normal release
+lifecycle.
 
 After a release that changes mailbox acquisition/configuration:
 
@@ -283,6 +308,9 @@ If a future explicitly approved reset is required, stop `tackbar.service` first 
 Do not delete application source, `/etc/tackbar`, systemd configuration, Caddy configuration, TLS/domain configuration or unrelated server data as part of a runtime-data reset.
 
 ## Smoke test
+
+This is an operational production confirmation outside the normal release
+lifecycle, not an additional release gate.
 
 Open `https://app.tackbar.eu/admin` and confirm Admin loads. Check the areas directly affected by the release and preserve the established Sailor/Activity/Session/consent/capability semantics unless the release explicitly changes them.
 
