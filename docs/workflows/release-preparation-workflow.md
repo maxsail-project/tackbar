@@ -27,6 +27,10 @@ Accepted delivered work is represented by relevant GitHub Issues closed as
 A release-preparation Issue may be supplied. If none exists, an explicitly
 invoked Release Preparer may create it from repository evidence.
 
+Invoking the Release Preparer for one concrete release authorizes the mandatory
+release-relevant documentation review and all evidence-based documentation
+updates defined by this workflow. No additional per-file approval is required.
+
 The release-preparation Issue is an audit and work-tracking artifact. It must
 not invent product scope.
 
@@ -115,12 +119,70 @@ If delivered scope cannot be established from repository evidence, report
 
 Do not guess.
 
-## 5. Reconcile documentation
+## 5. Mandatory release-relevant documentation consistency review
 
-Review only the documentation affected by the release.
+Before `READY_FOR_PUBLICATION`, review all documentation genuinely affected by
+the combined release. This release-wide review is mandatory and is not limited
+to files named by individual completed Issues.
 
-Release preparation must not rewrite unrelated product history or use
-documentation changes to justify unintended implementation.
+Issue-level documentation-impact notes are advisory input. Inspect them, but do
+not treat them as either exhaustive or as a restriction on release-relevant
+reconciliation.
+
+The review may include `README.md`, `ROADMAP.md`, `CHANGELOG.md`, `AGENTS.md`,
+applicable requirements, decisions, workflows and guidelines under `docs/`, and
+other repository documentation materially affected by the release. It must not
+expand into arbitrary unrelated documentation.
+
+Use only accepted delivered evidence to establish the correct documentation
+state:
+
+- completed Issues;
+- the implementation actually contained in the release candidate;
+- tests and recorded validation;
+- closed decisions;
+- later governing documentation that explicitly supersedes earlier current
+  wording.
+
+Classify every relevant finding and record the classification in the
+release-preparation Issue or preparation report:
+
+- `CURRENT`: the documentation already states the accepted current behavior;
+- `UPDATE`: current-facing documentation is stale, incomplete or missing, and
+  accepted evidence establishes the correction unambiguously;
+- `HISTORICAL — PRESERVE`: the documentation accurately records behavior,
+  validation or a decision at an earlier point and must remain historical;
+- `POST-DEPLOYMENT — DEFER`: the fact can only be established after publication
+  or deployment and must not be claimed during preparation;
+- `BLOCKED`: reconciliation would require a new product decision, resolution of
+  conflicting semantics, retroactive authorization to rewrite history, a
+  product-code change or validation evidence that does not exist.
+
+Apply every `UPDATE` as part of preparation without requesting separate
+per-file approval. Examples include an obsolete current release in `README.md`,
+stale format support or operational defaults, current-facing requirements or
+guidelines contradicted by accepted delivered behavior, obsolete architecture
+guidance, or a roadmap that still presents delivered evolution as pending.
+
+For `HISTORICAL — PRESERVE`, keep the accurate historical source unchanged and,
+when necessary, add or update the appropriate current-facing override. Old
+requirements, manual validation records, release decisions and historical
+changelog entries do not become false merely because later behavior evolved.
+
+For `POST-DEPLOYMENT — DEFER`, record the deferred fact but do not claim that
+the release is deployed, production health has passed, manual production
+feature validation has occurred or production is running the new version. This
+classification does not by itself block `READY_FOR_PUBLICATION`, and it does
+not create a post-deployment finalization phase.
+
+For `BLOCKED`, stop rather than inventing semantics or validation evidence,
+making a new product decision, changing product code or rewriting accurate
+history. Release preparation may correct documentation only when accepted
+evidence clearly establishes which current-facing wording is stale and what
+the correction is.
+
+Release preparation must not use documentation changes to justify unintended
+implementation.
 
 ### Requirements
 
@@ -253,6 +315,10 @@ At minimum, validate:
 - previous published release boundary;
 - completed-Issue traceability;
 - consistency between release documentation and delivered implementation;
+- completion of the mandatory documentation review and classification of every
+  relevant finding;
+- completion of every required `UPDATE` and preservation or deferral of the
+  other non-blocking classifications;
 - absence of pending or unrelated work from delivered release scope;
 - `CHANGELOG.md` structure and content;
 - bilingual release-entry consistency when applicable;
@@ -293,7 +359,8 @@ The preparation Issue must record at minimum:
 - preparation target;
 - delivered scope;
 - included completed Issues;
-- required documentation work;
+- required documentation-review work and where its classifications will be
+  recorded;
 - validation evidence;
 - release-preparation checks;
 - explicit non-goals;
@@ -405,6 +472,13 @@ Verify at minimum:
 - Issue traceability and Validation / Validación are present in the publication
   body;
 - other modified release documentation is consistent;
+- the mandatory documentation review covers the combined release;
+- every relevant finding has been classified;
+- every `UPDATE` is complete;
+- accurate historical sources are preserved;
+- post-publication and post-deployment facts have not been claimed
+  prematurely;
+- no `BLOCKED` documentation finding remains;
 - validation evidence is represented accurately;
 - checks claimed as executed were actually executed;
 - no product scope was introduced during release preparation;
@@ -426,6 +500,9 @@ The release reaches `READY_FOR_PUBLICATION` when all of the following are true:
 - delivered release scope has been established from repository evidence;
 - all included product Issues are closed as `completed`;
 - release documentation is reconciled;
+- the mandatory release-relevant documentation review is complete;
+- every relevant documentation finding is classified, every `UPDATE` is
+  complete and no `BLOCKED` finding remains;
 - `CHANGELOG.md` is complete;
 - completed-Issue traceability is correct;
 - publication metadata is prepared;
@@ -490,6 +567,13 @@ Release preparation must not:
 - change consent semantics;
 - change Session semantics;
 - fix implementation defects;
+- change unrelated documentation;
+- rewrite accurate historical documentation as current;
+- claim publication, deployment, production health, production feature
+  validation or a new production version before that fact is established;
+- use documentation reconciliation to choose product semantics or make a new
+  product decision;
+- add a post-deployment finalization phase;
 - reopen completed product acceptance merely because work is entering a
   release;
 - require a second functional PASS for completed Issues;
@@ -532,6 +616,12 @@ Examples include:
 - open, duplicate, `not_planned`, deferred or unrelated work would need to be
   presented as delivered;
 - release documentation materially contradicts delivered implementation;
+- release-relevant documentation cannot be reconciled without a new product
+  decision, resolution of conflicting semantics or a product-code change;
+- accepted delivered evidence does not establish a required documentation
+  correction unambiguously;
+- documentation reconciliation would require nonexistent validation evidence or
+  retroactive authorization to rewrite an accurate historical source;
 - required implementation validation evidence is missing or materially
   inconsistent;
 - product-code changes would be required during release preparation;
@@ -563,6 +653,7 @@ Preparation issue: CLOSED — <URL>
 Preparation commit: <commit SHA>
 Remote main: <verified SHA>
 Included Issues: <closed/completed Issues>
+Documentation review: <classifications, updates and deferred findings>
 Validation: <release-preparation checks and results>
 Proposed tag: <tag>
 Publication metadata: <release-notes/limitations summary>

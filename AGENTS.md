@@ -230,6 +230,11 @@ Report failures clearly. Do not hide or bypass them.
 
 Documentation changes must always be explicit.
 
+An explicit invocation of the Release Preparer for one concrete release is the
+narrow release-preparation exception described under Git and release safety. It
+authorizes the mandatory review and evidence-based correction of genuinely
+release-relevant documentation without separate per-file approval.
+
 Do not modify unless the task explicitly requests it:
 
 - `README.md`
@@ -399,9 +404,21 @@ Preparer may prepare one concrete, already-decided release and must follow the
 complete role and procedure in `agents/release-preparer.md`. An invocation such
 as `Prepare v0.7.1 Californian — Analysis Window Maneuver Metrics` constitutes
 authorization for the preparation operations defined there, including creating
-the preparation issue when needed, updating release documentation and
-`CHANGELOG.md`, staging exact intended preparation files, and committing and
-pushing that preparation to `main`.
+the preparation issue when needed, performing the mandatory release-relevant
+documentation consistency review, updating release-relevant documentation and
+`CHANGELOG.md` when accepted delivered evidence establishes the correct current
+state unambiguously, staging exact intended preparation files, and committing
+and pushing that preparation to `main`. No additional per-file approval is
+required for those documentation updates.
+
+For that review, classify each relevant documentation finding as `CURRENT`,
+`UPDATE`, `HISTORICAL — PRESERVE`, `POST-DEPLOYMENT — DEFER` or `BLOCKED`.
+Issue-level documentation-impact notes are advisory input, not a limit on the
+release-wide review. Preserve accurate historical records, defer facts that can
+only be established after publication or deployment, and report `BLOCKED`
+rather than inventing product semantics, validation evidence or a new product
+decision. The exception does not authorize unrelated documentation changes,
+product-code changes or post-deployment finalization.
 
 The Release Preparer has no authority to implement or fix product code, choose
 the version or release-family identity, publish Git tags or GitHub Releases,
