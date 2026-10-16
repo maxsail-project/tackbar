@@ -36,7 +36,8 @@ The debrief starts when the sailing stops.
 
 `Sail → share Vakaros activity → email ingestion → Sailor → Activity → Session → capability URL → shared Session Viewer → collaborative debrief`
 
-The current pilot accepts **Vakaros CSV and CSV.GZ** exports through the OVH mailbox `share@tackbar.eu`.
+The current pilot accepts **Vakaros CSV, CSV.GZ, VKX and VKX.GZ** exports
+through the OVH mailbox `share@tackbar.eu`.
 TackBar reviews that mailbox automatically on the current single-VPS systemd
 schedule; Admin **Review mailbox now** remains the manual fallback. Admin also
 manages consent and shares Session links. The normalized sender email resolves
@@ -47,8 +48,8 @@ Consent controls shared visibility, not technical ingestion or Session matching.
 Only Activities of currently `ACTIVE` Sailors appear in shared Sessions.
 Access uses a valid Session capability URL, without a general Sailor login.
 
-GPX, VKX and FIT are Future / Unassigned, not current support or committed
-v0.7.x scope. Generalized multi-provider ingestion remains future work.
+GPX and FIT are Future / Unassigned, not current support or committed v0.7.x
+scope. Generalized multi-provider ingestion remains future work.
 
 ---
 
@@ -85,7 +86,7 @@ The first sailor simply sends a track. Subsequent tracks from nearby sailors are
 
 ## Activity data
 
-The current Vakaros CSV export provides data such as:
+The current supported Vakaros exports provide data such as:
 
 * timestamp;
 * latitude;
@@ -96,7 +97,7 @@ The current Vakaros CSV export provides data such as:
 * heel;
 * trim.
 
-Planned format support is described in the roadmap section below.
+Current format support is described in the pilot workflow above.
 
 TackBar is intended to remain device-independent.
 
@@ -119,9 +120,11 @@ Current technology and persistence:
 The current pilot connects the Viewer to Sessions, Activities and canonical tracks
 actually persisted by the backend. It provides one/two-Activity comparison, a
 shared GPS/UTC Analysis Window, fixed map telemetry, synchronized replay, the
-refined Summary, and SOG/COG/HEEL/TRIM charts. Public sanitized TEST data
-validates the same runtime/API path without becoming a frontend fixture
-fallback. SQLite is not a prerequisite for this PoC.
+refined Summary, native-SVG SOG/COG/HEEL/TRIM signal charts, represented-time
+VS distributions, and Individual Analysis with a per-Activity SOG + COG chart
+and HEEL × SOG density map. Public sanitized TEST data validates the same
+runtime/API path without becoming a frontend fixture fallback. SQLite is not a
+prerequisite for this PoC.
 
 The ingestion layer is intended to remain independent from the analytics layer.
 
@@ -164,17 +167,18 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. v0.7.2 Californian — Pilot Operations &
-Reliability consolidates the current delivered scope, with production
-validation pending.**
+**Controlled real-sailing pilot. v0.7.12 Californian — Signal Analytics &
+Individual Analysis is the current release. It has been published and
+technically deployed to production.**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
 TackBar, capability-based shared Session access and neutral maneuver analytics
-integrated into the collaborative Viewer. v0.7.2 adds incremental
-mailbox review, bounded operational diagnostics, periodic systemd review,
-runtime ownership/writability safeguards and best-effort outbound mail
-archival without changing existing product or analytics semantics.
+integrated into the collaborative Viewer. It also includes richer native-SVG
+signal and distribution comparison plus per-Activity Individual Analysis.
+The release-triggered production deployment and health check completed
+successfully; separate manual functional validation of the v0.7.12 production
+features is not claimed here.
 
 The delivered v0.5.x baseline includes Sailor / optional Boat context, automatic
 Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
@@ -191,18 +195,16 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ## Current release and next direction
 
-### v0.7.2 Californian — Pilot Operations & Reliability
+### v0.7.12 Californian — Signal Analytics & Individual Analysis
 
-v0.7.2 improves the operation of the existing OVH-backed pilot:
-incremental and scheduled mailbox review, privacy-safe bounded diagnostics,
-runtime-data ownership/writability checks and best-effort archival of submitted
-outbound messages. Admin mailbox review remains available as a fallback, SMTP
-remains authoritative for outbound delivery and the existing Activity, Session,
-consent, capability, Viewer and analytics semantics remain unchanged.
+v0.7.12 deepens the current collaborative Viewer with clearer native-SVG
+SOG/COG/HEEL/TRIM signal charts, represented-time VS distributions, signed
+HEEL/TRIM Summary medians and Individual Analysis for each Activity, including
+its own HEEL × SOG represented-time density map.
 
-The complete backend suite passes. Installing and validating the systemd timer
-and exercising the operational paths against production remain explicit
-post-publication deployment work.
+The GitHub Release is published and the exact v0.7.12 tag has been technically
+deployed to production with a successful health check. This does not assert a
+separate manual functional PASS for the v0.7.12 production surfaces.
 
 The next product increment remains undecided. Open GitHub Issues are the
 canonical pending-work inventory, and the GitHub Project provides its physical
@@ -268,7 +270,8 @@ El debriefing empieza cuando termina la navegación.
 
 `Navegar → compartir actividad Vakaros → ingesta por email → Sailor → Activity → Session → capability URL → Session Viewer compartido → debriefing colaborativo`
 
-El piloto actual admite exportaciones **Vakaros CSV y CSV.GZ** mediante el buzón OVH `share@tackbar.eu`.
+El piloto actual admite exportaciones **Vakaros CSV, CSV.GZ, VKX y VKX.GZ**
+mediante el buzón OVH `share@tackbar.eu`.
 TackBar revisa ese buzón automáticamente mediante el calendario systemd actual
 del VPS; **Review mailbox now** en Admin sigue siendo la alternativa manual.
 Admin también gestiona el consentimiento y comparte los enlaces de Session. El
@@ -281,9 +284,9 @@ el Session matching. Sólo las Activities de Sailors actualmente `ACTIVE`
 aparecen en Sessions compartidas. El acceso utiliza una capability URL de
 Session válida, sin un sistema general de login de Sailor.
 
-GPX, VKX y FIT quedan Future / Unassigned, sin soporte actual ni compromiso
-v0.7.x. La ingesta operativa actual utiliza OVH; proveedores adicionales siguen
-siendo trabajo futuro sin release asignada.
+GPX y FIT quedan Future / Unassigned, sin soporte actual ni compromiso v0.7.x.
+La ingesta operativa actual utiliza OVH; proveedores adicionales siguen siendo
+trabajo futuro sin release asignada.
 
 ---
 
@@ -320,7 +323,7 @@ El primer regatista simplemente envía su track. Los siguientes tracks se asocia
 
 ## Datos de actividad
 
-La exportación CSV actual de Vakaros proporciona información como:
+Las exportaciones Vakaros admitidas actualmente proporcionan información como:
 
 * timestamp;
 * latitud;
@@ -331,7 +334,7 @@ La exportación CSV actual de Vakaros proporciona información como:
 * escora;
 * trimado.
 
-El soporte previsto de formatos se describe en la sección de roadmap más abajo.
+El soporte actual de formatos se describe en el flujo del piloto anterior.
 
 TackBar pretende ser independiente del dispositivo utilizado.
 
@@ -354,7 +357,9 @@ Tecnología y persistencia actuales:
 El piloto actual conecta el Viewer con Sessions, Activities y tracks canónicos realmente
 persistidos por el backend. Incluye comparación de una/dos Activities, Analysis
 Window GPS/UTC compartida, telemetría fija en el mapa, replay sincronizado,
-Summary refinado y gráficos SOG/COG/HEEL/TRIM. Los datos TEST públicos y
+Summary refinado, charts de señal SOG/COG/HEEL/TRIM en SVG nativo,
+distribuciones VS por tiempo representado e Individual Analysis con chart SOG +
+COG y mapa de densidad HEEL × SOG por Activity. Los datos TEST públicos y
 sanitizados validan la misma ruta runtime/API sin actuar como fallback de
 fixtures frontend. SQLite no es un requisito previo para esta PoC.
 
@@ -399,18 +404,18 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Piloto controlado con navegaciones reales. v0.7.2 Californian — Pilot
-Operations & Reliability consolida el alcance entregado actual, con validación
-de producción pendiente.**
+**Piloto controlado con navegaciones reales. v0.7.12 Californian — Signal
+Analytics & Individual Analysis es la release actual. Ha sido publicada y
+desplegada técnicamente en producción.**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
 Personal TackBar, acceso compartido a Sessions mediante capability y analítica
-neutral de maniobras integrada en el Viewer colaborativo. v0.7.2 añade revisión
-incremental del buzón, diagnósticos operativos acotados, revisión
-periódica mediante systemd, protecciones de propiedad/escritura runtime y
-archivo best-effort del correo saliente sin cambiar las semánticas existentes
-de producto o analítica.
+neutral de maniobras integrada en el Viewer colaborativo. También incluye una
+comparación más rica de señales y distribuciones en SVG nativo e Individual
+Analysis por Activity. El despliegue de producción activado por la release y su
+health check terminaron correctamente; aquí no se afirma una validación
+funcional manual separada de las funcionalidades v0.7.12 en producción.
 
 La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session
 matching automático, comparación de una/dos Activities, Analysis Window GPS/UTC
@@ -427,19 +432,17 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ## Release actual y próxima dirección
 
-### v0.7.2 Californian — Pilot Operations & Reliability
+### v0.7.12 Californian — Signal Analytics & Individual Analysis
 
-v0.7.2 mejora la operación del piloto existente basado en OVH: revisión
-incremental y programada del buzón, diagnósticos acotados seguros
-para la privacidad, comprobaciones de propiedad/escritura de datos runtime y
-archivo best-effort de mensajes salientes enviados. La revisión del buzón desde
-Admin sigue disponible como alternativa, SMTP continúa siendo la autoridad de
-entrega y se preservan las semánticas existentes de Activity, Session,
-consentimiento, capabilities, Viewer y analítica.
+v0.7.12 profundiza el Viewer colaborativo actual con charts de señal
+SOG/COG/HEEL/TRIM más claros en SVG nativo, distribuciones VS por tiempo
+representado, medianas con signo HEEL/TRIM en Summary e Individual Analysis
+para cada Activity, incluido su propio mapa de densidad HEEL × SOG por tiempo
+representado.
 
-La suite backend completa pasa. La instalación y validación del timer de systemd
-y el ejercicio de las rutas operativas en producción permanecen como trabajo
-explícito de despliegue posterior a la publicación.
+La GitHub Release está publicada y el tag exacto v0.7.12 se ha desplegado
+técnicamente en producción con un health check correcto. Esto no afirma un PASS
+funcional manual separado de las superficies v0.7.12 en producción.
 
 El siguiente incremento de producto sigue sin decidirse. Los Issues abiertos de
 GitHub son el inventario canónico de trabajo pendiente y GitHub Project aporta

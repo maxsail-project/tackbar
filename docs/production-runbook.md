@@ -166,44 +166,77 @@ section documents the required configuration but does not claim that production
 has already been updated. Follow [`docs/v0.6.4-manual-validation.md`](v0.6.4-manual-validation.md)
 for the separate post-deployment validation.
 
-## Standard release upgrade
+## Normal production deployment
 
-From `/opt/tackbar`, check state, fetch tags, checkout `<TARGET_TAG>`, and verify detached HEAD and a clean tree with `git status` and `git describe --tags --always`.
+Publishing a non-draft, non-prerelease GitHub Release automatically triggers
+the **Deploy Production** workflow. The supported normal path is:
 
-Compare dependency manifests before installing anything. Do not run `npm ci` or reinstall backend dependencies automatically on every release.
+```text
+published GitHub Release
+→ Deploy Production workflow
+→ validate the existing non-draft, non-prerelease GitHub Release tag
+→ deploy that exact immutable release tag
+→ prepare backend/frontend dependencies only when required
+→ build with VITE_APP_VERSION=<release tag>
+→ publish the frontend
+→ restart the backend
+→ run the backend health check
+```
 
-Run:
+The exact release tag is authoritative. The workflow resolves it from the
+release event, validates it through GitHub, and passes only that tag to
+`scripts/deploy-production.sh`. The script fetches tags, resolves the target
+commit, refuses a dirty production worktree, checks out the tag in detached
+HEAD state and verifies the checked-out commit.
+
+Dependency preparation is conditional. Backend requirements are installed only
+when `backend/requirements.txt` changed between the deployed and target commits.
+Frontend `npm ci` runs only when the frontend manifests changed or the existing
+dependency tree fails validation. Every deployment builds the frontend with:
+
+```bash
+VITE_APP_VERSION="<TARGET_TAG>" npm run build
+```
+
+The script then publishes `/opt/tackbar/frontend/dist/` to
+`/var/www/tackbar/`, restarts `tackbar.service` and requires the local health
+endpoint to succeed. Expected response:
+`{"status":"ok","service":"tackbar"}`.
+
+Production deployments are serialized by the `production-deployment`
+concurrency group and are not cancelled in progress.
+
+## Manual retry and operator fallback
+
+For a supported manual retry, dispatch **Deploy Production** with
+`release_tag=<existing GitHub Release tag>`. The workflow applies the same
+release validation and exact-tag deployment path as an automatic publication.
+Use this before direct server intervention.
+
+If the workflow cannot be used and recovery requires direct operator access,
+first verify that `<TARGET_TAG>` is an existing published, non-draft,
+non-prerelease GitHub Release. From the clean production checkout, run the
+versioned deployment script rather than reproducing its steps selectively:
 
 ```bash
 cd /opt/tackbar
 git status
-git describe --tags --always
-git fetch --tags origin
-git checkout <TARGET_TAG>
-git describe --tags --always
-git status
+bash scripts/deploy-production.sh <TARGET_TAG>
 ```
 
-If the frontend changed in the target release:
+This fallback must preserve the same exact-tag, conditional-dependency,
+`VITE_APP_VERSION`, frontend publication, backend restart and health-check
+semantics. If a direct frontend build is exceptionally required during
+recovery, it must use the exact target tag:
 
 ```bash
 cd /opt/tackbar/frontend
-npm run build
+VITE_APP_VERSION="<TARGET_TAG>" npm run build
 sudo rsync -a --delete /opt/tackbar/frontend/dist/ /var/www/tackbar/
 ```
 
-Then restart and validate the backend:
-
-```bash
-sudo systemctl restart tackbar.service
-sudo systemctl status tackbar.service --no-pager
-sleep 2
-curl -fsS http://127.0.0.1:8000/health
-```
-
-Expected health response: `{"status":"ok","service":"tackbar"}`.
-
-`npm run build` creates `/opt/tackbar/frontend/dist`; it does not publish the files Caddy serves from `/var/www/tackbar`.
+`npm run build` creates `/opt/tackbar/frontend/dist`; it does not publish the
+files Caddy serves from `/var/www/tackbar`.
 
 ## Mailbox smoke test
 
@@ -256,7 +289,11 @@ Mailbox credentials/configuration may change only when explicitly required by th
 
 ## Rollback
 
-Checkout `<PREVIOUS_TAG>` in `/opt/tackbar`, perform any frontend build/publication required by that version, restart `tackbar.service`, and check the health endpoint.
+Prefer a manual **Deploy Production** workflow dispatch with an existing
+published `<PREVIOUS_TAG>`. If direct operator recovery is required, validate
+that release tag and run `scripts/deploy-production.sh <PREVIOUS_TAG>` from the
+clean production checkout. This preserves exact-tag checkout, release-version
+injection, frontend publication, backend restart and the health check.
 
 If the target release does not contain the automatic mailbox-review entry
 point, disable and stop `tackbar-mailbox-review.timer` before switching the
@@ -274,12 +311,21 @@ A rollback to a Gmail-based production release also requires restoring the corre
 - Require a clean tree before changing release.
 - Keep secrets out of Git.
 - Frontend build and publication are separate steps.
-- Do not reinstall dependencies unless manifests or release requirements justify it.
+- Do not reinstall dependencies unless manifests changed, the installed
+  frontend tree fails validation or release requirements justify it.
 - Do not redesign deployment infrastructure during a routine upgrade.
 - Treat mailbox provider configuration and application runtime data as separate from repository checkout state.
 
-## Validated baseline
+## Deployment and validation baselines
 
-Last validated: **v0.6.1 — OVH Mailbox Ingestion — 2026-09-13**.
+Current deployed release: **v0.7.12 Californian — Signal Analytics & Individual
+Analysis**, SHA `92227bff34e132a214526db5fbf209b6dc3f7410`. Release-triggered
+workflow run `38796545799` completed successfully and its deployment health
+check passed. This records publication and technical deployment, not a separate
+manual functional validation PASS for the v0.7.12 production features.
 
-Production validation confirmed OVH IMAP acquisition through `share@tackbar.eu`, the existing provider-independent ingestion path, backend health after restart and the clean pilot-data cutover. See `docs/v0.6.1-manual-validation.md`.
+Last separately recorded manual production-validation baseline: **v0.6.1 — OVH
+Mailbox Ingestion — 2026-09-13**. That validation confirmed OVH IMAP acquisition
+through `share@tackbar.eu`, the existing provider-independent ingestion path,
+backend health after restart and the clean pilot-data cutover. See
+`docs/v0.6.1-manual-validation.md`.

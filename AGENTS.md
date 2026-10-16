@@ -175,7 +175,8 @@ Keep the current frontend PoC focused on:
 - Vite;
 - React Router;
 - MapLibre;
-- Recharts;
+- native SVG for the current Session Viewer signal, distribution and
+  Individual Analysis charts;
 - native `fetch`;
 - local React state;
 - simple responsive CSS.

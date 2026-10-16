@@ -50,6 +50,40 @@ circular COG semantics remain unchanged.
 
 ---
 
+## Delivered v0.7.x current-facing Viewer delta
+
+The following delivered behavior supersedes current-facing historical Viewer
+wording without rewriting the v0.3 baseline below:
+
+- The selectable main metrics remain SOG, COG, HEEL and TRIM.
+- The main SOG and COG charts are native SVG and distinguish raw from smoothed
+  signal roles. SOG smoothing is centered and time-weighted. COG smoothing is
+  centered, time-weighted and circular-safe, with explicit path breaks across
+  the 0°/360° wrap.
+- The main HEEL chart uses the delivered UTC-aligned 2-second stepped
+  represented-time form and does not bridge gaps longer than 1.5 seconds.
+  TRIM uses its delivered signed raw native-SVG trace with presentation-only
+  point reduction.
+- The shared Analysis Window remains the temporal selector for the main signal
+  charts. They have no chart-local zoom, Reset or tooltip interaction, and
+  retain the shared `playbackTime` cursor.
+- VS includes SOG, COG, signed HEEL and signed TRIM distributions using the
+  delivered represented-time semantics.
+- Summary uses independent positive and negative time-weighted medians for
+  HEEL and TRIM, with zero in neither sign group, and displays the existing
+  accumulated Distance in whole metres. Avg SOG, Max SOG and Dominant COG
+  retain their delivered semantics.
+- Individual Analysis remains inside the Session Viewer. Each selected
+  Activity has its own SOG + COG native-SVG chart and, directly after it, its
+  own HEEL × SOG represented-time density map.
+- Individual HEEL × SOG density maps do not overlay Primary and Comparison;
+  each Activity retains its existing color identity.
+
+HEEL and TRIM signs remain signed sensor values only. This delta introduces no
+port/starboard or bow-up/bow-down meaning.
+
+---
+
 ## 1. Product need
 
 After sailing, each sailor shares one or more tracks with TackBar. TackBar ingests them as Activities and groups compatible Activities into a Session.

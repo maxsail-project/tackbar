@@ -2,7 +2,7 @@
 
 All notable changes to TackBar will be documented in this file.
 
-## v0.7.12 Californian — Signal Analytics & Individual Analysis (Release-ready — production validation pending)
+## v0.7.12 Californian — Signal Analytics & Individual Analysis (Published and technically deployed)
 
 ### English
 
@@ -90,15 +90,22 @@ publication-body equivalence review, final diff and whitespace checks, and
 repository/remote publication-state verification. The implementation checks
 were not rerun during this documentation-only preparation.
 
-Production deployment remains pending. The signal views, signed Summary/VS
-analytics and expanded Individual Analysis have not yet been validated in the
-production runtime. The existing production-build large-chunk advisory remains
-non-blocking. No tag, GitHub Release or production deployment is part of
-release preparation.
+At release preparation, production deployment remained pending. The existing
+production-build large-chunk advisory was non-blocking, and no tag, GitHub
+Release or production deployment was part of release preparation.
+
+### Post-release status
+
+v0.7.12 was published and its release-triggered production deployment completed
+successfully. Workflow run `38796545799` resolved and deployed the exact
+`v0.7.12` release tag at SHA
+`92227bff34e132a214526db5fbf209b6dc3f7410`; the deployment health check passed.
+This establishes publication and technical deployment only. A separate manual
+functional validation PASS for the v0.7.12 production features is not recorded.
 
 ---
 
-## v0.7.12 Californian — Analítica de señales y análisis individual (Lista para release — validación de producción pendiente)
+## v0.7.12 Californian — Analítica de señales y análisis individual (Publicada y desplegada técnicamente)
 
 ### Español
 
@@ -194,11 +201,20 @@ y el estado del repositorio, del remoto y de publicación. Los checks de
 implementación no se volvieron a ejecutar durante esta preparación solo
 documental.
 
-El despliegue en producción sigue pendiente. Las vistas de señal, la analítica
-con signo de Summary/VS y el Individual Analysis ampliado aún no se han validado
-en el runtime de producción. El aviso existente de chunks grandes en el build de
-producción sigue siendo no bloqueante. La preparación no incluye ningún tag,
-GitHub Release ni despliegue a producción.
+En el momento de preparar la release, el despliegue en producción seguía
+pendiente. El aviso existente de chunks grandes en el build de producción era
+no bloqueante y la preparación no incluía ningún tag, GitHub Release ni
+despliegue a producción.
+
+### Estado posterior a la release
+
+v0.7.12 fue publicada y su despliegue en producción activado por la release
+terminó correctamente. La ejecución `38796545799` del workflow resolvió y
+desplegó el tag exacto `v0.7.12` en el SHA
+`92227bff34e132a214526db5fbf209b6dc3f7410`; el health check del despliegue pasó.
+Esto establece únicamente la publicación y el despliegue técnico. No consta un
+PASS separado de validación funcional manual de las funcionalidades v0.7.12 en
+producción.
 
 ---
 

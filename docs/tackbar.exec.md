@@ -1,4 +1,4 @@
-# TackBar — Guía de ejecución local v0.5
+# TackBar — Guía de ejecución local y operación del piloto
 
 Guía operativa para levantar TackBar en Windows/PowerShell, elegir datos TEST o privados y operar el piloto mediante `/admin`.
 
@@ -13,7 +13,7 @@ Guía operativa para levantar TackBar en Windows/PowerShell, elegir datos TEST o
 $env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
 ```
 
-Una raíz privada v0.5 puede contener:
+Una raíz privada puede contener:
 
 ```text
 C:\private\tackbar-data\
@@ -168,7 +168,8 @@ Estados:
 
 ### Renovación
 
-Admin renueva por 30 días de forma predeterminada o por un valor entre 1 y 365:
+La UI Admin inicializa **Renew Session** en 90 días. El operador puede indicar
+un valor entre 1 y 365:
 
 ```text
 expires_at = hora UTC actual + X días
@@ -188,7 +189,11 @@ Admin obtiene/copia una capability activa
 → Session Viewer
 ```
 
-No hay “Recent Sessions” público. Compruebe Primary Activity, Compare Activity opcional, uno/dos tracks, telemetría GPS/SOG/COG/HEEL/TRIM, Analysis Window, Replay x1/x2/x5/x10, gráficos SOG/COG/HEEL/TRIM y Summary Metrics.
+No hay “Recent Sessions” público. Compruebe Primary Activity, Compare Activity
+opcional, uno/dos tracks, telemetría GPS/SOG/COG/HEEL/TRIM, Analysis Window y
+Replay x1/x2/x5/x10. Verifique también las superficies entregadas: Summary; los
+charts principales SOG/COG/HEEL/TRIM; VS; Maneuvers; e Individual Analysis con
+el chart SOG + COG y el mapa de densidad HEEL × SOG propio de cada Activity.
 
 ## 9. Buzón OVH e ingestión
 
@@ -203,7 +208,8 @@ configuración IMAP de OVH. `TACKBAR_MAILBOX_PROVIDER` conserva la selección de
 proveedor, pero `ovh` es su valor predeterminado y el único admitido. La cuenta
 y contraseña se configuran mediante `TACKBAR_OVH_IMAP_USERNAME` y
 `TACKBAR_OVH_IMAP_PASSWORD`; host y puerto admiten los valores predeterminados
-de producción documentados en el runbook.
+de producción documentados en el runbook. Los adjuntos Vakaros admitidos son
+CSV, CSV.GZ, VKX y VKX.GZ.
 
 La acción examina mensajes nuevos desde el cursor IMAP persistido, sin usar el
 estado leído/no leído como estado TackBar, y muestra un resumen con candidatos
@@ -251,15 +257,15 @@ npm.cmd run build
 
 Los conteos exactos evolucionan; todas las comprobaciones deben terminar correctamente.
 
-## 11. Smoke test manual v0.5
+## 11. Smoke test manual local
 
 - **Backend:** `/health` devuelve `status: ok`.
 - **Admin auth:** clave incorrecta rechazada; correcta aceptada; refresh exige reentrada.
 - **Sailors:** cuatro grupos, detalle/historial y refetch tras acción semántica.
 - **Sessions:** Internal tracks, Shareable now, expiración y capability state visibles; cero compartibles sigue siendo inspeccionable.
 - **Capability:** Copy/Open activo; Regenerate invalida el link anterior y habilita el nuevo; Revoke invalida el link sin borrar datos.
-- **Renewal:** renovar 30 días produce expiración aproximadamente 30 días desde ahora; el token activo no rota y una capability revocada sigue revocada.
-- **Viewer:** `/s/<token-válido>` carga mapa, selección, Analysis Window, replay, charts y Summary; sólo expone Activities ACTIVE.
+- **Renewal:** el formulario parte de 90 días; renovar produce expiración aproximadamente X días desde la hora UTC actual para cualquier X válido entre 1 y 365; el token activo no rota y una capability revocada sigue revocada.
+- **Viewer:** `/s/<token-válido>` carga mapa, selección, Analysis Window, replay, Summary, charts SOG/COG/HEEL/TRIM, VS, Maneuvers e Individual Analysis con SOG + COG y densidad HEEL × SOG por Activity; sólo expone Activities ACTIVE.
 - **Seguridad:** la clave no aparece en Local/Session Storage; requests Admin incluyen `X-TackBar-Admin-Key`; requests shared no lo incluyen.
 
 ## 12. Parar TackBar

@@ -278,7 +278,8 @@ For the current PoC, prefer:
 - React Router;
 - MapLibre for the interactive map;
 - a replaceable zero-cost/no-key map style/service for development;
-- Recharts for simple metric charts;
+- native SVG for the current Session Viewer signal, distribution and
+  Individual Analysis charts;
 - native `fetch`;
 - local React state;
 - plain responsive CSS.
@@ -472,10 +473,14 @@ The delivered Summary contains:
 - Avg SOG;
 - Max SOG;
 - Dominant COG;
-- Avg HEEL +;
-- Avg HEEL −;
-- Avg TRIM +;
-- Avg TRIM −.
+- Median HEEL +;
+- Median HEEL −;
+- Median TRIM +;
+- Median TRIM −.
+
+The four signed HEEL/TRIM rows are independent time-weighted medians over the
+Analysis Window. Zero belongs to neither sign group. Avg SOG, Max SOG and
+Dominant COG retain their existing semantics.
 
 Currently delivered graphical selectable metrics are:
 
@@ -511,8 +516,6 @@ Examples outside the initial analytical scope:
 - SOGS smoothing;
 - advanced tack/gybe classification, except when reliably validated and
   explicitly promoted under the v0.7.x requirements;
-- COG roses;
-- histograms;
 - efficiency metrics;
 - rankings;
 - automated race analysis.
@@ -620,16 +623,16 @@ When a bug is found in real sailing data, prefer adding a regression test before
 
 ## 16. Source/provider independence
 
-Current ingestion supports Vakaros CSV/CSV.GZ. GPX, VKX, FIT, related
-cross-format normalization and canonical logical fingerprint/deduplication
-remain Future / Unassigned, outside v0.7.x. Garmin Connect is separate future
-work. Long-term source-format independence remains a direction, not a release
-commitment.
+Current ingestion supports Vakaros CSV, CSV.GZ, VKX and VKX.GZ. GPX, FIT,
+related cross-format normalization and canonical logical
+fingerprint/deduplication remain Future / Unassigned. Garmin Connect is
+separate future work. Long-term source-format independence remains a direction,
+not a release commitment.
 
-Initial and future sources may include:
+Current and future sources may include:
 
-- Vakaros CSV.GZ;
-- Vakaros VKX;
+- Vakaros CSV and CSV.GZ;
+- Vakaros VKX and VKX.GZ;
 - GPX;
 - FIT;
 - Garmin APIs;

@@ -32,7 +32,8 @@ with real sailors before adding complexity.
 - **v0.6.x Mahon — Personal TackBar & Pilot Operations:** established personal
   Session access and matured onboarding, mailbox, Admin and Viewer operation.
 - **v0.7.x Californian — Collaborative Debrief Analytics:** added
-  maneuver-oriented analysis and navigation to useful moments in shared replay.
+  maneuver-oriented collaborative debrief analytics, richer signal and
+  distribution comparison, and per-Activity Individual Analysis.
 
 See [CHANGELOG.md](CHANGELOG.md) and
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) for
@@ -95,7 +96,8 @@ completo posterior a la navegación antes de añadir complejidad.
 - **v0.6.x Mahon — Personal TackBar & Pilot Operations:** estableció acceso
   personal a Sessions y maduró onboarding, correo, Admin y operación del Viewer.
 - **v0.7.x Californian — Collaborative Debrief Analytics:** añadió análisis
-  orientado a maniobras y navegación a momentos útiles del replay compartido.
+  colaborativo orientado a maniobras, comparación más rica de señales y
+  distribuciones, e Individual Analysis por Activity.
 
 Consulta [CHANGELOG.md](CHANGELOG.md) y
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) para el
