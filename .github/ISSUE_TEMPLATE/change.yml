@@ -1,0 +1,195 @@
+name: Product / Engineering Increment
+description: Propose a focused TackBar product, bug, UX, analytics, operational, or engineering increment.
+title: ""
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to normalize a proposed increment for review. Completing it does not promote the Issue, approve product behavior, or make the work ready for implementation.
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: Status
+      description: Select the current proposal state. This selection does not itself approve or promote the Issue.
+      options:
+        - Pending / proposed exploration
+        - Pending product decision
+        - Pending final visual decision
+        - Ready for implementation
+    validations:
+      required: true
+
+  - type: textarea
+    id: context_evidence
+    attributes:
+      label: Context / evidence
+      description: Describe the real-sailing feedback, product evidence, operational evidence, defect report, or implementation finding that motivates this Issue.
+      placeholder: Include concrete observations, examples, screenshots, logs, or links where available. Keep private pilot data out of public Issues.
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: State the focused problem to solve without prescribing unrelated scope.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_baseline
+    attributes:
+      label: Current implementation baseline
+      description: Record the delivered behavior, relevant implementation, and release baseline from which this proposal starts.
+    validations:
+      required: true
+
+  - type: textarea
+    id: product_goal
+    attributes:
+      label: Product / debrief goal
+      description: Explain the user, pilot, operational, or collaborative-debrief outcome this increment should enable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Define the smallest coherent increment proposed by this Issue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility_constraints
+    attributes:
+      label: Existing behavior / compatibility constraints
+      description: Identify delivered behavior, APIs, persistence, consent, capability, ingestion, Session, Viewer, or operational semantics that must remain unchanged.
+      placeholder: Use "None identified" only after checking the applicable baseline.
+    validations:
+      required: true
+
+  - type: textarea
+    id: confirmed_semantics
+    attributes:
+      label: Confirmed semantics and constraints
+      description: Record behavior and boundaries that are already established for this proposal.
+      placeholder: Do not use this field to invent unresolved product semantics.
+    validations:
+      required: true
+
+  - type: textarea
+    id: closed_decisions
+    attributes:
+      label: Closed decisions
+      description: List the product, UX, domain, technical, or operational decisions already resolved.
+      placeholder: Use "None" when no decision has yet been closed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: open_decisions
+    attributes:
+      label: Open decisions
+      description: List decisions that must be resolved before the Issue can be promoted or implemented safely.
+      placeholder: Use "None" only when all implementation-blocking decisions are closed.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: governing_documentation
+    attributes:
+      label: Documentation impact — governing documentation
+      description: Classify requirements/decision impact. Selection does not authorize documentation changes.
+      options:
+        - No impact
+        - Review required
+        - Change required before implementation
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release_documentation
+    attributes:
+      label: Documentation impact — release-facing documentation
+      description: Classify README, ROADMAP, CHANGELOG, release-note, or similar release-facing review.
+      options:
+        - None
+        - Review during Release Preparation
+    validations:
+      required: true
+
+  - type: dropdown
+    id: post_deployment_documentation
+    attributes:
+      label: Documentation impact — post-deployment documentation
+      description: Classify documentation that depends on actual production deployment evidence.
+      options:
+        - None
+        - Review after production deployment
+    validations:
+      required: true
+
+  - type: textarea
+    id: documentation_rationale
+    attributes:
+      label: Documentation impact — affected documents / rationale
+      description: Optionally identify affected files and explain the classification above. This does not authorize edits.
+
+  - type: textarea
+    id: preferred_direction
+    attributes:
+      label: Preferred technical direction
+      description: Describe a bounded implementation direction consistent with the current repository architecture.
+      placeholder: Leave product decisions in Open decisions rather than resolving them through an implementation preference.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: List observable, testable conditions for accepting the increment.
+      placeholder: |
+        - [ ] First acceptance criterion
+        - [ ] Second acceptance criterion
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact and validation — impact
+      description: Classify the expected implementation risk and review depth.
+      options:
+        - Low
+        - Medium
+        - High
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Impact and validation — strategy
+      description: Define the focused automated, manual, documentation, or operational validation expected for this increment.
+      placeholder: State whether a full regression is required and why.
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: List adjacent work and interpretations that this Issue explicitly excludes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References / related Issues
+      description: Link relevant requirements, decisions, implementation evidence, completed Issues, or pending related Issues without promoting them.

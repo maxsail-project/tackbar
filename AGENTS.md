@@ -315,6 +315,22 @@ An Issue closed as `completed` represents accepted delivered work. Any required
 implementation review and validation are considered complete, so release
 preparation may include it without requiring a second functional approval.
 
+Repository Issue Forms establish the preferred normalization structure for new
+Issues. An Issue created from a form remains pending/proposed work: completing
+the form does not constitute promotion, product approval or readiness for
+implementation. Before implementation instructions are generated, the Issue
+must still be reviewed and normalized against repository evidence, and any
+required open decisions must be closed.
+
+Every promoted Issue must explicitly classify documentation impact. Selecting
+a form option does not authorize documentation changes. If the Issue conflicts
+with governing requirements/decisions or deliberately changes them, resolve
+that conflict according to the existing documentation policy before
+implementation. README, ROADMAP, CHANGELOG and other release-facing summaries
+are normally reconciled during Release Preparation rather than after every
+implementation. Production-state claims require actual deployment evidence;
+they must not be inferred from implementation or release preparation.
+
 ### Promoted Issue completeness
 
 A promoted GitHub Issue is the primary scope definition for its increment.

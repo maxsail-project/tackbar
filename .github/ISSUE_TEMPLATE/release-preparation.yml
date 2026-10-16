@@ -1,0 +1,96 @@
+name: Release Preparation
+description: Prepare one already-decided TackBar release for publication handoff.
+title: "Prepare "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is a creation aid for the existing TackBar Release Preparation process. It does not approve product scope, repeat functional acceptance, publish a release, or change Release Preparer authority.
+
+  - type: input
+    id: release_version
+    attributes:
+      label: Release identity — version
+      description: Enter the explicit semantic version.
+      placeholder: v0.7.x
+    validations:
+      required: true
+
+  - type: input
+    id: release_name
+    attributes:
+      label: Release identity — name
+      description: Enter the already-decided release name using the established family convention.
+      placeholder: TackBar v0.7.x Californian — Short release description
+    validations:
+      required: true
+
+  - type: input
+    id: previous_boundary
+    attributes:
+      label: Release identity — previous published boundary
+      description: Identify the previous published release/tag used as the comparison boundary.
+      placeholder: v0.7.x
+    validations:
+      required: true
+
+  - type: input
+    id: preparation_target
+    attributes:
+      label: Release identity — preparation target
+      description: Record current main or its verified commit SHA before preparation.
+      placeholder: main at <commit SHA>
+    validations:
+      required: true
+
+  - type: textarea
+    id: delivered_scope
+    attributes:
+      label: Delivered scope
+      description: Summarize only accepted delivered changes actually contained between the previous boundary and preparation target.
+    validations:
+      required: true
+
+  - type: textarea
+    id: included_issues
+    attributes:
+      label: Included completed Issues
+      description: List only Issues closed as completed whose delivered implementation is contained in the release candidate.
+      placeholder: |
+        - #123 — Canonical completed Issue title
+    validations:
+      required: true
+
+  - type: textarea
+    id: documentation_work
+    attributes:
+      label: Required documentation work
+      description: Identify the release-facing documentation reconciliation required by the existing Release Preparation workflow.
+      placeholder: Include CHANGELOG and any other explicitly affected release documentation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation_evidence
+    attributes:
+      label: Release-preparation validation / validation evidence
+      description: Record existing implementation-validation evidence and the proportionate release-preparation checks to perform. Do not imply checks were rerun when they were not.
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Explicit non-goals
+      description: Record excluded actions such as implementation changes, product decisions, publication, deployment, or unrelated Issue changes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: publication_metadata
+    attributes:
+      label: Publication metadata
+      description: Record or prepare the proposed immutable tag, GitHub Release body source, known limitations, and pending production validation as required by the existing workflow.
+      placeholder: This field may be completed or refined during Release Preparation from verified repository evidence.
