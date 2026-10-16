@@ -145,9 +145,10 @@ Use this deterministic order:
    - explicit non-goals.
 
 9. Perform the mandatory release-relevant documentation consistency review,
-   classify every relevant finding and reconcile documentation according to
-   the shared preparation workflow. Stop and report `BLOCKED` if any finding
-   has that classification.
+   classify every release-relevant document reviewed and any distinct finding
+   within it, and reconcile documentation according to the shared preparation
+   workflow. Stop and report `BLOCKED` if any document or finding has that
+   classification.
 
 10. Create or update the requested release entry in `CHANGELOG.md`, preserving
     its established bilingual structure.
@@ -212,6 +213,7 @@ Use this deterministic order:
     - `CHANGELOG.md`;
     - exact GitHub Release body / `CHANGELOG.md` correspondence;
     - any release-relevant documentation changes;
+    - production deployment source-of-truth boundaries;
     - publication metadata;
     - preparation diff;
     - repository state;
@@ -249,8 +251,9 @@ Use accepted delivered evidence only:
 - later governing documentation that explicitly supersedes earlier current
   wording.
 
-For every relevant documentation finding, assign and record one classification
-in the release-preparation Issue or preparation report:
+For every release-relevant document reviewed, and any distinct finding within
+it, assign and record one classification in the release-preparation Issue or
+preparation report:
 
 - `CURRENT`: the documentation already states the accepted current behavior;
 - `UPDATE`: current-facing documentation is stale, incomplete or missing, and
@@ -272,10 +275,38 @@ arbitrary unrelated documentation.
 
 For `HISTORICAL — PRESERVE`, retain the accurate historical record and, when
 needed, add or update the appropriate current-facing override instead. For
-`POST-DEPLOYMENT — DEFER`, record the deferred fact without adding a
-post-deployment finalization phase; this classification does not by itself
-prevent `READY_FOR_PUBLICATION`. For `BLOCKED`, stop rather than choosing
-product semantics, inventing evidence or changing product code.
+`POST-DEPLOYMENT — DEFER`, record the deferred fact unless it already exists
+independently before preparation and is relevant. A deferred fact does not by
+itself prevent `READY_FOR_PUBLICATION`. For `BLOCKED`, stop rather than
+choosing product semantics, inventing evidence or changing product code.
+
+### Production deployment evidence
+
+Release preparation and repository documentation must not create a second
+mutable source of truth for production deployment state.
+
+- the GitHub Release and immutable tag establish that a release was published;
+- successful execution of `.github/workflows/deploy-production.yml` for that
+  exact published release is the authoritative evidence that it was deployed;
+- the deployment workflow and `scripts/deploy-production.sh` retain
+  responsibility for validating the exact immutable release tag and commit,
+  building the intended release, publishing the frontend, restarting the
+  backend and completing the technical health check;
+- `docs/production-runbook.md` describes the durable production model and
+  operational requirements, but static documentation must not become a
+  mutable deployment-status ledger;
+- documentation must not require a follow-up commit merely to change a
+  transient state such as `deployment pending` to `deployed`;
+- GitHub Actions must not commit or push documentation changes;
+- no Release Finalizer, mandatory post-release Issue or post-release
+  documentation gate is part of the lifecycle;
+- manual production validation is required only when explicitly applicable to
+  the release, not as a universal deployment or release gate.
+
+Prefer temporally stable wording such as stating that production deployment is
+performed from an immutable published release through the production deployment
+workflow. A future publication or deployment fact remains
+`POST-DEPLOYMENT — DEFER` during preparation.
 
 ## CHANGELOG issue traceability
 
@@ -335,7 +366,7 @@ The prepared GitHub Release body MUST preserve:
 - the flat `### Issues` section in each language block;
 - Validation / Validación;
 - known limitations;
-- pending production validation;
+- release-specific pending production validation when present;
 - the exact wording and Markdown structure of the prepared changelog entry.
 
 The Publisher-facing release body MUST NOT:
@@ -412,6 +443,10 @@ Depending on the release, these may include:
 - release scope reconciliation;
 - completed-Issue traceability;
 - documentation consistency;
+- production deployment source-of-truth consistency;
+- absence of a duplicate mutable deployment-status ledger, Release Finalizer,
+  mandatory post-release Issue or automatic CI documentation commit;
+- release-specific treatment of any manual production validation;
 - `CHANGELOG.md` structure;
 - bilingual release-entry consistency;
 - final diff review;
@@ -451,6 +486,10 @@ At that point:
 - the immutable tag has not been created;
 - the GitHub Release has not been created;
 - production deployment has not occurred.
+
+If the published release is later deployed, the successful production
+deployment workflow run—not a follow-up documentation commit—is the
+authoritative deployment evidence.
 
 Do not invoke the Release Publisher automatically.
 
@@ -498,7 +537,11 @@ The Release Preparer must not:
   validation or a new production version before that fact is established;
 - use documentation reconciliation to choose product semantics or make a new
   product decision;
-- introduce post-deployment finalization.
+- introduce a Release Finalizer, mandatory post-release Issue or post-release
+  documentation gate;
+- make GitHub Actions commit or push documentation changes;
+- make static documentation a second mutable deployment-status ledger;
+- make manual production validation a universal release lifecycle gate.
 
 ## Failure conditions
 

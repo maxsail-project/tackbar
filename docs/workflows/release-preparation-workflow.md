@@ -56,6 +56,12 @@ Before making release-preparation changes:
 10. Inspect the release-preparation Issue when supplied, or locate/create it as
     defined by the Release Preparer procedure.
 
+When the review concerns production deployment semantics or status, also
+inspect `docs/production-runbook.md`, `.github/workflows/deploy-production.yml`
+and `scripts/deploy-production.sh`. The workflow execution, rather than a
+mutable statement in repository prose, provides authoritative deployment
+evidence.
+
 Documentation must describe behavior that is actually delivered.
 
 Do not promote planned, deferred, open, duplicate or `not_planned` work merely
@@ -144,8 +150,9 @@ state:
 - later governing documentation that explicitly supersedes earlier current
   wording.
 
-Classify every relevant finding and record the classification in the
-release-preparation Issue or preparation report:
+Classify every release-relevant document reviewed, and any distinct finding
+within it, and record the classification in the release-preparation Issue or
+preparation report:
 
 - `CURRENT`: the documentation already states the accepted current behavior;
 - `UPDATE`: current-facing documentation is stale, incomplete or missing, and
@@ -171,9 +178,10 @@ changelog entries do not become false merely because later behavior evolved.
 
 For `POST-DEPLOYMENT — DEFER`, record the deferred fact but do not claim that
 the release is deployed, production health has passed, manual production
-feature validation has occurred or production is running the new version. This
-classification does not by itself block `READY_FOR_PUBLICATION`, and it does
-not create a post-deployment finalization phase.
+feature validation has occurred or production is running the new version,
+unless that fact already exists independently before preparation and is
+relevant. This classification does not by itself block
+`READY_FOR_PUBLICATION`.
 
 For `BLOCKED`, stop rather than inventing semantics or validation evidence,
 making a new product decision, changing product code or rewriting accurate
@@ -183,6 +191,31 @@ the correction is.
 
 Release preparation must not use documentation changes to justify unintended
 implementation.
+
+### Production deployment evidence
+
+Release preparation and repository documentation must not create a second
+mutable source of truth for production deployment state.
+
+The GitHub Release and immutable tag establish publication. Successful
+execution of `.github/workflows/deploy-production.yml` for that exact published
+release is the authoritative evidence that it was deployed. The workflow and
+`scripts/deploy-production.sh` retain responsibility for validating the exact
+immutable release tag and commit, building the intended release, publishing the
+frontend, restarting the backend and completing the technical health check.
+
+`docs/production-runbook.md` should describe the durable production model and
+operational requirements. Prefer temporally stable wording, such as stating
+that production deployment is performed from an immutable published release
+through the production deployment workflow. Do not require a follow-up
+repository commit merely to replace transient wording such as
+`deployment pending` with `deployed`.
+
+GitHub Actions must not commit or push documentation changes. Do not introduce
+a Release Finalizer, mandatory post-release Issue or post-release documentation
+gate. Manual production validation remains release-specific when explicitly
+required; successful technical deployment does not make it a universal release
+lifecycle gate.
 
 ### Requirements
 
@@ -254,7 +287,8 @@ The entry must:
 - report validation evidence accurately;
 - distinguish previous implementation validation from checks executed during
   release preparation;
-- state production validation as pending when it has not occurred;
+- state release-specific production validation as pending when it is explicitly
+  required and has not occurred;
 - avoid claiming future or unimplemented work.
 
 Every newly prepared release entry must contain a flat `### Issues` section in
@@ -316,7 +350,7 @@ At minimum, validate:
 - completed-Issue traceability;
 - consistency between release documentation and delivered implementation;
 - completion of the mandatory documentation review and classification of every
-  relevant finding;
+  release-relevant document and distinct finding;
 - completion of every required `UPDATE` and preservation or deferral of the
   other non-blocking classifications;
 - absence of pending or unrelated work from delivered release scope;
@@ -326,7 +360,12 @@ At minimum, validate:
 - repository state;
 - `git diff --check`;
 - publication metadata;
-- absence of premature tag or GitHub Release creation.
+- absence of premature tag or GitHub Release creation;
+- preservation of the production deployment workflow as the authoritative
+  deployment evidence without a duplicate mutable documentation ledger;
+- absence of a Release Finalizer, mandatory post-release Issue, post-release
+  documentation gate or automatic CI documentation commit;
+- release-specific treatment of any manual production validation.
 
 Run focused automated checks when release-preparation changes could affect
 executable repository behavior.
@@ -392,7 +431,7 @@ Prepare, but do not publish:
 - proposed immutable Git tag;
 - GitHub Release body;
 - known limitations;
-- pending production validation;
+- release-specific pending production validation when applicable;
 - a short deployment or publication checklist when useful.
 
 The newly prepared `CHANGELOG.md` release entry is the authoritative source for
@@ -408,7 +447,7 @@ entry from `CHANGELOG.md`, preserving:
 - Issues;
 - Validation / Validación;
 - limitations;
-- pending production validation;
+- release-specific pending production validation when present;
 - wording and Markdown structure.
 
 The terminal `---` used only to separate this release from the next historical
@@ -473,11 +512,17 @@ Verify at minimum:
   body;
 - other modified release documentation is consistent;
 - the mandatory documentation review covers the combined release;
-- every relevant finding has been classified;
+- every release-relevant document and distinct finding has been classified;
 - every `UPDATE` is complete;
 - accurate historical sources are preserved;
 - post-publication and post-deployment facts have not been claimed
   prematurely;
+- static documentation does not duplicate mutable deployment status and the
+  production deployment workflow remains the authoritative deployment evidence;
+- no Release Finalizer, mandatory post-release Issue, post-release
+  documentation gate or automatic CI documentation commit has been introduced;
+- manual production validation is required only when explicitly applicable to
+  the release;
 - no `BLOCKED` documentation finding remains;
 - validation evidence is represented accurately;
 - checks claimed as executed were actually executed;
@@ -501,8 +546,8 @@ The release reaches `READY_FOR_PUBLICATION` when all of the following are true:
 - all included product Issues are closed as `completed`;
 - release documentation is reconciled;
 - the mandatory release-relevant documentation review is complete;
-- every relevant documentation finding is classified, every `UPDATE` is
-  complete and no `BLOCKED` finding remains;
+- every release-relevant document and distinct finding is classified, every
+  `UPDATE` is complete and no `BLOCKED` classification remains;
 - `CHANGELOG.md` is complete;
 - completed-Issue traceability is correct;
 - publication metadata is prepared;
@@ -527,6 +572,9 @@ There is no additional functional approval gate between successful release
 preparation and publication.
 
 Completed product Issues already represent accepted delivered work.
+
+No Release Finalizer, post-release Issue, documentation-finalization gate or
+follow-up documentation commit is required to reach or preserve this state.
 
 ## 12. Publication handoff
 
@@ -556,6 +604,12 @@ The Release Publisher remains responsible for:
 
 Release preparation does not authorize production deployment.
 
+If publication triggers production deployment, successful execution of the
+production deployment workflow for the exact published release is the
+authoritative deployment evidence. Static repository documentation is not a
+second deployment-status ledger, and GitHub Actions must not commit or push a
+status update back to the repository.
+
 ## 13. Actions outside release preparation
 
 Release preparation must not:
@@ -573,7 +627,11 @@ Release preparation must not:
   validation or a new production version before that fact is established;
 - use documentation reconciliation to choose product semantics or make a new
   product decision;
-- add a post-deployment finalization phase;
+- add a Release Finalizer, mandatory post-release Issue or post-release
+  documentation gate;
+- make GitHub Actions commit or push documentation changes;
+- make static documentation a second mutable deployment-status ledger;
+- make manual production validation a universal release lifecycle gate;
 - reopen completed product acceptance merely because work is entering a
   release;
 - require a second functional PASS for completed Issues;

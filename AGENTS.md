@@ -411,14 +411,26 @@ state unambiguously, staging exact intended preparation files, and committing
 and pushing that preparation to `main`. No additional per-file approval is
 required for those documentation updates.
 
-For that review, classify each relevant documentation finding as `CURRENT`,
-`UPDATE`, `HISTORICAL — PRESERVE`, `POST-DEPLOYMENT — DEFER` or `BLOCKED`.
-Issue-level documentation-impact notes are advisory input, not a limit on the
-release-wide review. Preserve accurate historical records, defer facts that can
-only be established after publication or deployment, and report `BLOCKED`
-rather than inventing product semantics, validation evidence or a new product
-decision. The exception does not authorize unrelated documentation changes,
-product-code changes or post-deployment finalization.
+For that review, classify each release-relevant document reviewed, and any
+distinct finding within it, as `CURRENT`, `UPDATE`, `HISTORICAL — PRESERVE`,
+`POST-DEPLOYMENT — DEFER` or `BLOCKED`. Issue-level documentation-impact notes
+are advisory input, not a limit on the release-wide review. Preserve accurate
+historical records, defer facts that can only be established after publication
+or deployment, and report `BLOCKED` rather than inventing product semantics,
+validation evidence or a new product decision. The exception does not
+authorize unrelated documentation changes or product-code changes.
+
+Release preparation and static repository documentation must not become a
+second mutable ledger for production deployment state. The GitHub Release and
+immutable tag establish publication; successful execution of the production
+deployment workflow for that exact release is the authoritative deployment
+evidence. Repository documentation should describe the durable deployment
+model and operational requirements without requiring a follow-up commit to
+record transient deployment status. GitHub Actions must not commit or push
+documentation changes. Do not introduce a Release Finalizer, mandatory
+post-release Issue or post-release documentation gate. Manual production
+validation remains release-specific when explicitly required and is not a
+universal release lifecycle gate.
 
 The Release Preparer has no authority to implement or fix product code, choose
 the version or release-family identity, publish Git tags or GitHub Releases,
