@@ -12,7 +12,7 @@ import {
   synchronizeContextualMapActivities,
   TemporaryAccessUnavailable,
 } from './SessionViewerPage'
-import { formatSessionDuration } from '../utils/sessionPresentation'
+import { formatSessionDuration, formatSessionIdentity } from '../utils/sessionPresentation'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { SummaryMetrics } from '../utils/summaryMetrics'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
@@ -101,6 +101,13 @@ describe('Session summary presentation', () => {
   it('formats canonical sailing duration compactly', () => {
     expect(formatSessionDuration('2026-09-05T11:49:00Z', '2026-09-05T15:21:00Z')).toBe('3h 32m')
     expect(formatSessionDuration('2026-09-05T11:49:00Z', '2026-09-05T12:37:00Z')).toBe('48m')
+  })
+
+  it('uses location plus date as Session identity with a date-only fallback', () => {
+    expect(formatSessionIdentity('Mahón', '2026-09-16T11:45:00Z'))
+      .toBe('Mahón · 16 Sep 2026')
+    expect(formatSessionIdentity(null, '2026-09-16T11:45:00Z'))
+      .toBe('16 Sep 2026')
   })
 
   it('counts unique Sailors rather than Activities', () => {

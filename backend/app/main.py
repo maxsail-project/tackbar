@@ -198,6 +198,8 @@ def get_temporary_shared_session(
         start_time=detail.start_time,
         end_time=detail.end_time,
         activities=detail.activities,
+        location_label=detail.location_label,
+        historical_conditions=detail.historical_conditions,
         temporary_access_expires_at=resolution.share.expires_at,
     )
 

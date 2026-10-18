@@ -1,7 +1,10 @@
+from dataclasses import asdict
+
 from app.api_models import (
     ActivityManeuverAnalyticsResponse,
     ActivityTrackResponse,
     ManeuverResponse,
+    HistoricalConditionsResponse,
     SharedSessionDetailResponse,
 )
 from app.models import Session
@@ -49,6 +52,26 @@ class SharedSessionReader:
             start_time=detail.start_time,
             end_time=detail.end_time,
             activities=detail.activities,
+            location_label=resolved.location_label,
+            historical_conditions=(
+                HistoricalConditionsResponse.model_validate({
+                    "weather_source": (
+                        {"provider": resolved.historical_conditions.weather_source.provider}
+                        if resolved.historical_conditions.weather_source is not None
+                        else None
+                    ),
+                    "marine_source": (
+                        {"provider": resolved.historical_conditions.marine_source.provider}
+                        if resolved.historical_conditions.marine_source is not None
+                        else None
+                    ),
+                    "hourly": [
+                        asdict(sample)
+                        for sample in resolved.historical_conditions.hourly
+                    ],
+                })
+                if resolved.historical_conditions is not None else None
+            ),
             session_access_expires_at=resolved.expires_at,
         )
 

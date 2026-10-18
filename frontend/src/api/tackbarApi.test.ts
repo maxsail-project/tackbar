@@ -23,6 +23,12 @@ const SESSION_CONTENT = {
   start_time: '2031-06-15T08:00:00Z',
   end_time: '2031-06-15T10:00:00Z',
   activities: [],
+  location_label: 'Mahón',
+  historical_conditions: {
+    weather_source: { provider: 'open-meteo' },
+    marine_source: null,
+    hourly: [],
+  },
 }
 
 const SESSION = {

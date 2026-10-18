@@ -68,7 +68,12 @@ import {
 } from '../utils/metricPresentation'
 import { calculateSummaryMetrics, type SummaryMetrics } from '../utils/summaryMetrics'
 import { formatActivityIdentity, formatActivityLabel } from '../utils/activityLabel'
-import { formatSessionDuration, formatSessionRange } from '../utils/sessionPresentation'
+import {
+  formatSessionDuration,
+  formatSessionIdentity,
+  formatSessionRange,
+} from '../utils/sessionPresentation'
+import { selectHistoricalConditionsSample } from '../utils/historicalConditions'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -633,6 +638,13 @@ export function SessionViewer({
     selectedManeuverKey,
     displayManeuvers,
   )
+  const historicalConditionsSample = useMemo(
+    () => selectHistoricalConditionsSample(
+      session.historical_conditions?.hourly ?? [],
+      analysisWindow,
+    ),
+    [analysisWindow, session.historical_conditions],
+  )
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
@@ -848,6 +860,10 @@ export function SessionViewer({
       <section className="session-summary" aria-labelledby="session-summary-heading">
         <SessionSummaryHeading
           access={access}
+          identity={formatSessionIdentity(
+            session.location_label,
+            session.start_time,
+          )}
           expiresAt={access.kind === 'temporary'
             ? access.expiresAt
             : (session as SharedSessionDetail).session_access_expires_at}
@@ -917,6 +933,9 @@ export function SessionViewer({
           comparisonHeel={comparisonReplayPresentation.heel}
           comparisonTrim={comparisonReplayPresentation.trim}
           onCompareContextualActivity={compareContextualActivity}
+          historicalConditionsSample={historicalConditionsSample}
+          historicalConditionsWeatherProvider={session.historical_conditions?.weather_source?.provider ?? null}
+          historicalConditionsMarineProvider={session.historical_conditions?.marine_source?.provider ?? null}
         />
       ) : (
         <section className="track-unavailable" aria-live="polite">

@@ -94,6 +94,32 @@ def _runtime(
         "expires_at": (session_expires_at or NOW + timedelta(days=60)).isoformat(),
         "capability_token": ORIGINAL_TOKEN,
         "capability_revoked": False,
+        "location_label": "Mahón",
+        "historical_conditions": {
+            "coverage_start": "2031-06-01T06:00:00+00:00",
+            "coverage_end": "2031-06-01T13:00:00+00:00",
+            "requested_latitude": 0.15,
+            "requested_longitude": -30.15,
+            "weather_source": {
+                "provider": "open-meteo",
+                "route": "forecast",
+                "retrieved_at": "2031-06-02T00:00:00+00:00",
+                "grid_latitude": 0.15,
+                "grid_longitude": -30.15,
+            },
+            "marine_source": None,
+            "hourly": [{
+                "time": "2031-06-01T09:00:00+00:00",
+                "air_temperature_c": 23.0,
+                "wind_speed_10m_kn": 14.0,
+                "wind_direction_10m_deg": 92.0,
+                "wind_gusts_10m_kn": 19.0,
+                "cloud_cover_pct": None,
+                "wave_height_m": None,
+                "wave_direction_deg": None,
+                "wave_period_s": None,
+            }],
+        },
     }])
     sessions = SessionRepository(root / "sessions.json", clock=lambda: current_time[0])
     sailors = SailorRepository(root / "sailors.json")
@@ -269,10 +295,17 @@ def test_public_api_returns_only_temporary_path_and_distinguishes_unavailable_st
         "start_time",
         "end_time",
         "activities",
+        "location_label",
+        "historical_conditions",
         "temporary_access_expires_at",
     }
     assert "session_access_expires_at" not in loaded.model_dump()
     assert loaded.activities[0].id == ACTIVITY_ID
+    assert loaded.location_label == "Mahón"
+    assert loaded.historical_conditions is not None
+    assert loaded.historical_conditions.weather_source is not None
+    assert loaded.historical_conditions.weather_source.provider == "open-meteo"
+    assert loaded.historical_conditions.hourly[0].wind_speed_10m_kn == 14.0
 
     with pytest.raises(HTTPException) as unknown:
         get_temporary_shared_session(

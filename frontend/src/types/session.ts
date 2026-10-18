@@ -36,10 +36,34 @@ export interface SessionListItem {
   activity_count: number
 }
 
+export interface HistoricalConditionsSample {
+  time: string
+  air_temperature_c: number | null
+  wind_speed_10m_kn: number | null
+  wind_direction_10m_deg: number | null
+  wind_gusts_10m_kn: number | null
+  cloud_cover_pct: number | null
+  wave_height_m: number | null
+  wave_direction_deg: number | null
+  wave_period_s: number | null
+}
+
+export interface HistoricalConditionsSource {
+  provider: string
+}
+
+export interface HistoricalConditions {
+  weather_source: HistoricalConditionsSource | null
+  marine_source: HistoricalConditionsSource | null
+  hourly: HistoricalConditionsSample[]
+}
+
 export interface SessionDetail {
   start_time: string
   end_time: string
   activities: SessionActivity[]
+  location_label: string | null
+  historical_conditions: HistoricalConditions | null
 }
 
 export interface SharedSessionDetail extends SessionDetail {

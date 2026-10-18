@@ -11,11 +11,29 @@ import {
   formatMapCogValue,
   MapTelemetryOverlay,
   maneuverFocusCameraOptions,
+  mapWeatherDetailDismissHandlers,
   openContextualActivityPopup,
   resolveMapFocusPosition,
   shouldRefitForContextChange,
   trackFitOptions,
 } from './TrackMap'
+
+describe('weather detail map dismissal', () => {
+  it.each([
+    'onClick',
+    'onDragStart',
+    'onZoomStart',
+    'onRotateStart',
+    'onMoveStart',
+  ] as const)('dismisses through the map %s path', (eventName) => {
+    const onDismiss = vi.fn()
+    const handlers = mapWeatherDetailDismissHandlers(onDismiss)
+
+    handlers[eventName]()
+
+    expect(onDismiss).toHaveBeenCalledOnce()
+  })
+})
 
 function renderTelemetry(hasComparison: boolean) {
   return renderToStaticMarkup(MapTelemetryOverlay({

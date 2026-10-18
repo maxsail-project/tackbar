@@ -2,6 +2,7 @@ export interface PersonalSession {
   sailing_start: string
   sailing_end: string
   sailor_count: number
+  location_label: string | null
   session_path: string | null
 }
 

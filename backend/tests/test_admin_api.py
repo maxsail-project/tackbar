@@ -1998,6 +1998,9 @@ def _personal_history_runtime(monkeypatch, temporary_directory):
         _session("new", [ACTIVITY_PENDING, ACTIVITY_REVOKED, ACTIVITY_REVOKED_ONLY], ACTIVE_TOKEN),
         _session("unrelated", [ACTIVITY_REVOKED_ONLY], "unrelated-shared-token"),
     ])
+    session_records = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    next(item for item in session_records if item["id"] == "new")["location_label"] = "Valencia"
+    _write_json(root / "sessions.json", session_records)
     regenerated = _request("POST", f"/api/admin/sailors/{ACTIVE}/personal-capability/regenerate")
     assert regenerated.status_code == 200
     token = regenerated.json["personal_capability_path"].split("/")[-1]
@@ -2017,13 +2020,15 @@ def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch,
     assert body["last_sailing_end"] == "2026-09-05T18:00:00Z"
     assert len(body["sessions"]) == 2
     newest, oldest = body["sessions"]
-    assert set(newest) == {"sailing_start", "sailing_end", "sailor_count", "session_path"}
+    assert set(newest) == {"sailing_start", "sailing_end", "sailor_count", "location_label", "session_path"}
     assert newest == {
         "sailing_start": "2026-09-05T12:00:00Z",
         "sailing_end": "2026-09-05T18:00:00Z",
         "sailor_count": 2,
+        "location_label": "Valencia",
         "session_path": f"/s/{ACTIVE_TOKEN}",
     }
+    assert oldest["location_label"] is None
     assert oldest["sailor_count"] == 1
     assert oldest["session_path"] is None
     assert oldest["sailing_end"] == "2026-08-10T10:00:00Z"

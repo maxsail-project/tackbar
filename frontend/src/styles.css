@@ -293,6 +293,16 @@ a {
   min-width: 0;
 }
 
+.session-summary__kind {
+  display: block;
+  margin-bottom: 4px;
+  color: #526d74;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .session-summary h1 {
   margin: 0;
   color: var(--color-navy);
@@ -435,11 +445,11 @@ input:focus-visible {
   align-items: baseline;
   gap: 4px;
   padding: 4px 7px;
-  border: 1px solid rgb(255 255 255 / 22%);
+  border: 1px solid rgb(31 44 49 / 18%);
   border-radius: 8px;
-  color: #fff;
-  background: rgb(31 44 49 / 78%);
-  box-shadow: 0 4px 14px rgb(7 31 37 / 16%);
+  color: #273b41;
+  background: rgb(255 255 255 / 76%);
+  box-shadow: 0 3px 10px rgb(7 31 37 / 14%);
   font-size: 0.58rem;
   font-weight: 600;
   letter-spacing: 0.025em;
@@ -453,6 +463,71 @@ input:focus-visible {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
+}
+
+.map-conditions {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  width: fit-content;
+  max-width: calc(100% - 88px);
+}
+
+.map-conditions__chip {
+  display: block;
+  max-width: 100%;
+  min-height: 0;
+  padding: 4px 7px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 8px;
+  color: #fff;
+  background: rgb(31 44 49 / 72%);
+  box-shadow: 0 2px 8px rgb(7 31 37 / 12%);
+  font-size: 0.58rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.025em;
+  line-height: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.map-conditions__detail {
+  width: min(270px, calc(100vw - 32px));
+  margin-top: 5px;
+  padding: 11px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 9px;
+  color: #fff;
+  background: rgb(31 44 49 / 78%);
+  box-shadow: 0 4px 14px rgb(7 31 37 / 16%);
+}
+
+.map-conditions__detail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 12px;
+  margin: 0;
+}
+
+.map-conditions__detail dt {
+  color: rgb(255 255 255 / 68%);
+  font-size: 0.58rem;
+}
+
+.map-conditions__detail dd {
+  margin: 2px 0 0;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-conditions__source {
+  margin: 9px 0 0;
+  color: rgb(255 255 255 / 68%);
+  font-size: 0.58rem;
 }
 
 .map-status {

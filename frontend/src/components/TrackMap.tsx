@@ -8,8 +8,10 @@ import Map, {
   type MapRef,
 } from 'react-map-gl/maplibre'
 import { ACTIVITY_COLORS } from '../config/activityColors'
+import HistoricalConditionsControl from './HistoricalConditionsControl'
 import { MAP_STYLE_URL } from '../config/map'
 import type { TrackSample } from '../types/track'
+import type { HistoricalConditionsSample } from '../types/session'
 import {
   formatMetricValue,
   formatSignedDegreeValue,
@@ -56,6 +58,9 @@ interface TrackMapProps {
   comparisonHeel?: number | null
   comparisonTrim?: number | null
   onCompareContextualActivity?: (activityId: string) => void
+  historicalConditionsSample?: HistoricalConditionsSample | null
+  historicalConditionsWeatherProvider?: string | null
+  historicalConditionsMarineProvider?: string | null
 }
 
 interface MapTelemetryOverlayProps {
@@ -335,6 +340,16 @@ export function MapTelemetryOverlay({
   )
 }
 
+export function mapWeatherDetailDismissHandlers(onDismiss: () => void) {
+  return {
+    onClick: onDismiss,
+    onDragStart: onDismiss,
+    onZoomStart: onDismiss,
+    onRotateStart: onDismiss,
+    onMoveStart: onDismiss,
+  }
+}
+
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
@@ -356,12 +371,20 @@ export default function TrackMap({
   comparisonHeel = null,
   comparisonTrim = null,
   onCompareContextualActivity,
+  historicalConditionsSample = null,
+  historicalConditionsWeatherProvider = null,
+  historicalConditionsMarineProvider = null,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
   const [mapBearing, setMapBearing] = useState(0)
+  const [weatherDetailExpanded, setWeatherDetailExpanded] = useState(false)
   const [inspectedContextualActivityId, setInspectedContextualActivityId] = useState<string | null>(null)
   const fittedContextKeyRef = useRef<string | null>(null)
   const handledFocusRequestIdRef = useRef<number | null>(null)
+  const dismissWeatherDetail = useCallback(
+    () => setWeatherDetailExpanded(false),
+    [],
+  )
   const primaryGeometry = useMemo(
     () => primaryVisibleSamples.length >= 2
       ? buildTrackGeometry(primaryVisibleSamples)
@@ -459,6 +482,16 @@ export default function TrackMap({
     }
   }, [contextualActivities, inspectedContextualActivityId])
 
+  useEffect(() => {
+    dismissWeatherDetail()
+  }, [
+    dismissWeatherDetail,
+    fitContextKey,
+    focusRequest?.requestId,
+    historicalConditionsSample?.time,
+    playbackTime,
+  ])
+
   if (!windowFocus) return null
 
   return (
@@ -477,6 +510,7 @@ export default function TrackMap({
             }}
         mapStyle={MAP_STYLE_URL}
         attributionControl={{ compact: true }}
+        {...mapWeatherDetailDismissHandlers(dismissWeatherDetail)}
         onLoad={fitTrack}
         onRotate={(event) => setMapBearing(event.viewState.bearing)}
       >
@@ -605,6 +639,13 @@ export default function TrackMap({
         <span>DIR</span>
         <strong>{formatMapBearing(mapBearing)}</strong>
       </div>
+      <HistoricalConditionsControl
+        sample={historicalConditionsSample}
+        weatherProvider={historicalConditionsWeatherProvider}
+        marineProvider={historicalConditionsMarineProvider}
+        expanded={weatherDetailExpanded}
+        onExpandedChange={setWeatherDetailExpanded}
+      />
       <MapTelemetryOverlay
         hasComparison={hasComparison}
         primaryActivityIdentity={primaryActivityIdentity}

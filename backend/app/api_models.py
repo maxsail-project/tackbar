@@ -43,10 +43,34 @@ class SessionDetailResponse(BaseModel):
     activities: list[ActivityContextResponse]
 
 
+class HistoricalConditionsSampleResponse(BaseModel):
+    time: datetime
+    air_temperature_c: float | None
+    wind_speed_10m_kn: float | None
+    wind_direction_10m_deg: float | None
+    wind_gusts_10m_kn: float | None
+    cloud_cover_pct: float | None
+    wave_height_m: float | None
+    wave_direction_deg: float | None
+    wave_period_s: float | None
+
+
+class HistoricalConditionsSourceResponse(BaseModel):
+    provider: str
+
+
+class HistoricalConditionsResponse(BaseModel):
+    weather_source: HistoricalConditionsSourceResponse | None
+    marine_source: HistoricalConditionsSourceResponse | None
+    hourly: list[HistoricalConditionsSampleResponse]
+
+
 class SharedSessionContentResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     activities: list[ActivityContextResponse]
+    location_label: str | None
+    historical_conditions: HistoricalConditionsResponse | None
 
 
 class SharedSessionDetailResponse(SharedSessionContentResponse):

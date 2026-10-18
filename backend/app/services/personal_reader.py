@@ -41,6 +41,7 @@ class PersonalReader:
                 sailing_start=item.sailing_start,
                 sailing_end=item.sailing_end,
                 sailor_count=item.sailor_count,
+                location_label=item.session.location_label,
                 session_path=f"/s/{shared_token}" if usable else None,
             ))
         return PersonalTackBarResponse(

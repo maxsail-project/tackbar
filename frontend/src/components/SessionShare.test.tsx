@@ -23,6 +23,7 @@ describe('temporary Session sharing presentation', () => {
     const original = renderToStaticMarkup(
       <SessionSummaryHeading
         access={{ kind: 'original', token: 'original-private-token' }}
+        identity="Mahón · 16 Sep 2026"
         expiresAt="2026-11-11T17:35:00Z"
         onShare={vi.fn()}
       />,
@@ -34,16 +35,19 @@ describe('temporary Session sharing presentation', () => {
           token: 'temporary-private-token',
           expiresAt: '2099-01-01T12:00:00Z',
         }}
+        identity="16 Sep 2026"
         expiresAt="2026-10-14T17:35:00Z"
       />,
     )
 
-    expect(original).toContain('>Session</h1>')
+    expect(original).toContain('>Session</span>')
+    expect(original).toContain('>Mahón · 16 Sep 2026</h1>')
     expect(original).toContain('Available until')
     expect(original).toContain(formatAccessExpiry('2026-11-11T17:35:00Z'))
     expect(original).toContain('session-share-button__icon')
     expect(original).toContain('<span>Share</span>')
-    expect(temporary).toContain('>Shared Session</h1>')
+    expect(temporary).toContain('>Shared Session</span>')
+    expect(temporary).toContain('>16 Sep 2026</h1>')
     expect(temporary).toContain('Available until')
     expect(temporary).toContain(formatAccessExpiry('2026-10-14T17:35:00Z'))
     expect(temporary).not.toContain('session-share-button')

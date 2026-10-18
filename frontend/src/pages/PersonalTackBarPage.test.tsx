@@ -9,8 +9,8 @@ import PersonalTackBarPage, { PersonalTackBarContent } from './PersonalTackBarPa
 const data: PersonalTackBar = {
   email: 'sailor@example.com', name: 'Test Sailor', session_count: 2, last_sailing_end: '2026-09-05T17:21:00Z',
   sessions: [
-    { sailing_start: '2026-09-05T13:49:00Z', sailing_end: '2026-09-05T17:21:00Z', sailor_count: 2, session_path: '/s/shared-session-token' },
-    { sailing_start: '2026-09-04T17:24:00Z', sailing_end: '2026-09-04T20:14:00Z', sailor_count: 3, session_path: null },
+    { sailing_start: '2026-09-05T13:49:00Z', sailing_end: '2026-09-05T17:21:00Z', sailor_count: 2, location_label: 'Mahón', session_path: '/s/shared-session-token' },
+    { sailing_start: '2026-09-04T17:24:00Z', sailing_end: '2026-09-04T20:14:00Z', sailor_count: 3, location_label: null, session_path: null },
   ],
 }
 const render = (value: PersonalTackBar) => renderToStaticMarkup(<MemoryRouter><PersonalTackBarContent state={{ status: 'ready', data: value }} /></MemoryRouter>)
@@ -34,7 +34,15 @@ describe('Personal TackBar / My Sessions', () => {
     expect(markup.indexOf('2026-09-05T13:49:00Z')).toBeLessThan(markup.indexOf('2026-09-04T17:24:00Z'))
     expect(markup).toContain('2 sailors')
     expect(markup).toContain('3 sailors')
+    expect(markup).toContain('Mahón · ')
     for (const unwanted of ['consent', 'Activities', 'Expires', 'Available', 'personal-token']) expect(markup).not.toContain(unwanted)
+  })
+
+  it('keeps date and time identity when location is unavailable', () => {
+    const markup = render(data)
+    expect(markup).toContain('2026-09-04T17:24:00Z')
+    expect(markup).not.toContain('null ·')
+    expect(markup).not.toContain('undefined ·')
   })
 
   it('offers exactly one shared Viewer link or disabled unavailable action per Session', async () => {

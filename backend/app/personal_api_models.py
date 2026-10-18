@@ -7,6 +7,7 @@ class PersonalSessionResponse(BaseModel):
     sailing_start: datetime
     sailing_end: datetime
     sailor_count: int
+    location_label: str | None
     session_path: str | None
 
 

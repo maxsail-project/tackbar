@@ -66,18 +66,23 @@ export function SessionViewerHeader() {
 
 export function SessionSummaryHeading({
   access,
+  identity,
   expiresAt,
   onShare,
 }: {
   access: SessionAccess
+  identity: string
   expiresAt: string
   onShare?: () => void
 }) {
   return (
     <div className="session-summary__heading">
       <div className="session-summary__title">
-        <h1 id="session-summary-heading">
+        <span className="session-summary__kind">
           {access.kind === 'temporary' ? 'Shared Session' : 'Session'}
+        </span>
+        <h1 id="session-summary-heading">
+          {identity}
         </h1>
         <p className="session-summary__availability">
           Available until {formatAccessExpiry(expiresAt)}

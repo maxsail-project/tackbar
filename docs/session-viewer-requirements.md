@@ -78,6 +78,18 @@ wording without rewriting the v0.3 baseline below:
   own HEEL × SOG represented-time density map.
 - Individual HEEL × SOG density maps do not overlay Primary and Comparison;
   each Activity retains its existing color identity.
+- Persisted Session location plus date is the preferred Session identity,
+  separate from Primary/Comparison Activity identity, with a date-only
+  fallback when location is unavailable.
+- Shared and temporary Viewer reads may include persisted hourly historical
+  conditions. The map selects the sample nearest to the shared Analysis Window
+  midpoint (earlier on an equal-distance tie) and shows a compact
+  historical/modelled conditions chip directly below the unchanged direction
+  control. Changing `playbackTime` alone does not change that sample.
+- The chip omits unavailable values and disappears when no atmospheric compact
+  value is usable. Its touch/keyboard detail may show available wind,
+  temperature, cloud, wave and UTC sample-time values. It introduces no
+  provider call, chart, weather layer, tactical interpretation or new clock.
 
 HEEL and TRIM signs remain signed sensor values only. This delta introduces no
 port/starboard or bow-up/bow-down meaning.

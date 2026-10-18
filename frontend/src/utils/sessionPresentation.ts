@@ -21,6 +21,15 @@ export function formatSessionDate(timestamp: string) {
   return date ? utcDate(date) : timestamp
 }
 
+export function formatSessionIdentity(
+  locationLabel: string | null,
+  startTimestamp: string,
+) {
+  const date = formatSessionDate(startTimestamp)
+  const location = locationLabel?.trim()
+  return location ? `${location} · ${date}` : date
+}
+
 export function formatSessionTime(timestamp: string) {
   const date = parseTimestamp(timestamp)
   return date ? `${utcTime(date)} UTC` : timestamp
