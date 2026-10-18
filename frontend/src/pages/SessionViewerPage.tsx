@@ -46,7 +46,7 @@ import type {
   TemporarySessionDetail,
   TemporarySessionShare,
 } from '../types/session'
-import type { ActivityTrack } from '../types/track'
+import type { ActivityTrack, TrackSample } from '../types/track'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import {
   commitSessionTimelineWindow,
@@ -187,13 +187,17 @@ export function promoteContextualActivityToComparison(
   return contextualActivityId === primaryActivityId ? null : contextualActivityId
 }
 
+interface ContextualReplayMapActivity extends ContextualMapActivity {
+  replaySamples: TrackSample[]
+}
+
 export function createContextualMapActivities(
   activities: SessionActivity[],
   primaryActivityId: string,
   comparisonActivityId: string | null,
   tracks: Map<string, ActivityTrack>,
   analysisWindow: AnalysisWindowRange | null,
-): ContextualMapActivity[] {
+): ContextualReplayMapActivity[] {
   if (analysisWindow === null) return []
 
   return activities.flatMap((activity) => {
@@ -209,12 +213,13 @@ export function createContextualMapActivities(
       analysisWindow.start,
       analysisWindow.end,
     )
-    if (visibleSamples.length === 0) return []
+    if (track.samples.length === 0) return []
 
     return [{
       id: activity.id,
       identity: formatActivityLabel(activity),
       visibleSamples,
+      replaySamples: track.samples,
       boatPosition: null,
       cog: null,
     }]
@@ -222,26 +227,38 @@ export function createContextualMapActivities(
 }
 
 export function synchronizeContextualMapActivities(
-  activities: ContextualMapActivity[],
+  activities: ContextualReplayMapActivity[],
+  analysisWindow: AnalysisWindowRange,
   playbackTime: number,
 ): ContextualMapActivity[] {
   return activities.map((activity) => {
-    const firstTime = timestampToMilliseconds(activity.visibleSamples[0].utc)
+    const firstTime = timestampToMilliseconds(activity.replaySamples[0].utc)
     const lastTime = timestampToMilliseconds(
-      activity.visibleSamples[activity.visibleSamples.length - 1].utc,
+      activity.replaySamples[activity.replaySamples.length - 1].utc,
     )
-    if (playbackTime < firstTime || playbackTime > lastTime) {
-      return activity.boatPosition === null && activity.cog === null
-        ? activity
-        : { ...activity, boatPosition: null, cog: null }
+    if (
+      playbackTime < analysisWindow.start
+      || playbackTime > analysisWindow.end
+      || playbackTime < firstTime
+      || playbackTime > lastTime
+    ) {
+      return {
+        id: activity.id,
+        identity: activity.identity,
+        visibleSamples: activity.visibleSamples,
+        boatPosition: null,
+        cog: null,
+      }
     }
 
     const replayPresentation = resolveReplayPresentation(
-      activity.visibleSamples,
+      activity.replaySamples,
       playbackTime,
     )
     return {
-      ...activity,
+      id: activity.id,
+      identity: activity.identity,
+      visibleSamples: activity.visibleSamples,
       boatPosition: replayPresentation.position,
       cog: replayPresentation.cog,
     }
@@ -573,11 +590,14 @@ export function SessionViewer({
     ],
   )
   const contextualMapActivities = useMemo(
-    () => synchronizeContextualMapActivities(
-      contextualWindowActivities,
-      playbackTime,
-    ),
-    [contextualWindowActivities, playbackTime],
+    () => analysisWindow === null
+      ? []
+      : synchronizeContextualMapActivities(
+          contextualWindowActivities,
+          analysisWindow,
+          playbackTime,
+        ),
+    [analysisWindow, contextualWindowActivities, playbackTime],
   )
   const primaryManeuverAnalytics = resolveSelectedManeuverAnalytics(
     primaryManeuverState,
