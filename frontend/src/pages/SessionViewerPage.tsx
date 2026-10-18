@@ -208,12 +208,20 @@ export function createContextualMapActivities(
 
     const track = tracks.get(activity.id)
     if (!track) return []
+    if (track.samples.length === 0) return []
+    const firstTime = timestampToMilliseconds(track.samples[0].utc)
+    const lastTime = timestampToMilliseconds(
+      track.samples[track.samples.length - 1].utc,
+    )
+    if (
+      lastTime < analysisWindow.start
+      || firstTime > analysisWindow.end
+    ) return []
     const visibleSamples = filterSamplesByAnalysisWindow(
       track.samples,
       analysisWindow.start,
       analysisWindow.end,
     )
-    if (track.samples.length === 0) return []
 
     return [{
       id: activity.id,
@@ -232,15 +240,9 @@ export function synchronizeContextualMapActivities(
   playbackTime: number,
 ): ContextualMapActivity[] {
   return activities.map((activity) => {
-    const firstTime = timestampToMilliseconds(activity.replaySamples[0].utc)
-    const lastTime = timestampToMilliseconds(
-      activity.replaySamples[activity.replaySamples.length - 1].utc,
-    )
     if (
       playbackTime < analysisWindow.start
       || playbackTime > analysisWindow.end
-      || playbackTime < firstTime
-      || playbackTime > lastTime
     ) {
       return {
         id: activity.id,

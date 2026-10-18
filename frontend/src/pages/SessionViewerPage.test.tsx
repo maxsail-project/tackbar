@@ -152,35 +152,68 @@ describe('fleet context map state', () => {
     expect(context[0].cog).toBe(90)
   })
 
-  it('does not hold a contextual marker before or after the Activity coverage', () => {
+  it('holds a contextual marker at the first position before Activity coverage', () => {
     const contextOneTrack = activityTrack('context-one', 0.26)
-    const contextTwoTrack = activityTrack('context-two', 0.27)
     const limitedTracks = new Map<string, ActivityTrack>([
       ['context-one', { ...contextOneTrack, samples: contextOneTrack.samples.slice(1) }],
-      ['context-two', { ...contextTwoTrack, samples: contextTwoTrack.samples.slice(0, 2) }],
     ])
-    const contextualActivities = createContextualMapActivities(
+    const context = synchronizeContextualMapActivities(createContextualMapActivities(
       activities,
       'primary',
       'comparison',
       limitedTracks,
       analysisWindow,
-    )
-    const beforeCoverage = synchronizeContextualMapActivities(
-      contextualActivities,
+    ), analysisWindow, Date.parse('2031-01-01T10:00:01.500Z'))
+
+    expect(context[0].boatPosition).toEqual({ lat: 0.26, lon: -30.70 })
+    expect(context[0].cog).toBe(90)
+  })
+
+  it('interpolates a contextual marker while playback is inside Activity coverage', () => {
+    const context = synchronizeContextualMapActivities(createContextualMapActivities(
+      activities,
+      'primary',
+      'comparison',
+      tracks,
       analysisWindow,
-      Date.parse('2031-01-01T10:00:01.500Z'),
-    )
-    const afterCoverage = synchronizeContextualMapActivities(
-      contextualActivities,
+    ), analysisWindow, Date.parse('2031-01-01T10:00:03Z'))
+
+    expect(context[0].boatPosition?.lat).toBe(0.26)
+    expect(context[0].boatPosition?.lon).toBeCloseTo(-30.69)
+    expect(context[0].cog).toBe(90)
+  })
+
+  it('holds a contextual marker at the last position after Activity coverage', () => {
+    const contextTwoTrack = activityTrack('context-two', 0.27)
+    const limitedTracks = new Map<string, ActivityTrack>([
+      ['context-two', { ...contextTwoTrack, samples: contextTwoTrack.samples.slice(0, 2) }],
+    ])
+    const context = synchronizeContextualMapActivities(createContextualMapActivities(
+      activities,
+      'primary',
+      'comparison',
+      limitedTracks,
       analysisWindow,
-      Date.parse('2031-01-01T10:00:02.500Z'),
+    ), analysisWindow, Date.parse('2031-01-01T10:00:02.500Z'))
+
+    expect(context[0].boatPosition).toEqual({ lat: 0.27, lon: -30.70 })
+    expect(context[0].cog).toBe(90)
+  })
+
+  it('omits contextual Activities whose temporal coverage does not overlap the window', () => {
+    const nonOverlappingTrack = activityTrack('context-one', 0.26)
+    const context = createContextualMapActivities(
+      activities,
+      'primary',
+      'comparison',
+      new Map([[
+        'context-one',
+        { ...nonOverlappingTrack, samples: nonOverlappingTrack.samples.slice(0, 1) },
+      ]]),
+      analysisWindow,
     )
 
-    expect(beforeCoverage.find((activity) => activity.id === 'context-one')?.boatPosition)
-      .toBeNull()
-    expect(afterCoverage.find((activity) => activity.id === 'context-two')?.boatPosition)
-      .toBeNull()
+    expect(context).toEqual([])
   })
 
   it('does not show a contextual marker outside the Analysis Window', () => {
