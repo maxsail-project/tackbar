@@ -65,6 +65,8 @@ export const listAdminSessions = (key: string) =>
   adminRequest<AdminSessionSummary[]>('/api/admin/sessions', key)
 export const getAdminSession = (key: string, id: string) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}`, key)
+export const enrichSession = (key: string, id: string) =>
+  adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/enrich`, key, 'POST')
 export const regenerateCapability = (key: string, id: string) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/capability/regenerate`, key, 'POST')
 export const revokeCapability = (key: string, id: string) =>

@@ -19,6 +19,7 @@ from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
 from app.services.maneuver_analytics import get_or_generate_maneuver_analytics
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
+from app.services.session_enrichment import automatic_session_enrichment_service
 from app.services.sailor_consent import SailorConsentService
 from app.services.session_capabilities import SessionCapabilityService
 from app.services.session_result_delivery import SessionResultDeliveryService
@@ -358,6 +359,14 @@ def _process_known_email(
         activities,
         sessions,
     )
+    if session_match.status == "created":
+        automatic_session_enrichment_service(
+            sessions,
+            activities,
+        ).enrich_new_session_geography(session_match.session.id)
+        refreshed_session = sessions.get_by_id(session_match.session.id)
+        if refreshed_session is not None:
+            session_match.session = refreshed_session
     _attempt_maneuver_analytics_generation(stored_activity.id, storage)
     return IngestionProcessingResult(
         sailor=sailor,

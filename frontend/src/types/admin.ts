@@ -76,6 +76,37 @@ export interface AdminSessionSummary {
   sailing_start: string | null
   sailing_end: string | null
   sailor_count: number
+  location_label: string | null
+}
+
+export interface AdminHistoricalConditionsSource {
+  provider: string
+  route: string
+  retrieved_at: string
+  grid_latitude: number
+  grid_longitude: number
+}
+
+export interface AdminHistoricalConditionsSample {
+  time: string
+  air_temperature_c: number | null
+  wind_speed_10m_kn: number | null
+  wind_direction_10m_deg: number | null
+  wind_gusts_10m_kn: number | null
+  cloud_cover_pct: number | null
+  wave_height_m: number | null
+  wave_direction_deg: number | null
+  wave_period_s: number | null
+}
+
+export interface AdminHistoricalConditions {
+  coverage_start: string
+  coverage_end: string
+  requested_latitude: number
+  requested_longitude: number
+  weather_source: AdminHistoricalConditionsSource | null
+  marine_source: AdminHistoricalConditionsSource | null
+  hourly: AdminHistoricalConditionsSample[]
 }
 
 export interface AdminSessionActivity {
@@ -107,6 +138,16 @@ export interface AdminSession extends AdminSessionSummary {
   consent_active_count: number
   consent_pending_count: number
   consent_revoked_count: number
+  location: {
+    label: string
+    region: string | null
+    country: string | null
+    country_code: string | null
+    provider: string
+    resolved_at: string
+    source_activity_id: string
+  } | null
+  historical_conditions: AdminHistoricalConditions | null
   diagnostic: Record<string, unknown>
 }
 

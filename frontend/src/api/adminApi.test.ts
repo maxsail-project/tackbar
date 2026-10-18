@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AdminApiError,
+  enrichSession,
   listAdminSailors,
   regenerateCapability,
   regeneratePersonalCapability,
@@ -51,11 +52,14 @@ describe('Admin API client', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await renewSession('key', 'session/id', 30)
+    await enrichSession('key', 'session/id')
     await regenerateCapability('key', 'session/id')
 
     expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/sessions/session%2Fid/renew')
     expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ method: 'POST', body: '{"days":30}' }))
-    expect(fetchMock.mock.calls[1][0]).toContain('/capability/regenerate')
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/sessions/session%2Fid/enrich')
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'POST' }))
+    expect(fetchMock.mock.calls[2][0]).toContain('/capability/regenerate')
   })
 
   it('starts a new consent cycle through the semantic Admin endpoint', async () => {

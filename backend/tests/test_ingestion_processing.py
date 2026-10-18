@@ -2,6 +2,7 @@ import gzip
 import hashlib
 import json
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -22,6 +23,8 @@ from app.services.ingestion_processing import (
     process_provider_email,
     reprocess_ingestion,
 )
+from app.services.session_enrichment import SessionEnrichmentService
+from app.session_context_providers.geocoding import GeographicContext
 from app.services.maneuver_analytics import (
     MANEUVER_ALGORITHM_VERSION,
     get_or_generate_maneuver_analytics,
@@ -235,6 +238,98 @@ def test_eager_analytics_failure_preserves_ingestion_and_lazy_recovers(
 
     assert recovered["activity_id"] == result.activity.id
     assert analytics.read(result.activity.id) == recovered
+
+
+def test_new_session_geo_failure_preserves_processed_ingestion_and_never_configures_conditions(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+
+    class FailingGeocoder:
+        def reverse(self, _latitude, _longitude):
+            raise TimeoutError("geocoding unavailable")
+
+    def service_factory(current_sessions, current_activities):
+        service = SessionEnrichmentService(
+            current_sessions,
+            current_activities,
+            geocoding=FailingGeocoder(),
+        )
+        assert service.conditions is None
+        return service
+
+    monkeypatch.setattr(
+        "app.services.ingestion_processing.automatic_session_enrichment_service",
+        service_factory,
+    )
+
+    result = process_provider_email(
+        "ovh",
+        _email(FIXTURE_PATH.read_bytes()),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    assert result.session_match.status == "created"
+    assert result.session_match.session.location_label is None
+    assert history.records()[0]["status"] == "processed"
+    assert history.records()[0]["last_error"] is None
+
+
+def test_new_session_automatically_persists_geoapify_context_from_creator_start(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    calls: list[tuple[float, float]] = []
+
+    class Geocoder:
+        def reverse(self, latitude, longitude):
+            calls.append((latitude, longitude))
+            return GeographicContext(
+                label="Valencia",
+                region="Comunitat Valenciana",
+                country="España",
+                country_code="es",
+                provider="geoapify",
+                resolved_at=datetime(2026, 10, 18, 10, tzinfo=timezone.utc),
+            )
+
+    monkeypatch.setattr(
+        "app.services.ingestion_processing.automatic_session_enrichment_service",
+        lambda current_sessions, current_activities: SessionEnrichmentService(
+            current_sessions,
+            current_activities,
+            geocoding=Geocoder(),
+        ),
+    )
+
+    result = process_provider_email(
+        "ovh",
+        _email(FIXTURE_PATH.read_bytes()),
+        sailors,
+        boats,
+        activities,
+        sessions,
+        history,
+    )
+
+    assert result is not None
+    assert calls == [(result.activity.start_lat, result.activity.start_lon)]
+    assert result.session_match.session.location_label == "Valencia"
+    persisted = sessions.get_by_id(result.session_match.session.id)
+    assert persisted is not None
+    assert persisted.location_source_activity_id == result.activity.id
+    assert history.records()[0]["status"] == "processed"
 
 
 def test_eager_analytics_persists_unavailable_artifact_without_hdg(

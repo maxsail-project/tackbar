@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Callable
 from uuid import uuid4
 
-from app.models import Session
+from app.models import (
+    HistoricalConditions,
+    HistoricalConditionsSample,
+    HistoricalConditionsSource,
+    Session,
+)
 from app.runtime_paths import runtime_paths
 
 
@@ -45,6 +50,14 @@ class SessionRepository:
             else:
                 record["created_at"] = _parse_datetime(record["created_at"])
                 record["expires_at"] = _parse_datetime(record["expires_at"])
+            if record.get("location_resolved_at") is not None:
+                record["location_resolved_at"] = _parse_datetime(
+                    record["location_resolved_at"]
+                )
+            if record.get("historical_conditions") is not None:
+                record["historical_conditions"] = _parse_historical_conditions(
+                    record["historical_conditions"]
+                )
             if record["expires_at"] <= record["created_at"]:
                 raise ValueError("Session expiry must be after creation")
             sessions.append(Session(**record))
@@ -147,6 +160,70 @@ def _require_utc(value: datetime) -> datetime:
 
 def _serialize_session(session: Session) -> dict[str, object]:
     record = asdict(session)
-    record["created_at"] = session.created_at.isoformat()
-    record["expires_at"] = session.expires_at.isoformat()
-    return record
+    return _json_value(record)
+
+
+def _parse_historical_conditions(value: object) -> HistoricalConditions:
+    if not isinstance(value, dict):
+        raise ValueError("Session historical conditions must be an object")
+    record = dict(value)
+    hourly = record.get("hourly")
+    if not isinstance(hourly, list):
+        raise ValueError("Session historical conditions hourly data must be a list")
+    return HistoricalConditions(
+        coverage_start=_parse_datetime(record.get("coverage_start")),
+        coverage_end=_parse_datetime(record.get("coverage_end")),
+        requested_latitude=float(record["requested_latitude"]),
+        requested_longitude=float(record["requested_longitude"]),
+        weather_source=_parse_conditions_source(record.get("weather_source")),
+        marine_source=_parse_conditions_source(record.get("marine_source")),
+        hourly=[_parse_conditions_sample(item) for item in hourly],
+    )
+
+
+def _parse_conditions_source(value: object) -> HistoricalConditionsSource | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("Session historical conditions source must be an object")
+    return HistoricalConditionsSource(
+        provider=str(value["provider"]),
+        route=str(value["route"]),
+        retrieved_at=_parse_datetime(value.get("retrieved_at")),
+        grid_latitude=float(value["grid_latitude"]),
+        grid_longitude=float(value["grid_longitude"]),
+    )
+
+
+def _parse_conditions_sample(value: object) -> HistoricalConditionsSample:
+    if not isinstance(value, dict):
+        raise ValueError("Session historical conditions sample must be an object")
+    fields = {
+        field_name: (
+            float(value[field_name]) if value.get(field_name) is not None else None
+        )
+        for field_name in (
+            "air_temperature_c",
+            "wind_speed_10m_kn",
+            "wind_direction_10m_deg",
+            "wind_gusts_10m_kn",
+            "cloud_cover_pct",
+            "wave_height_m",
+            "wave_direction_deg",
+            "wave_period_s",
+        )
+    }
+    return HistoricalConditionsSample(
+        time=_parse_datetime(value.get("time")),
+        **fields,
+    )
+
+
+def _json_value(value):
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_value(item) for item in value]
+    return value

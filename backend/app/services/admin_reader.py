@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -9,6 +10,8 @@ from app.admin_api_models import (
     AdminSailorResponse,
     AdminSailorSessionResponse,
     AdminSessionActivityResponse,
+    AdminHistoricalConditionsResponse,
+    AdminSessionLocationResponse,
     AdminSessionResponse,
     AdminSessionSummaryResponse,
     AdminTemporarySessionShareResponse,
@@ -409,6 +412,28 @@ class AdminReader:
             consent_active_count=sum(s.consent_status == ConsentStatus.ACTIVE for s in represented_sailors.values()),
             consent_pending_count=sum(s.consent_status == ConsentStatus.PENDING for s in represented_sailors.values()),
             consent_revoked_count=sum(s.consent_status == ConsentStatus.REVOKED for s in represented_sailors.values()),
+            location=(
+                AdminSessionLocationResponse(
+                    label=session.location_label,
+                    region=session.location_region,
+                    country=session.location_country,
+                    country_code=session.location_country_code,
+                    provider=session.location_provider,
+                    resolved_at=session.location_resolved_at,
+                    source_activity_id=session.location_source_activity_id,
+                )
+                if session.location_label is not None
+                and session.location_provider is not None
+                and session.location_resolved_at is not None
+                and session.location_source_activity_id is not None
+                else None
+            ),
+            historical_conditions=(
+                AdminHistoricalConditionsResponse.model_validate(
+                    asdict(session.historical_conditions)
+                )
+                if session.historical_conditions is not None else None
+            ),
             diagnostic={
                 "session": {
                     "id": session.id,
@@ -416,6 +441,22 @@ class AdminReader:
                     "expires_at": session.expires_at.isoformat(),
                     "activity_ids": list(session.activity_ids),
                     "capability_state": state,
+                    "location": (
+                        {
+                            "label": session.location_label,
+                            "region": session.location_region,
+                            "country": session.location_country,
+                            "country_code": session.location_country_code,
+                            "provider": session.location_provider,
+                            "resolved_at": session.location_resolved_at,
+                            "source_activity_id": session.location_source_activity_id,
+                        }
+                        if session.location_label is not None else None
+                    ),
+                    "historical_conditions": (
+                        asdict(session.historical_conditions)
+                        if session.historical_conditions is not None else None
+                    ),
                 },
                 "membership": [item.model_dump() for item in membership],
                 "temporary_shares": [
@@ -462,6 +503,7 @@ class AdminReader:
             sailing_start=min(starts) if starts else None,
             sailing_end=max(ends) if ends else None,
             sailor_count=len(represented_sailor_ids),
+            location_label=session.location_label,
         )
 
     def _capability_state(self, session: Session) -> CapabilityState:

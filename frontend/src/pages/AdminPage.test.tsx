@@ -16,13 +16,14 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   id: 'session-123', created_at: '2026-08-01T10:00:00Z', expires_at: '2026-09-30T10:00:00Z',
   total_activity_count: 3, visible_activity_count: 1, capability_state: state,
   capability_path: state === 'active' ? '/s/token' : null,
-  sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', sailor_count: 2,
+  sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', sailor_count: 2, location_label: null,
   activities: [
     { id: 'activity-123456789', sailor_id: 'sailor-1', sailor_label: 'Test Sailor', shareable: true },
     { id: 'activity-987654321', sailor_id: 'sailor-2', sailor_label: 'Pending Sailor', shareable: false },
   ],
   temporary_shares: { active_count: 1, expired_count: 2, unavailable_count: 1, active_share: { id: 'share-1', created_at: '2026-09-18T10:00:00Z', expires_at: '2026-09-19T10:00:00Z', state: 'VALID', path: '/q/temporary-token' } },
   consent_active_count: 1, consent_pending_count: 1, consent_revoked_count: 0,
+  location: null, historical_conditions: null,
   diagnostic: { session: { id: 'session-123' }, temporary_shares: [{ id: 'share-1', state: 'VALID' }] },
 })
 const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
@@ -289,10 +290,52 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('<h4>Technical traceability</h4>')
     expect(markup).toContain('<dt>Activity IDs</dt><dd>activity-123456789 · activity-987654321</dd>')
     expect(markup).toContain('<dt>Sailor IDs</dt><dd>sailor-1 · sailor-2</dd>')
-    const sectionLabels = ['Membership / traceability', 'Session access', 'Temporary QR access', 'Lifetime', 'Maintenance', '>Advanced<', '>Diagnostic JSON<']
+    const sectionLabels = ['Membership / traceability', 'Session access', 'Temporary QR access', 'Session details', 'Maintenance', '>Advanced<', '>Diagnostic JSON<']
     for (let index = 1; index < sectionLabels.length; index += 1) {
       expect(markup.indexOf(sectionLabels[index - 1])).toBeLessThan(markup.indexOf(sectionLabels[index]))
     }
+  })
+
+  it('uses location in Session identity and inspects persisted contextual enrichment', () => {
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const source = { provider: 'open-meteo', route: 'forecast', retrieved_at: '2026-10-18T10:00:00Z', grid_latitude: 39.4, grid_longitude: -0.3 }
+    const detail: AdminSession = {
+      ...session('active'),
+      location_label: 'Valencia',
+      location: { label: 'Valencia', region: 'Comunitat Valenciana', country: 'España', country_code: 'es', provider: 'geoapify', resolved_at: '2026-10-18T10:00:00Z', source_activity_id: 'activity-123456789' },
+      historical_conditions: {
+        coverage_start: '2026-08-01T05:00:00Z', coverage_end: '2026-08-01T13:00:00Z', requested_latitude: 39.41, requested_longitude: -0.29,
+        weather_source: source, marine_source: null,
+        hourly: [{ time: '2026-08-01T08:00:00Z', air_temperature_c: 23, wind_speed_10m_kn: 14, wind_direction_10m_deg: 45, wind_gusts_10m_kn: 18, cloud_cover_pct: 30, wave_height_m: null, wave_direction_deg: null, wave_period_s: null }],
+      },
+    }
+    const callbacks = { busy: false, onSelect: () => undefined, onEnrich: () => undefined, onRegenerate: () => undefined, onRevoke: () => undefined, onRenew: () => undefined }
+    const collapsed = renderToStaticMarkup(<SessionCard session={detail} {...callbacks} />)
+    const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} activities={[activity]} onActivitySelect={() => undefined} {...callbacks} />)
+
+    expect(collapsed).toContain('Valencia ·')
+    expect(markup).toContain('Session details')
+    expect(markup).toContain('<dt>Location</dt><dd>Valencia</dd>')
+    expect(markup).toContain('<dt>Location provider</dt><dd>geoapify</dd>')
+    expect(markup).toContain('Location source Activity')
+    expect(markup).toContain('Historical conditions · 1 hourly samples')
+    expect(markup).toContain('open-meteo · forecast')
+    expect(markup).toContain('23 °C')
+    expect(markup).toContain('14 kn')
+    expect(markup).toContain('Enrich Session')
+    expect(markup).toContain('<h4>Geographic context</h4>')
+    expect(markup).toContain('Comunitat Valenciana')
+  })
+
+  it('preserves the date identity and explicit unavailable context fallback', () => {
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const detail = session('active')
+    const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+
+    expect(markup).not.toContain('Valencia ·')
+    expect(markup).toContain('<dt>Location</dt><dd>Unavailable</dd>')
+    expect(markup).toContain('Historical conditions unavailable.')
+    expect(markup).toContain('Enrich Session')
   })
 
   it('shows temporary-share counts and only expands the currently active share', () => {
@@ -761,6 +804,14 @@ describe('shared Admin entity search', () => {
     expect(filterAdminSessions([september], [member], 'session-sept').map((item) => item.id)).toEqual([september.id])
     expect(filterAdminSessions([september], [member], 'Pilot').map((item) => item.id)).toEqual([september.id])
     expect(filterAdminSessions([september], [member], 'activity-123').map((item) => item.id)).toEqual([september.id])
+  })
+
+  it('filters Sessions by persisted location label', () => {
+    const valencia = { ...session('active'), id: 'session-valencia', location_label: 'Valencia' }
+    const mahon = { ...session('active'), id: 'session-mahon', location_label: 'Mahón' }
+
+    expect(filterAdminSessions([valencia, mahon], [], 'valen').map((item) => item.id)).toEqual(['session-valencia'])
+    expect(filterAdminSessions([valencia, mahon], [], 'MAHÓN').map((item) => item.id)).toEqual(['session-mahon'])
   })
 })
 

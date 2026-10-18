@@ -2211,6 +2211,14 @@ input:focus-visible {
 .admin-session-member .state-badge { justify-self: start; }
 .admin-session-access-block + .admin-session-access-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-pale); }
 .admin-session-access-block p { margin: 0; color: var(--color-navy); font-size: .85rem; }
+.admin-session-location-source { margin-top: 10px; }
+.admin-session-conditions { margin-top: 12px; border: 1px solid var(--color-pale); border-radius: 9px; background: var(--color-white); }
+.admin-session-conditions summary { padding: 12px; cursor: pointer; color: var(--color-navy); font-size: .82rem; font-weight: 800; }
+.admin-session-conditions dl { margin: 0 12px 12px; }
+.admin-session-conditions__table { margin: 0 12px 12px; overflow-x: auto; }
+.admin-session-conditions table { width: 100%; border-collapse: collapse; font-size: .76rem; white-space: nowrap; }
+.admin-session-conditions th, .admin-session-conditions td { padding: 7px 8px; border-bottom: 1px solid var(--color-pale); text-align: right; }
+.admin-session-conditions th:first-child, .admin-session-conditions td:first-child { text-align: left; }
 .admin-temporary-share { margin-top: 10px; border: 1px solid var(--color-pale); border-radius: 9px; }
 .admin-temporary-share summary { padding: 10px 12px; cursor: pointer; font-weight: 750; }
 .admin-temporary-share dl, .admin-temporary-share .admin-actions { margin: 0 12px 12px; }

@@ -11,7 +11,14 @@ from app.admin_auth import ADMIN_KEY_ENVIRONMENT_VARIABLE
 from app.admin_routes import router as admin_router
 from app.config import CURRENT_CONSENT_AGREEMENT_VERSION
 from app.main import app
-from app.models import ConsentRequest, ConsentRequestState, ConsentStatus
+from app.models import (
+    ConsentRequest,
+    ConsentRequestState,
+    ConsentStatus,
+    HistoricalConditions,
+    HistoricalConditionsSample,
+    HistoricalConditionsSource,
+)
 from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
@@ -26,6 +33,8 @@ from app.services.consent_requests import (
 from app.services.ingestion_history import IngestionHistory
 from app.services.mailbox_review import MailboxReviewSummary
 from app.services.sailor_consent import SailorConsentService
+from app.services.session_enrichment import SessionEnrichmentService
+from app.session_context_providers.geocoding import GeographicContext
 from app.services.welcome_email_delivery import WelcomeEmailDeliveryError
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
 from app.normalization.track_normalizer import normalize_track
@@ -255,7 +264,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 24
+    assert len(admin_router.routes) == 25
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -1010,6 +1019,7 @@ def test_admin_session_summaries_include_compact_operational_context(monkeypatch
         "sailing_start": "2026-08-10T09:00:00Z",
         "sailing_end": "2026-08-10T10:00:00Z",
         "sailor_count": 3,
+        "location_label": None,
     }
     assert sessions[SESSION_NEVER]["visible_activity_count"] == 0
     assert sessions[SESSION_EXPIRED]["total_activity_count"] == 2
@@ -1035,6 +1045,101 @@ def test_admin_session_detail_exposes_membership_without_raw_capability_token(
     diagnostic = json.dumps(response.json["diagnostic"])
     assert ACTIVE_TOKEN not in diagnostic
     assert "originating_capability_fingerprint" not in diagnostic
+
+
+def test_admin_enrich_session_persists_location_and_hourly_conditions(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    geo_calls: list[tuple[float, float]] = []
+    conditions_calls: list[tuple[datetime, datetime]] = []
+
+    class Geocoder:
+        def reverse(self, latitude: float, longitude: float):
+            geo_calls.append((latitude, longitude))
+            return GeographicContext(
+                label="Valencia",
+                region="Comunitat Valenciana",
+                country="España",
+                country_code="es",
+                provider="geoapify",
+                resolved_at=datetime(2026, 10, 18, 10, tzinfo=timezone.utc),
+            )
+
+    class Conditions:
+        def fetch(self, latitude, longitude, coverage_start, coverage_end, session_end):
+            conditions_calls.append((coverage_start, coverage_end))
+            source = HistoricalConditionsSource(
+                provider="open-meteo",
+                route="forecast",
+                retrieved_at=datetime(2026, 10, 18, 10, tzinfo=timezone.utc),
+                grid_latitude=latitude,
+                grid_longitude=longitude,
+            )
+            return HistoricalConditions(
+                coverage_start=coverage_start,
+                coverage_end=coverage_end,
+                requested_latitude=latitude,
+                requested_longitude=longitude,
+                weather_source=source,
+                marine_source=None,
+                hourly=[HistoricalConditionsSample(
+                    time=datetime(2026, 8, 10, 9, tzinfo=timezone.utc),
+                    air_temperature_c=24,
+                    wind_speed_10m_kn=12,
+                    cloud_cover_pct=30,
+                )],
+            )
+
+    def service_factory(sessions, activities):
+        return SessionEnrichmentService(
+            sessions,
+            activities,
+            geocoding=Geocoder(),
+            conditions=Conditions(),
+        )
+
+    monkeypatch.setattr(
+        "app.admin_routes.admin_session_enrichment_service",
+        service_factory,
+    )
+
+    first = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/enrich")
+    second = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/enrich")
+    unauthorized = _request(
+        "POST",
+        f"/api/admin/sessions/{SESSION_ACTIVE}/enrich",
+        admin_key=None,
+    )
+    missing = _request("POST", "/api/admin/sessions/unknown/enrich")
+
+    assert first.status_code == second.status_code == 200
+    assert unauthorized.status_code == 401
+    assert missing.status_code == 404
+    assert first.json["location"] == {
+        "label": "Valencia",
+        "region": "Comunitat Valenciana",
+        "country": "España",
+        "country_code": "es",
+        "provider": "geoapify",
+        "resolved_at": "2026-10-18T10:00:00Z",
+        "source_activity_id": ACTIVITY_PENDING,
+    }
+    assert first.json["location_label"] == "Valencia"
+    assert first.json["historical_conditions"]["weather_source"]["route"] == "forecast"
+    assert first.json["historical_conditions"]["marine_source"] is None
+    assert first.json["historical_conditions"]["hourly"][0]["wind_speed_10m_kn"] == 12
+    assert geo_calls == [(0.1, -30.1)]
+    assert len(conditions_calls) == 2
+    assert conditions_calls[0] == (
+        datetime(2026, 8, 10, 6, tzinfo=timezone.utc),
+        datetime(2026, 8, 10, 13, tzinfo=timezone.utc),
+    )
+    persisted = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    record = next(item for item in persisted if item["id"] == SESSION_ACTIVE)
+    assert record["location_label"] == "Valencia"
+    assert record["historical_conditions"]["hourly"][0]["air_temperature_c"] == 24
 
 
 def test_admin_session_detail_summarizes_temporary_shares_using_existing_states(

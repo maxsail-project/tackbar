@@ -16,6 +16,7 @@ OVH_SMTP_USERNAME_ENVIRONMENT_VARIABLE = "TACKBAR_OVH_SMTP_USERNAME"
 OVH_SMTP_PASSWORD_ENVIRONMENT_VARIABLE = "TACKBAR_OVH_SMTP_PASSWORD"
 OVH_SMTP_FROM_ENVIRONMENT_VARIABLE = "TACKBAR_OVH_SMTP_FROM"
 PUBLIC_BASE_URL_ENVIRONMENT_VARIABLE = "TACKBAR_PUBLIC_BASE_URL"
+GEOAPIFY_API_KEY_ENVIRONMENT_VARIABLE = "TACKBAR_GEOAPIFY_API_KEY"
 
 
 class OutboundMailConfigurationError(ValueError):
@@ -24,6 +25,10 @@ class OutboundMailConfigurationError(ValueError):
 
 class OvhImapConfigurationError(ValueError):
     """Expected OVH IMAP configuration failure."""
+
+
+class GeoapifyConfigurationError(ValueError):
+    """Expected missing Geoapify configuration."""
 
 
 @dataclass(frozen=True)
@@ -109,3 +114,13 @@ def configured_public_base_url(
     ):
         raise OutboundMailConfigurationError("Invalid public application URL configuration")
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", ""))
+
+
+def load_geoapify_api_key(
+    environment: Mapping[str, str] | None = None,
+) -> str:
+    values = os.environ if environment is None else environment
+    api_key = values.get(GEOAPIFY_API_KEY_ENVIRONMENT_VARIABLE, "").strip()
+    if not api_key:
+        raise GeoapifyConfigurationError("Geoapify is not configured")
+    return api_key

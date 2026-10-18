@@ -107,6 +107,14 @@ def test_first_activity_creates_session_with_only_persisted_ids(
         "expires_at",
         "capability_token",
         "capability_revoked",
+        "location_label",
+        "location_region",
+        "location_country",
+        "location_country_code",
+        "location_provider",
+        "location_resolved_at",
+        "location_source_activity_id",
+        "historical_conditions",
     }
     assert persisted["capability_token"] is None
     assert persisted["capability_revoked"] is False

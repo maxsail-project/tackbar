@@ -169,6 +169,39 @@ class StoredActivity:
     track_file: str | None = None
 
 
+@dataclass(frozen=True)
+class HistoricalConditionsSource:
+    provider: str
+    route: str
+    retrieved_at: datetime
+    grid_latitude: float
+    grid_longitude: float
+
+
+@dataclass(frozen=True)
+class HistoricalConditionsSample:
+    time: datetime
+    air_temperature_c: float | None = None
+    wind_speed_10m_kn: float | None = None
+    wind_direction_10m_deg: float | None = None
+    wind_gusts_10m_kn: float | None = None
+    cloud_cover_pct: float | None = None
+    wave_height_m: float | None = None
+    wave_direction_deg: float | None = None
+    wave_period_s: float | None = None
+
+
+@dataclass(frozen=True)
+class HistoricalConditions:
+    coverage_start: datetime
+    coverage_end: datetime
+    requested_latitude: float
+    requested_longitude: float
+    weather_source: HistoricalConditionsSource | None
+    marine_source: HistoricalConditionsSource | None
+    hourly: list[HistoricalConditionsSample]
+
+
 @dataclass
 class Session:
     id: str
@@ -177,3 +210,11 @@ class Session:
     expires_at: datetime
     capability_token: str | None = None
     capability_revoked: bool = False
+    location_label: str | None = None
+    location_region: str | None = None
+    location_country: str | None = None
+    location_country_code: str | None = None
+    location_provider: str | None = None
+    location_resolved_at: datetime | None = None
+    location_source_activity_id: str | None = None
+    historical_conditions: HistoricalConditions | None = None

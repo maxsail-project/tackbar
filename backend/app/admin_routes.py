@@ -47,6 +47,7 @@ from app.services.session_lifetime import (
     SessionLifetimeOperationError,
     SessionLifetimeService,
 )
+from app.services.session_enrichment import admin_session_enrichment_service
 from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_processing import reprocess_ingestion
 from app.repositories.boats import BoatRepository
@@ -290,6 +291,25 @@ def restore_ingestion(ingestion_id: str) -> AdminIngestionResponse:
 
 @router.get("/sessions/{session_id}", response_model=AdminSessionResponse)
 def get_session(session_id: str) -> AdminSessionResponse:
+    return _get_admin_session(session_id)
+
+
+@router.post(
+    "/sessions/{session_id}/enrich",
+    response_model=AdminSessionResponse,
+)
+def enrich_session(session_id: str) -> AdminSessionResponse:
+    sessions = SessionRepository()
+    activities = ActivityRepository()
+    if sessions.get_by_id(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        admin_session_enrichment_service(
+            sessions,
+            activities,
+        ).enrich_from_admin(session_id)
+    except ValueError as error:
+        raise _admin_integrity_error() from error
     return _get_admin_session(session_id)
 
 

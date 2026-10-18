@@ -91,6 +91,47 @@ class AdminSessionSummaryResponse(BaseModel):
     sailing_start: datetime | None
     sailing_end: datetime | None
     sailor_count: int
+    location_label: str | None
+
+
+class AdminSessionLocationResponse(BaseModel):
+    label: str
+    region: str | None
+    country: str | None
+    country_code: str | None
+    provider: str
+    resolved_at: datetime
+    source_activity_id: str
+
+
+class AdminHistoricalConditionsSourceResponse(BaseModel):
+    provider: str
+    route: str
+    retrieved_at: datetime
+    grid_latitude: float
+    grid_longitude: float
+
+
+class AdminHistoricalConditionsSampleResponse(BaseModel):
+    time: datetime
+    air_temperature_c: float | None
+    wind_speed_10m_kn: float | None
+    wind_direction_10m_deg: float | None
+    wind_gusts_10m_kn: float | None
+    cloud_cover_pct: float | None
+    wave_height_m: float | None
+    wave_direction_deg: float | None
+    wave_period_s: float | None
+
+
+class AdminHistoricalConditionsResponse(BaseModel):
+    coverage_start: datetime
+    coverage_end: datetime
+    requested_latitude: float
+    requested_longitude: float
+    weather_source: AdminHistoricalConditionsSourceResponse | None
+    marine_source: AdminHistoricalConditionsSourceResponse | None
+    hourly: list[AdminHistoricalConditionsSampleResponse]
 
 
 class AdminSessionActivityResponse(BaseModel):
@@ -124,6 +165,8 @@ class AdminSessionResponse(AdminSessionSummaryResponse):
     consent_active_count: int
     consent_pending_count: int
     consent_revoked_count: int
+    location: AdminSessionLocationResponse | None
+    historical_conditions: AdminHistoricalConditionsResponse | None
     diagnostic: dict[str, object]
 
 
