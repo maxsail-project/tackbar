@@ -9,7 +9,13 @@ from typing import Callable
 import pandas as pd
 import pytest
 
-from app.models import ConsentStatus, InboundEmail
+from app.models import (
+    ConsentStatus,
+    HistoricalConditions,
+    HistoricalConditionsSample,
+    HistoricalConditionsSource,
+    InboundEmail,
+)
 from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
@@ -240,7 +246,7 @@ def test_eager_analytics_failure_preserves_ingestion_and_lazy_recovers(
     assert analytics.read(result.activity.id) == recovered
 
 
-def test_new_session_geo_failure_preserves_processed_ingestion_and_never_configures_conditions(
+def test_new_session_complete_context_failure_preserves_processed_ingestion(
     temporary_json_file: Callable[[str, object], Path],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -252,13 +258,21 @@ def test_new_session_geo_failure_preserves_processed_ingestion_and_never_configu
         def reverse(self, _latitude, _longitude):
             raise TimeoutError("geocoding unavailable")
 
+    conditions_calls = 0
+
+    class FailingConditions:
+        def fetch(self, *_args):
+            nonlocal conditions_calls
+            conditions_calls += 1
+            raise TimeoutError("conditions unavailable")
+
     def service_factory(current_sessions, current_activities):
         service = SessionEnrichmentService(
             current_sessions,
             current_activities,
             geocoding=FailingGeocoder(),
+            conditions=FailingConditions(),
         )
-        assert service.conditions is None
         return service
 
     monkeypatch.setattr(
@@ -279,6 +293,8 @@ def test_new_session_geo_failure_preserves_processed_ingestion_and_never_configu
     assert result is not None
     assert result.session_match.status == "created"
     assert result.session_match.session.location_label is None
+    assert result.session_match.session.historical_conditions is None
+    assert conditions_calls == 1
     assert history.records()[0]["status"] == "processed"
     assert history.records()[0]["last_error"] is None
 
@@ -291,6 +307,7 @@ def test_new_session_automatically_persists_geoapify_context_from_creator_start(
         temporary_json_file
     )
     calls: list[tuple[float, float]] = []
+    conditions_calls: list[tuple[float, float, datetime, datetime]] = []
 
     class Geocoder:
         def reverse(self, latitude, longitude):
@@ -304,12 +321,37 @@ def test_new_session_automatically_persists_geoapify_context_from_creator_start(
                 resolved_at=datetime(2026, 10, 18, 10, tzinfo=timezone.utc),
             )
 
+    class Conditions:
+        def fetch(self, latitude, longitude, coverage_start, coverage_end, _session_end):
+            conditions_calls.append((latitude, longitude, coverage_start, coverage_end))
+            return HistoricalConditions(
+                coverage_start=coverage_start,
+                coverage_end=coverage_end,
+                requested_latitude=latitude,
+                requested_longitude=longitude,
+                weather_source=HistoricalConditionsSource(
+                    provider="open-meteo",
+                    route="forecast",
+                    retrieved_at=datetime(2026, 10, 18, 10, tzinfo=timezone.utc),
+                    grid_latitude=latitude,
+                    grid_longitude=longitude,
+                ),
+                marine_source=None,
+                hourly=[HistoricalConditionsSample(
+                    time=result_time,
+                    air_temperature_c=23,
+                )],
+            )
+
+    result_time = datetime(2026, 10, 17, 10, tzinfo=timezone.utc)
+
     monkeypatch.setattr(
         "app.services.ingestion_processing.automatic_session_enrichment_service",
         lambda current_sessions, current_activities: SessionEnrichmentService(
             current_sessions,
             current_activities,
             geocoding=Geocoder(),
+            conditions=Conditions(),
         ),
     )
 
@@ -326,10 +368,50 @@ def test_new_session_automatically_persists_geoapify_context_from_creator_start(
     assert result is not None
     assert calls == [(result.activity.start_lat, result.activity.start_lon)]
     assert result.session_match.session.location_label == "Valencia"
+    assert len(conditions_calls) == 1
     persisted = sessions.get_by_id(result.session_match.session.id)
     assert persisted is not None
     assert persisted.location_source_activity_id == result.activity.id
+    assert persisted.historical_conditions is not None
     assert history.records()[0]["status"] == "processed"
+
+
+def test_existing_session_does_not_trigger_automatic_context_enrichment(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    calls = 0
+
+    class Conditions:
+        def fetch(self, *_args):
+            nonlocal calls
+            calls += 1
+            return None
+
+    monkeypatch.setattr(
+        "app.services.ingestion_processing.automatic_session_enrichment_service",
+        lambda current_sessions, current_activities: SessionEnrichmentService(
+            current_sessions,
+            current_activities,
+            conditions=Conditions(),
+        ),
+    )
+
+    first = process_provider_email(
+        "ovh", _email(FIXTURE_PATH.read_bytes(), provider_message_id="456:auto-1"),
+        sailors, boats, activities, sessions, history,
+    )
+    second = process_provider_email(
+        "ovh", _email(FIXTURE_PATH.read_bytes(), provider_message_id="456:auto-2"),
+        sailors, boats, activities, sessions, history,
+    )
+
+    assert first is not None and first.session_match.status == "created"
+    assert second is not None and second.session_match.status == "already assigned"
+    assert calls == 1
 
 
 def test_eager_analytics_persists_unavailable_artifact_without_hdg(

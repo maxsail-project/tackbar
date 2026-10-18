@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Protocol
@@ -16,6 +17,7 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
 RECENT_ARCHIVE_DAYS = 92
+logger = logging.getLogger(__name__)
 
 WEATHER_FIELDS = {
     "temperature_2m": "air_temperature_c",
@@ -128,7 +130,7 @@ class OpenMeteoHistoricalConditionsProvider:
     ) -> tuple[HistoricalConditionsSource | None, dict[datetime, dict[str, float]]]:
         try:
             payload = self._http_get(url, self._timeout_seconds)
-            return _normalize_source(
+            source, samples = _normalize_source(
                 payload,
                 route,
                 field_map,
@@ -136,7 +138,11 @@ class OpenMeteoHistoricalConditionsProvider:
                 coverage_end,
                 retrieved_at,
             )
+            if source is None:
+                logger.info("Open-Meteo %s returned no usable result", route)
+            return source, samples
         except Exception:
+            logger.warning("Open-Meteo %s request failed", route)
             return None, {}
 
     @staticmethod

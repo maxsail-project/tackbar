@@ -11,6 +11,18 @@ import pytest
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def isolate_automatic_session_enrichment_from_external_providers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.session_enrichment import SessionEnrichmentService
+
+    monkeypatch.setattr(
+        "app.services.ingestion_processing.automatic_session_enrichment_service",
+        lambda sessions, activities: SessionEnrichmentService(sessions, activities),
+    )
+
+
 @pytest.fixture
 def vakaros_vkx_bytes() -> bytes:
     header = bytes([0xFF, 0x05]) + bytes(6)

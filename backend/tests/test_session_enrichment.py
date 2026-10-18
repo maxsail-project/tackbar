@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -255,6 +256,49 @@ def test_open_meteo_routes_older_requests_and_isolates_partial_source_failure() 
     assert result.hourly[0].air_temperature_c is None
 
 
+def test_open_meteo_marine_failure_does_not_prevent_weather() -> None:
+    calls: list[str] = []
+
+    def get(url: str, _timeout: float) -> object:
+        calls.append(url)
+        if "marine-api" in url:
+            raise TimeoutError("marine unavailable")
+        return _open_meteo_payload()
+
+    result = OpenMeteoHistoricalConditionsProvider(
+        clock=lambda: _time(10, 18, 12),
+        http_get=get,
+    ).fetch(
+        39.41, -0.29,
+        _time(10, 17, 6), _time(10, 17, 8), _time(10, 17, 12),
+    )
+
+    assert result is not None
+    assert len(calls) == 2
+    assert result.weather_source is not None
+    assert result.marine_source is None
+    assert result.hourly[0].air_temperature_c == 22.0
+
+
+def test_open_meteo_complete_failure_returns_no_context() -> None:
+    calls: list[str] = []
+
+    def fail(url: str, _timeout: float) -> object:
+        calls.append(url)
+        raise TimeoutError("provider unavailable")
+
+    result = OpenMeteoHistoricalConditionsProvider(
+        clock=lambda: _time(10, 18, 12),
+        http_get=fail,
+    ).fetch(
+        39.41, -0.29,
+        _time(10, 17, 6), _time(10, 17, 8), _time(10, 17, 12),
+    )
+
+    assert result is None
+    assert len(calls) == 2
+
+
 def test_admin_enrichment_uses_session_center_and_plus_minus_three_hours(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
@@ -287,7 +331,7 @@ def test_admin_enrichment_uses_session_center_and_plus_minus_three_hours(
     assert sessions.get_by_id("session-a").historical_conditions is not None
 
 
-def test_geocoding_failure_isolated_and_automatic_path_has_no_conditions_provider(
+def test_automatic_context_attempts_conditions_when_geocoding_fails(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     activities, sessions = _repositories(temporary_json_file)
@@ -296,16 +340,95 @@ def test_geocoding_failure_isolated_and_automatic_path_has_no_conditions_provide
         def reverse(self, _latitude, _longitude):
             raise TimeoutError("provider unavailable")
 
+    class Conditions:
+        def fetch(self, latitude, longitude, coverage_start, coverage_end, _session_end):
+            return HistoricalConditions(
+                coverage_start=coverage_start,
+                coverage_end=coverage_end,
+                requested_latitude=latitude,
+                requested_longitude=longitude,
+                weather_source=_source("forecast"),
+                marine_source=None,
+                hourly=[HistoricalConditionsSample(
+                    time=_time(10, 17, 10),
+                    air_temperature_c=22,
+                )],
+            )
+
     SessionEnrichmentService(
         sessions,
         activities,
         geocoding=FailingGeocoder(),
-    ).enrich_new_session_geography("session-a")
+        conditions=Conditions(),
+    ).enrich_new_session_context("session-a")
 
     persisted = sessions.get_by_id("session-a")
     assert persisted is not None
     assert persisted.location_label is None
-    assert automatic_session_enrichment_service(sessions, activities).conditions is None
+    assert persisted.historical_conditions is not None
+
+
+def test_automatic_service_configures_open_meteo_without_geoapify(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch,
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    monkeypatch.delenv("TACKBAR_GEOAPIFY_API_KEY", raising=False)
+
+    service = automatic_session_enrichment_service(sessions, activities)
+
+    assert service.geocoding is None
+    assert isinstance(service.conditions, OpenMeteoHistoricalConditionsProvider)
+
+
+def test_automatic_context_attempts_conditions_without_geocoding_configuration(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    calls = 0
+
+    class Conditions:
+        def fetch(self, *_args):
+            nonlocal calls
+            calls += 1
+            return None
+
+    SessionEnrichmentService(
+        sessions,
+        activities,
+        geocoding=None,
+        conditions=Conditions(),
+    ).enrich_new_session_context("session-a")
+
+    assert calls == 1
+
+
+def test_automatic_context_logging_does_not_include_provider_credential(
+    temporary_json_file: Callable[[str, object], Path],
+    caplog,
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    secret = "geoapify-super-secret"
+
+    class FailingGeocoder:
+        def reverse(self, _latitude, _longitude):
+            raise RuntimeError(secret)
+
+    class NoConditions:
+        def fetch(self, *_args):
+            return None
+
+    with caplog.at_level(logging.INFO):
+        SessionEnrichmentService(
+            sessions,
+            activities,
+            geocoding=FailingGeocoder(),
+            conditions=NoConditions(),
+        ).enrich_new_session_context("session-a")
+
+    assert secret not in caplog.text
+    assert "geographic enrichment failed" in caplog.text
+    assert "historical-conditions enrichment returned no usable result" in caplog.text
 
 
 def test_admin_geography_failure_does_not_prevent_conditions_enrichment(

@@ -363,7 +363,7 @@ def _process_known_email(
         automatic_session_enrichment_service(
             sessions,
             activities,
-        ).enrich_new_session_geography(session_match.session.id)
+        ).enrich_new_session_context(session_match.session.id)
         refreshed_session = sessions.get_by_id(session_match.session.id)
         if refreshed_session is not None:
             session_match.session = refreshed_session

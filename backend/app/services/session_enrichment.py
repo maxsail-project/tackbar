@@ -1,3 +1,4 @@
+import logging
 from dataclasses import replace
 from datetime import timedelta
 
@@ -13,6 +14,9 @@ from app.session_context_providers.historical_conditions import (
     HistoricalConditionsProvider,
     OpenMeteoHistoricalConditionsProvider,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class SessionEnrichmentService:
@@ -36,6 +40,29 @@ class SessionEnrichmentService:
         except Exception:
             return
 
+    def enrich_new_session_context(self, session_id: str) -> None:
+        """Best-effort context; authoritative ingestion is already complete."""
+        try:
+            geography_result = self._enrich_missing_geography(session_id)
+        except Exception:
+            geography_result = "failed"
+        geography_log = logger.warning if geography_result == "failed" else logger.info
+        geography_log(
+            "Automatic Session geographic enrichment %s for Session %s",
+            geography_result,
+            session_id,
+        )
+        try:
+            conditions_result = self._refresh_conditions(session_id)
+        except Exception:
+            conditions_result = "failed"
+        conditions_log = logger.warning if conditions_result == "failed" else logger.info
+        conditions_log(
+            "Automatic Session historical-conditions enrichment %s for Session %s",
+            conditions_result,
+            session_id,
+        )
+
     def enrich_from_admin(self, session_id: str) -> None:
         session = self.sessions.get_by_id(session_id)
         if session is None:
@@ -43,24 +70,28 @@ class SessionEnrichmentService:
         self._enrich_missing_geography(session_id)
         self._refresh_conditions(session_id)
 
-    def _enrich_missing_geography(self, session_id: str) -> None:
+    def _enrich_missing_geography(self, session_id: str) -> str:
         session = self.sessions.get_by_id(session_id)
-        if session is None or session.location_label is not None or self.geocoding is None:
-            return
+        if session is None:
+            return "unavailable (Session missing)"
+        if session.location_label is not None:
+            return "skipped (already persisted)"
+        if self.geocoding is None:
+            return "unavailable (provider not configured)"
         if not session.activity_ids:
-            return
+            return "unavailable (creator Activity missing)"
         activity = self.activities.get_by_id(session.activity_ids[0])
         if activity is None:
-            return
+            return "unavailable (creator Activity missing)"
         try:
             context = self.geocoding.reverse(activity.start_lat, activity.start_lon)
         except Exception:
-            return
+            return "failed"
         if context is None:
-            return
+            return "returned no usable result"
         current = self.sessions.get_by_id(session_id)
         if current is None or current.location_label is not None:
-            return
+            return "skipped (Session changed)"
         self.sessions.replace(replace(
             current,
             location_label=context.label,
@@ -71,13 +102,14 @@ class SessionEnrichmentService:
             location_resolved_at=context.resolved_at,
             location_source_activity_id=activity.id,
         ))
+        return "persisted"
 
-    def _refresh_conditions(self, session_id: str) -> None:
+    def _refresh_conditions(self, session_id: str) -> str:
         if self.conditions is None:
-            return
+            return "unavailable (provider not configured)"
         session = self.sessions.get_by_id(session_id)
         if session is None:
-            return
+            return "unavailable (Session missing)"
         persisted_activities = [
             self.activities.get_by_id(activity_id)
             for activity_id in session.activity_ids
@@ -85,7 +117,7 @@ class SessionEnrichmentService:
         if not persisted_activities or any(
             activity is None for activity in persisted_activities
         ):
-            return
+            return "unavailable (Activity context missing)"
         activity_values = [
             activity for activity in persisted_activities if activity is not None
         ]
@@ -106,12 +138,22 @@ class SessionEnrichmentService:
                 end_time,
             )
         except Exception:
-            return
+            return "failed"
         if conditions is None:
-            return
+            return "returned no usable result"
         current = self.sessions.get_by_id(session_id)
-        if current is not None:
-            self.sessions.replace(replace(current, historical_conditions=conditions))
+        if current is None:
+            return "unavailable (Session missing)"
+        self.sessions.replace(replace(current, historical_conditions=conditions))
+        sources = [
+            name
+            for name, source in (
+                ("Weather", conditions.weather_source),
+                ("Marine", conditions.marine_source),
+            )
+            if source is not None
+        ]
+        return f"persisted ({' + '.join(sources)})"
 
 
 def configured_geocoding_provider() -> GeocodingProvider | None:
@@ -129,6 +171,7 @@ def automatic_session_enrichment_service(
         sessions,
         activities,
         geocoding=configured_geocoding_provider(),
+        conditions=OpenMeteoHistoricalConditionsProvider(),
     )
 
 
