@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackBounds } from '../utils/trackGeometry'
 import {
@@ -11,6 +11,7 @@ import {
   formatMapCogValue,
   MapTelemetryOverlay,
   maneuverFocusCameraOptions,
+  openContextualActivityPopup,
   resolveMapFocusPosition,
   shouldRefitForContextChange,
   trackFitOptions,
@@ -204,6 +205,17 @@ describe('contextual Activity identity affordance', () => {
 
     expect(markup).toContain('<strong>Context One</strong>')
     expect(markup).toContain('<button type="button">Compare</button>')
+  })
+
+  it('stops the marker tap from reaching the map before opening the popup', () => {
+    const stopPropagation = vi.fn()
+
+    const activityId = openContextualActivityPopup('activity-context', {
+      stopPropagation,
+    })
+
+    expect(stopPropagation).toHaveBeenCalledOnce()
+    expect(activityId).toBe('activity-context')
   })
 })
 

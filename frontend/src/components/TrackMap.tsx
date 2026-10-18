@@ -212,6 +212,14 @@ function BoatMarker({
   )
 }
 
+export function openContextualActivityPopup(
+  activityId: string,
+  event: { stopPropagation: () => void },
+) {
+  event.stopPropagation()
+  return activityId
+}
+
 export function ContextualActivityAffordance({
   identity,
   onCompare,
@@ -556,8 +564,9 @@ export default function TrackMap({
               className="contextual-boat-marker"
               aria-label={`Inspect ${activity.identity}`}
               onClick={(event) => {
-                event.stopPropagation()
-                setInspectedContextualActivityId(activity.id)
+                setInspectedContextualActivityId(
+                  openContextualActivityPopup(activity.id, event),
+                )
               }}
             >
               <BoatMarker
@@ -575,7 +584,7 @@ export default function TrackMap({
             latitude={inspectedContextualActivity.boatPosition.lat}
             anchor="bottom"
             offset={18}
-            closeOnClick={false}
+            closeOnClick
             onClose={() => setInspectedContextualActivityId(null)}
             className="contextual-activity-popup"
           >
