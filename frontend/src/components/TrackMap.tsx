@@ -3,6 +3,7 @@ import Map, {
   Layer,
   Marker,
   NavigationControl,
+  Popup,
   Source,
   type MapRef,
 } from 'react-map-gl/maplibre'
@@ -26,9 +27,18 @@ export interface MapFocusRequest {
   requestId: number
 }
 
+export interface ContextualMapActivity {
+  id: string
+  identity: string
+  visibleSamples: TrackSample[]
+  boatPosition: TrackPosition | null
+  cog: number | null
+}
+
 interface TrackMapProps {
   primaryVisibleSamples: TrackSample[]
   comparisonVisibleSamples?: TrackSample[]
+  contextualActivities?: ContextualMapActivity[]
   fitContextKey: string
   focusRequest?: MapFocusRequest | null
   primaryActivityIdentity: string
@@ -45,6 +55,7 @@ interface TrackMapProps {
   comparisonCog?: number | null
   comparisonHeel?: number | null
   comparisonTrim?: number | null
+  onCompareContextualActivity?: (activityId: string) => void
 }
 
 interface MapTelemetryOverlayProps {
@@ -72,6 +83,12 @@ const COMPARISON_TRACK_PAINT = {
   'line-color': ACTIVITY_COLORS.comparison,
   'line-opacity': 0.88,
   'line-width': 4,
+}
+
+const CONTEXTUAL_TRACK_PAINT = {
+  'line-color': ACTIVITY_COLORS.contextual,
+  'line-opacity': 0.42,
+  'line-width': 2,
 }
 
 const TRACK_LAYOUT = {
@@ -195,6 +212,21 @@ function BoatMarker({
   )
 }
 
+export function ContextualActivityAffordance({
+  identity,
+  onCompare,
+}: {
+  identity: string
+  onCompare: () => void
+}) {
+  return (
+    <div className="contextual-activity-affordance">
+      <strong>{identity}</strong>
+      <button type="button" onClick={onCompare}>Compare</button>
+    </div>
+  )
+}
+
 export function MapTelemetryOverlay({
   hasComparison,
   primaryActivityIdentity,
@@ -298,6 +330,7 @@ export function MapTelemetryOverlay({
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
+  contextualActivities = [],
   fitContextKey,
   focusRequest = null,
   primaryActivityIdentity,
@@ -314,9 +347,11 @@ export default function TrackMap({
   comparisonCog = null,
   comparisonHeel = null,
   comparisonTrim = null,
+  onCompareContextualActivity,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
   const [mapBearing, setMapBearing] = useState(0)
+  const [inspectedContextualActivityId, setInspectedContextualActivityId] = useState<string | null>(null)
   const fittedContextKeyRef = useRef<string | null>(null)
   const handledFocusRequestIdRef = useRef<number | null>(null)
   const primaryGeometry = useMemo(
@@ -331,6 +366,23 @@ export default function TrackMap({
       : null,
     [comparisonVisibleSamples],
   )
+  const contextualGeometryKey = contextualActivities.map((activity) => [
+    activity.id,
+    activity.visibleSamples.length,
+    activity.visibleSamples[0]?.utc ?? '',
+    activity.visibleSamples[activity.visibleSamples.length - 1]?.utc ?? '',
+  ].join(':')).join('|')
+  const contextualGeometries = useMemo(
+    () => contextualActivities.map((activity) => ({
+      activity,
+      geometry: activity.visibleSamples.length >= 2
+        ? buildTrackGeometry(activity.visibleSamples)
+        : null,
+    })),
+    // Replay updates marker state, but geometry changes only with Activities/window.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contextualGeometryKey],
+  )
   const combinedBounds = useMemo(
     () => currentVisibleTrackBounds(
       primaryGeometry?.bounds ?? null,
@@ -339,6 +391,9 @@ export default function TrackMap({
     [comparisonGeometry, primaryGeometry],
   )
   const windowFocus = primaryVisibleSamples[0]
+  const inspectedContextualActivity = contextualActivities.find(
+    (activity) => activity.id === inspectedContextualActivityId,
+  ) ?? null
   const fitTrack = useCallback(() => {
     if (!mapRef.current || !windowFocus) return
 
@@ -385,6 +440,17 @@ export default function TrackMap({
     mapRef.current.easeTo(maneuverFocusCameraOptions(focusPosition, mapHeight))
   }, [comparisonBoatPosition, focusRequest, primaryBoatPosition])
 
+  useEffect(() => {
+    if (
+      inspectedContextualActivityId !== null
+      && !contextualActivities.some(
+        (activity) => activity.id === inspectedContextualActivityId,
+      )
+    ) {
+      setInspectedContextualActivityId(null)
+    }
+  }, [contextualActivities, inspectedContextualActivityId])
+
   if (!windowFocus) return null
 
   return (
@@ -407,6 +473,21 @@ export default function TrackMap({
         onRotate={(event) => setMapBearing(event.viewState.bearing)}
       >
         <NavigationControl position="top-right" />
+        {contextualGeometries.map(({ activity, geometry }) => geometry && (
+          <Source
+            key={activity.id}
+            id={`contextual-activity-track-${activity.id}`}
+            type="geojson"
+            data={geometry.geoJson}
+          >
+            <Layer
+              id={`contextual-activity-track-line-${activity.id}`}
+              type="line"
+              paint={CONTEXTUAL_TRACK_PAINT}
+              layout={TRACK_LAYOUT}
+            />
+          </Source>
+        ))}
         {primaryGeometry && (
           <Source
             id="primary-activity-track"
@@ -462,6 +543,50 @@ export default function TrackMap({
               mapBearing={mapBearing}
             />
           </Marker>
+        )}
+        {contextualActivities.map((activity) => activity.boatPosition && (
+          <Marker
+            key={activity.id}
+            longitude={activity.boatPosition.lon}
+            latitude={activity.boatPosition.lat}
+            anchor="center"
+          >
+            <button
+              type="button"
+              className="contextual-boat-marker"
+              aria-label={`Inspect ${activity.identity}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                setInspectedContextualActivityId(activity.id)
+              }}
+            >
+              <BoatMarker
+                color={ACTIVITY_COLORS.contextual}
+                cog={activity.cog}
+                label={`${activity.identity} contextual boat position`}
+                mapBearing={mapBearing}
+              />
+            </button>
+          </Marker>
+        ))}
+        {inspectedContextualActivity?.boatPosition && (
+          <Popup
+            longitude={inspectedContextualActivity.boatPosition.lon}
+            latitude={inspectedContextualActivity.boatPosition.lat}
+            anchor="bottom"
+            offset={18}
+            closeOnClick={false}
+            onClose={() => setInspectedContextualActivityId(null)}
+            className="contextual-activity-popup"
+          >
+            <ContextualActivityAffordance
+              identity={inspectedContextualActivity.identity}
+              onCompare={() => {
+                setInspectedContextualActivityId(null)
+                onCompareContextualActivity?.(inspectedContextualActivity.id)
+              }}
+            />
+          </Popup>
         )}
       </Map>
       <div

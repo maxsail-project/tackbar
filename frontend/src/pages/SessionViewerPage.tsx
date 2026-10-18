@@ -29,6 +29,7 @@ import ManeuverEventTable, {
   type ManeuverPresentationStatus,
 } from '../components/ManeuverEventTable'
 import TrackMap, {
+  type ContextualMapActivity,
   createMapFitContextKey,
   type MapFocusRequest,
 } from '../components/TrackMap'
@@ -39,6 +40,7 @@ import {
 } from '../components/SessionShare'
 import type {
   SessionAccess,
+  SessionActivity,
   SessionDetail,
   SharedSessionDetail,
   TemporarySessionDetail,
@@ -65,7 +67,7 @@ import {
   resolveReplayPresentation,
 } from '../utils/metricPresentation'
 import { calculateSummaryMetrics, type SummaryMetrics } from '../utils/summaryMetrics'
-import { formatActivityIdentity } from '../utils/activityLabel'
+import { formatActivityIdentity, formatActivityLabel } from '../utils/activityLabel'
 import { formatSessionDuration, formatSessionRange } from '../utils/sessionPresentation'
 import {
   deriveDisplayManeuvers,
@@ -133,6 +135,117 @@ function useActivityTrack(
   }, [access.kind, access.token, activityId, cache])
 
   return state
+}
+
+function useContextualActivityTracks(
+  access: SessionAccess,
+  activityIds: string[],
+  cache: Map<string, ActivityTrack>,
+) {
+  const activityIdsKey = activityIds.join('\u0000')
+  const [tracks, setTracks] = useState<Map<string, ActivityTrack>>(new Map())
+
+  useEffect(() => {
+    const controllers: AbortController[] = []
+    let isCurrent = true
+    const requestedIds = activityIdsKey === '' ? [] : activityIdsKey.split('\u0000')
+    const cachedTracks = new Map<string, ActivityTrack>()
+
+    requestedIds.forEach((activityId) => {
+      const cachedTrack = cache.get(activityId)
+      if (cachedTrack) cachedTracks.set(activityId, cachedTrack)
+    })
+    setTracks(cachedTracks)
+
+    requestedIds.forEach((activityId) => {
+      if (cachedTracks.has(activityId)) return
+      const controller = new AbortController()
+      controllers.push(controller)
+      getActivityTrackForAccess(access, activityId, controller.signal).then((track) => {
+        if (!isCurrent || track.activity_id !== activityId) return
+        cache.set(activityId, track)
+        setTracks((current) => new Map(current).set(activityId, track))
+      }).catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        // Fleet context is optional; an unavailable track must not break the debrief.
+      })
+    })
+
+    return () => {
+      isCurrent = false
+      controllers.forEach((controller) => controller.abort())
+    }
+  }, [access.kind, access.token, activityIdsKey, cache])
+
+  return tracks
+}
+
+export function promoteContextualActivityToComparison(
+  primaryActivityId: string,
+  contextualActivityId: string,
+) {
+  return contextualActivityId === primaryActivityId ? null : contextualActivityId
+}
+
+export function createContextualMapActivities(
+  activities: SessionActivity[],
+  primaryActivityId: string,
+  comparisonActivityId: string | null,
+  tracks: Map<string, ActivityTrack>,
+  analysisWindow: AnalysisWindowRange | null,
+): ContextualMapActivity[] {
+  if (analysisWindow === null) return []
+
+  return activities.flatMap((activity) => {
+    if (
+      activity.id === primaryActivityId
+      || activity.id === comparisonActivityId
+    ) return []
+
+    const track = tracks.get(activity.id)
+    if (!track) return []
+    const visibleSamples = filterSamplesByAnalysisWindow(
+      track.samples,
+      analysisWindow.start,
+      analysisWindow.end,
+    )
+    if (visibleSamples.length === 0) return []
+
+    return [{
+      id: activity.id,
+      identity: formatActivityLabel(activity),
+      visibleSamples,
+      boatPosition: null,
+      cog: null,
+    }]
+  })
+}
+
+export function synchronizeContextualMapActivities(
+  activities: ContextualMapActivity[],
+  playbackTime: number,
+): ContextualMapActivity[] {
+  return activities.map((activity) => {
+    const firstTime = timestampToMilliseconds(activity.visibleSamples[0].utc)
+    const lastTime = timestampToMilliseconds(
+      activity.visibleSamples[activity.visibleSamples.length - 1].utc,
+    )
+    if (playbackTime < firstTime || playbackTime > lastTime) {
+      return activity.boatPosition === null && activity.cog === null
+        ? activity
+        : { ...activity, boatPosition: null, cog: null }
+    }
+
+    const replayPresentation = resolveReplayPresentation(
+      activity.visibleSamples,
+      playbackTime,
+    )
+    return {
+      ...activity,
+      boatPosition: replayPresentation.position,
+      cog: replayPresentation.cog,
+    }
+  })
 }
 
 type ManeuverLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
@@ -307,6 +420,20 @@ export function SessionViewer({
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
   const [shareStatus, setShareStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [temporaryShare, setTemporaryShare] = useState<TemporarySessionShare | null>(null)
+  const contextualActivityIds = useMemo(
+    () => session.activities
+      .filter((activity) => (
+        activity.id !== primaryActivityId
+        && activity.id !== comparisonActivityId
+      ))
+      .map((activity) => activity.id),
+    [comparisonActivityId, primaryActivityId, session.activities],
+  )
+  const contextualTracks = useContextualActivityTracks(
+    access,
+    contextualActivityIds,
+    trackCache,
+  )
 
   const primaryActivity = session.activities.find(
     (activity) => activity.id === primaryActivityId,
@@ -429,6 +556,29 @@ export function SessionViewer({
     ),
     [comparisonWindowSamples, playbackTime],
   )
+  const contextualWindowActivities = useMemo(
+    () => createContextualMapActivities(
+      session.activities,
+      primaryActivityId,
+      comparisonActivityId,
+      contextualTracks,
+      analysisWindow,
+    ),
+    [
+      analysisWindow,
+      comparisonActivityId,
+      contextualTracks,
+      primaryActivityId,
+      session.activities,
+    ],
+  )
+  const contextualMapActivities = useMemo(
+    () => synchronizeContextualMapActivities(
+      contextualWindowActivities,
+      playbackTime,
+    ),
+    [contextualWindowActivities, playbackTime],
+  )
   const primaryManeuverAnalytics = resolveSelectedManeuverAnalytics(
     primaryManeuverState,
     primaryActivityId || null,
@@ -542,6 +692,13 @@ export function SessionViewer({
     setComparisonActivityId(
       activityId === primaryActivityId ? null : activityId,
     )
+  }
+
+  function compareContextualActivity(activityId: string) {
+    changeComparison(promoteContextualActivityToComparison(
+      primaryActivityId,
+      activityId,
+    ))
   }
 
   function togglePlayback() {
@@ -713,6 +870,7 @@ export function SessionViewer({
         <TrackMap
           primaryVisibleSamples={primaryWindowSamples}
           comparisonVisibleSamples={comparisonWindowSamples}
+          contextualActivities={contextualMapActivities}
           fitContextKey={createMapFitContextKey(
             primaryTrack.activity_id,
             comparisonTrack?.activity_id ?? null,
@@ -736,6 +894,7 @@ export function SessionViewer({
           comparisonCog={comparisonReplayPresentation.cog}
           comparisonHeel={comparisonReplayPresentation.heel}
           comparisonTrim={comparisonReplayPresentation.trim}
+          onCompareContextualActivity={compareContextualActivity}
         />
       ) : (
         <section className="track-unavailable" aria-live="polite">

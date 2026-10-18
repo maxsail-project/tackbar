@@ -594,6 +594,68 @@ input:focus-visible {
   transform: scale(0.88);
 }
 
+.contextual-boat-marker {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.contextual-boat-marker .boat-marker {
+  width: 26px;
+  height: 26px;
+  opacity: 0.72;
+  filter: drop-shadow(0 2px 3px rgb(5 36 43 / 32%));
+}
+
+.contextual-boat-marker .boat-marker__hull {
+  width: 26px;
+  height: 26px;
+}
+
+.contextual-boat-marker:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
+.contextual-activity-popup .maplibregl-popup-content {
+  min-width: 148px;
+  padding: 12px;
+  border-radius: 8px;
+  color: #17383f;
+  box-shadow: 0 5px 18px rgb(7 31 37 / 24%);
+}
+
+.contextual-activity-affordance {
+  display: grid;
+  gap: 9px;
+}
+
+.contextual-activity-affordance strong {
+  padding-right: 16px;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.contextual-activity-affordance button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #426b74;
+  border-radius: 6px;
+  color: #fff;
+  background: #315e68;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .content-section,
 .metric-chart {
   padding: 20px 16px;

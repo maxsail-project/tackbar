@@ -3,10 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createAnalysisWindowReplay,
   createAnalysisWindowSummaryMetrics,
+  createContextualMapActivities,
   createTimelineManeuverNavigation,
+  promoteContextualActivityToComparison,
   resolveSelectedDisplayManeuver,
   resolveSelectedManeuverAnalytics,
   SharedSessionUnavailable,
+  synchronizeContextualMapActivities,
   TemporaryAccessUnavailable,
 } from './SessionViewerPage'
 import { formatSessionDuration } from '../utils/sessionPresentation'
@@ -14,6 +17,8 @@ import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { SummaryMetrics } from '../utils/summaryMetrics'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
+import type { SessionActivity } from '../types/session'
+import type { ActivityTrack, TrackSample } from '../types/track'
 
 const analytics: ActivityManeuverAnalytics = {
   activity_id: 'activity-a',
@@ -26,6 +31,45 @@ function readyAnalyticsState(activityId: string) {
     activityId,
     status: 'ready' as const,
     analytics: { ...analytics, activity_id: activityId },
+  }
+}
+
+function sessionActivity(id: string, identity: string): SessionActivity {
+  return {
+    id,
+    source: 'test',
+    device_name: 'Synthetic device',
+    original_filename: `${id}.csv.gz`,
+    start_time: '2031-01-01T10:00:00Z',
+    end_time: '2031-01-01T10:00:04Z',
+    sample_count: 3,
+    sailor: { id: `sailor-${id}`, name: identity, email: `${id}@example.test` },
+    boat: null,
+  }
+}
+
+function trackSample(utc: string, lat: number, lon: number, cog = 90): TrackSample {
+  return {
+    utc,
+    lat,
+    lon,
+    dist: 0,
+    sog: 4,
+    cog,
+    hdg: null,
+    heel: null,
+    trim: null,
+  }
+}
+
+function activityTrack(activityId: string, latitude: number): ActivityTrack {
+  return {
+    activity_id: activityId,
+    samples: [
+      trackSample('2031-01-01T10:00:00Z', latitude, -30.72),
+      trackSample('2031-01-01T10:00:02Z', latitude, -30.70),
+      trackSample('2031-01-01T10:00:04Z', latitude, -30.68),
+    ],
   }
 }
 
@@ -66,6 +110,72 @@ describe('Session summary presentation', () => {
       { sailor: { id: 'sailor-b' } },
     ]
     expect(new Set(activities.map((activity) => activity.sailor.id)).size).toBe(2)
+  })
+})
+
+describe('fleet context map state', () => {
+  const activities = [
+    sessionActivity('primary', 'Primary Sailor'),
+    sessionActivity('comparison', 'Comparison Sailor'),
+    sessionActivity('context-one', 'Context One'),
+    sessionActivity('context-two', 'Context Two'),
+  ]
+  const tracks = new Map<string, ActivityTrack>([
+    ['context-one', activityTrack('context-one', 0.26)],
+    ['context-two', activityTrack('context-two', 0.27)],
+  ])
+  const analysisWindow = {
+    start: Date.parse('2031-01-01T10:00:01Z'),
+    end: Date.parse('2031-01-01T10:00:03Z'),
+  }
+
+  it('derives only non-selected, window-scoped contextual tracks and replay positions', () => {
+    const context = synchronizeContextualMapActivities(createContextualMapActivities(
+      activities,
+      'primary',
+      'comparison',
+      tracks,
+      analysisWindow,
+    ), Date.parse('2031-01-01T10:00:02Z'))
+
+    expect(context.map((activity) => activity.id)).toEqual([
+      'context-one',
+      'context-two',
+    ])
+    expect(context[0].visibleSamples.map((sample) => sample.utc)).toEqual([
+      '2031-01-01T10:00:02Z',
+    ])
+    expect(context[0].identity).toContain('Context One')
+    expect(context[0].identity).toContain('10:00')
+    expect(context[0].boatPosition).toEqual({ lat: 0.26, lon: -30.70 })
+    expect(context[0].cog).toBe(90)
+  })
+
+  it('does not hold a contextual marker outside that Activity coverage', () => {
+    const context = synchronizeContextualMapActivities(createContextualMapActivities(
+      activities,
+      'primary',
+      'comparison',
+      tracks,
+      analysisWindow,
+    ), Date.parse('2031-01-01T10:00:03Z'))
+
+    expect(context.every((activity) => activity.boatPosition === null)).toBe(true)
+  })
+
+  it('omits unavailable context without changing the active pair', () => {
+    const context = createContextualMapActivities(
+      activities,
+      'primary',
+      'comparison',
+      new Map([['context-one', activityTrack('context-one', 0.26)]]),
+      analysisWindow,
+    )
+
+    expect(context.map((activity) => activity.id)).toEqual(['context-one'])
+    expect(promoteContextualActivityToComparison('primary', 'context-one'))
+      .toBe('context-one')
+    expect(promoteContextualActivityToComparison('primary', 'primary')).toBeNull()
   })
 })
 

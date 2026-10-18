@@ -5,6 +5,7 @@ import type { TrackBounds } from '../utils/trackGeometry'
 import {
   boatMarkerRotation,
   createMapFitContextKey,
+  ContextualActivityAffordance,
   currentVisibleTrackBounds,
   formatMapBearing,
   formatMapCogValue,
@@ -176,6 +177,33 @@ describe('map viewport fitting', () => {
       [-30.74, 0.25],
       [-30.70, 0.28],
     ])
+  })
+
+  it('keeps fleet context outside the active-pair fit calculation', () => {
+    const primaryBounds: TrackBounds = [[-30.73, 0.25], [-30.71, 0.27]]
+    const comparisonBounds: TrackBounds = [[-30.74, 0.26], [-30.70, 0.28]]
+    const contextualBounds: TrackBounds = [[-50, -20], [50, 20]]
+
+    expect(currentVisibleTrackBounds(primaryBounds, comparisonBounds)).toEqual([
+      [-30.74, 0.25],
+      [-30.70, 0.28],
+    ])
+    expect(currentVisibleTrackBounds(primaryBounds, comparisonBounds))
+      .not.toEqual(contextualBounds)
+  })
+})
+
+describe('contextual Activity identity affordance', () => {
+  it('shows identity and requires an explicit Compare action', () => {
+    const markup = renderToStaticMarkup(
+      ContextualActivityAffordance({
+        identity: 'Context One',
+        onCompare: () => undefined,
+      }),
+    )
+
+    expect(markup).toContain('<strong>Context One</strong>')
+    expect(markup).toContain('<button type="button">Compare</button>')
   })
 })
 
