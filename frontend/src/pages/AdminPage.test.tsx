@@ -26,7 +26,7 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   diagnostic: { session: { id: 'session-123' }, temporary_shares: [{ id: 'share-1', state: 'VALID' }] },
 })
 const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
-const sourceIngestion: AdminIngestion = { id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'pilot@example.test', received_at: '2026-09-05T17:25:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: '2026-09-05T17:26:00Z', last_error: null, activity_id: activity.id, session_id: activity.session_id, sailor_id: activity.sailor_id, sailor_label: activity.sailor_label, sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: activity.start_time, activity_end_time: activity.end_time, activity_sample_count: activity.sample_count }
+const sourceIngestion: AdminIngestion = { id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'pilot@example.test', received_at: '2026-09-05T17:25:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: '2026-09-05T17:26:00Z', last_error: null, activity_id: activity.id, session_id: activity.session_id, activity_created_by_ingestion: true, sailor_id: activity.sailor_id, sailor_label: activity.sailor_label, sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: activity.start_time, activity_end_time: activity.end_time, activity_sample_count: activity.sample_count }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
@@ -506,16 +506,37 @@ describe('minimal Admin UI', () => {
   })
 
   it('keeps ingestion rows compact and makes the whole summary the open control', () => {
-    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', disposition: 'active', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, sailor_id: null, sailor_label: null, sailor_email: null, sailor_consent_status: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
+    const base: AdminIngestion = { id: 'ing-1', provider: 'gmail', provider_message_id: 'message-1', sender_email: 'sailor@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'failed', disposition: 'active', attempts: 2, last_attempt_at: '2026-08-28T12:00:00Z', last_error: 'Invalid attachment', activity_id: null, session_id: null, activity_created_by_ingestion: null, sailor_id: null, sailor_label: null, sailor_email: null, sailor_consent_status: null, original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null }
     const actions = { onSelect: () => undefined, onFollow: () => undefined, onReprocess: () => undefined, onDiscard: () => undefined, onRestore: () => undefined }
     const failed = renderToStaticMarkup(<IngestionCard ingestion={base} busy={false} {...actions} />)
-    const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-123456789', session_id: 'session-123456789', disposition: 'discarded' }} busy={false} {...actions} />)
+    const processed = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, status: 'processed', last_error: null, activity_id: 'activity-123456789', session_id: 'session-123456789', activity_created_by_ingestion: true, disposition: 'discarded' }} busy={false} {...actions} />)
     expect(failed).toContain('aria-expanded="false"'); expect(failed).toContain('Failed'); expect(failed).toContain('track.csv.gz'); expect(failed).toContain('sailor@example.test'); expect(failed).not.toContain('Invalid attachment'); expect(failed).not.toContain('Received'); expect(failed).not.toContain('Attempts'); expect(failed).not.toContain('Reprocess')
     expect(failed).toContain('admin-entity-summary admin-ingestion-summary')
     expect(failed).toContain('admin-disclosure-affordance')
-    expect(processed).toContain('Processed'); expect(processed).toContain('Discarded'); expect(processed).not.toContain('Activity activity…'); expect(processed).not.toContain('Session session-…'); expect(processed).not.toContain('Restore'); expect(processed).not.toContain('Read-only JSON')
+    expect(failed).not.toContain('Activity creation status unknown')
+    expect(processed).toContain('Processed'); expect(processed).toContain('Activity created'); expect(processed).toContain('Discarded'); expect(processed).not.toContain('Activity activity…'); expect(processed).not.toContain('Session session-…'); expect(processed).not.toContain('Restore'); expect(processed).not.toContain('Read-only JSON')
     expect(failed).toContain('state-badge state-expired')
     expect(processed).toContain('state-badge state-active')
+  })
+
+  it.each([
+    [true, 'Activity created'],
+    [false, 'Existing Activity reused'],
+    [null, 'Activity creation status unknown'],
+  ] as const)('shows processed Activity provenance in the compact summary for %s', (provenance, expected) => {
+    const ingestion: AdminIngestion = {
+      id: 'ing-2', provider: 'ovh', provider_message_id: 'message-2', sender_email: 'sailor@example.test', received_at: null,
+      attachment_name: 'track.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: null, last_error: null,
+      activity_id: 'activity-123456789', session_id: 'session-123456789', activity_created_by_ingestion: provenance,
+      sailor_id: 'sailor-1', sailor_label: 'Sailor', sailor_email: 'sailor@example.test', sailor_consent_status: 'ACTIVE',
+      original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null,
+    }
+    const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} busy={false} onSelect={() => undefined} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+
+    expect(markup).toContain(expected)
+    expect(markup).toContain('Processed')
+    expect(markup).not.toContain('Discarded')
+    expect(markup).not.toContain('Failed')
   })
 
   it('keeps the receipt timestamp distinct from sailing context in the compact summary', () => {
@@ -523,6 +544,7 @@ describe('minimal Admin UI', () => {
       id: 'ing-2', provider: 'gmail', provider_message_id: 'message-2', sender_email: 'leandro@example.test',
       received_at: '2026-09-07T16:13:00Z', attachment_name: 'Vakaros Lea 32050.csv.gz', status: 'processed', disposition: 'active',
       attempts: 1, last_attempt_at: '2026-09-10T10:32:00Z', last_error: null, activity_id: 'activity-2', session_id: 'session-2',
+      activity_created_by_ingestion: true,
       sailor_id: 'sailor-2', sailor_label: 'Leandro', sailor_email: 'leandro@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: '2026-09-05T13:49:00Z', activity_end_time: '2026-09-05T17:21:00Z', activity_sample_count: 25453,
     }
     const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} busy={false} onSelect={() => undefined} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
@@ -653,7 +675,7 @@ describe('minimal Admin UI', () => {
 
 describe('Admin Ingestion search and Sailor filters', () => {
   const ingestion = (overrides: Partial<AdminIngestion>): AdminIngestion => ({
-    id: 'ingestion-1', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'sender@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: null, last_error: null, activity_id: 'activity-alpha', session_id: 'session-alpha', sailor_id: 'sailor-maxi', sailor_label: 'Maxi', sailor_email: 'maxi@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null,
+    id: 'ingestion-1', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'sender@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: null, last_error: null, activity_id: 'activity-alpha', session_id: 'session-alpha', activity_created_by_ingestion: true, sailor_id: 'sailor-maxi', sailor_label: 'Maxi', sailor_email: 'maxi@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null,
     ...overrides,
   })
   const records = [

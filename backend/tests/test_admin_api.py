@@ -1403,6 +1403,44 @@ def test_admin_ingestion_exposes_current_resolved_sailor_consent_status(
     assert "sailor_consent_status" not in history.get(records[1]["id"])
 
 
+def test_admin_ingestion_list_exposes_activity_creation_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory(root / "ingestion_history.json")
+    for message_id, provenance in (
+        ("created", True),
+        ("reused", False),
+        ("legacy", None),
+    ):
+        record = history.create("ovh", message_id, "active@example.com", f"{message_id}.csv.gz", None)
+        record.update(
+            status="processed",
+            disposition="active",
+            activity_id=ACTIVITY_ACTIVE,
+            session_id=SESSION_ACTIVE,
+            activity_created_by_ingestion=provenance,
+        )
+        history.replace(record)
+
+    persisted = json.loads((root / "ingestion_history.json").read_text(encoding="utf-8"))
+    legacy = next(item for item in persisted if item["provider_message_id"] == "legacy")
+    del legacy["activity_created_by_ingestion"]
+    _write_json(root / "ingestion_history.json", persisted)
+
+    response = _request("GET", "/api/admin/ingestions")
+
+    assert response.status_code == 200
+    by_message = {item["provider_message_id"]: item for item in response.json}
+    assert by_message["created"]["activity_created_by_ingestion"] is True
+    assert by_message["reused"]["activity_created_by_ingestion"] is False
+    assert by_message["legacy"]["activity_created_by_ingestion"] is None
+    assert by_message["reused"]["status"] == "processed"
+    assert by_message["reused"]["disposition"] == "active"
+    assert all(item["activity_id"] == ACTIVITY_ACTIVE for item in by_message.values())
+
+
 def test_admin_ingestion_detail_exposes_safe_traceability_notification_and_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,

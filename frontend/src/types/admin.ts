@@ -116,6 +116,7 @@ export interface AdminIngestion {
   disposition: 'active' | 'discarded'
   attempts: number; last_attempt_at: string | null; last_error: string | null
   activity_id: string | null; session_id: string | null; original_available: boolean
+  activity_created_by_ingestion: boolean | null
   sailor_id: string | null
   sailor_label: string | null
   sailor_email: string | null
@@ -131,7 +132,6 @@ export interface AdminSessionResultNotification {
 }
 
 export interface AdminIngestionDetail extends AdminIngestion {
-  activity_created_by_ingestion: boolean | null
   session_result_notification_candidate: boolean | null
   session_result_notification: AdminSessionResultNotification | null
   attachment_sha256: string | null

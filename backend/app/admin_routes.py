@@ -486,7 +486,7 @@ def _ingestion_response(record: dict) -> AdminIngestionResponse:
             sailor_label = sailor.name or sailor.email
             sailor_email = sailor.email
             sailor_consent_status = sailor.consent_status.value
-    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id")}, sailor_id=sailor_id, sailor_label=sailor_label, sailor_email=sailor_email, sailor_consent_status=sailor_consent_status, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
+    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id", "activity_created_by_ingestion")}, sailor_id=sailor_id, sailor_label=sailor_label, sailor_email=sailor_email, sailor_consent_status=sailor_consent_status, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
 
 
 def _ingestion_detail_response(record: dict) -> AdminIngestionDetailResponse:
@@ -516,7 +516,6 @@ def _ingestion_detail_response(record: dict) -> AdminIngestionDetailResponse:
     }
     return AdminIngestionDetailResponse(
         **summary.model_dump(),
-        activity_created_by_ingestion=record["activity_created_by_ingestion"],
         session_result_notification_candidate=record["session_result_notification_candidate"],
         session_result_notification=notification,
         attachment_sha256=record["attachment_sha256"],

@@ -145,6 +145,7 @@ class AdminIngestionResponse(BaseModel):
     last_error: str | None
     activity_id: str | None
     session_id: str | None
+    activity_created_by_ingestion: bool | None
     sailor_id: str | None
     sailor_label: str | None
     sailor_email: str | None
@@ -163,7 +164,6 @@ class AdminSessionResultNotificationResponse(BaseModel):
 
 
 class AdminIngestionDetailResponse(AdminIngestionResponse):
-    activity_created_by_ingestion: bool | None
     session_result_notification_candidate: bool | None
     session_result_notification: AdminSessionResultNotificationResponse | None
     attachment_sha256: str | None
