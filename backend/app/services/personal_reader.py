@@ -1,4 +1,12 @@
-from app.personal_api_models import PersonalSessionResponse, PersonalTackBarResponse
+from datetime import datetime
+from math import isfinite
+
+from app.models import Session
+from app.personal_api_models import (
+    PersonalSessionResponse,
+    PersonalTackBarResponse,
+    PersonalWeatherResponse,
+)
 from app.repositories.activities import ActivityRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
@@ -42,6 +50,9 @@ class PersonalReader:
                 sailing_end=item.sailing_end,
                 sailor_count=item.sailor_count,
                 location_label=item.session.location_label,
+                weather=_personal_weather(
+                    item.session, item.sailing_start, item.sailing_end,
+                ),
                 session_path=f"/s/{shared_token}" if usable else None,
             ))
         return PersonalTackBarResponse(
@@ -51,3 +62,30 @@ class PersonalReader:
             last_sailing_end=rows[0].sailing_end if rows else None,
             sessions=rows,
         )
+
+
+def _personal_weather(
+    session: Session,
+    sailing_start: datetime,
+    sailing_end: datetime,
+) -> PersonalWeatherResponse | None:
+    conditions = session.historical_conditions
+    if conditions is None or not conditions.hourly:
+        return None
+    midpoint = sailing_start + (sailing_end - sailing_start) / 2
+    sample = min(
+        conditions.hourly,
+        key=lambda item: (abs(item.time - midpoint), item.time),
+    )
+    values = {
+        "air_temperature_c": _finite_or_none(sample.air_temperature_c),
+        "wind_speed_10m_kn": _finite_or_none(sample.wind_speed_10m_kn),
+        "wind_direction_10m_deg": _finite_or_none(sample.wind_direction_10m_deg),
+    }
+    if all(value is None for value in values.values()):
+        return None
+    return PersonalWeatherResponse(**values)
+
+
+def _finite_or_none(value: float | None) -> float | None:
+    return value if value is not None and isfinite(value) else None

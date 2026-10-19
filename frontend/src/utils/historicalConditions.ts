@@ -40,7 +40,8 @@ function compactNumber(value: number) {
 }
 
 export function formatHistoricalConditionsCompact(
-  sample: HistoricalConditionsSample,
+  sample: Pick<HistoricalConditionsSample,
+    'air_temperature_c' | 'wind_speed_10m_kn' | 'wind_direction_10m_deg'>,
 ) {
   const values: string[] = []
   if (finite(sample.wind_direction_10m_deg)) {

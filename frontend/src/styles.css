@@ -2468,12 +2468,21 @@ input:focus-visible {
 .personal-page h1 { margin: 0 0 16px; }
 .personal-name { font-size: 1.2rem; overflow-wrap: anywhere; }
 .personal-page section { margin-top: 32px; }
-.personal-sessions { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
-.personal-session { padding: 20px; border: 1px solid var(--color-pale); border-radius: 15px; background: var(--color-white); }
+.personal-search { display: grid; gap: 6px; margin-bottom: 12px; font-weight: 700; }
+.personal-search input { width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid #9aabb3; border-radius: 9px; color: var(--color-navy); background: var(--color-white); font: inherit; }
+.personal-search input:focus-visible { outline: 3px solid var(--color-blue); outline-offset: 1px; border-color: var(--color-blue); }
+.personal-sessions { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.personal-session { border: 1px solid var(--color-pale); border-radius: 12px; background: var(--color-white); overflow: hidden; }
+.personal-session__target { display: block; min-height: 44px; padding: 14px 16px; color: inherit; text-decoration: none; }
+.personal-session a.personal-session__target:hover { background: var(--color-pale); }
+.personal-session a.personal-session__target:focus-visible { outline: 3px solid var(--color-blue); outline-offset: -3px; }
+.personal-session--unavailable { color: #61767d; background: var(--color-background); }
 .personal-session h2 { margin: 0; font-size: 1.1rem; }
-.personal-session p { margin: 12px 0; }
-.personal-session__action { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; margin-top: 20px; padding: 10px 16px; border: 1px solid var(--color-navy); border-radius: 9px; color: var(--color-white); background: var(--color-navy); font: inherit; font-weight: 750; text-decoration: none; }
-.personal-session__action:disabled { color: #61767d; border-color: var(--color-pale); background: var(--color-background); cursor: not-allowed; }
+.personal-session p { margin: 5px 0 0; }
+.personal-session__summary { color: #334b55; }
+.personal-session--unavailable .personal-session__summary { color: inherit; }
+.personal-session__weather { font-variant-numeric: tabular-nums; }
+.personal-session__status { display: inline-block; margin-top: 8px; font-weight: 750; }
 
 /* Navy labels on white keep small action text readable; Blue marks interaction. */
 .primary-link:hover,
@@ -2481,8 +2490,6 @@ input:focus-visible {
 .admin-card .admin-button:hover {
   background: var(--color-pale);
 }
-
-.personal-session__action:not(:disabled):hover { border-color: var(--color-blue); box-shadow: 0 0 0 1px var(--color-blue); }
 
 /* Public consent pages share one focused, bilingual application surface. */
 .consent-shell {

@@ -1999,7 +1999,46 @@ def _personal_history_runtime(monkeypatch, temporary_directory):
         _session("unrelated", [ACTIVITY_REVOKED_ONLY], "unrelated-shared-token"),
     ])
     session_records = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
-    next(item for item in session_records if item["id"] == "new")["location_label"] = "Valencia"
+    newest = next(item for item in session_records if item["id"] == "new")
+    newest["location_label"] = "Valencia"
+    newest["historical_conditions"] = {
+        "coverage_start": "2026-09-05T09:00:00+00:00",
+        "coverage_end": "2026-09-05T21:00:00+00:00",
+        "requested_latitude": 39.4,
+        "requested_longitude": -0.3,
+        "weather_source": {
+            "provider": "open-meteo",
+            "route": "forecast",
+            "retrieved_at": "2026-09-06T00:00:00+00:00",
+            "grid_latitude": 39.4,
+            "grid_longitude": -0.3,
+        },
+        "marine_source": None,
+        "hourly": [
+            {
+                "time": "2026-09-05T14:00:00+00:00",
+                "air_temperature_c": 23.0,
+                "wind_speed_10m_kn": 4.2,
+                "wind_direction_10m_deg": 92.0,
+                "wind_gusts_10m_kn": 8.1,
+                "cloud_cover_pct": 35.0,
+                "wave_height_m": 0.6,
+                "wave_direction_deg": 110.0,
+                "wave_period_s": 3.4,
+            },
+            {
+                "time": "2026-09-05T16:00:00+00:00",
+                "air_temperature_c": 25.0,
+                "wind_speed_10m_kn": 7.5,
+                "wind_direction_10m_deg": 180.0,
+                "wind_gusts_10m_kn": None,
+                "cloud_cover_pct": None,
+                "wave_height_m": None,
+                "wave_direction_deg": None,
+                "wave_period_s": None,
+            },
+        ],
+    }
     _write_json(root / "sessions.json", session_records)
     regenerated = _request("POST", f"/api/admin/sailors/{ACTIVE}/personal-capability/regenerate")
     assert regenerated.status_code == 200
@@ -2009,6 +2048,19 @@ def _personal_history_runtime(monkeypatch, temporary_directory):
 
 def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch, temporary_directory):
     root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    monkeypatch.setattr(
+        "app.session_context_providers.historical_conditions."
+        "OpenMeteoHistoricalConditionsProvider.fetch",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Personal reads must not call Open-Meteo")
+        ),
+    )
+    monkeypatch.setattr(
+        "app.session_context_providers.geocoding.GeoapifyGeocodingProvider.reverse",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Personal reads must not call Geoapify")
+        ),
+    )
     before = {path.name: path.read_bytes() for path in root.glob("*.json")}
     response = _request("GET", f"/api/me/{token}", admin_key=None)
     assert response.status_code == 200
@@ -2020,15 +2072,24 @@ def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch,
     assert body["last_sailing_end"] == "2026-09-05T18:00:00Z"
     assert len(body["sessions"]) == 2
     newest, oldest = body["sessions"]
-    assert set(newest) == {"sailing_start", "sailing_end", "sailor_count", "location_label", "session_path"}
+    assert set(newest) == {
+        "sailing_start", "sailing_end", "sailor_count", "location_label",
+        "weather", "session_path",
+    }
     assert newest == {
         "sailing_start": "2026-09-05T12:00:00Z",
         "sailing_end": "2026-09-05T18:00:00Z",
         "sailor_count": 2,
         "location_label": "Valencia",
+        "weather": {
+            "air_temperature_c": 23.0,
+            "wind_speed_10m_kn": 4.2,
+            "wind_direction_10m_deg": 92.0,
+        },
         "session_path": f"/s/{ACTIVE_TOKEN}",
     }
     assert oldest["location_label"] is None
+    assert oldest["weather"] is None
     assert oldest["sailor_count"] == 1
     assert oldest["session_path"] is None
     assert oldest["sailing_end"] == "2026-08-10T10:00:00Z"
@@ -2042,6 +2103,24 @@ def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch,
     assert {path.name: path.read_bytes() for path in root.glob("*.json")} == before
     admin = _request("GET", f"/api/admin/sailors/{ACTIVE}")
     assert [item["sailing_end"] for item in admin.json["sessions"]] == [item["sailing_end"] for item in body["sessions"]]
+
+
+def test_personal_history_omits_weather_without_usable_atmospheric_values(
+    monkeypatch, temporary_directory,
+):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    newest = next(item for item in sessions if item["id"] == "new")
+    for sample in newest["historical_conditions"]["hourly"]:
+        sample["air_temperature_c"] = None
+        sample["wind_speed_10m_kn"] = None
+        sample["wind_direction_10m_deg"] = None
+    _write_json(root / "sessions.json", sessions)
+
+    response = _request("GET", f"/api/me/{token}", admin_key=None)
+
+    assert response.status_code == 200
+    assert response.json["sessions"][0]["weather"] is None
 
 
 def test_personal_empty_history_includes_own_identity_and_has_no_last_sailing(monkeypatch, temporary_directory):
