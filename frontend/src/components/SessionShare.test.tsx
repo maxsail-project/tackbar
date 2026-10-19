@@ -11,10 +11,15 @@ import {
 
 
 describe('temporary Session sharing presentation', () => {
-  it('keeps the global Viewer header branding-only', () => {
+  it('offers About in the header shared by original and temporary Viewers', () => {
+    vi.stubEnv('VITE_APP_RELEASE_FAMILY', 'Californian')
+    vi.stubEnv('VITE_APP_VERSION', 'v0.7.12')
     const header = renderToStaticMarkup(<SessionViewerHeader />)
+    vi.unstubAllEnvs()
 
     expect(header).toContain('viewer-header')
+    expect(header).toContain('>About</button>')
+    expect(header).toMatch(/alt="TackBar"[^>]*><span class="public-header-release">Californian · v0\.7\.12<\/span>/)
     expect(header).not.toContain('Share')
     expect(header).not.toContain('Shared access')
   })

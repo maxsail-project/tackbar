@@ -1,4 +1,4 @@
-import TackBarBrand from '../components/TackBarBrand'
+import AboutControl, { PublicHeaderBrand } from '../components/AboutControl'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getPersonalTackBar, PersonalTackBarNotFoundError } from '../api/tackbarApi'
@@ -60,7 +60,7 @@ export function PersonalTackBarContent({ state }: { state: PersonalPageState }) 
     [query, state],
   )
   return <>
-    <header className="app-header personal-header"><TackBarBrand inverted /></header>
+    <header className="app-header personal-header"><PublicHeaderBrand /><AboutControl /></header>
     <main className="personal-page">
     <h1 id="my-sessions-heading">My Sessions</h1>
     {state.status === 'loading' && <p role="status">Loading My Sessions…</p>}

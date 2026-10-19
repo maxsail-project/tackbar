@@ -18,9 +18,17 @@ const data: PersonalTackBar = {
 }
 const render = (value: PersonalTackBar) => renderToStaticMarkup(<MemoryRouter><PersonalTackBarContent state={{ status: 'ready', data: value }} /></MemoryRouter>)
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 describe('Personal TackBar / My Sessions', () => {
+  it('shows the available release identity below the logo in the personal header', () => {
+    vi.stubEnv('VITE_APP_RELEASE_FAMILY', 'Californian')
+    vi.stubEnv('VITE_APP_VERSION', 'v0.7.12')
+    const markup = render(data)
+    expect(markup).toMatch(/alt="TackBar"[^>]*><span class="public-header-release">Californian · v0\.7\.12<\/span>/)
+    expect(markup).toContain('>About</button>')
+  })
+
   it('loads the minimal personal API and renders summary and newest-first history', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(data)))
     vi.stubGlobal('fetch', fetchMock)
@@ -30,7 +38,9 @@ describe('Personal TackBar / My Sessions', () => {
     expect(markup).toContain('<h1 id="my-sessions-heading">My Sessions</h1>')
     expect(markup.match(/My Sessions/g)).toHaveLength(1)
     expect(markup).not.toContain('My TackBar')
-    expect(markup).toMatch(/<header[^>]*><img[^>]*alt="TackBar"/)
+    expect(markup).toMatch(/<header[^>]*><div class="public-header-brand"><img[^>]*alt="TackBar"/)
+    expect(markup).toContain('>About</button>')
+    expect(markup).not.toContain('public-header-release')
     expect(markup).toContain('sailor@example.com - Test Sailor</p><p>2 Sessions</p>')
     expect(markup).toContain('2 Sessions')
     expect(markup).not.toContain('Last sailing')

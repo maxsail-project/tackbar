@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { SessionAccess, TemporarySessionShare } from '../types/session'
-import TackBarBrand from './TackBarBrand'
+import AboutControl, { PublicHeaderBrand } from './AboutControl'
 
 
 export function formatRemainingLifetime(expiresAt: string, now = Date.now()) {
@@ -59,7 +59,8 @@ export function formatAccessExpiry(
 export function SessionViewerHeader() {
   return (
     <header className="app-header viewer-header">
-      <TackBarBrand inverted />
+      <PublicHeaderBrand />
+      <AboutControl />
     </header>
   )
 }
