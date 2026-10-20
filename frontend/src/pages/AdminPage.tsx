@@ -31,6 +31,7 @@ import {
   type IngestionStatusFilter,
 } from '../api/adminApi'
 import type { AdminActivity, AdminActivitySummary, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary, CapabilityState, ConsentOperationalGroup } from '../types/admin'
+import { sessionDisplayLocation } from '../utils/sessionPresentation'
 
 export type Section = 'sailors' | 'sessions' | 'ingestions' | 'activities'
 type AdminDrilldown =
@@ -137,7 +138,7 @@ export function filterAdminSessions(sessions: AdminSessionSummary[], activities:
     const members = activities.filter((activity) => activity.session_id === session.id)
     return matchesAdminSearch([
       session.id,
-      session.location_label,
+      sessionDisplayLocation(session.location_label, session.location_country),
       sessionSailingLabel(session),
       sessionDateSearchText(session),
       ...members.flatMap((activity) => [activity.id, activity.sailor_id, activity.sailor_label]),
@@ -199,7 +200,7 @@ function sailingDuration(start: string, end: string) {
 }
 
 function sessionSailingLabel(session: AdminSessionSummary) {
-  const location = session.location_label?.trim()
+  const location = sessionDisplayLocation(session.location_label, session.location_country)
   if (!session.sailing_start || !session.sailing_end) return location ? `${location} · Sailing time unavailable` : 'Sailing time unavailable'
   const start = new Date(session.sailing_start)
   const end = new Date(session.sailing_end)
@@ -545,7 +546,7 @@ export function SailorDetail({ sailor, activities = [], busy, onActivitySelect, 
       <ConsentRequestStatus sailor={sailor} />
       <details className="admin-sailor-disclosure"><summary>Consent timeline</summary>{sailor.consent_events.length === 0 ? <p>No consent events recorded.</p> : <ul className="event-list">{sailor.consent_events.map((event, index) => <li key={`${event.timestamp}-${index}`}><strong>{event.event_type.replaceAll('_', ' ')}</strong><span>{localDate(event.timestamp)} · {event.source}{event.agreement_version ? ` · ${event.agreement_version}` : ''}</span></li>)}</ul>}</details>
       <PersonalCapabilityControls key={`${sailor.id}-${sailor.personal_capability_path}-${sailor.personal_capability_state}`} sailor={sailor} busy={busy} />
-      <section className="admin-detail-grid__wide"><h3>Traceability</h3><h4>Activities</h4>{activities.length === 0 ? <p>No Activities recorded.</p> : <div className="admin-relations">{activities.map((activity) => <RelationButton key={activity.id} label="Activity" id={activity.id} value={activityRelationIdentity(activity)} onFollow={() => onActivitySelect?.(activity.id)} />)}</div>}<h4>Sessions</h4>{sailor.sessions.length === 0 ? <p>No Sessions recorded.</p> : <div className="admin-relations">{sailor.sessions.map((session) => <RelationButton key={session.session_id} label="Session" id={session.session_id} value={session.sailing_start && session.sailing_end ? sessionRelationIdentity({ ...session, id: session.session_id, visible_activity_count: 0, sailor_count: 1, location_label: null }, true) : `${session.total_activity_count} ${session.total_activity_count === 1 ? 'Activity' : 'Activities'}`} onFollow={() => onSessionSelect?.(session.session_id)} />)}</div>}</section>
+      <section className="admin-detail-grid__wide"><h3>Traceability</h3><h4>Activities</h4>{activities.length === 0 ? <p>No Activities recorded.</p> : <div className="admin-relations">{activities.map((activity) => <RelationButton key={activity.id} label="Activity" id={activity.id} value={activityRelationIdentity(activity)} onFollow={() => onActivitySelect?.(activity.id)} />)}</div>}<h4>Sessions</h4>{sailor.sessions.length === 0 ? <p>No Sessions recorded.</p> : <div className="admin-relations">{sailor.sessions.map((session) => <RelationButton key={session.session_id} label="Session" id={session.session_id} value={session.sailing_start && session.sailing_end ? sessionRelationIdentity({ ...session, id: session.session_id, visible_activity_count: 0, sailor_count: 1, location_label: null, location_country: null }, true) : `${session.total_activity_count} ${session.total_activity_count === 1 ? 'Activity' : 'Activities'}`} onFollow={() => onSessionSelect?.(session.session_id)} />)}</div>}</section>
       <WelcomeEmailStatus sailor={sailor} />
       <section className="admin-detail-grid__wide admin-maintenance"><h3>Maintenance</h3><div className="admin-maintenance-groups"><div><h4>Consent</h4><div className="admin-actions">{sailor.operational_group === 'pending_needs_request' && <button disabled={busy} onClick={onRequested}>Mark request sent manually</button>}{sailor.consent_status === 'PENDING' && requestAction && <button disabled={busy} onClick={sendRequest}>{busy ? 'Sending consent request…' : requestAction}</button>}{pending && <><button disabled={busy} onClick={onConfirm}>Confirm consent</button><button disabled={busy} className="danger" onClick={onRevoke}>Record decline</button></>}{sailor.operational_group === 'active' && <button disabled={busy} className="danger" onClick={onRevoke}>Record withdrawal</button>}{sailor.operational_group === 'revoked' && <button disabled={busy} onClick={onNewCycle}>Start new consent cycle</button>}</div></div><div><h4>Personal TackBar</h4><div className="admin-actions"><button disabled={busy} onClick={onPersonalRegenerate}>Regenerate</button>{(sailor.personal_capability_state === 'active' || sailor.personal_capability_state === 'consent_inactive') && <button className="danger" disabled={busy} onClick={onPersonalRevoke}>Revoke</button>}</div></div>{canResendWelcome && <div><h4>Communication</h4><div className="admin-actions"><button disabled={busy} onClick={onWelcomeEmailResend}>{busy ? 'Resending welcome email…' : 'Resend welcome email'}</button></div></div>}</div></section>
     </div>

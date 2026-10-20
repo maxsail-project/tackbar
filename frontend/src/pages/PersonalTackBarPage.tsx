@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { getPersonalTackBar, PersonalTackBarNotFoundError } from '../api/tackbarApi'
 import type { PersonalSession, PersonalTackBar } from '../types/personal'
 import { formatHistoricalConditionsCompact } from '../utils/historicalConditions'
+import { sessionDisplayLocation } from '../utils/sessionPresentation'
 
 export type PersonalPageState =
   | { status: 'loading' | 'unavailable' | 'error' }
@@ -20,7 +21,7 @@ export function filterPersonalSessions(sessions: PersonalSession[], query: strin
   const needle = normalized(query.trim())
   if (!needle) return sessions
   return sessions.filter((session) => normalized(
-    `${session.location_label?.trim() ?? ''} ${day(session.sailing_start)} ${session.sailing_start.slice(0, 10)}`,
+    `${sessionDisplayLocation(session.location_label, session.location_country) ?? ''} ${day(session.sailing_start)} ${session.sailing_start.slice(0, 10)}`,
   ).includes(needle))
 }
 
@@ -78,8 +79,9 @@ export function PersonalTackBarContent({ state }: { state: PersonalPageState }) 
           {sessions.length === 0 ? <p>No Sessions match this search.</p> : <ol className="personal-sessions">
             {sessions.map((session, index) => {
               const weather = compactWeather(session)
+              const location = sessionDisplayLocation(session.location_label, session.location_country)
               const content = <>
-                <h2>{session.location_label?.trim() && `${session.location_label.trim()} · `}<time dateTime={session.sailing_start}>{day(session.sailing_start)}</time></h2>
+                <h2>{location && `${location} · `}<time dateTime={session.sailing_start}>{day(session.sailing_start)}</time></h2>
                 <p className="personal-session__summary"><time dateTime={session.sailing_start}>{time(session.sailing_start)}</time>–<time dateTime={session.sailing_end}>{day(session.sailing_start) !== day(session.sailing_end) && `${day(session.sailing_end)} · `}{time(session.sailing_end)}</time> · {session.sailor_count} {session.sailor_count === 1 ? 'sailor' : 'sailors'}</p>
                 {weather && <p className="personal-session__weather">{weather}</p>}
               </>

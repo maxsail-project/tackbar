@@ -12,8 +12,8 @@ import PersonalTackBarPage, {
 const data: PersonalTackBar = {
   email: 'sailor@example.com', name: 'Test Sailor', session_count: 2, last_sailing_end: '2026-09-05T17:21:00Z',
   sessions: [
-    { sailing_start: '2026-09-05T13:49:00Z', sailing_end: '2026-09-05T17:21:00Z', sailor_count: 2, location_label: 'Mahón', weather: { wind_direction_10m_deg: 91.6, wind_speed_10m_kn: 4.2, air_temperature_c: 23 }, session_path: '/s/shared-session-token' },
-    { sailing_start: '2026-09-04T17:24:00Z', sailing_end: '2026-09-04T20:14:00Z', sailor_count: 3, location_label: null, weather: null, session_path: null },
+    { sailing_start: '2026-09-05T13:49:00Z', sailing_end: '2026-09-05T17:21:00Z', sailor_count: 2, location_label: 'Mahón', location_country: 'Spain', weather: { wind_direction_10m_deg: 91.6, wind_speed_10m_kn: 4.2, air_temperature_c: 23 }, session_path: '/s/shared-session-token' },
+    { sailing_start: '2026-09-04T17:24:00Z', sailing_end: '2026-09-04T20:14:00Z', sailor_count: 3, location_label: null, location_country: null, weather: null, session_path: null },
   ],
 }
 const render = (value: PersonalTackBar) => renderToStaticMarkup(<MemoryRouter><PersonalTackBarContent state={{ status: 'ready', data: value }} /></MemoryRouter>)
@@ -48,6 +48,7 @@ describe('Personal TackBar / My Sessions', () => {
     expect(markup).toContain('2 sailors')
     expect(markup).toContain('3 sailors')
     expect(markup).toContain('Mahón · ')
+    expect(markup).not.toContain('Mahón, Spain')
     expect(markup).toContain('092° · 4.2 kt · 23 °C')
     expect(markup.match(/personal-session__weather/g)).toHaveLength(1)
     expect(markup).toMatch(/<\/time>–<time[^>]*>[^<]*<\/time> · 2 sailors/)
@@ -62,6 +63,16 @@ describe('Personal TackBar / My Sessions', () => {
     expect(markup).toContain('2026-09-04T17:24:00Z')
     expect(markup).not.toContain('null ·')
     expect(markup).not.toContain('undefined ·')
+  })
+
+  it('uses country when city is empty and searches the displayed location', () => {
+    const countryOnly = { ...data.sessions[1], location_label: '  ', location_country: ' Spain ' }
+    const history = [data.sessions[0], countryOnly]
+    const markup = render({ ...data, sessions: history })
+    expect(markup).toContain('Spain · ')
+    expect(markup).not.toContain('Mahón, Spain')
+    expect(filterPersonalSessions(history, 'spain')).toEqual([countryOnly])
+    expect(filterPersonalSessions(history, 'mahón')).toEqual([data.sessions[0]])
   })
 
   it('opens the existing Viewer from the available row and leaves unavailable history inert', async () => {

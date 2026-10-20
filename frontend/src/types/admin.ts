@@ -77,6 +77,7 @@ export interface AdminSessionSummary {
   sailing_end: string | null
   sailor_count: number
   location_label: string | null
+  location_country: string | null
 }
 
 export interface AdminHistoricalConditionsSource {

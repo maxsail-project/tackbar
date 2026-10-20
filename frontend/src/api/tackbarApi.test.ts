@@ -24,6 +24,7 @@ const SESSION_CONTENT = {
   end_time: '2031-06-15T10:00:00Z',
   activities: [],
   location_label: 'Mahón',
+  location_country: 'Spain',
   historical_conditions: {
     weather_source: { provider: 'open-meteo' },
     marine_source: null,

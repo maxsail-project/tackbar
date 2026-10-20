@@ -70,6 +70,7 @@ class SharedSessionContentResponse(BaseModel):
     end_time: datetime
     activities: list[ActivityContextResponse]
     location_label: str | None
+    location_country: str | None
     historical_conditions: HistoricalConditionsResponse | None
 
 

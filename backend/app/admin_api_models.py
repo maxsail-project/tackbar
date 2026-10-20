@@ -92,6 +92,7 @@ class AdminSessionSummaryResponse(BaseModel):
     sailing_end: datetime | None
     sailor_count: int
     location_label: str | None
+    location_country: str | None
 
 
 class AdminSessionLocationResponse(BaseModel):

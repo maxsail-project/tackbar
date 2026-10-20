@@ -16,7 +16,7 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   id: 'session-123', created_at: '2026-08-01T10:00:00Z', expires_at: '2026-09-30T10:00:00Z',
   total_activity_count: 3, visible_activity_count: 1, capability_state: state,
   capability_path: state === 'active' ? '/s/token' : null,
-  sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', sailor_count: 2, location_label: null,
+  sailing_start: '2026-08-01T08:00:00Z', sailing_end: '2026-08-01T10:00:00Z', sailor_count: 2, location_label: null, location_country: null,
   activities: [
     { id: 'activity-123456789', sailor_id: 'sailor-1', sailor_label: 'Test Sailor', shareable: true },
     { id: 'activity-987654321', sailor_id: 'sailor-2', sailor_label: 'Pending Sailor', shareable: false },
@@ -302,6 +302,7 @@ describe('minimal Admin UI', () => {
     const detail: AdminSession = {
       ...session('active'),
       location_label: 'Valencia',
+      location_country: 'España',
       location: { label: 'Valencia', region: 'Comunitat Valenciana', country: 'España', country_code: 'es', provider: 'geoapify', resolved_at: '2026-10-18T10:00:00Z', source_activity_id: 'activity-123456789' },
       historical_conditions: {
         coverage_start: '2026-08-01T05:00:00Z', coverage_end: '2026-08-01T13:00:00Z', requested_latitude: 39.41, requested_longitude: -0.29,
@@ -314,6 +315,7 @@ describe('minimal Admin UI', () => {
     const markup = renderToStaticMarkup(<SessionCard session={detail} detail={detail} activities={[activity]} onActivitySelect={() => undefined} {...callbacks} />)
 
     expect(collapsed).toContain('Valencia ·')
+    expect(collapsed).not.toContain('Valencia, España')
     expect(markup).toContain('Session details')
     expect(markup).toContain('<dt>Location</dt><dd>Valencia</dd>')
     expect(markup).toContain('<dt>Location provider</dt><dd>geoapify</dd>')
@@ -807,11 +809,14 @@ describe('shared Admin entity search', () => {
   })
 
   it('filters Sessions by persisted location label', () => {
-    const valencia = { ...session('active'), id: 'session-valencia', location_label: 'Valencia' }
-    const mahon = { ...session('active'), id: 'session-mahon', location_label: 'Mahón' }
+    const valencia = { ...session('active'), id: 'session-valencia', location_label: 'Valencia', location_country: 'España' }
+    const mahon = { ...session('active'), id: 'session-mahon', location_label: 'Mahón', location_country: 'Spain' }
+    const countryOnly = { ...session('active'), id: 'session-spain', location_label: '  ', location_country: ' Spain ' }
 
-    expect(filterAdminSessions([valencia, mahon], [], 'valen').map((item) => item.id)).toEqual(['session-valencia'])
-    expect(filterAdminSessions([valencia, mahon], [], 'MAHÓN').map((item) => item.id)).toEqual(['session-mahon'])
+    expect(filterAdminSessions([valencia, mahon, countryOnly], [], 'valen').map((item) => item.id)).toEqual(['session-valencia'])
+    expect(filterAdminSessions([valencia, mahon, countryOnly], [], 'MAHÓN').map((item) => item.id)).toEqual(['session-mahon'])
+    expect(filterAdminSessions([valencia, mahon, countryOnly], [], 'spain').map((item) => item.id)).toEqual(['session-spain'])
+    expect(renderToStaticMarkup(<SessionCard session={countryOnly} busy={false} onSelect={() => undefined} onEnrich={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)).toContain('Spain ·')
   })
 })
 

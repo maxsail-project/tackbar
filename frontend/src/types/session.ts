@@ -63,6 +63,7 @@ export interface SessionDetail {
   end_time: string
   activities: SessionActivity[]
   location_label: string | null
+  location_country: string | null
   historical_conditions: HistoricalConditions | null
 }
 

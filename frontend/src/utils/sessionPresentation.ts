@@ -23,11 +23,16 @@ export function formatSessionDate(timestamp: string) {
 
 export function formatSessionIdentity(
   locationLabel: string | null,
+  locationCountry: string | null,
   startTimestamp: string,
 ) {
   const date = formatSessionDate(startTimestamp)
-  const location = locationLabel?.trim()
+  const location = sessionDisplayLocation(locationLabel, locationCountry)
   return location ? `${location} · ${date}` : date
+}
+
+export function sessionDisplayLocation(locationLabel: string | null, locationCountry: string | null) {
+  return locationLabel?.trim() || locationCountry?.trim() || null
 }
 
 export function formatSessionTime(timestamp: string) {

@@ -104,9 +104,11 @@ describe('Session summary presentation', () => {
   })
 
   it('uses location plus date as Session identity with a date-only fallback', () => {
-    expect(formatSessionIdentity('Mahón', '2026-09-16T11:45:00Z'))
+    expect(formatSessionIdentity('Mahón', 'Spain', '2026-09-16T11:45:00Z'))
       .toBe('Mahón · 16 Sep 2026')
-    expect(formatSessionIdentity(null, '2026-09-16T11:45:00Z'))
+    expect(formatSessionIdentity('  ', ' Spain ', '2026-09-16T11:45:00Z'))
+      .toBe('Spain · 16 Sep 2026')
+    expect(formatSessionIdentity(null, null, '2026-09-16T11:45:00Z'))
       .toBe('16 Sep 2026')
   })
 

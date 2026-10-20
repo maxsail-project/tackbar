@@ -1020,9 +1020,28 @@ def test_admin_session_summaries_include_compact_operational_context(monkeypatch
         "sailing_end": "2026-08-10T10:00:00Z",
         "sailor_count": 3,
         "location_label": None,
+        "location_country": None,
     }
     assert sessions[SESSION_NEVER]["visible_activity_count"] == 0
     assert sessions[SESSION_EXPIRED]["total_activity_count"] == 2
+
+
+def test_admin_session_summary_exposes_country_only_to_admin(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    records = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    next(item for item in records if item["id"] == SESSION_ACTIVE)["location_country"] = "Spain"
+    _write_json(root / "sessions.json", records)
+
+    denied = _request("GET", "/api/admin/sessions", admin_key=None)
+    response = _request("GET", "/api/admin/sessions")
+
+    assert denied.status_code == 401
+    assert response.status_code == 200
+    summary = next(item for item in response.json if item["id"] == SESSION_ACTIVE)
+    assert summary["location_label"] is None
+    assert summary["location_country"] == "Spain"
 
 
 def test_admin_session_detail_exposes_membership_without_raw_capability_token(
@@ -1127,6 +1146,7 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
         "source_activity_id": ACTIVITY_PENDING,
     }
     assert first.json["location_label"] == "Valencia"
+    assert first.json["location_country"] == "España"
     assert first.json["historical_conditions"]["weather_source"]["route"] == "forecast"
     assert first.json["historical_conditions"]["marine_source"] is None
     assert first.json["historical_conditions"]["hourly"][0]["wind_speed_10m_kn"] == 12
@@ -2001,6 +2021,7 @@ def _personal_history_runtime(monkeypatch, temporary_directory):
     session_records = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
     newest = next(item for item in session_records if item["id"] == "new")
     newest["location_label"] = "Valencia"
+    newest["location_country"] = "España"
     newest["historical_conditions"] = {
         "coverage_start": "2026-09-05T09:00:00+00:00",
         "coverage_end": "2026-09-05T21:00:00+00:00",
@@ -2074,13 +2095,14 @@ def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch,
     newest, oldest = body["sessions"]
     assert set(newest) == {
         "sailing_start", "sailing_end", "sailor_count", "location_label",
-        "weather", "session_path",
+        "location_country", "weather", "session_path",
     }
     assert newest == {
         "sailing_start": "2026-09-05T12:00:00Z",
         "sailing_end": "2026-09-05T18:00:00Z",
         "sailor_count": 2,
         "location_label": "Valencia",
+        "location_country": "España",
         "weather": {
             "air_temperature_c": 23.0,
             "wind_speed_10m_kn": 4.2,
@@ -2089,6 +2111,7 @@ def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch,
         "session_path": f"/s/{ACTIVE_TOKEN}",
     }
     assert oldest["location_label"] is None
+    assert oldest["location_country"] is None
     assert oldest["weather"] is None
     assert oldest["sailor_count"] == 1
     assert oldest["session_path"] is None
@@ -2103,6 +2126,25 @@ def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch,
     assert {path.name: path.read_bytes() for path in root.glob("*.json")} == before
     admin = _request("GET", f"/api/admin/sailors/{ACTIVE}")
     assert [item["sailing_end"] for item in admin.json["sessions"]] == [item["sailing_end"] for item in body["sessions"]]
+
+
+def test_personal_history_exposes_country_only_with_existing_access_boundary(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    newest = next(item for item in sessions if item["id"] == "new")
+    newest["location_label"] = None
+    _write_json(root / "sessions.json", sessions)
+
+    denied = _request("GET", f"/api/me/{ACTIVE_TOKEN}", admin_key=None)
+    response = _request("GET", f"/api/me/{token}", admin_key=None)
+
+    assert denied.status_code == 404
+    assert response.status_code == 200
+    assert response.json["sessions"][0]["location_label"] is None
+    assert response.json["sessions"][0]["location_country"] == "España"
+    assert response.json["sessions"][1]["location_country"] is None
 
 
 def test_personal_history_omits_weather_without_usable_atmospheric_values(

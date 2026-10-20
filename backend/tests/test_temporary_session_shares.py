@@ -95,6 +95,7 @@ def _runtime(
         "capability_token": ORIGINAL_TOKEN,
         "capability_revoked": False,
         "location_label": "Mahón",
+        "location_country": "Spain",
         "historical_conditions": {
             "coverage_start": "2031-06-01T06:00:00+00:00",
             "coverage_end": "2031-06-01T13:00:00+00:00",
@@ -296,16 +297,25 @@ def test_public_api_returns_only_temporary_path_and_distinguishes_unavailable_st
         "end_time",
         "activities",
         "location_label",
+        "location_country",
         "historical_conditions",
         "temporary_access_expires_at",
     }
     assert "session_access_expires_at" not in loaded.model_dump()
     assert loaded.activities[0].id == ACTIVITY_ID
     assert loaded.location_label == "Mahón"
+    assert loaded.location_country == "Spain"
     assert loaded.historical_conditions is not None
     assert loaded.historical_conditions.weather_source is not None
     assert loaded.historical_conditions.weather_source.provider == "open-meteo"
     assert loaded.historical_conditions.hourly[0].wind_speed_10m_kn == 14.0
+
+    records = json.loads((temporary_directory / "sessions.json").read_text(encoding="utf-8"))
+    records[0]["location_label"] = None
+    _write_json(temporary_directory / "sessions.json", records)
+    country_only = get_temporary_shared_session(TEMPORARY_TOKEN, Response())
+    assert country_only.location_label is None
+    assert country_only.location_country == "Spain"
 
     with pytest.raises(HTTPException) as unknown:
         get_temporary_shared_session(

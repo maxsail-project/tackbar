@@ -53,6 +53,7 @@ class SharedSessionReader:
             end_time=detail.end_time,
             activities=detail.activities,
             location_label=resolved.location_label,
+            location_country=resolved.location_country,
             historical_conditions=(
                 HistoricalConditionsResponse.model_validate({
                     "weather_source": (

@@ -9,6 +9,7 @@ export interface PersonalSession {
   sailing_end: string
   sailor_count: number
   location_label: string | null
+  location_country: string | null
   weather: PersonalWeather | null
   session_path: string | null
 }

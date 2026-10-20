@@ -14,6 +14,7 @@ class PersonalSessionResponse(BaseModel):
     sailing_end: datetime
     sailor_count: int
     location_label: str | None
+    location_country: str | None
     weather: PersonalWeatherResponse | None
     session_path: str | None
 

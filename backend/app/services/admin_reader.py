@@ -504,6 +504,7 @@ class AdminReader:
             sailing_end=max(ends) if ends else None,
             sailor_count=len(represented_sailor_ids),
             location_label=session.location_label,
+            location_country=session.location_country,
         )
 
     def _capability_state(self, session: Session) -> CapabilityState:

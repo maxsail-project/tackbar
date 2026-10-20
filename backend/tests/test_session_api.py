@@ -58,7 +58,7 @@ def _runtime_root(temporary_directory: Path) -> Path:
         _activity(ACTIVITY_OTHER, SAILOR_A, "2031-06-02T08:00:00+00:00", "2031-06-02T09:00:00+00:00"),
     ])
     _write_json(root / "sessions.json", [
-        {"id": SESSION_ID, "activity_ids": [ACTIVITY_B, ACTIVITY_A], "created_at": "2031-06-01T00:00:00+00:00", "expires_at": "2031-07-31T00:00:00+00:00", "capability_token": TOKEN, "capability_revoked": False, "location_label": "Mahón", "historical_conditions": {"coverage_start": "2031-06-01T05:00:00+00:00", "coverage_end": "2031-06-01T13:00:00+00:00", "requested_latitude": 0.15, "requested_longitude": -30.15, "weather_source": {"provider": "open-meteo", "route": "forecast", "retrieved_at": "2031-06-02T00:00:00+00:00", "grid_latitude": 0.15, "grid_longitude": -30.15}, "marine_source": None, "hourly": [{"time": "2031-06-01T09:00:00+00:00", "air_temperature_c": 23.0, "wind_speed_10m_kn": 14.0, "wind_direction_10m_deg": 92.0, "wind_gusts_10m_kn": 19.0, "cloud_cover_pct": 35.0, "wave_height_m": 0.6, "wave_direction_deg": 110.0, "wave_period_s": 3.4}]}},
+        {"id": SESSION_ID, "activity_ids": [ACTIVITY_B, ACTIVITY_A], "created_at": "2031-06-01T00:00:00+00:00", "expires_at": "2031-07-31T00:00:00+00:00", "capability_token": TOKEN, "capability_revoked": False, "location_label": "Mahón", "location_country": "Spain", "historical_conditions": {"coverage_start": "2031-06-01T05:00:00+00:00", "coverage_end": "2031-06-01T13:00:00+00:00", "requested_latitude": 0.15, "requested_longitude": -30.15, "weather_source": {"provider": "open-meteo", "route": "forecast", "retrieved_at": "2031-06-02T00:00:00+00:00", "grid_latitude": 0.15, "grid_longitude": -30.15}, "marine_source": None, "hourly": [{"time": "2031-06-01T09:00:00+00:00", "air_temperature_c": 23.0, "wind_speed_10m_kn": 14.0, "wind_direction_10m_deg": 92.0, "wind_gusts_10m_kn": 19.0, "cloud_cover_pct": 35.0, "wave_height_m": 0.6, "wave_direction_deg": 110.0, "wave_period_s": 3.4}]}},
         {"id": OTHER_SESSION_ID, "activity_ids": [ACTIVITY_OTHER], "created_at": "2031-06-01T00:00:00+00:00", "expires_at": "2031-07-31T00:00:00+00:00", "capability_token": OTHER_TOKEN, "capability_revoked": False},
     ])
     track = pd.DataFrame([
@@ -134,6 +134,7 @@ def test_capability_session_exposes_active_subset_without_internal_id(monkeypatc
         "end_time",
         "activities",
         "location_label",
+        "location_country",
         "historical_conditions",
         "session_access_expires_at",
     }
@@ -141,6 +142,7 @@ def test_capability_session_exposes_active_subset_without_internal_id(monkeypatc
     assert response.json["end_time"] == "2031-06-01T10:00:00Z"
     assert response.json["session_access_expires_at"] == "2031-07-31T00:00:00Z"
     assert response.json["location_label"] == "Mahón"
+    assert response.json["location_country"] == "Spain"
     assert response.json["historical_conditions"] == {
         "weather_source": {"provider": "open-meteo"},
         "marine_source": None,
@@ -184,7 +186,25 @@ def test_shared_session_missing_context_is_backward_compatible_and_provider_free
 
     assert response.status_code == 200
     assert response.json["location_label"] is None
+    assert response.json["location_country"] is None
     assert response.json["historical_conditions"] is None
+
+
+def test_shared_session_exposes_persisted_country_without_changing_city_label(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    sessions[0]["location_label"] = "  "
+    _write_json(root / "sessions.json", sessions)
+
+    response = _get(f"/api/shared/sessions/{TOKEN}")
+
+    assert response.status_code == 200
+    assert response.json["location_label"] == "  "
+    assert response.json["location_country"] == "Spain"
+    assert [item["id"] for item in response.json["activities"]] == [ACTIVITY_A]
 
 
 def test_capability_session_reports_renewed_expiry_on_subsequent_read(

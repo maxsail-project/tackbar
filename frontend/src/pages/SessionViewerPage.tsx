@@ -862,6 +862,7 @@ export function SessionViewer({
           access={access}
           identity={formatSessionIdentity(
             session.location_label,
+            session.location_country,
             session.start_time,
           )}
           expiresAt={access.kind === 'temporary'

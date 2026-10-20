@@ -50,6 +50,7 @@ class PersonalReader:
                 sailing_end=item.sailing_end,
                 sailor_count=item.sailor_count,
                 location_label=item.session.location_label,
+                location_country=item.session.location_country,
                 weather=_personal_weather(
                     item.session, item.sailing_start, item.sailing_end,
                 ),
