@@ -1,6 +1,6 @@
-# Session Viewer — transitional current-product draft
+# Session Viewer
 
-**Status: Phase B5 review draft.** This document consolidates accepted collaborative Viewer behavior without activating the Living Documentation hierarchy. Until Phase C is approved and activated, the precedence in the [Living Documentation index](index.md) remains in force. The rules below describe the current accepted Viewer contract; local, unaccepted #118 location work is addressed in [Session Context](session-context.md#approved-presentation-delta-pending-local-acceptance).
+This specification owns accepted collaborative Viewer behavior. Its separately marked unresolved findings and the pending #118 location change are not delivered guarantees. [The index](index.md) defines the documentation route.
 
 ## Current contract
 
@@ -52,6 +52,6 @@
 
 ### Unresolved implementation discrepancy
 
-**Medium — maneuver table map focus.** [V7-VIEW-02](../v0.7-collaborative-debrief-analytics-requirements.md) says selecting either a table row or timeline marker issues role-aware map focus. `frontend/src/pages/SessionViewerPage.tsx` currently requests focus for a timeline marker but passes `focusMap = false` for a table row. Focused tests establish the focus-request helper and event selection, but do not close this difference. Product review should confirm whether both selection surfaces retain the documented focus contract or whether the governing requirement should change; this draft does not choose between them.
+**Medium — maneuver table map focus.** [V7-VIEW-02](../v0.7-collaborative-debrief-analytics-requirements.md) says selecting either a table row or timeline marker issues role-aware map focus. `frontend/src/pages/SessionViewerPage.tsx` currently requests focus for a timeline marker but passes `focusMap = false` for a table row. Focused tests establish the focus-request helper and event selection, but do not close this difference. Product review should confirm whether both selection surfaces retain the documented focus contract or whether the governing requirement should change; this specification does not choose between them.
 
-**Medium — compact weather gust.** [V7-CTX-05](../v0.7-collaborative-debrief-analytics-requirements.md) specifies an optional parenthesized gust in the compact Viewer chip. `frontend/src/utils/historicalConditions.ts` formats only wind direction, wind speed and air temperature; `frontend/src/utils/historicalConditions.test.ts` and `frontend/src/components/HistoricalConditionsControl.test.tsx` expressly expect no compact gust even when one is present. The expanded detail does show available gust. Confirm whether the accepted compact-gust contract should be implemented or explicitly revised; this draft does not claim it is delivered.
+**Medium — compact weather gust.** [V7-CTX-05](../v0.7-collaborative-debrief-analytics-requirements.md) specifies an optional parenthesized gust in the compact Viewer chip. `frontend/src/utils/historicalConditions.ts` formats only wind direction, wind speed and air temperature; `frontend/src/utils/historicalConditions.test.ts` and `frontend/src/components/HistoricalConditionsControl.test.tsx` expressly expect no compact gust even when one is present. The expanded detail does show available gust. Confirm whether the accepted compact-gust contract should be implemented or explicitly revised; this specification does not claim it is delivered.

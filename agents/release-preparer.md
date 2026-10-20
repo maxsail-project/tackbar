@@ -25,7 +25,7 @@ For one explicitly requested release, the Release Preparer may:
 - inspect repository state, previous release tags and current `main`;
 - inspect commits and relevant GitHub Issues since the previous release;
 - create a release-preparation GitHub Issue when one does not already exist;
-- inspect governing requirements and decisions;
+- inspect governing documentation under the operative hierarchy;
 - determine which Issues closed as `completed` are actually delivered in the
   release range;
 - perform the mandatory release-relevant documentation consistency review and
@@ -99,8 +99,9 @@ Before changing release documentation, verify all of the following:
 9. No conflicting release-preparation Issue exists.
 10. The requested release tag and corresponding GitHub Release have not already
     been published.
-11. Applicable requirements and decisions for the delivered changes have been
-    read.
+11. The current specifications affected by delivered functional changes have
+    been read through `docs/current/index.md`, together with any specialist
+    guidance or historical provenance materially needed for a discrepancy.
 
 If the delivered scope cannot be established from repository evidence, stop
 and report `BLOCKED`. Do not guess.
@@ -248,9 +249,9 @@ Use accepted delivered evidence only:
 - completed Issues;
 - the implementation actually contained in the release candidate;
 - tests and recorded validation;
-- closed decisions;
-- later governing documentation that explicitly supersedes earlier current
-  wording.
+- affected authoritative `docs/current/` specifications;
+- closed decisions or preserved historical sources when materially needed to
+  explain provenance, supersession or a discrepancy.
 
 For every release-relevant document reviewed, and any distinct finding within
 it, assign and record one classification in the release-preparation Issue or
@@ -269,17 +270,58 @@ preparation report:
   product-code change or validation evidence that does not exist.
 
 Apply every `UPDATE` without seeking separate per-file approval. This may
-include genuinely release-relevant `README.md`, `ROADMAP.md`, `CHANGELOG.md`,
-`AGENTS.md`, requirements, decisions, workflows, guidelines and other
-materially affected repository documentation. Do not expand the review into
-arbitrary unrelated documentation.
+include affected current specifications and genuinely release-relevant
+`README.md`, `ROADMAP.md`, `CHANGELOG.md`, `AGENTS.md`, workflows, guidelines
+and other materially affected repository documentation. Preserve accurate
+versioned requirements and decisions; do not expand the review into arbitrary
+unrelated documentation.
 
 For `HISTORICAL — PRESERVE`, retain the accurate historical record and, when
-needed, add or update the appropriate current-facing override instead. For
+needed, update the affected current specification instead. For
 `POST-DEPLOYMENT — DEFER`, record the deferred fact unless it already exists
 independently before preparation and is relevant. A deferred fact does not by
 itself prevent `READY_FOR_PUBLICATION`. For `BLOCKED`, stop rather than
 choosing product semantics, inventing evidence or changing product code.
+
+### Current functional-specification review
+
+Use [the domain index](../docs/current/index.md) to identify each functional
+specification genuinely affected by the combined
+release. Read the affected specifications, not every domain file by default.
+Trace each included, completed product Issue through its approved scope,
+delivered candidate commits, relevant code and tests, recorded validation and
+the affected current specification. A completed Issue represents accepted
+delivery; this check verifies release inclusion and accurate documentation,
+not a second functional approval. An open Issue or code-only observation does
+not establish a new product contract.
+
+For an explicitly approved functional-contract change in an implementation
+increment governed by the prospective `AGENTS.md` policy, verify that the
+increment includes the necessary code, directly relevant regression tests and
+the affected `docs/current/` specification. Earlier accepted increments are
+not retroactively required to have made that same-increment edit, but their
+affected current specification must accurately describe accepted behavior
+before release handoff. Record a post-cutover same-increment omission as a
+process finding; a later correction does not retroactively make that increment
+compliant. If a current specification is missing, stale or contradictory,
+classify the finding under the existing review categories.
+Apply `UPDATE` within this role's narrow release-relevant documentation
+authority only when accepted delivered evidence establishes the wording
+unambiguously. If the correction requires a new product decision, code change,
+missing validation or resolution of materially conflicting evidence, report
+`BLOCKED`; do not use release preparation to invent acceptance or silently
+repair an implementation increment.
+
+Versioned requirements and decisions remain preserved provenance. Consult
+them when a specific ambiguity, supersession, durable rationale or historical
+claim requires investigation; do not require their blanket reading or
+reconciliation for a routine release. Preserve accurate historical wording.
+Closed durable decisions, where relevant, remain evidence of rationale rather
+than a second mutable current functional specification. Continue the existing
+release-wide review of genuinely affected README, ROADMAP, CHANGELOG,
+guidelines, runbooks and workflows. Issue-level documentation-impact notes
+remain advisory. The existing classification, CHANGELOG, validation,
+publication and deployment boundaries remain unchanged.
 
 ### Production deployment evidence
 
@@ -439,7 +481,7 @@ It must confirm that:
   scope;
 - pending or non-delivered Issues are not presented as delivered;
 - no objective contradiction exists between delivered implementation,
-  governing documentation and the prepared release description.
+  the affected current specifications and the prepared release description.
 
 If such a contradiction is found, report `BLOCKED`.
 
@@ -582,7 +624,8 @@ Stop and report `BLOCKED` when any of these conditions applies:
   presented as delivered;
 - a conflicting release-preparation Issue exists;
 - the requested tag or GitHub Release has already been published;
-- required requirements, decisions, commits or Issue state cannot be verified;
+- required affected current specifications, relevant commits or Issue state
+  cannot be verified;
 - implementation and release documentation contain an objective contradiction;
 - release-relevant documentation cannot be reconciled without a new product
   decision, resolution of conflicting semantics or a product-code change;

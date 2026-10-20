@@ -1,6 +1,6 @@
-# Analytics — transitional current-product draft
+# Analytics
 
-**Status: Phase B5 review draft.** This document consolidates accepted current analytical semantics without activating the Living Documentation hierarchy. Until Phase C is approved and activated, the precedence in the [Living Documentation index](index.md) remains in force. The metric set is provisional and changes only through an explicitly approved increment.
+This specification owns accepted analytical semantics. Its metric set remains provisional and changes only through an explicitly approved increment. [The index](index.md) defines the documentation route.
 
 ## Current contract
 
@@ -41,4 +41,4 @@
 | Maneuver measures and Loss | [v0.7 requirements](../v0.7-collaborative-debrief-analytics-requirements.md) §3 V7-MET-01–03; [v0.7 decisions](../v0.7-decisions.md) §4 | `backend/app/analytics/maneuver_metrics.py`; `backend/tests/test_maneuver_metrics.py` |
 | Artifact currency and read-only API | [v0.7 requirements](../v0.7-collaborative-debrief-analytics-requirements.md) §3 V7-MET-04; [v0.7 decisions](../v0.7-decisions.md) §3 | `backend/app/services/maneuver_analytics.py`, `shared_session_reader.py`; `backend/app/storage/maneuver_analytics_storage.py`; `backend/tests/test_maneuver_analytics.py`, `test_session_api.py`, `test_temporary_session_shares.py` |
 
-The detector's other numeric thresholds remain provisional implementation parameters; this draft does not promote them into independent product guarantees. Historical v0.4 statements that maneuver detection was deferred describe that earlier release, not the current product.
+The detector's other numeric thresholds remain provisional implementation parameters; this specification does not promote them into independent product guarantees. Historical v0.4 statements that maneuver detection was deferred describe that earlier release, not the current product.

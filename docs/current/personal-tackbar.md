@@ -1,6 +1,6 @@
-# Personal TackBar — transitional current-product draft
+# Personal TackBar
 
-**Status: Phase B6 review draft.** This consolidates accepted Personal TackBar behavior without activating the Living Documentation hierarchy. Until Phase C is approved and activated, the existing instruction and documentation precedence described in the [index](index.md) remains in force. **Current contract** records the accepted baseline; the pending presentation change and unresolved privacy question below are not new guarantees.
+This specification owns accepted Personal TackBar behavior. The separately marked pending location change and unresolved privacy question are not new guarantees. [The index](index.md) defines the documentation route.
 
 ## Current contract
 

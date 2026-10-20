@@ -1,8 +1,8 @@
-# Living Documentation — proposed index
+# Living Documentation — current specifications
 
-**Status: transitional Phase B draft, pending human Gate B acceptance.** These documents are being reviewed under [Issue #119](https://github.com/maxsail-project/tackbar/issues/119). They are not yet TackBar's authoritative documentation hierarchy. Until Phase C is approved and activated, [AGENTS.md](../../AGENTS.md), the [AI Development Guidelines](../ai-development-guidelines.md), and the applicable existing requirements and decisions retain their current precedence.
+**Status: ACTIVE from the Issue #119 Gate C cutover.** This index routes agents to the authoritative current functional specifications. [AGENTS.md](../../AGENTS.md) supplies operating safeguards and precedence; the [AI Development Guidelines](../ai-development-guidelines.md) supply stable engineering principles. Select only the domains affected by the task, including any cross-domain contract it changes.
 
-Living Documentation is intended to describe TackBar's accepted current behavior by product domain. Each contract should have one authoritative home, with links from other domains where needed. The eight domain drafts are:
+Living Documentation describes TackBar's accepted current behavior by product domain. Each contract has one authoritative home, with links from other domains where needed. The eight specifications are:
 
 | Domain specification | Responsibility |
 | --- | --- |
@@ -17,11 +17,11 @@ Living Documentation is intended to describe TackBar's accepted current behavior
 
 ## Evidence and document roles
 
-- **Current specifications**, once the hierarchy is activated, will state the accepted present product contract. During this transition, a drafted specification is a review artifact and does not override existing instructions or requirements.
+- **Current specifications** state the accepted present functional product contract. An explicitly approved Issue may change an affected contract only through its scoped implementation and specification update. Qualified unresolved findings are not new guarantees.
 - **Versioned requirements and decisions** remain at their existing paths as traceable records of delivered scope, prior rules and rationale. Their historical statements are not silently rewritten to describe later behavior.
 - **Durable decisions or ADRs**, when warranted, preserve why a consequential choice was made. They should link to the current rule rather than duplicate its full functional contract.
 - **GitHub Issues** describe pending proposals or an explicitly approved increment. An open Issue alone does not establish current behavior; a completed Issue supplies accepted-delivery evidence within its stated scope.
 - **Code and tests** show implemented behavior and regression coverage. They help reconcile a specification but do not independently approve an undocumented product change.
 - [CHANGELOG.md](../../CHANGELOG.md) records delivered releases; it is not a substitute for a current functional specification. Operational runbooks and release workflows retain their separate procedural roles.
 
-The source references in each current-domain draft connect its rules to preserved historical documents and implementation evidence. Unresolved discrepancies must remain visible for human review rather than being converted into new requirements.
+The source references in each domain specification connect its rules to preserved historical documents and implementation evidence. Unresolved discrepancies remain visible for human review rather than becoming invented requirements.

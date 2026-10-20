@@ -44,7 +44,9 @@ Before making release-preparation changes:
 1. Read `AGENTS.md`.
 2. Read `agents/release-preparer.md`.
 3. Read `docs/ai-development-guidelines.md`.
-4. Read the applicable release-specific requirements and decisions.
+4. Use `docs/current/index.md` to read the specifications affected by the
+   delivered changes; read specialist guidance and historical provenance only
+   when materially needed for the review.
 5. Read other relevant governing documentation referenced by `AGENTS.md`.
 6. Inspect current `main`.
 7. Inspect the commits between the previous published release boundary and
@@ -106,7 +108,7 @@ Determine the release contents from repository evidence:
 - relevant tests and recorded validation evidence;
 - GitHub Issues closed as `completed` whose delivered work is contained in that
   range;
-- governing requirements and decisions;
+- affected authoritative `docs/current/` specifications;
 - the release-preparation Issue when available.
 
 Open Issues are pending/proposed work and must not be presented as delivered.
@@ -135,10 +137,12 @@ Issue-level documentation-impact notes are advisory input. Inspect them, but do
 not treat them as either exhaustive or as a restriction on release-relevant
 reconciliation.
 
-The review may include `README.md`, `ROADMAP.md`, `CHANGELOG.md`, `AGENTS.md`,
-applicable requirements, decisions, workflows and guidelines under `docs/`, and
-other repository documentation materially affected by the release. It must not
-expand into arbitrary unrelated documentation.
+The review may include affected current specifications, `README.md`,
+`ROADMAP.md`, `CHANGELOG.md`, `AGENTS.md`, workflows and guidelines under
+`docs/`, and other repository documentation materially affected by the release.
+Historical requirements and decisions are reviewed when a specific provenance
+or discrepancy question warrants it. Do not expand into arbitrary unrelated
+documentation.
 
 Use only accepted delivered evidence to establish the correct documentation
 state:
@@ -146,9 +150,9 @@ state:
 - completed Issues;
 - the implementation actually contained in the release candidate;
 - tests and recorded validation;
-- closed decisions;
-- later governing documentation that explicitly supersedes earlier current
-  wording.
+- affected authoritative `docs/current/` specifications;
+- closed decisions or preserved historical sources when materially needed to
+  explain provenance, supersession or a discrepancy.
 
 Classify every release-relevant document reviewed, and any distinct finding
 within it, and record the classification in the release-preparation Issue or
@@ -166,13 +170,13 @@ preparation report:
   product-code change or validation evidence that does not exist.
 
 Apply every `UPDATE` as part of preparation without requesting separate
-per-file approval. Examples include an obsolete current release in `README.md`,
-stale format support or operational defaults, current-facing requirements or
-guidelines contradicted by accepted delivered behavior, obsolete architecture
-guidance, or a roadmap that still presents delivered evolution as pending.
+per-file approval. Examples include an affected current specification that
+omits an accepted delivered change, an obsolete current release in `README.md`,
+stale operational guidance or a roadmap that still presents delivered evolution
+as pending. Preserve accurate historical requirements and decisions.
 
 For `HISTORICAL — PRESERVE`, keep the accurate historical source unchanged and,
-when necessary, add or update the appropriate current-facing override. Old
+when necessary, update the affected current specification. Old
 requirements, manual validation records, release decisions and historical
 changelog entries do not become false merely because later behavior evolved.
 
@@ -191,6 +195,49 @@ the correction is.
 
 Release preparation must not use documentation changes to justify unintended
 implementation.
+
+### Current functional-specification route
+
+The [domain index](../current/index.md) routes the Release Preparer to the
+current specifications affected by the combined
+release. Read those domains and any cross-domain contract they change; do not
+require all eight specifications or all historical release chapters for a
+routine release. The affected `docs/current/` specifications govern present
+functional behavior. Versioned requirements and decisions remain accessible
+and preserved for provenance, supersession questions, durable rationale or a
+specific contradiction requiring investigation; they are not routine
+reconciliation inputs or competing current functional authorities.
+
+Establish delivered scope from completed product Issues, the candidate commit
+range, relevant implementation and tests, recorded validation and affected
+current specifications. For each included Issue, verify its approved scope is
+actually contained in the candidate and described accurately. When that Issue
+explicitly approved a functional-contract change and its implementation
+increment was governed by the prospective `AGENTS.md` policy, verify the
+increment updated necessary code, directly relevant regression tests and the
+affected current specification together. An earlier accepted increment is not
+retroactively subject to the same-increment rule, but its affected current
+specification must accurately reflect accepted behavior before handoff. Record
+a post-cutover omission as a process finding even if preparation can correct
+the specification unambiguously; the correction is not retroactive increment
+compliance. A completed Issue supplies accepted delivery, not a reason for a second
+functional approval; open Issues and code-only behavior do not approve new
+product semantics.
+
+The mandatory release-wide documentation review and its existing five
+classifications still apply. Classify a missing, stale or contradictory
+current specification as `UPDATE` only when accepted evidence establishes an
+unambiguous correction that fits this role's narrow release-relevant
+documentation authority. Otherwise classify it `BLOCKED` and stop; do not
+choose product semantics, alter code, invent validation or rewrite accurate
+history. Preserve historical versioned requirements/decisions as
+`HISTORICAL — PRESERVE` when reviewed and accurate for their time. Continue
+reviewing materially affected README, ROADMAP, CHANGELOG, guidelines, runbooks
+and workflows; Issue documentation-impact notes remain advisory. Before
+`READY_FOR_PUBLICATION`, verify the affected current specifications accurately
+represent accepted delivered contracts and all required `UPDATE` findings are
+complete. CHANGELOG content, exact bilingual GitHub Release body, validation,
+publication handoff and deployment-evidence rules stay as specified below.
 
 ### Production deployment evidence
 
@@ -239,29 +286,16 @@ behavior, accepted validation evidence, known limitations and any durable
 operational note intrinsic to using the release. Preserve historical published
 `CHANGELOG.md` entries and GitHub Releases unchanged.
 
-### Requirements
+### Current specifications and preserved decisions
 
-Update requirements only when necessary so they accurately describe committed
-and delivered behavior.
-
-Replace wording that still describes delivered work as provisional, planned or
-pending when the relevant behavior and decisions are now closed.
-
-Preserve explicit non-goals and future scope.
-
-Historical requirement documents may remain unchanged when they accurately
-represent behavior delivered at that earlier point and the current increment is
-already captured through a promoted completed Issue or later governing
-documentation.
-
-Do not rewrite historical requirements merely to make them look current.
-
-### Decisions
-
-Record implementation or product decisions only when they are closed,
-release-relevant and useful for preserving current semantics.
-
-Do not add speculative rationale or decisions that were never made.
+Update the affected `docs/current/` specification when accepted evidence
+unambiguously shows that the current functional contract is stale or incomplete.
+Preserve explicit non-goals and pending scope. A versioned requirement or
+decision that accurately records its historical chapter remains unchanged;
+do not rewrite it merely to make it look current. Record new durable rationale
+only when the decision is closed, release-relevant, useful and authorized; its
+functional rule belongs in the affected current specification. Do not add
+speculative rationale or decisions that were never made.
 
 ### Pending-work Issues
 

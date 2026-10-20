@@ -1,6 +1,6 @@
-# Domain and Sessions — transitional current-product draft
+# Domain and Sessions
 
-**Status: Phase B1 review draft.** This document consolidates accepted domain and Session behavior without activating a new documentation hierarchy. The precedence described in [the Living Documentation index](index.md) remains transitional until Phase C.
+This specification owns accepted Sailor, Boat, Activity and Session semantics, including membership, matching and lifetime. [The index](index.md) defines the documentation route.
 
 The statements under **Current contract** describe the established product behavior. **Provenance and review** identifies source evidence and preserves the superseded historical matching threshold.
 
@@ -37,7 +37,7 @@ The statements under **Current contract** describe the established product behav
 
 - `Participant` is legacy migration terminology, not a current runtime entity. Sailor and Boat remain separate; no `SessionParticipant` entity is implied.
 - An Analysis Window is a temporary Viewer selection, not a new Activity, Session or persisted segment. Its detailed behavior belongs in [Session Viewer](session-viewer.md).
-- Session-owned geographic and historical-conditions context is optional descriptive context. It does not change Activity identity, membership, matching or lifetime. Its acquisition and availability belong in [Session Context](session-context.md); presentation belongs in the Viewer, Personal TackBar and Admin drafts.
+- Session-owned geographic and historical-conditions context is optional descriptive context. It does not change Activity identity, membership, matching or lifetime. Its acquisition and availability belong in [Session Context](session-context.md); presentation belongs in the Viewer, Personal TackBar and Admin specifications.
 - Provider acquisition, exact-file deduplication, normalized tracks and storage mechanisms belong in [Ingestion and Data](ingestion-and-data.md). External provider identity does not define Sailor, Activity or Session meaning.
 
 ## Provenance and review

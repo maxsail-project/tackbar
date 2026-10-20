@@ -1,6 +1,6 @@
-# Ingestion and Data — transitional current-product draft
+# Ingestion and Data
 
-**Status: Phase B2 review draft.** This document consolidates accepted current behavior; it does not activate a new documentation hierarchy. Until Phase C is approved and activated, the precedence described in the [Living Documentation index](index.md) remains in force.
+This specification owns accepted acquisition, normalization, ingestion state and persistence behavior. [The index](index.md) defines the documentation route.
 
 The **Current contract** below states product and operational guarantees. The **Provenance and review** section identifies supporting evidence and gaps; it does not add requirements.
 
@@ -56,6 +56,4 @@ The **Current contract** below states product and operational guarantees. The **
 | Status, disposition and reprocessing | [v0.5 pilot requirements](../v0.5-real-sailing-pilot-requirements.md), §4 V5-ING-05/06; [v0.6 requirements](../v0.6-personal-tackbar-pilot-operations-requirements.md), §4 V6-ADM-01–06; [completed #60](https://github.com/maxsail-project/tackbar/issues/60) | `backend/app/services/ingestion_history.py`, `backend/app/services/ingestion_processing.py`; `backend/tests/test_ingestion_processing.py` |
 | Onboarding and delivery boundary | [v0.6.5 onboarding requirements](../v0.6.5-simplified-pilot-onboarding-requirements.md), §§3–4 V6.5-ONB/REQ; [completed #56](https://github.com/maxsail-project/tackbar/issues/56) | `backend/app/services/ingestion_processing.py`, `backend/app/services/session_result_delivery.py`; `backend/tests/test_ingestion_processing.py`, `test_session_result_notifications.py` |
 
-**Review gap — single writer:** [v0.5 pilot requirements](../v0.5-real-sailing-pilot-requirements.md), §4 V5-ING-08 calls for one persistence-mutating ingestion execution at a time, including an explicit exclusion mechanism if automation is added. The inspected service uses a process-local lock, and the scheduled oneshot avoids overlap with its own invocation. The reviewed evidence does not establish exclusion between a separate Admin process and the scheduled process. This concurrency guarantee needs human review; this draft does not claim cross-process serialization.
-
-**Source alignment:** [AI Development Guidelines](../ai-development-guidelines.md), §11 still describes the earlier ten-column normalized track. [Completed #33](https://github.com/maxsail-project/tackbar/issues/33), the normalizer and focused tests establish the current fourteen-column schema. Reconcile that guideline in a separately authorized governance phase; this draft does not modify it.
+**Review gap — single writer:** [v0.5 pilot requirements](../v0.5-real-sailing-pilot-requirements.md), §4 V5-ING-08 calls for one persistence-mutating ingestion execution at a time, including an explicit exclusion mechanism if automation is added. The inspected service uses a process-local lock, and the scheduled oneshot avoids overlap with its own invocation. The reviewed evidence does not establish exclusion between a separate Admin process and the scheduled process. This concurrency guarantee needs human review; this specification does not claim cross-process serialization.

@@ -1,6 +1,6 @@
-# Session Context — transitional current-product draft
+# Session Context
 
-**Status: Phase B4 review draft.** This document consolidates accepted Session context behavior; it does not activate a new documentation hierarchy. Until Phase C is approved and activated, the precedence described in the [Living Documentation index](index.md) remains in force. The rules under **Current contract** are the accepted baseline. The separate [#118 section](#approved-presentation-delta-pending-local-acceptance) is not a claim of delivered behavior.
+This specification owns accepted Session geographic and historical-conditions context. The separately marked #118 presentation delta remains pending local acceptance, not part of the accepted current contract. [The index](index.md) defines the documentation route.
 
 ## Current contract
 
@@ -48,11 +48,11 @@ The inspected local API models, presentation helpers and focused tests already i
 | Automatic and Admin enrichment, later Activity boundary | [v0.7 requirements](../v0.7-collaborative-debrief-analytics-requirements.md) §9 V7-CTX-01–04; [v0.7 decisions](../v0.7-decisions.md) §12; [completed #106](https://github.com/maxsail-project/tackbar/issues/106), [#107](https://github.com/maxsail-project/tackbar/issues/107) | `backend/app/services/ingestion_processing.py`, `session_enrichment.py`; `backend/app/admin_routes.py`; `backend/tests/test_session_enrichment.py`, `test_admin_api.py` |
 | Shared context projection and Viewer cue | [v0.7 requirements](../v0.7-collaborative-debrief-analytics-requirements.md) §9 V7-CTX-05; [v0.7 decisions](../v0.7-decisions.md) §12; [completed #107](https://github.com/maxsail-project/tackbar/issues/107) | `backend/app/services/shared_session_reader.py`; `backend/tests/test_session_api.py`; `frontend/src/utils/historicalConditions.ts` and its tests; `frontend/src/pages/SessionViewerPage.tsx` |
 | Personal identity and compact weather cue | [v0.7 requirements](../v0.7-collaborative-debrief-analytics-requirements.md) §9 V7-CTX-05; [completed #108](https://github.com/maxsail-project/tackbar/issues/108), [#115](https://github.com/maxsail-project/tackbar/issues/115) | `backend/app/services/personal_reader.py`; `backend/tests/test_admin_api.py` Personal cases; `frontend/src/pages/PersonalTackBarPage.tsx` and its tests |
-| City-only baseline versus approved, unaccepted country fallback | [v0.7 requirements](../v0.7-collaborative-debrief-analytics-requirements.md) §9 V7-CTX-01; [v0.7 decisions](../v0.7-decisions.md) §12; [open #118](https://github.com/maxsail-project/tackbar/issues/118) and Phase B4 instruction | `frontend/src/utils/sessionPresentation.ts`; `frontend/src/pages/SessionViewerPage.test.tsx`, `PersonalTackBarPage.test.tsx`, `AdminPage.test.tsx`; `backend/app/services/shared_session_reader.py`, `personal_reader.py` — local work pending acceptance |
+| City-only baseline versus approved, unaccepted country fallback | [v0.7 requirements](../v0.7-collaborative-debrief-analytics-requirements.md) §9 V7-CTX-01; [v0.7 decisions](../v0.7-decisions.md) §12; [open #118](https://github.com/maxsail-project/tackbar/issues/118) | `frontend/src/utils/sessionPresentation.ts`; `frontend/src/pages/SessionViewerPage.test.tsx`, `PersonalTackBarPage.test.tsx`, `AdminPage.test.tsx`; `backend/app/services/shared_session_reader.py`, `personal_reader.py` — local work pending acceptance |
 
 ### Unresolved transition findings
 
 1. **High — #118 acceptance and acquisition reachability.** Country fallback is present in local presentation code and tests, but #118 remains open and its local acceptance is not closed. The normal Geoapify path discards first results without city, so a country-only provider result does not currently populate a Session country. Confirm the delivered scope and acceptable source of country-only persisted records before promoting the fallback into the current contract.
 2. **Low — requested coverage versus available samples.** The stored bounds describe the exact interval requested, while providers may return only some hours or one of the two source types. No complete-hourly-coverage guarantee is supported.
 
-No Session matching, consent, capability, Activity telemetry, analytics or Viewer replay rule is changed by this draft.
+Session context does not change Session matching, consent, capability, Activity telemetry, analytics or Viewer replay rules.

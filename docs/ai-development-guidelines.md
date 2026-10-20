@@ -71,96 +71,7 @@ TackBar is not intended to reproduce MaxSail Analytics.
 
 ## 3. Product model
 
-The current core domain model is:
-
-```text
-Sailor
-   ↓
-Activity ← optional Boat
-   ↓
-Session
-```
-
-### Sailor
-
-A Sailor is the person-level concept and has a stable internal TackBar
-identity. Normalized email remains the external identity used by current email
-ingestion. A Sailor may have an optional default Boat for automatic ingestion.
-
-### Boat
-
-A Boat is a separate sailing context with a stable identity and name, sailing
-class and sail number when those values are known.
-
-For the Session Viewer:
-
-```text
-Session
-    ↓
-select one primary Activity
-    ↓
-optionally select one comparison Activity
-    ↓
-shared Analysis Window
-    ↓
-Map + comparison table + metric chart + replay
-```
-
-### Activity
-
-An Activity represents one track received by TackBar.
-
-An Activity requires a Sailor and may reference the Boat used for that sailing
-when known. Historical Activity Boat context is preserved. Boat is not inferred
-from filename, email subject, device name or source-specific metadata.
-
-An Activity may represent:
-
-- a complete sailing outing;
-- a complete sailing day;
-- a race;
-- a training block;
-- a partial track exported by the source device/application.
-
-Therefore:
-
-```text
-Activity != day
-Activity != race
-Activity != training segment
-```
-
-A Sailor may have multiple Activities:
-
-- on the same day;
-- in the same Session;
-- with overlapping or non-overlapping time ranges.
-
-Do not automatically merge or split Activities unless a future requirement explicitly introduces that behavior.
-
-### Session
-
-A Session is the collaborative context that groups compatible Activities.
-
-A Session is not assumed to represent:
-
-- exactly one race;
-- exactly one training block;
-- exactly one Activity per Sailor.
-
-### Analysis Window
-
-An Analysis Window is an ephemeral shared GPS/UTC time range used by the Session Viewer.
-
-It does not:
-
-- modify the Activity;
-- cut the source track;
-- create another Activity;
-- generate a new normalized track;
-- persist as domain data in the current PoC.
-
-A future Saved Segment may persist a selected Analysis Window, but this is not part of the current implementation scope.
+Keep Sailor, Boat, Activity and Session as distinct concepts; do not infer new domain relationships from a provider, filename, visual control or legacy terminology. Treat an Analysis Window as Viewer interaction state, not a persisted Activity or Session. The current product contract and provenance are in [Domain and Sessions](current/domain-and-sessions.md); Viewer selection is in [Session Viewer](current/session-viewer.md).
 
 ---
 
@@ -190,7 +101,7 @@ Reusable TackBar sailing-analysis logic should evolve as an independent Python
 analytics/domain layer or library when demonstrated needs require it. This
 direction does not imply that a mature standalone analytics library is already
 delivered and does not by itself authorize advanced analytics. The focused
-v0.7.x analytics scope is governed by its requirements and decisions.
+current analytics contract is in [Analytics](current/analytics.md).
 
 ---
 
@@ -307,78 +218,13 @@ These choices are PoC defaults, not permanent architectural commitments.
 
 ## 8. Map and replay principles
 
-The map is the primary visual element of the Session Viewer.
-
-The map provides track and boat-position context together with shared GPS time
-and fixed instantaneous SOG, COG, HEEL and TRIM telemetry. This telemetry is
-independent from the selected analytical chart metric.
-
-Replay is a core PoC requirement.
-
-Replay is a temporal control only: play/pause, the shared `playbackTime`, its
-scrubber and playback speed. It must not duplicate the selected chart metric.
-
-The replay model must use one virtual GPS clock:
-
-```text
-playbackTime
-```
-
-Playback speeds must support:
-
-- x1;
-- x2;
-- x5;
-- x10.
-
-Semantics:
-
-- x1 = 1 GPS second per real second;
-- x2 = 2 GPS seconds per real second;
-- x5 = 5 GPS seconds per real second;
-- x10 = 10 GPS seconds per real second.
-
-When two Activities are compared:
-
-- both boats use the same `playbackTime`;
-- do not create one independent clock per Activity;
-- device sampling frequency must not determine replay speed.
-
-Visual interpolation between surrounding samples is acceptable for smooth map animation.
-
-Interpolation used for rendering must not create or persist new track data.
+The map gives spatial context; replay controls shared GPS time. Keep map telemetry independent from the selected analytical chart view. Use one virtual `playbackTime` for selected Activities, and do not make device sampling frequency determine replay speed. Presentation interpolation may smooth movement but must not create or persist telemetry. [Session Viewer](current/session-viewer.md) owns detailed map, replay-speed and interaction contracts.
 
 ---
 
 ## 9. Time principles
 
-Normalized GPS/UTC time is the canonical temporal reference for the Session Viewer.
-
-Do not use:
-
-- email receive time;
-- ingestion time;
-- local file timestamps;
-- processing timestamps
-
-for track comparison.
-
-For one Activity:
-
-```text
-available window = Activity start → Activity end
-```
-
-For two Activities:
-
-```text
-available comparison start = max(Activity A start, Activity B start)
-available comparison end   = min(Activity A end, Activity B end)
-```
-
-The initial two-boat comparison window should be their GPS-time intersection.
-
-If there is no overlap, do not invent a comparable time interval.
+Use normalized GPS/UTC time for sailing comparison and analysis. Email receive time, ingestion time, local file timestamps and processing timestamps are not substitutes for sailing time. A comparison must not invent overlap where the selected Activities have none. The exact Analysis Window contract belongs in [Session Viewer](current/session-viewer.md).
 
 ---
 
@@ -429,9 +275,7 @@ This is a validated lesson from previous MaxSail work and should be protected wi
 
 ## 11. Current normalized track model
 
-All supported input formats should eventually produce the same operational normalized track representation.
-
-Current canonical columns are:
+All supported formats normalize into the same provider-independent operational track representation. The current canonical columns, in order, are:
 
 ```text
 activity_id
@@ -444,81 +288,19 @@ dist
 hdg
 heel
 trim
+quat_w
+quat_x
+quat_y
+quat_z
 ```
 
-General rules:
-
-- `activity_id` identifies the Activity;
-- `utc` is canonical GPS/UTC time;
-- `lat` and `lon` are geographic position;
-- `cog` and `sog` may come directly from the source;
-- `dist` is basic distance between consecutive normalized samples;
-- `hdg`, `heel`, and `trim` may be unavailable depending on source.
-
-Do not invent missing sensor values.
-
-Do not derive HDG from COG.
-
-Do not introduce additional canonical fields without an explicit requirement.
+The first ten columns are the earlier schema; the four `quat_*` columns were added by [completed Issue #33](https://github.com/maxsail-project/tackbar/issues/33) to preserve available orientation quaternions. Historical ten-column tracks remain readable with absent quaternion values represented as null. `utc`, `lat` and `lon` are required sample inputs; optional telemetry remains unavailable when absent. `dist` is the normalized distance increment. Do not invent missing sensor values, derive HDG from COG or add canonical columns without an explicit approved requirement. [Ingestion and Data](current/ingestion-and-data.md) owns detailed normalization and persistence behavior.
 
 ---
 
 ## 12. Metrics scope
 
-Current Session Viewer comparison is deliberately basic.
-
-The delivered Summary contains:
-
-- Distance;
-- Avg SOG;
-- Max SOG;
-- Dominant COG;
-- Median HEEL +;
-- Median HEEL −;
-- Median TRIM +;
-- Median TRIM −.
-
-The four signed HEEL/TRIM rows are independent time-weighted medians over the
-Analysis Window. Zero belongs to neither sign group. Avg SOG, Max SOG and
-Dominant COG retain their existing semantics.
-
-Currently delivered graphical selectable metrics are:
-
-- SOG;
-- COG;
-- HEEL;
-- TRIM.
-
-The same selected metric is shown for both Activities.
-
-COG remains circular data. HEEL and TRIM are signed linear sensor values:
-missing values are not invented, and no Port/Starboard or bow-up/bow-down
-interpretation is currently defined.
-
-All calculations use the complete valid normalized sample population inside
-the Analysis Window. Any later visual sampling must remain presentation-only.
-
-Do not implement advanced MaxSail Analytics features unless explicitly requested.
-
-For v0.7.x Californian, read
-`docs/v0.7-collaborative-debrief-analytics-requirements.md` and
-`docs/v0.7-decisions.md`. Neutral maneuver-oriented analysis is the first
-direction in the existing Session Viewer. Analytical metrics are provisional
-and evidence-driven; they may be added, removed or adjusted after real sailing
-validation under the bounded refinement policy. Preserve the existing shared
-Analysis Window, `playbackTime`, map, charts and Summary. This does not promote
-unrelated or advanced analytics.
-
-Examples outside the initial analytical scope:
-
-- TWA;
-- VMG;
-- SOGS smoothing;
-- advanced tack/gybe classification, except when reliably validated and
-  explicitly promoted under the v0.7.x requirements;
-- efficiency metrics;
-- rankings;
-- automated race analysis.
+Keep analysis bounded to the collaborative debrief. Calculations must use the complete valid canonical sample population for their defined time range; visual sampling or smoothing is presentation-only. Respect circular COG/HDG geometry, missing telemetry and provisional evidence-driven maneuver semantics. Do not import advanced MaxSail Analytics, tactical conclusions, ranking, coaching or automatic tack/gybe labels without an explicitly approved contract. Detailed Summary, VS, chart and interaction rules belong in [Session Viewer](current/session-viewer.md); backend maneuver detection, metrics and artifacts belong in [Analytics](current/analytics.md).
 
 ---
 
@@ -623,24 +405,7 @@ When a bug is found in real sailing data, prefer adding a regression test before
 
 ## 16. Source/provider independence
 
-Current ingestion supports Vakaros CSV, CSV.GZ, VKX and VKX.GZ. GPX, FIT,
-related cross-format normalization and canonical logical
-fingerprint/deduplication remain Future / Unassigned. Garmin Connect is
-separate future work. Long-term source-format independence remains a direction,
-not a release commitment.
-
-Current and future sources may include:
-
-- Vakaros CSV and CSV.GZ;
-- Vakaros VKX and VKX.GZ;
-- GPX;
-- FIT;
-- Garmin APIs;
-- other future providers.
-
-Provider-specific parsers should translate source data into TackBar's normalized/domain representation.
-
-Session matching, viewer logic, metrics, and analytics should not need to know where the Activity originated.
+Provider adapters translate source data into TackBar's normalized/domain representation. Session matching, Viewer behavior, metrics and analytics must not depend on the source provider. Support for a possible future format or integration is not established by mentioning it here; require an explicitly approved Issue and focused evidence. [Ingestion and Data](current/ingestion-and-data.md) owns the current supported formats and provider boundary.
 
 ---
 
@@ -671,110 +436,21 @@ When a simpler implementation satisfies the current requirement, prefer it.
 
 ## 18. Documentation discipline
 
-Documentation changes must be intentional.
+Documentation edits must be intentional and within explicit task or Issue authority. `AGENTS.md` gives agent operating rules; this guide gives stable engineering principles. [The domain index](current/index.md) routes to the authoritative current functional specifications. Versioned requirements and decisions retain historical scope and rationale; they are read for a specific provenance or discrepancy question. `ROADMAP.md` gives direction, GitHub Issues hold pending work, `CHANGELOG.md` records delivered releases, and code/tests provide implementation evidence. Do not edit README, ROADMAP, CHANGELOG, release notes or version numbers without applicable authorization.
 
-Different documents have different responsibilities:
-
-### `AGENTS.md`
-
-Operational instructions for AI coding agents.
-
-Examples:
-
-- files that must be read;
-- repository safety rules;
-- commit/push restrictions;
-- documentation-change policy;
-- mandatory development workflow.
-
-### `docs/ai-development-guidelines.md`
-
-Stable engineering and product-development principles.
-
-This document explains **how TackBar should be developed**.
-
-### Feature requirement documents
-
-Feature-specific requirements explain **what the product should do**.
-
-For example:
-
-```text
-docs/session-viewer-requirements.md
-```
-
-### `README.md`
-
-Explains what TackBar is and how to understand/use the project.
-
-### `ROADMAP.md`
-
-Describes future planned product evolution.
-
-### `CHANGELOG.md`
-
-Records delivered release-level capabilities.
-
-Do not update README, ROADMAP, CHANGELOG, release notes, or version numbers unless the task explicitly requires those documentation changes.
-
-Implementation and release documentation are separate tasks.
+When a GitHub Issue explicitly debates and approves a functional-contract or documented-behavior change, the Codex implementation increment **MUST update together** necessary code, directly relevant regression tests and the affected authoritative `docs/current/` specification. Limit the edit to the approved Issue; preserve unrelated current specifications, historical requirements and decisions, and published changelogs. Purely visual or internal work without changed documented behavior does not automatically require a specification edit. Create or update a durable ADR only when justified and authorized. This rule applies prospectively from the Gate C cutover, not retroactively to earlier completed Issues. The explicitly invoked Release Preparer retains its narrow, evidence-based release-documentation authority under its role and workflow.
 
 ---
 
 ## 19. AI-assisted development workflow
 
-AI-generated code must remain reviewable by the human developer.
-
-Prefer small implementation increments.
-
-Typical workflow:
-
-```text
-requirements / decision
-→ focused Codex prompt
-→ inspect diff
-→ run tests/build
-→ manually validate
-→ stage
-→ commit
-→ push
-```
-
-Coding agents must not commit or push unless explicitly instructed.
-
-Prompts should clearly define:
-
-- goal;
-- scope;
-- relevant requirements;
-- explicit non-goals;
-- tests/validation expected;
-- documentation policy;
-- Git restrictions.
-
-Coding agents should inspect the existing implementation before introducing new abstractions.
+Keep increments reviewable by the human developer: reconcile the affected current specifications and explicitly approved Issue, inspect code/tests, implement the smallest change, run relevant checks, inspect the diff, then hand off for human-controlled staging, commit and push. Include the affected current specification in the same increment when §18 applies. Coding agents must not perform Git operations unless expressly authorized under `AGENTS.md` or an applicable release role. Prompts should state scope, non-goals, validation, documentation authorization and Git restrictions.
 
 ---
 
 ## 20. Instruction hierarchy for coding agents
 
-Repository AI work should follow this hierarchy:
-
-1. `AGENTS.md`
-2. `docs/ai-development-guidelines.md`
-3. relevant feature requirements
-4. explicit task prompt
-5. existing implementation/tests
-
-`AGENTS.md` should act as the mandatory entry point and tell agents which additional documents must be read.
-
-The detailed engineering principles should not all be duplicated in every prompt.
-
-The detailed feature requirements should not all be duplicated in `AGENTS.md`.
-
-Prompts should reference the relevant repository documents and then describe only the task-specific goal and constraints.
-
-If instructions conflict, the coding agent should stop and report the conflict instead of silently choosing an interpretation.
+`AGENTS.md` → this guide → the affected authoritative current specifications selected through [the domain index](current/index.md) → explicit approved Issue/task delta → code/tests as evidence. Read historical requirements and decisions when they materially explain provenance, supersession, rationale or a discrepancy; they do not compete with `docs/current/` as the current functional baseline. A clear, approved Issue delta may evolve an affected contract through the co-update in §18. Stop and report an unresolved product decision or material conflict rather than silently choosing an interpretation.
 
 ---
 
