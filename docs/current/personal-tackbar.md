@@ -7,7 +7,7 @@ This specification owns accepted Personal TackBar behavior. Its separately marke
 ### Purpose and access
 
 - Personal TackBar is an `ACTIVE` Sailor's read-only **My Sessions** participation history. Entry uses that Sailor's current personal capability, without a Sailor login. Invalid or unusable access does not disclose the Sailor or history. [Access and Consent](access-and-consent.md) owns the authorization, consent and capability rules.
-- A Session appears once when at least one of the Sailor's Activities belongs to it, including when that Sailor has multiple Activities in the Session. Membership is derived through Sailor → Activity → Session. History is normally shown newest first and does not offer an individual Activity history, profile editing, track upload or Session administration. [Domain and Sessions](domain-and-sessions.md) owns Activity and Session relationships.
+- A Session appears once when at least one of the Sailor's Activities belongs to it, including when that Sailor has multiple Activities in the Session. Membership is derived through Sailor → Activity → Session. Sessions with a currently usable opening link appear first, followed by unavailable Sessions; within each group, history keeps its newest-first sailing chronology and deterministic ties. The last-sailing summary remains the latest sailing end across all participation history, regardless of availability. The view does not offer an individual Activity history, profile editing, track upload or Session administration. [Domain and Sessions](domain-and-sessions.md) owns Activity and Session relationships.
 
 ### Session recognition and search
 

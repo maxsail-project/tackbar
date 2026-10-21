@@ -29,7 +29,7 @@ describe('Personal TackBar / My Sessions', () => {
     expect(markup).toContain('>About</button>')
   })
 
-  it('loads the minimal personal API and renders summary and newest-first history', async () => {
+  it('loads the minimal personal API and renders summary and returned history', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(data)))
     vi.stubGlobal('fetch', fetchMock)
     const loaded = await getPersonalTackBar('personal-token')
@@ -100,6 +100,21 @@ describe('Personal TackBar / My Sessions', () => {
       expect(filterPersonalSessions(data.sessions, excluded)).toEqual([])
     }
     expect(render(data)).toContain('placeholder="Location or sailing date"')
+  })
+
+  it('keeps available-first API order when search matches both availability groups', () => {
+    const sessions = [
+      { ...data.sessions[0], location_label: null, location_country: 'Spain' },
+      { ...data.sessions[0], sailing_start: '2026-09-03T13:49:00Z', sailing_end: '2026-09-03T17:21:00Z', location_label: null, location_country: 'Spain' },
+      { ...data.sessions[1], sailing_start: '2026-09-06T13:49:00Z', sailing_end: '2026-09-06T17:21:00Z', location_country: 'Spain' },
+      { ...data.sessions[1], location_country: 'Spain' },
+    ]
+    const matches = filterPersonalSessions(sessions, 'spain')
+    expect(matches).toEqual(sessions)
+    const markup = render({ ...data, session_count: 4, sessions: matches })
+    const positions = matches.map((session) => markup.indexOf(`dateTime="${session.sailing_start}"`))
+    expect(positions).toEqual([...positions].sort((left, right) => left - right))
+    expect(markup.match(/Session unavailable/g)).toHaveLength(2)
   })
 
   it('shows loading and handles denied access without identifying a Sailor', async () => {

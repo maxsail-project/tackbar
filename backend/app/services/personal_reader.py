@@ -56,11 +56,14 @@ class PersonalReader:
                 ),
                 session_path=f"/s/{shared_token}" if usable else None,
             ))
+        # History is already newest first; the stable sort keeps that order
+        # within each availability group without changing Admin history.
+        rows.sort(key=lambda row: row.session_path is None)
         return PersonalTackBarResponse(
             email=sailor.email,
             name=sailor.name,
             session_count=len(rows),
-            last_sailing_end=rows[0].sailing_end if rows else None,
+            last_sailing_end=history[0].sailing_end if history else None,
             sessions=rows,
         )
 

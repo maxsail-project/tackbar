@@ -2147,6 +2147,49 @@ def test_personal_history_is_derived_minimal_and_uses_shared_viewer(monkeypatch,
     assert [item["sailing_end"] for item in admin.json["sessions"]] == [item["sailing_end"] for item in body["sessions"]]
 
 
+def test_personal_history_groups_available_before_unavailable_without_changing_chronology_or_admin(
+    monkeypatch, temporary_directory,
+):
+    root, token = _personal_history_runtime(monkeypatch, temporary_directory)
+    activities = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    additions = [
+        ("available-a", "2026-09-04T10:00:00+00:00", "a" * 43),
+        ("available-b", "2026-09-04T10:00:00+00:00", "b" * 43),
+        ("unavailable-newest", "2026-09-06T10:00:00+00:00", None),
+        ("unavailable-older", "2026-09-02T10:00:00+00:00", None),
+    ]
+    for index, (session_id, sailing_end, shared_token) in enumerate(additions, start=5):
+        activity_id = f"10000000-0000-4000-8000-0000000000{index:02d}"
+        activity = _activity(activity_id, ACTIVE)
+        activity["start_time"] = sailing_end.replace("10:00:00", "09:00:00")
+        activity["end_time"] = sailing_end
+        activities.append(activity)
+        session = _session(session_id, [activity_id], shared_token)
+        session["location_label"] = session_id
+        sessions.append(session)
+    _write_json(root / "activities.json", activities)
+    _write_json(root / "sessions.json", sessions)
+
+    personal = _request("GET", f"/api/me/{token}", admin_key=None)
+    admin = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+
+    assert personal.status_code == admin.status_code == 200
+    assert personal.json["session_count"] == 6
+    assert personal.json["last_sailing_end"] == "2026-09-06T10:00:00Z"
+    assert [item["location_label"] for item in personal.json["sessions"]] == [
+        "Valencia", "available-b", "available-a",
+        "unavailable-newest", "unavailable-older", None,
+    ]
+    assert [item["session_path"] is not None for item in personal.json["sessions"]] == [
+        True, True, True, False, False, False,
+    ]
+    assert [item["session_id"] for item in admin.json["sessions"]] == [
+        "unavailable-newest", "new", "available-b", "available-a",
+        "unavailable-older", "old",
+    ]
+
+
 def test_personal_history_exposes_country_only_with_existing_access_boundary(
     monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
 ) -> None:
@@ -2210,6 +2253,7 @@ def test_personal_unavailable_session_stays_in_history(monkeypatch, temporary_di
     response = _request("GET", f"/api/me/{token}", admin_key=None)
     assert response.status_code == 200 and response.json["session_count"] == 2
     assert response.json["sessions"][0]["session_path"] is None
+    assert response.json["last_sailing_end"] == "2026-09-05T18:00:00Z"
     assert ACTIVE_TOKEN not in json.dumps(response.json)
 
 
