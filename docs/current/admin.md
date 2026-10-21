@@ -8,6 +8,7 @@ This specification owns accepted functional Admin behavior. The [Admin UX/UI Gui
 
 - TackBar provides a small, protected Admin surface separate from public Session and Personal TackBar capabilities. Admin reads and maintenance actions use backend APIs and services, not direct frontend access to persistence files. [Access and Consent](access-and-consent.md) owns access authorization.
 - The top-level operational order is **Ingestions → Activities → Sailors → Sessions**, starting at Ingestions. Each entity's full detail opens in its own section; relationships navigate to that section. A section presents a compact single-column list and at most one full-width expanded detail. Summary, operational detail, Advanced and read-only Admin diagnostic JSON provide progressively deeper evidence. Human-readable identities lead; exact IDs belong mainly in Advanced. Data, relations, actions, statuses and disclosures have distinct affordances on mobile, tablet and desktop.
+- Admin actions that open usable product/runtime links, including Personal TackBar, original Session and temporary share links, use native links that request a new browser context and preserve the current Admin page. They include referrer and opener protections. Internal Admin entity relations continue navigating to their owning sections; Copy and maintenance actions keep their existing semantics. The browser decides whether a new context appears as a tab or window.
 
 ### Ingestions and Activities
 

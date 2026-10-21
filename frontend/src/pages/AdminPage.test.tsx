@@ -839,6 +839,32 @@ describe('shared Admin entity search', () => {
 
 
 describe('Admin Personal TackBar controls', () => {
+  it('opens every available Admin runtime link in a protected new context', () => {
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const personal = renderToStaticMarkup(<PersonalCapabilityControls sailor={{ ...sailor('active'), personal_capability_state: 'active', personal_capability_path: '/me/personal-token' }} busy={false} />)
+    const currentSession = session('active')
+    const shared = renderToStaticMarkup(<SessionCard session={currentSession} detail={currentSession} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+
+    expect(personal).toContain('<a class="admin-button" href="/me/personal-token" target="_blank" rel="noopener noreferrer">Open Personal TackBar</a>')
+    expect(shared).toContain('<a class="admin-button" href="/s/token" target="_blank" rel="noopener noreferrer">Open session</a>')
+    expect(shared).toContain('<a class="admin-button" href="/q/temporary-token" target="_blank" rel="noopener noreferrer">Open temporary share</a>')
+    expect(personal.match(/<a /g)).toHaveLength(1)
+    expect(shared.match(/<a /g)).toHaveLength(2)
+  })
+
+  it('does not invent runtime links when a capability or temporary share is unavailable', () => {
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const unavailablePersonal = renderToStaticMarkup(<PersonalCapabilityControls sailor={{ ...sailor('active'), personal_capability_state: 'active', personal_capability_path: null }} busy={false} />)
+    const revoked = session('revoked')
+    const unavailableSession = { ...revoked, temporary_shares: { ...revoked.temporary_shares, active_share: null } }
+    const shared = renderToStaticMarkup(<SessionCard session={unavailableSession} detail={unavailableSession} busy={false} onSelect={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)
+
+    expect(unavailablePersonal).not.toContain('<a ')
+    expect(shared).not.toContain('<a ')
+    expect(shared).not.toContain('Open session')
+    expect(shared).not.toContain('Open temporary share')
+  })
+
   it('offers only usable Copy/Open actions outside Maintenance', () => {
     const detail: AdminSailorDetail = { ...sailor('active'), personal_capability_state: 'active', personal_capability_path: '/me/personal-token' }
     const markup = renderToStaticMarkup(<PersonalCapabilityControls sailor={detail} busy={false} />)

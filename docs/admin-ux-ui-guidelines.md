@@ -418,6 +418,8 @@ Cross-entity Admin navigation should use the relation pattern.
 
 Opening a Viewer, personal page, temporary share or another runtime surface should use the action pattern.
 
+Runtime Open actions use native links with `target="_blank"` and `rel="noopener noreferrer"` so the current Admin page remains available. The browser controls whether the new context is a tab or window. Use the same behavior on mobile, tablet and desktop; retain each link's existing availability rules. Internal Admin relations continue to navigate within Admin, while Copy and maintenance actions keep their own semantics.
+
 ---
 
 ## Status

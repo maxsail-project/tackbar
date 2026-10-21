@@ -605,7 +605,7 @@ export function PersonalCapabilityControls({ sailor, busy }: { sailor: AdminSail
     <p>{personalCapabilityLabels[sailor.personal_capability_state]}</p>
     <div className="admin-actions">
       {sailor.personal_capability_state === 'active' && path && <button disabled={busy} onClick={() => void copyLink()}>Copy link</button>}
-      {sailor.personal_capability_state === 'active' && path && <a className="admin-button" href={path}>Open Personal TackBar</a>}
+      {sailor.personal_capability_state === 'active' && path && <a className="admin-button" href={path} target="_blank" rel="noopener noreferrer">Open Personal TackBar</a>}
     </div>
     {copyMessage && <p role="status">{copyMessage}</p>}
   </section>
@@ -662,11 +662,11 @@ export function SessionOperationalDetail({ session, activities = [], busy, onAct
       </div>)}</div>
     </section>
     <section className="admin-session-section" aria-label="Session access"><h3>Session access</h3>
-      <div className="admin-session-access-block"><p><strong>Original capability:</strong> {capabilityLabels[session.capability_state]}</p>{capabilityUrl && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(capabilityUrl)}>Copy link</button><a className="admin-button" href={session.capability_path!} target="_blank" rel="noreferrer">Open session</a></div>}</div>
+      <div className="admin-session-access-block"><p><strong>Original capability:</strong> {capabilityLabels[session.capability_state]}</p>{capabilityUrl && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(capabilityUrl)}>Copy link</button><a className="admin-button" href={session.capability_path!} target="_blank" rel="noopener noreferrer">Open session</a></div>}</div>
     </section>
     <section className="admin-session-section" aria-label="Temporary QR access"><h3>Temporary QR access</h3>
       <div className="admin-session-access-block"><p><strong>Temporary QR access:</strong> Active {session.temporary_shares.active_count} · Expired {session.temporary_shares.expired_count} · Unavailable {session.temporary_shares.unavailable_count}</p>
-        {activeShare && <details className="admin-temporary-share"><summary>Active temporary share</summary><dl><div><dt>Created</dt><dd>{localDate(activeShare.created_at)}</dd></div><div><dt>Expires</dt><dd>{localDate(activeShare.expires_at)}</dd></div><div><dt>Remaining</dt><dd>{temporaryShareRemaining(activeShare.expires_at)}</dd></div><div><dt>State</dt><dd>VALID</dd></div></dl>{temporaryUrl && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(temporaryUrl)}>Copy temporary link</button><a className="admin-button" href={activeShare.path!} target="_blank" rel="noreferrer">Open temporary share</a></div>}</details>}
+        {activeShare && <details className="admin-temporary-share"><summary>Active temporary share</summary><dl><div><dt>Created</dt><dd>{localDate(activeShare.created_at)}</dd></div><div><dt>Expires</dt><dd>{localDate(activeShare.expires_at)}</dd></div><div><dt>Remaining</dt><dd>{temporaryShareRemaining(activeShare.expires_at)}</dd></div><div><dt>State</dt><dd>VALID</dd></div></dl>{temporaryUrl && !busy && <div className="admin-actions"><button onClick={() => void navigator.clipboard.writeText(temporaryUrl)}>Copy temporary link</button><a className="admin-button" href={activeShare.path!} target="_blank" rel="noopener noreferrer">Open temporary share</a></div>}</details>}
       </div>
     </section>
     <section className="admin-session-section" aria-label="Session details"><h3>Session details</h3><dl><div><dt>Created</dt><dd>{localDate(session.created_at)}</dd></div><div><dt>Expires</dt><dd>{localDate(session.expires_at)}</dd></div><div><dt>Status</dt><dd>{lifetime.expiration}</dd></div><div><dt>Location</dt><dd>{session.location ? sessionDisplayLocation(session.location.label, session.location.country) || 'Unavailable' : 'Unavailable'}</dd></div><div><dt>Location provider</dt><dd>{session.location?.provider || 'Unavailable'}</dd></div><div><dt>Location resolved</dt><dd>{localDate(session.location?.resolved_at || null)}</dd></div></dl>
