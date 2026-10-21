@@ -11,7 +11,7 @@ GEOAPIFY_REVERSE_URL = "https://api.geoapify.com/v1/geocode/reverse"
 
 @dataclass(frozen=True)
 class GeographicContext:
-    label: str
+    label: str | None
     region: str | None
     country: str | None
     country_code: str | None
@@ -65,16 +65,19 @@ class GeoapifyGeocodingProvider:
             return None
         result = results[0]
         city = _optional_text(result.get("city"))
-        if city is None:
+        region = _optional_text(result.get("state"))
+        country = _optional_text(result.get("country"))
+        country_code = _optional_text(result.get("country_code"))
+        if all(value is None for value in (city, region, country, country_code)):
             return None
         resolved_at = self._clock()
         if resolved_at.tzinfo is None or resolved_at.utcoffset() is None:
             raise ValueError("Geocoding clock must return timezone-aware time")
         return GeographicContext(
             label=city,
-            region=_optional_text(result.get("state")),
-            country=_optional_text(result.get("country")),
-            country_code=_optional_text(result.get("country_code")),
+            region=region,
+            country=country,
+            country_code=country_code,
             provider="geoapify",
             resolved_at=resolved_at.astimezone(timezone.utc),
         )

@@ -329,6 +329,23 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('Comunitat Valenciana')
   })
 
+  it('uses country without region when a persisted Admin location has no city', () => {
+    vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
+    const detail: AdminSession = {
+      ...session('active'),
+      location_label: null,
+      location_country: 'España',
+      location: { label: null, region: 'Comunitat Valenciana', country: 'España', country_code: 'es', provider: 'geoapify', resolved_at: '2026-10-18T10:00:00Z', source_activity_id: 'activity-123456789' },
+    }
+    const callbacks = { busy: false, onSelect: () => undefined, onRegenerate: () => undefined, onRevoke: () => undefined, onRenew: () => undefined }
+    const collapsed = renderToStaticMarkup(<SessionCard session={detail} {...callbacks} />)
+    const expanded = renderToStaticMarkup(<SessionCard session={detail} detail={detail} {...callbacks} />)
+
+    expect(collapsed).toContain('España ·')
+    expect(collapsed).not.toContain('Comunitat Valenciana ·')
+    expect(expanded).toContain('<dt>Location</dt><dd>España</dd>')
+  })
+
   it('preserves the date identity and explicit unavailable context fallback', () => {
     vi.stubGlobal('window', { location: { origin: 'https://tackbar.test' } })
     const detail = session('active')

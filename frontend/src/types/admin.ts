@@ -140,7 +140,7 @@ export interface AdminSession extends AdminSessionSummary {
   consent_pending_count: number
   consent_revoked_count: number
   location: {
-    label: string
+    label: string | null
     region: string | null
     country: string | null
     country_code: string | null

@@ -96,7 +96,7 @@ class AdminSessionSummaryResponse(BaseModel):
 
 
 class AdminSessionLocationResponse(BaseModel):
-    label: str
+    label: str | None
     region: str | None
     country: str | None
     country_code: str | None

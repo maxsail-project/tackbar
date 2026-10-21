@@ -218,3 +218,15 @@ class Session:
     location_resolved_at: datetime | None = None
     location_source_activity_id: str | None = None
     historical_conditions: HistoricalConditions | None = None
+
+    @property
+    def has_geographic_context(self) -> bool:
+        return any(
+            isinstance(value, str) and bool(value.strip())
+            for value in (
+                self.location_label,
+                self.location_region,
+                self.location_country,
+                self.location_country_code,
+            )
+        )

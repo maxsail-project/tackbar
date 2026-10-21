@@ -74,7 +74,7 @@ class SessionEnrichmentService:
         session = self.sessions.get_by_id(session_id)
         if session is None:
             return "unavailable (Session missing)"
-        if session.location_label is not None:
+        if session.has_geographic_context:
             return "skipped (already persisted)"
         if self.geocoding is None:
             return "unavailable (provider not configured)"
@@ -90,7 +90,7 @@ class SessionEnrichmentService:
         if context is None:
             return "returned no usable result"
         current = self.sessions.get_by_id(session_id)
-        if current is None or current.location_label is not None:
+        if current is None or current.has_geographic_context:
             return "skipped (Session changed)"
         self.sessions.replace(replace(
             current,

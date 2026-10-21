@@ -422,7 +422,7 @@ class AdminReader:
                     resolved_at=session.location_resolved_at,
                     source_activity_id=session.location_source_activity_id,
                 )
-                if session.location_label is not None
+                if session.has_geographic_context
                 and session.location_provider is not None
                 and session.location_resolved_at is not None
                 and session.location_source_activity_id is not None
@@ -451,7 +451,7 @@ class AdminReader:
                             "resolved_at": session.location_resolved_at,
                             "source_activity_id": session.location_source_activity_id,
                         }
-                        if session.location_label is not None else None
+                        if session.has_geographic_context else None
                     ),
                     "historical_conditions": (
                         asdict(session.historical_conditions)

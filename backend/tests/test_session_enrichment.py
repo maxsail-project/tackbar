@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
+
 from app.config import GeoapifyConfigurationError, load_geoapify_api_key
 from app.models import (
     HistoricalConditions,
@@ -18,7 +20,10 @@ from app.services.session_enrichment import (
     SessionEnrichmentService,
     automatic_session_enrichment_service,
 )
-from app.session_context_providers.geocoding import GeoapifyGeocodingProvider
+from app.session_context_providers.geocoding import (
+    GeoapifyGeocodingProvider,
+    GeographicContext,
+)
 from app.session_context_providers.historical_conditions import (
     OpenMeteoHistoricalConditionsProvider,
 )
@@ -120,18 +125,21 @@ def test_session_persistence_reads_legacy_records_and_round_trips_context(
     assert activities.get_by_id("activity-a") is not None
 
 
-def test_geoapify_normalizes_only_first_result_city_without_city_filter() -> None:
+def test_geoapify_normalizes_supported_fields_from_only_first_result() -> None:
     calls: list[str] = []
 
     def get(url: str, _timeout: float) -> object:
         calls.append(url)
-        return {"results": [{
-            "city": "  Mahón ",
-            "state": "Illes Balears",
-            "country": "España",
-            "country_code": "es",
-            "formatted": "credential-must-not-be-persisted",
-        }]}
+        return {"results": [
+            {
+                "city": "  Mahón ",
+                "state": "Illes Balears",
+                "country": "España",
+                "country_code": "es",
+                "formatted": "credential-must-not-be-persisted",
+            },
+            {"city": "Second result must be ignored"},
+        ]}
 
     provider = GeoapifyGeocodingProvider(
         "secret-key",
@@ -150,11 +158,142 @@ def test_geoapify_normalizes_only_first_result_city_without_city_filter() -> Non
     assert query["limit"] == ["1"]
     assert "type" not in query
 
-    no_city = GeoapifyGeocodingProvider(
+
+
+@pytest.mark.parametrize(
+    ("provider_result", "expected"),
+    [
+        (
+            {"city": " Valencia ", "country": " España "},
+            ("Valencia", None, "España", None),
+        ),
+        (
+            {"country": " España ", "country_code": " es "},
+            (None, None, "España", "es"),
+        ),
+        (
+            {"state": " Comunitat Valenciana ", "country": " España "},
+            (None, "Comunitat Valenciana", "España", None),
+        ),
+        (
+            {"state": " Comunitat Valenciana "},
+            (None, "Comunitat Valenciana", None, None),
+        ),
+        (
+            {"country_code": " es "},
+            (None, None, None, "es"),
+        ),
+    ],
+)
+def test_geoapify_accepts_cityless_supported_geographic_context(
+    provider_result: dict[str, object],
+    expected: tuple[str | None, str | None, str | None, str | None],
+) -> None:
+    provider = GeoapifyGeocodingProvider(
         "secret-key",
-        http_get=lambda *_: {"results": [{"state": "Valencia", "country": "España"}]},
+        clock=lambda: _time(10, 18, 9),
+        http_get=lambda *_: {"results": [provider_result]},
     )
-    assert no_city.reverse(39.4, -0.3) is None
+
+    result = provider.reverse(39.4, -0.3)
+
+    assert result is not None
+    assert (result.label, result.region, result.country, result.country_code) == expected
+
+
+@pytest.mark.parametrize(
+    "provider_result",
+    [
+        {},
+        {"city": " ", "state": None, "country": 7, "country_code": ""},
+        {"formatted": "Valencia, España", "county": "Valencia"},
+    ],
+)
+def test_geoapify_rejects_results_without_supported_geographic_fields(
+    provider_result: dict[str, object],
+) -> None:
+    provider = GeoapifyGeocodingProvider(
+        "secret-key",
+        http_get=lambda *_: {"results": [provider_result]},
+    )
+
+    assert provider.reverse(39.4, -0.3) is None
+
+
+def test_enrichment_persists_cityless_context_once(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    calls = 0
+
+    class CountryGeocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            nonlocal calls
+            calls += 1
+            return GeographicContext(
+                label=None,
+                region="Comunitat Valenciana",
+                country="España",
+                country_code="es",
+                provider="geoapify",
+                resolved_at=_time(10, 18, 9),
+            )
+
+    service = SessionEnrichmentService(
+        sessions,
+        activities,
+        geocoding=CountryGeocoder(),
+    )
+    service.enrich_from_admin("session-a")
+    service.enrich_from_admin("session-a")
+
+    persisted = sessions.get_by_id("session-a")
+    assert persisted is not None
+    assert persisted.location_label is None
+    assert persisted.location_region == "Comunitat Valenciana"
+    assert persisted.location_country == "España"
+    assert persisted.location_country_code == "es"
+    assert persisted.location_provider == "geoapify"
+    assert persisted.location_resolved_at == _time(10, 18, 9)
+    assert persisted.location_source_activity_id == "activity-a"
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("field_name", "field_value"),
+    [
+        ("location_country", "España"),
+        ("location_region", "Comunitat Valenciana"),
+        ("location_country_code", "es"),
+    ],
+)
+def test_enrichment_does_not_overwrite_persisted_partial_geographic_context(
+    temporary_json_file: Callable[[str, object], Path],
+    field_name: str,
+    field_value: str,
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    existing = sessions.get_by_id("session-a")
+    assert existing is not None
+    sessions.replace(replace(existing, **{field_name: field_value}))
+    calls = 0
+
+    class UnexpectedGeocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            nonlocal calls
+            calls += 1
+            raise AssertionError("Persisted partial context must not be re-enriched")
+
+    SessionEnrichmentService(
+        sessions,
+        activities,
+        geocoding=UnexpectedGeocoder(),
+    ).enrich_from_admin("session-a")
+
+    persisted = sessions.get_by_id("session-a")
+    assert persisted is not None
+    assert getattr(persisted, field_name) == field_value
+    assert calls == 0
 
 
 def test_geoapify_configuration_is_required_without_exposing_value() -> None:

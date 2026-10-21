@@ -1026,22 +1026,41 @@ def test_admin_session_summaries_include_compact_operational_context(monkeypatch
     assert sessions[SESSION_EXPIRED]["total_activity_count"] == 2
 
 
-def test_admin_session_summary_exposes_country_only_to_admin(
+def test_admin_session_summary_and_detail_expose_country_only_to_admin(
     monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
 ) -> None:
     root = _use_runtime(monkeypatch, temporary_directory)
     records = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
-    next(item for item in records if item["id"] == SESSION_ACTIVE)["location_country"] = "Spain"
+    record = next(item for item in records if item["id"] == SESSION_ACTIVE)
+    record.update({
+        "location_region": "Comunitat Valenciana",
+        "location_country": "Spain",
+        "location_country_code": "es",
+        "location_provider": "geoapify",
+        "location_resolved_at": "2026-10-18T10:00:00+00:00",
+        "location_source_activity_id": ACTIVITY_PENDING,
+    })
     _write_json(root / "sessions.json", records)
 
     denied = _request("GET", "/api/admin/sessions", admin_key=None)
     response = _request("GET", "/api/admin/sessions")
+    detail = _request("GET", f"/api/admin/sessions/{SESSION_ACTIVE}")
 
     assert denied.status_code == 401
     assert response.status_code == 200
     summary = next(item for item in response.json if item["id"] == SESSION_ACTIVE)
     assert summary["location_label"] is None
     assert summary["location_country"] == "Spain"
+    assert detail.status_code == 200
+    assert detail.json["location"] == {
+        "label": None,
+        "region": "Comunitat Valenciana",
+        "country": "Spain",
+        "country_code": "es",
+        "provider": "geoapify",
+        "resolved_at": "2026-10-18T10:00:00Z",
+        "source_activity_id": ACTIVITY_PENDING,
+    }
 
 
 def test_admin_session_detail_exposes_membership_without_raw_capability_token(
