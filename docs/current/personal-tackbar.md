@@ -19,6 +19,7 @@ This specification owns accepted Personal TackBar behavior. Its separately marke
 
 - An available row opens the existing collaborative [Session Viewer](session-viewer.md) directly through a currently usable shared Session capability. Personal access does not grant Viewer access on its own. The Viewer still applies shared capability, Session lifetime and `ACTIVE`-only visibility checks. [Access and Consent](access-and-consent.md) owns those checks.
 - An expired, revoked or otherwise unavailable Session remains in participation history, visibly unavailable and without a usable opening action. Personal TackBar does not fabricate a shared link, renew a Session or change Activity retention. Explicit Admin renewal may restore access only under the existing Session and capability rules in [Domain and Sessions](domain-and-sessions.md) and [Access and Consent](access-and-consent.md).
+- The public header offers About without changing the page route or Session list. Where release metadata is available, the exact deployed tag and release family appear beneath the public logo and within About; absent metadata is omitted. [Completed #116](https://github.com/maxsail-project/tackbar/issues/116) records the accepted placement.
 
 ## Provenance and review
 
@@ -27,6 +28,7 @@ This specification owns accepted Personal TackBar behavior. Its separately marke
 | Personal capability, `ACTIVE` gate, read-only one-row-per-Session history and Viewer boundary | [v0.6 requirements](../v0.6-personal-tackbar-pilot-operations-requirements.md) §3 V6-PER-01–07; [v0.6 decisions](../v0.6-decisions.md) §3.1–3.5 | `backend/app/services/personal_reader.py`, `sailor_sessions.py`, `shared_session_reader.py`; `backend/tests/test_admin_api.py` personal-history, denial and renewal cases |
 | City-or-country/date identity with date fallback; compact row, search, optional atmospheric cue and direct opening | [v0.7 requirements](../v0.7-collaborative-debrief-analytics-requirements.md) §9 V7-CTX-05; [completed #108](https://github.com/maxsail-project/tackbar/issues/108); [completed #115](https://github.com/maxsail-project/tackbar/issues/115); approved [#118](https://github.com/maxsail-project/tackbar/issues/118) implementation delta | `frontend/src/pages/PersonalTackBarPage.tsx`, `frontend/src/pages/PersonalTackBarPage.test.tsx`; `backend/app/services/personal_reader.py`; `backend/tests/test_admin_api.py` personal-weather cases |
 | Unavailable participation history and no shared-access bypass | [v0.6 requirements](../v0.6-personal-tackbar-pilot-operations-requirements.md) §3 V6-PER-05–07; [v0.6 decisions](../v0.6-decisions.md) §3.3–3.5 | `backend/app/services/personal_reader.py`; `backend/tests/test_admin_api.py` unavailable and renewal cases; `frontend/src/pages/PersonalTackBarPage.test.tsx` |
+| Public About and release identity | [Completed #116](https://github.com/maxsail-project/tackbar/issues/116), including its later accepted placement clarification | `frontend/src/components/AboutControl.tsx`, `frontend/src/pages/PersonalTackBarPage.tsx`; their focused tests |
 
 ### Unresolved contract
 

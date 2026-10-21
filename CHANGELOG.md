@@ -2,6 +2,189 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.13 Californian — Finding Our Bearings
+
+### English
+
+Adds optional Session place and historical conditions to the collaborative
+debrief, makes additional boats visible as map context, and helps sailors find
+their own Sessions. This release also clarifies public project identity and
+operational provenance without expanding the two-Activity analysis model.
+
+### Added
+
+* A newly created Session can persist its best-effort geographic context and
+  hourly historical/modelled weather and marine conditions. Admin can inspect
+  the persisted values and explicitly enrich one Session; failed or partial
+  provider responses do not block track ingestion or Session creation. Normal
+  Viewer and Personal reads use persisted context without provider requests.
+* The original and temporary Session Viewers show a compact conditions cue
+  selected near the Analysis Window midpoint, with available detail on demand.
+  Additional visible Activities appear as passive fleet context on the map,
+  clipped to the window and synchronized with replay. An explicit Compare
+  action can select a contextual Activity as Comparison while Primary stays
+  selected; Summary, charts and maneuver comparison still use at most two.
+* Personal TackBar identifies Sessions by city or country and sailing date,
+  adds a compact sailing-time and sailor-count line, optional persisted wind
+  and temperature context, location/date search, and direct opening of an
+  available Session. Unavailable Sessions remain visible without bypassing
+  shared access checks.
+* Public Session Viewer and Personal TackBar headers provide an About panel
+  with project, pilot, contact, source and license information. Where build
+  metadata is available, the exact deployed release tag and Californian family
+  appear beneath the public logo and within About. Admin remains separate.
+
+### Changed
+
+* Session location uses the best available city, then country, then the
+  existing date fallback across Viewer, Personal TackBar and Admin. Geoapify
+  results with only a supported country, region or country code can now be
+  persisted without inventing a city; Admin enrichment preserves any existing
+  usable geographic context.
+* Current functional specifications now have a domain index and a focused
+  agent reading route. Repository Issue Forms guide product increments and
+  release preparation, and the Release Preparer has explicit authority for
+  evidence-based release documentation reconciliation. These governance
+  changes do not introduce product behavior or a publication/deployment gate.
+
+### Fixed
+
+* Admin distinguishes an ingestion that created an Activity from one that
+  reused an existing Activity, with a safe unknown state for older records.
+  Reuse remains a successfully processed outcome, not a failure or discard.
+
+### Issues
+
+- [#60](https://github.com/maxsail-project/tackbar/issues/60) — [#60] Show whether a processed ingestion created or reused an Activity in Admin
+- [#99](https://github.com/maxsail-project/tackbar/issues/99) — [#99] Standardize GitHub Issue forms and documentation-impact classification
+- [#100](https://github.com/maxsail-project/tackbar/issues/100) — [#100] Give Release Preparer authority to reconcile release documentation
+- [#104](https://github.com/maxsail-project/tackbar/issues/104) — Add fleet context to two-boat comparison
+- [#106](https://github.com/maxsail-project/tackbar/issues/106) — Add geographic context to Session identity
+- [#107](https://github.com/maxsail-project/tackbar/issues/107) — Add persisted historical weather context to Sessions
+- [#108](https://github.com/maxsail-project/tackbar/issues/108) — Improve Personal TackBar Session recognition
+- [#115](https://github.com/maxsail-project/tackbar/issues/115) — Refine Personal TackBar with compact weather context and search
+- [#116](https://github.com/maxsail-project/tackbar/issues/116) — [#116] Add consistent public About and deployed release identity
+- [#118](https://github.com/maxsail-project/tackbar/issues/118) — [#118] Show best available Session location (city or country)
+- [#119](https://github.com/maxsail-project/tackbar/issues/119) — [#119] Consolidate current TackBar specifications and simplify documentation governance
+
+### Validation
+
+The completed product Issues record focused backend and frontend regressions,
+frontend typecheck/build checks, and manual acceptance as applicable. #104
+records 93 focused frontend tests and four-Activity manual validation; #115
+records 17 backend Personal tests and 22 focused frontend tests; #116 records
+27 focused frontend tests and mobile visual acceptance; #118 records focused
+backend and frontend integration checks plus a real country-only Session
+verification. #99, #100 and #119 record documentation/governance reviews.
+These implementation checks were reported before release preparation; a full
+product regression was not rerun as part of this documentation-only preparation.
+
+Release preparation verified the release range and completed-Issue
+traceability, reconciled release-relevant documentation, checked bilingual
+release notes and publication-body equivalence, and ran final diff, whitespace
+and remote publication-state checks. No dependencies changed.
+
+Historical conditions are optional and may be incomplete. A later Activity
+joining a Session does not automatically refresh persisted context; Admin
+offers explicit enrichment. The known Viewer compact-gust and maneuver-table
+map-focus questions remain under open review and are not claimed as delivered
+changes here.
+
+---
+
+## v0.7.13 Californian — Encontrando nuestro rumbo
+
+### Español
+
+Añade lugar y condiciones históricas opcionales a la Session para el debrief
+colaborativo, muestra otros barcos como contexto del mapa y facilita encontrar
+las Sessions propias. También aclara la identidad pública del proyecto y la
+procedencia operativa sin ampliar el análisis de dos Activities.
+
+### Añadido
+
+* Una Session recién creada puede conservar su contexto geográfico y sus
+  condiciones horarias meteorológicas y marinas históricas/modeladas mediante
+  enriquecimiento de mejor esfuerzo. Admin permite inspeccionarlas y enriquecer
+  una Session explícitamente; respuestas fallidas o parciales no bloquean la
+  ingesta ni la creación de la Session. Las lecturas normales de Viewer y
+  Personal usan los datos guardados sin consultar a los proveedores.
+* Los Viewers original y temporal muestran una indicación compacta de
+  condiciones elegidas cerca del punto medio del Analysis Window, con detalle
+  disponible al abrirla. Otras Activities visibles aparecen como contexto
+  pasivo de flota en el mapa, recortadas a la ventana y sincronizadas con el
+  replay. Compare permite elegir una Activity contextual como Comparison sin
+  cambiar Primary; Summary, charts y maniobras siguen analizando como máximo dos.
+* Personal TackBar identifica Sessions por ciudad o país y fecha de navegación;
+  añade horario, número de navegantes, contexto opcional de viento y temperatura
+  guardado, búsqueda por lugar/fecha y apertura directa de Sessions disponibles.
+  Las Sessions no disponibles siguen visibles sin eludir el acceso compartido.
+* Las cabeceras públicas del Session Viewer y Personal TackBar ofrecen About
+  con información del proyecto, piloto, contacto, código fuente y licencia.
+  Cuando existen metadatos de build, el tag exacto de la release desplegada y
+  la familia Californian aparecen debajo del logo público y dentro de About.
+  Admin permanece separado.
+
+### Cambiado
+
+* La ubicación de la Session utiliza primero ciudad, después país y finalmente
+  la fecha como alternativa existente en Viewer, Personal TackBar y Admin.
+  Ahora se puede guardar una respuesta Geoapify con solo país, región o código
+  de país admitido sin inventar ciudad; Admin conserva cualquier contexto
+  geográfico utilizable al enriquecer.
+* Las especificaciones funcionales actuales tienen ahora un índice por dominio
+  y una ruta de lectura enfocada para agentes. Los formularios de Issues guían
+  los incrementos de producto y la preparación de releases, y Release Preparer
+  dispone de autoridad explícita para reconciliar documentación con evidencia.
+  Estos cambios de gobernanza no introducen comportamiento de producto ni una
+  nueva puerta de publicación o despliegue.
+
+### Corregido
+
+* Admin distingue una ingesta que creó una Activity de otra que reutilizó una
+  Activity existente, con estado desconocido seguro para registros antiguos.
+  La reutilización sigue siendo un resultado procesado, no un fallo ni descarte.
+
+### Issues
+
+- [#60](https://github.com/maxsail-project/tackbar/issues/60) — [#60] Show whether a processed ingestion created or reused an Activity in Admin
+- [#99](https://github.com/maxsail-project/tackbar/issues/99) — [#99] Standardize GitHub Issue forms and documentation-impact classification
+- [#100](https://github.com/maxsail-project/tackbar/issues/100) — [#100] Give Release Preparer authority to reconcile release documentation
+- [#104](https://github.com/maxsail-project/tackbar/issues/104) — Add fleet context to two-boat comparison
+- [#106](https://github.com/maxsail-project/tackbar/issues/106) — Add geographic context to Session identity
+- [#107](https://github.com/maxsail-project/tackbar/issues/107) — Add persisted historical weather context to Sessions
+- [#108](https://github.com/maxsail-project/tackbar/issues/108) — Improve Personal TackBar Session recognition
+- [#115](https://github.com/maxsail-project/tackbar/issues/115) — Refine Personal TackBar with compact weather context and search
+- [#116](https://github.com/maxsail-project/tackbar/issues/116) — [#116] Add consistent public About and deployed release identity
+- [#118](https://github.com/maxsail-project/tackbar/issues/118) — [#118] Show best available Session location (city or country)
+- [#119](https://github.com/maxsail-project/tackbar/issues/119) — [#119] Consolidate current TackBar specifications and simplify documentation governance
+
+### Validación
+
+Los Issues de producto completados registran regresiones enfocadas de backend
+y frontend, typecheck/build de frontend y aceptación manual según corresponda.
+#104 registra 93 tests de frontend y validación manual con cuatro Activities;
+#115 registra 17 tests de Personal en backend y 22 de frontend; #116 registra
+27 tests de frontend y aceptación visual móvil; #118 registra comprobaciones
+enfocadas de integración backend/frontend y una Session real solo con país.
+#99, #100 y #119 registran revisiones de documentación y gobernanza. Esas
+comprobaciones de implementación se notificaron antes de esta preparación; no
+se repitió una regresión completa del producto para esta preparación documental.
+
+La preparación verificó el rango de commits y la trazabilidad de Issues
+completados, reconcilió la documentación relevante, comprobó las notas
+bilingües y la equivalencia del cuerpo de publicación, y ejecutó revisiones
+finales de diff, espacios y estado remoto de publicación. No cambiaron las
+dependencias.
+
+Las condiciones históricas son opcionales y pueden ser incompletas. Una
+Activity añadida después a una Session no actualiza automáticamente el contexto
+guardado; Admin permite enriquecerlo explícitamente. Las cuestiones conocidas
+del gust compacto y del foco del mapa desde la tabla de maniobras siguen bajo
+revisión abierta y no se presentan aquí como cambios entregados.
+
+---
+
 ## v0.7.12 Californian — Signal Analytics & Individual Analysis (Published and technically deployed)
 
 ### English

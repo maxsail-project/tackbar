@@ -202,6 +202,10 @@ attachment, sender/provider, status, attempts, last attempt, last error,
 Activity ID, Session ID y disponibilidad del original. Los registros `failed`
 permanecen visibles y pueden reprocesarse cuando el original preservado está
 disponible.
+Para una Ingestion procesada con Activity, Admin distingue si la Activity se
+creó en ese intento, si se reutilizó una existente o si el dato histórico no
+permite saberlo. Reutilizar una Activity sigue siendo un resultado procesado,
+no un descarte ni un fallo.
 
 **Review mailbox now** requiere `TACKBAR_DATA_DIR` privado, la clave Admin y la
 configuración IMAP de OVH. `TACKBAR_MAILBOX_PROVIDER` conserva la selección de

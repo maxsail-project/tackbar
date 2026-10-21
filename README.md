@@ -125,6 +125,10 @@ VS distributions, and Individual Analysis with a per-Activity SOG + COG chart
 and HEEL × SOG density map. Public sanitized TEST data validates the same
 runtime/API path without becoming a frontend fixture fallback. SQLite is not a
 prerequisite for this PoC.
+Additional visible Activities can provide passive fleet context on the map
+while analysis remains limited to two. Session-owned location and optional
+historical conditions support Viewer and Personal TackBar recognition; public
+headers offer About and release identity from available build metadata.
 
 The ingestion layer is intended to remain independent from the analytics layer.
 
@@ -168,8 +172,7 @@ The focus is instead on:
 ## Project status
 
 **Controlled real-sailing pilot. v0.7.12 Californian — Signal Analytics &
-Individual Analysis is the current release. It has been published and
-technically deployed to production.**
+Individual Analysis was published and technically deployed to production.**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
@@ -193,7 +196,7 @@ See the [CHANGELOG](CHANGELOG.md) for delivered changes and the
 
 The project is not currently affiliated with or endorsed by Garmin, Vakaros or any other device manufacturer.
 
-## Current release and next direction
+## Published release and next direction
 
 ### v0.7.12 Californian — Signal Analytics & Individual Analysis
 
@@ -206,9 +209,8 @@ The GitHub Release is published and the exact v0.7.12 tag has been technically
 deployed to production with a successful health check. This does not assert a
 separate manual functional PASS for the v0.7.12 production surfaces.
 
-The next product increment remains undecided. Open GitHub Issues are the
-canonical pending-work inventory, and the GitHub Project provides its physical
-ordering without assigning release scope.
+Open GitHub Issues are the canonical pending-work inventory, and the GitHub
+Project provides its physical ordering without assigning release scope.
 
 See the [v0.7 requirements](docs/v0.7-collaborative-debrief-analytics-requirements.md),
 [analytics decisions](docs/v0.7-decisions.md),
@@ -362,6 +364,11 @@ distribuciones VS por tiempo representado e Individual Analysis con chart SOG +
 COG y mapa de densidad HEEL × SOG por Activity. Los datos TEST públicos y
 sanitizados validan la misma ruta runtime/API sin actuar como fallback de
 fixtures frontend. SQLite no es un requisito previo para esta PoC.
+Otras Activities visibles pueden aportar contexto pasivo de flota en el mapa,
+mientras el análisis sigue limitado a dos. La ubicación de la Session y sus
+condiciones históricas opcionales ayudan a reconocerla en Viewer y Personal
+TackBar; las cabeceras públicas ofrecen About y la identidad de release según
+los metadatos de build disponibles.
 
 La capa de ingestión permanecerá separada de la capa analítica.
 
@@ -405,8 +412,8 @@ El foco pasa a estar en:
 ## Estado del proyecto
 
 **Piloto controlado con navegaciones reales. v0.7.12 Californian — Signal
-Analytics & Individual Analysis es la release actual. Ha sido publicada y
-desplegada técnicamente en producción.**
+Analytics & Individual Analysis se publicó y desplegó técnicamente en
+producción.**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
@@ -430,7 +437,7 @@ Consulta el [CHANGELOG](CHANGELOG.md) para los cambios entregados y las
 
 Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni ningún otro fabricante de dispositivos.
 
-## Release actual y próxima dirección
+## Release publicada y próxima dirección
 
 ### v0.7.12 Californian — Signal Analytics & Individual Analysis
 
@@ -444,9 +451,8 @@ La GitHub Release está publicada y el tag exacto v0.7.12 se ha desplegado
 técnicamente en producción con un health check correcto. Esto no afirma un PASS
 funcional manual separado de las superficies v0.7.12 en producción.
 
-El siguiente incremento de producto sigue sin decidirse. Los Issues abiertos de
-GitHub son el inventario canónico de trabajo pendiente y GitHub Project aporta
-su orden físico sin asignar alcance de release.
+Los Issues abiertos de GitHub son el inventario canónico de trabajo pendiente y
+GitHub Project aporta su orden físico sin asignar alcance de release.
 
 Consulta los [requisitos v0.7](docs/v0.7-collaborative-debrief-analytics-requirements.md),
 las [decisiones de analítica](docs/v0.7-decisions.md), las
