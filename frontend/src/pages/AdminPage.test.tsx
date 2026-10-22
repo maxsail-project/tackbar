@@ -52,6 +52,7 @@ describe('minimal Admin UI', () => {
       const element = node as ReactElement<{ children: ReactNode; label: string; id: string; onFollow: () => void }>
       return element.type === RelationButton ? [element] : findRelations(element.props.children)
     }
+    expect(findRelations(receipt)[0].props.id).toBe(sourceIngestion.id)
     findRelations(receipt)[0].props.onFollow()
     expect(inspect).toHaveBeenCalledOnce()
     const follow = vi.fn()
@@ -65,6 +66,14 @@ describe('minimal Admin UI', () => {
       expect(follow).toHaveBeenLastCalledWith(kind, relation.props.id)
       expect(adminNavigationTarget(kind, relation.props.id, 'ingestions').section).toBe(({ sailor: 'sailors', activity: 'activities', session: 'sessions' })[kind])
     }
+  })
+  it('identifies the selected Ingestion with a stable reveal target in its existing list card', () => {
+    const ingestion: AdminIngestionDetail = { ...sourceIngestion, id: 'exact-upload', session_result_notification_candidate: false, session_result_notification: null, attachment_sha256: null, diagnostic: {} }
+    const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} detail={ingestion} busy={false} onSelect={() => undefined} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    expect(markup).toContain('id="admin-ingestion-exact-upload"')
+    expect(markup).toContain('is-expanded is-selected')
+    expect(markup).toContain('aria-current="true"')
+    expect(markup.match(/class="admin-entity-detail admin-ingestion-detail"/g)).toHaveLength(1)
   })
   it.each(['pending', 'processing', 'processed', 'failed'] as const)('shows the manual %s lifecycle and truthful provenance', (status) => {
     const ingestion: AdminIngestionDetail = { ...sourceIngestion, id: 'manual-operation', provider: 'admin_upload', provider_message_id: null, sender_email: null, received_at: null, operation_id: 'manual-operation', owner_sailor_id: sourceIngestion.sailor_id, accepted_at: '2026-10-22T12:00:00Z', status, session_result_notification_candidate: false, session_result_notification: null, attachment_sha256: 'digest', diagnostic: {} }

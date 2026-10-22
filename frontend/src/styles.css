@@ -2382,9 +2382,9 @@ input:focus-visible {
 .admin-detail-grid dd, .admin-advanced dd, .admin-related-summary dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: .85rem; font-weight: 750; }
 .admin-detail-grid section > p { margin: 6px 0; color: var(--color-navy); font-size: .85rem; }
 .admin-relations { display: grid; gap: 8px; }
-.admin-card .admin-relation { display: grid; grid-template-columns: minmax(88px, auto) minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--color-pale); border-radius: 9px; color: var(--color-navy); background: var(--color-white); box-shadow: none; text-align: left; cursor: pointer; }
-.admin-card button.admin-relation:hover { border-color: var(--color-blue); background: #f2f8f9; }
-.admin-card button.admin-relation:focus-visible { outline: 3px solid var(--color-blue); outline-offset: 1px; }
+.admin-card .admin-relation, .admin-upload-result .admin-relation { display: grid; grid-template-columns: minmax(88px, auto) minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--color-pale); border-radius: 9px; color: var(--color-navy); background: var(--color-white); box-shadow: none; text-align: left; cursor: pointer; }
+.admin-card button.admin-relation:hover, .admin-upload-result button.admin-relation:hover { border-color: var(--color-blue); background: #f2f8f9; }
+.admin-card button.admin-relation:focus-visible, .admin-upload-result button.admin-relation:focus-visible { outline: 3px solid var(--color-blue); outline-offset: 1px; }
 .admin-relation > span:first-child { color: var(--color-navy); font-size: .75rem; }
 .admin-relation > span:last-child { color: var(--color-blue); font-size: 1.35rem; line-height: 1; }
 .admin-relation strong { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
