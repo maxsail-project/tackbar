@@ -153,8 +153,11 @@ export interface AdminSession extends AdminSessionSummary {
 }
 
 export interface AdminIngestion {
-  id: string; provider: string; provider_message_id: string; sender_email: string | null
-  received_at: string | null; attachment_name: string | null; status: 'processed' | 'failed'
+  id: string; provider: string; provider_message_id: string | null; sender_email: string | null
+  received_at: string | null; attachment_name: string | null; status: 'pending' | 'processing' | 'processed' | 'failed'
+  operation_id?: string | null
+  owner_sailor_id?: string | null
+  accepted_at?: string | null
   disposition: 'active' | 'discarded'
   attempts: number; last_attempt_at: string | null; last_error: string | null
   activity_id: string | null; session_id: string | null; original_available: boolean

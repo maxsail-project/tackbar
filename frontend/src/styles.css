@@ -2309,6 +2309,12 @@ input:focus-visible {
 .admin-content h1 { margin: 0 0 18px; }
 .admin-ingestion-section-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .admin-ingestion-section-header h1 { margin: 0; }
+.admin-upload, .admin-upload-result { margin: 16px 0; padding: 16px; border: 1px solid var(--color-pale); border-radius: 10px; background: var(--color-white); overflow-wrap: anywhere; }
+.admin-upload h2 { margin: 0 0 8px; font-size: 1rem; }
+.admin-upload__fields { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; }
+.admin-upload__fields label { display: grid; flex: 1 1 240px; min-width: 0; gap: 6px; font-size: .8rem; font-weight: 750; }
+.admin-upload__fields input, .admin-upload__fields select { width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid var(--color-pale); border-radius: 9px; background: var(--color-white); }
+.admin-upload__fields input::file-selector-button { min-height: 30px; margin-right: 8px; }
 .admin-section-action { flex: 0 0 auto; max-width: 100%; min-height: 44px; padding: 0 14px; border: 1px solid var(--color-pale); border-radius: 9px; color: var(--color-navy); background: var(--color-white); font-weight: 750; cursor: pointer; }
 .admin-list { display: grid; gap: 14px; }
 .admin-search { display: grid; gap: 4px; margin: 0 0 14px; font-size: .8rem; font-weight: 750; }

@@ -1,6 +1,6 @@
 import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary } from '../types/admin'
 
-export type IngestionStatusFilter = 'all' | 'processed' | 'failed'
+export type IngestionStatusFilter = 'all' | AdminIngestion['status']
 export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
 
 export class AdminApiError extends Error {
@@ -17,7 +17,8 @@ async function adminRequest<T>(
   path: string,
   adminKey: string,
   method = 'GET',
-  body?: object,
+  body?: object | File,
+  signal?: AbortSignal,
 ): Promise<T> {
   let response: Response
   try {
@@ -26,9 +27,10 @@ async function adminRequest<T>(
       headers: {
         Accept: 'application/json',
         'X-TackBar-Admin-Key': adminKey,
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(body ? { 'Content-Type': body instanceof File ? 'application/octet-stream' : 'application/json' } : {}),
       },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      ...(body ? { body: body instanceof File ? body : JSON.stringify(body) } : {}),
+      ...(signal ? { signal } : {}),
     })
   } catch (error) {
     throw new AdminApiError(null, { cause: error })
@@ -73,10 +75,12 @@ export const revokeCapability = (key: string, id: string) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/capability/revoke`, key, 'POST')
 export const renewSession = (key: string, id: string, days: number) =>
   adminRequest<AdminSession>(`/api/admin/sessions/${encodeURIComponent(id)}/renew`, key, 'POST', { days })
-export const listAdminIngestions = (key: string, status: IngestionStatusFilter = 'all', disposition: IngestionDispositionFilter = 'all') =>
-  adminRequest<AdminIngestion[]>(`/api/admin/ingestions?status=${status}&disposition=${disposition}`, key)
-export const getAdminIngestion = (key: string, id: string) =>
-  adminRequest<AdminIngestionDetail>(`/api/admin/ingestions/${encodeURIComponent(id)}`, key)
+export const listAdminIngestions = (key: string, status: IngestionStatusFilter = 'all', disposition: IngestionDispositionFilter = 'all', signal?: AbortSignal) =>
+  adminRequest<AdminIngestion[]>(`/api/admin/ingestions?status=${status}&disposition=${disposition}`, key, 'GET', undefined, signal)
+export const getAdminIngestion = (key: string, id: string, signal?: AbortSignal) =>
+  adminRequest<AdminIngestionDetail>(`/api/admin/ingestions/${encodeURIComponent(id)}`, key, 'GET', undefined, signal)
+export const uploadAdminTrack = (key: string, sailorId: string, file: File) =>
+  adminRequest<AdminIngestion>(`/api/admin/ingestions/upload?${new URLSearchParams({ sailor_id: sailorId, filename: file.name })}`, key, 'POST', file)
 export const getAdminActivity = (key: string, id: string) =>
   adminRequest<AdminActivity>(`/api/admin/activities/${encodeURIComponent(id)}`, key)
 export const listAdminActivities = (key: string) =>

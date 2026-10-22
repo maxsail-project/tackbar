@@ -1,5 +1,7 @@
 import TackBarBrand from '../components/TackBarBrand'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import AdminTrackUpload from '../components/AdminTrackUpload'
+import { ingestionIsRunning, ingestionStatusLabels, pollAdminIngestions } from '../utils/adminIngestionPolling'
 import {
   AdminApiError,
   confirmConsent,
@@ -246,6 +248,7 @@ export default function AdminPage() {
   const [sailors, setSailors] = useState<AdminSailor[]>([])
   const [sessions, setSessions] = useState<AdminSessionSummary[]>([])
   const [ingestions, setIngestions] = useState<AdminIngestion[]>([])
+  const ingestionRevision = useRef(0)
   const [activities, setActivities] = useState<AdminActivitySummary[]>([])
   const [ingestionStatus, setIngestionStatus] = useState<IngestionStatusFilter>('all')
   const [ingestionDisposition, setIngestionDisposition] = useState<IngestionDispositionFilter>('all')
@@ -255,6 +258,8 @@ export default function AdminPage() {
   const [sailorSearch, setSailorSearch] = useState('')
   const [sessionSearch, setSessionSearch] = useState('')
   const [reviewSummary, setReviewSummary] = useState<string | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [lastUploadId, setLastUploadId] = useState<string | null>(null)
   const [selectedSailor, setSelectedSailor] = useState<AdminSailorDetail | null>(null)
   const [selectedSession, setSelectedSession] = useState<AdminSession | null>(null)
   const [selectedActivity, setSelectedActivity] = useState<AdminActivity | null>(null)
@@ -269,6 +274,9 @@ export default function AdminPage() {
       setSailors([])
       setSessions([])
       setActivities([])
+      setIngestions([])
+      setLastUploadId(null)
+      setUploadOpen(false)
       setSelectedSailor(null)
       setSelectedSession(null)
       setSelectedActivity(null)
@@ -276,8 +284,42 @@ export default function AdminPage() {
     }
   }
   const loadAll = async (key: string) => {
+    const revision = ingestionRevision.current
     const [nextSailors, nextSessions, nextIngestions, nextActivities] = await Promise.all([listAdminSailors(key), listAdminSessions(key), listAdminIngestions(key), listAdminActivities(key)])
-    setSailors(nextSailors); setSessions(nextSessions); setIngestions(nextIngestions); setActivities(nextActivities)
+    if (revision === ingestionRevision.current) {
+      ingestionRevision.current += 1
+      setIngestions(nextIngestions)
+    }
+    setSailors(nextSailors); setSessions(nextSessions); setActivities(nextActivities)
+  }
+  // Re-entering Ingestions inspects persisted results, including work completed
+  // while this section was closed. No other dashboard collection is polled.
+  useEffect(() => {
+    if (!adminKey || section !== 'ingestions') return
+    const controller = new AbortController()
+    const revision = ingestionRevision.current
+    void listAdminIngestions(adminKey, 'all', 'all', controller.signal).then((records) => {
+      // An earlier read must not replace a newer acceptance or worker update.
+      if (!controller.signal.aborted && revision === ingestionRevision.current) setIngestions(records)
+    }).catch((cause: unknown) => { if (!controller.signal.aborted) handleError(cause) })
+    return () => controller.abort()
+  }, [adminKey, section])
+  const runningIngestionIds = ingestions.filter(ingestionIsRunning).map((item) => item.id).sort().join(',')
+  useEffect(() => {
+    if (!adminKey || section !== 'ingestions' || busy || !runningIngestionIds) return
+    return pollAdminIngestions(adminKey, runningIngestionIds.split(','), (record) => {
+      ingestionRevision.current += 1
+      setIngestions((current) => current.map((item) => item.id === record.id ? record : item))
+      setDrilldown((current) => current.map((item) => item.kind === 'ingestion' && item.value.id === record.id ? { kind: 'ingestion', value: record } : item))
+    }, (cause) => {
+      handleError(cause)
+      setError(`${errorMessage(cause)} Status refresh stopped. Use Refresh to check again.`)
+    })
+  }, [adminKey, section, busy, runningIngestionIds])
+  const acceptUpload = (record: AdminIngestion) => {
+    ingestionRevision.current += 1
+    setIngestions((current) => [record, ...current.filter((item) => item.id !== record.id)])
+    setLastUploadId(record.id)
   }
   const enter = async (key: string) => {
     setBusy(true); setError(null)
@@ -286,7 +328,17 @@ export default function AdminPage() {
   const refresh = async () => {
     if (!adminKey) return
     setBusy(true); setError(null)
-    try { await loadAll(adminKey); if (selectedSailor) setSelectedSailor(await getAdminSailor(adminKey, selectedSailor.id)); if (selectedSession) setSelectedSession(await getAdminSession(adminKey, selectedSession.id)); if (selectedActivity) setSelectedActivity(await getAdminActivity(adminKey, selectedActivity.id)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    try {
+      await loadAll(adminKey)
+      if (selectedSailor) setSelectedSailor(await getAdminSailor(adminKey, selectedSailor.id))
+      if (selectedSession) setSelectedSession(await getAdminSession(adminKey, selectedSession.id))
+      if (selectedActivity) setSelectedActivity(await getAdminActivity(adminKey, selectedActivity.id))
+      const selected = drilldown.find((item) => item.kind === 'ingestion')
+      if (selected) {
+        const detail = await getAdminIngestion(adminKey, selected.value.id)
+        setDrilldown((current) => current.map((item) => item.kind === 'ingestion' && item.value.id === detail.id ? { kind: 'ingestion', value: detail } : item))
+      }
+    } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
   const sailorAction = async (action: () => Promise<AdminSailorDetail>) => {
     if (!adminKey) return
@@ -370,14 +422,27 @@ export default function AdminPage() {
     try {
       const target = adminNavigationTarget(kind, id, section)
       const next = await fetchDrilldown(target.selected.kind, target.selected.id)
-      if (next.kind === 'sailor') { setSelectedSailor(next.value); setDrilldown([]) }
+      // Newly processed uploads may refer to entities absent from the initial
+      // dashboard snapshot. Insert the fetched entity into its owning list.
+      if (next.kind === 'activity') { setActivitySearch(''); setActivities((current) => [next.value, ...current.filter((item) => item.id !== next.value.id)]) }
+      if (next.kind === 'session') { setSessionSearch(''); setSessions((current) => [next.value, ...current.filter((item) => item.id !== next.value.id)]) }
+      if (next.kind === 'sailor') { setSailorSearch(''); setSelectedSailor(next.value); setDrilldown([]) }
       else if (next.kind === 'session') { setSelectedSession(next.value); setDrilldown([]) }
-      else if (next.kind === 'ingestion') setDrilldown([next])
+      else if (next.kind === 'ingestion') {
+        setIngestionStatus('all'); setIngestionDisposition('all'); setIngestionSailor('all'); setIngestionSearch('')
+        setIngestions((current) => [next.value, ...current.filter((item) => item.id !== next.value.id)])
+        setDrilldown([next])
+      }
       else { setSelectedActivity(next.value); setDrilldown([]) }
       setSection(target.section)
     } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
-  const visibleIngestions = filterAdminIngestions(ingestions, {
+  const withSailorLabel = <T extends AdminIngestion,>(record: T): T => {
+    const owner = record.provider === 'admin_upload' ? sailors.find((sailor) => sailor.id === record.owner_sailor_id) : undefined
+    return owner && !record.sailor_label ? { ...record, sailor_label: owner.name || owner.email, sailor_email: owner.email } : record
+  }
+  const presentedIngestions = ingestions.map(withSailorLabel)
+  const visibleIngestions = filterAdminIngestions(presentedIngestions, {
     status: ingestionStatus,
     disposition: ingestionDisposition,
     sailor: ingestionSailor,
@@ -386,7 +451,8 @@ export default function AdminPage() {
   const visibleActivities = filterAdminActivities(activities, activitySearch)
   const visibleSailors = filterAdminSailors(sailors, sailorSearch)
   const visibleSessions = filterAdminSessions(sessions, activities, sessionSearch)
-  const sailorOptions = ingestionSailorOptions(ingestions)
+  const sailorOptions = ingestionSailorOptions(presentedIngestions)
+  const lastUpload = presentedIngestions.find((item) => item.id === lastUploadId)
   if (!adminKey) return <AdminAccessForm onEnter={enter} error={error} busy={busy} />
 
   return <main className="admin-page">
@@ -401,8 +467,11 @@ export default function AdminPage() {
       {visibleSailors.map((sailor) => <SailorCard key={sailor.id} sailor={sailor} detail={selectedSailor?.id === sailor.id ? selectedSailor : null} activities={activities.filter((activity) => activity.sailor_id === sailor.id)} busy={busy} onSelect={() => void selectSailor(sailor.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSessionSelect={(id) => void followRelation('session', id)} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConsentRequestSend={() => sailorAction(() => sendConsentRequest(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} onPersonalRegenerate={() => { if (window.confirm('Regenerate personal access? The current personal link will stop working.')) void sailorAction(() => regeneratePersonalCapability(adminKey, sailor.id)) }} onPersonalRevoke={() => { if (window.confirm('Revoke personal access? Consent and shared Sessions will remain unchanged.')) void sailorAction(() => revokePersonalCapability(adminKey, sailor.id)) }} onWelcomeEmailResend={() => void sailorAction(() => resendWelcomeEmail(adminKey, sailor.id))} />)}
     </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><AdminSearch value={sessionSearch} busy={busy} placeholder="Location, sailing date or Sailor" onChange={(value) => { setSessionSearch(value); setSelectedSession(null) }} />{visibleSessions.length === 0 && <p className="admin-meta">No Sessions match the search.</p>}<div className="admin-list admin-session-list">
       {visibleSessions.map((session) => <SessionCard key={session.id} session={session} detail={selectedSession?.id === session.id ? selectedSession : null} activities={activities.filter((activity) => activity.session_id === session.id)} busy={busy} onSelect={() => void selectSession(session.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSailorSelect={(id) => void followRelation('sailor', id)} onEnrich={() => void sessionAction(() => enrichSession(adminKey, session.id))} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
-    </div></section> : <section className="admin-content"><IngestionSectionHeader busy={busy} onReview={() => void mailboxAction()} /><IngestionFilters status={ingestionStatus} disposition={ingestionDisposition} sailor={ingestionSailor} search={ingestionSearch} sailors={sailorOptions} busy={busy} onChange={changeIngestionFilters} onSailorChange={(value) => { setIngestionSailor(value); setDrilldown([]) }} onSearchChange={(value) => { setIngestionSearch(value); setDrilldown([]) }} />{reviewSummary && <p className="admin-meta">{reviewSummary}</p>}{<>{visibleIngestions.length === 0 && <p className="admin-meta">No Ingestions match the active filters.</p>}<div className="admin-list admin-ingestion-list">{visibleIngestions.map((item) => {
-      const selected = drilldown.length === 1 && drilldown[0].kind === 'ingestion' && drilldown[0].value.id === item.id ? drilldown[0].value : null
+    </div></section> : <section className="admin-content"><IngestionSectionHeader busy={busy} onReview={() => void mailboxAction()} uploadOpen={uploadOpen} onUpload={() => setUploadOpen((current) => !current)} />
+      {uploadOpen && <AdminTrackUpload adminKey={adminKey} sailors={sailors} onAccepted={acceptUpload} onUnauthorized={handleError} />}
+      {lastUpload && <IngestionUploadResult ingestion={lastUpload} onInspect={() => { setIngestionStatus('all'); setIngestionDisposition('all'); setIngestionSailor('all'); setIngestionSearch(''); void selectIngestion(lastUpload.id) }} />}
+      <IngestionFilters status={ingestionStatus} disposition={ingestionDisposition} sailor={ingestionSailor} search={ingestionSearch} sailors={sailorOptions} busy={busy} onChange={changeIngestionFilters} onSailorChange={(value) => { setIngestionSailor(value); setDrilldown([]) }} onSearchChange={(value) => { setIngestionSearch(value); setDrilldown([]) }} />{reviewSummary && <p className="admin-meta">{reviewSummary}</p>}{<>{visibleIngestions.length === 0 && <p className="admin-meta">No Ingestions match the active filters.</p>}<div className="admin-list admin-ingestion-list">{visibleIngestions.map((item) => {
+      const selected = drilldown.length === 1 && drilldown[0].kind === 'ingestion' && drilldown[0].value.id === item.id ? withSailorLabel(drilldown[0].value) : null
       return <IngestionCard key={item.id} ingestion={item} detail={selected} session={sessions.find((session) => session.id === item.session_id)} busy={busy} onSelect={() => void selectIngestion(item.id)} onFollow={(kind, id) => void followRelation(kind, id)} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} onDiscard={() => void ingestionDispositionAction(item.id, () => discardIngestion(adminKey!, item.id))} onRestore={() => void ingestionDispositionAction(item.id, () => restoreIngestion(adminKey!, item.id))} />
     })}</div></>}</section>}
   </main>
@@ -413,8 +482,17 @@ export function AdminHeader({ busy, onRefresh, version = import.meta.env.VITE_AP
   return <header className="admin-header"><div><TackBarBrand inverted /><span>Admin · Real Sailing Pilot{releaseSuffix ? ` · ${releaseSuffix}` : ''}</span></div><button onClick={onRefresh} disabled={busy}>Refresh</button></header>
 }
 
-export function IngestionSectionHeader({ busy, onReview }: { busy: boolean, onReview: () => void }) {
-  return <div className="admin-ingestion-section-header"><h1>Ingestions</h1><button className="admin-section-action" type="button" disabled={busy} onClick={onReview}>Review mailbox</button></div>
+export function IngestionSectionHeader({ busy, onReview, uploadOpen = false, onUpload }: { busy: boolean, onReview: () => void, uploadOpen?: boolean, onUpload?: () => void }) {
+  return <div className="admin-ingestion-section-header"><h1>Ingestions</h1><div className="admin-actions">{onUpload && <button className="admin-section-action" type="button" aria-expanded={uploadOpen} onClick={onUpload}>Upload track</button>}<button className="admin-section-action" type="button" disabled={busy} onClick={onReview}>Review mailbox</button></div></div>
+}
+
+export function IngestionUploadResult({ ingestion, onInspect }: { ingestion: AdminIngestion, onInspect: () => void }) {
+  return <div className="admin-upload-result" role="status">
+    <p><strong>{ingestion.attachment_name}</strong> · {ingestionStatusLabels[ingestion.status]}</p>
+    <p className="admin-meta">Accepted and preserved. {ingestionIsRunning(ingestion) ? 'Backend processing continues independently; you can navigate elsewhere.' : 'Inspect the persisted result below.'}</p>
+    {ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}
+    <RelationButton label="Ingestion" id={ingestion.id} value="Inspect upload result" onFollow={onInspect} />
+  </div>
 }
 
 export function AdminSearch({ value, busy, placeholder, onChange }: { value: string, busy: boolean, placeholder: string, onChange: (value: string) => void }) {
@@ -422,7 +500,7 @@ export function AdminSearch({ value, busy, placeholder, onChange }: { value: str
 }
 
 export function IngestionFilters({ status, disposition, sailor, search, sailors, busy, onChange, onSailorChange, onSearchChange }: { status: IngestionStatusFilter, disposition: IngestionDispositionFilter, sailor: string, search: string, sailors: Array<{ value: string; label: string }>, busy: boolean, onChange: (status: IngestionStatusFilter, disposition: IngestionDispositionFilter) => void, onSailorChange: (sailor: string) => void, onSearchChange: (search: string) => void }) {
-  return <div className="admin-filters"><AdminSearch value={search} busy={busy} placeholder="Filename, email or ID" onChange={onSearchChange} /><label>Status<select value={status} disabled={busy} onChange={(event) => onChange(event.target.value as IngestionStatusFilter, disposition)}><option value="all">All</option><option value="processed">Processed</option><option value="failed">Failed</option></select></label><label>Disposition<select value={disposition} disabled={busy} onChange={(event) => onChange(status, event.target.value as IngestionDispositionFilter)}><option value="all">All</option><option value="active">Active</option><option value="discarded">Discarded</option></select></label><label>Sailor<select value={sailor} disabled={busy} onChange={(event) => onSailorChange(event.target.value)}><option value="all">All sailors</option>{sailors.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
+  return <div className="admin-filters"><AdminSearch value={search} busy={busy} placeholder="Filename, email or ID" onChange={onSearchChange} /><label>Status<select value={status} disabled={busy} onChange={(event) => onChange(event.target.value as IngestionStatusFilter, disposition)}><option value="all">All</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="processed">Processed</option><option value="failed">Failed</option></select></label><label>Disposition<select value={disposition} disabled={busy} onChange={(event) => onChange(status, event.target.value as IngestionDispositionFilter)}><option value="all">All</option><option value="active">Active</option><option value="discarded">Discarded</option></select></label><label>Sailor<select value={sailor} disabled={busy} onChange={(event) => onSailorChange(event.target.value)}><option value="all">All sailors</option>{sailors.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
 }
 
 function compactId(value: string | null) {
@@ -444,7 +522,7 @@ function sessionRelationIdentity(session: AdminSessionSummary, includeActivityCo
 
 function ingestionRelationIdentity(ingestion: AdminIngestion) {
   const attachment = ingestion.attachment_name || 'Unknown attachment'
-  const contextTime = ingestion.activity_start_time || ingestion.received_at
+  const contextTime = ingestion.activity_start_time || ingestion.received_at || ingestion.accepted_at
   return contextTime ? `${attachment} · ${sailingDate(contextTime)}` : attachment
 }
 
@@ -467,11 +545,11 @@ export function RelationButton({ label, id, value, unavailableValue = 'Unavailab
 
 export function IngestionCard({ ingestion, detail, session, busy, onSelect, onFollow, onReprocess, onDiscard, onRestore }: { ingestion: AdminIngestion, detail?: AdminIngestionDetail | null, session?: AdminSessionSummary, busy: boolean, onSelect: () => void, onFollow: (kind: AdminDrilldown['kind'], id: string) => void, onReprocess: () => void, onDiscard: () => void, onRestore: () => void }) {
   const hasSailing = Boolean(ingestion.activity_start_time && ingestion.activity_end_time)
-  const technicalStatusClass = ingestion.status === 'processed' ? 'active' : 'expired'
+  const technicalStatusClass = ingestion.status === 'processed' ? 'active' : ingestion.status === 'failed' ? 'expired' : 'pending_needs_request'
   const activityOutcome = ingestion.activity_created_by_ingestion === true ? 'Activity created' : ingestion.activity_created_by_ingestion === false ? 'Existing Activity reused' : 'Activity creation status unknown'
   return <article className={`admin-card admin-entity-card admin-ingestion-card${detail ? ' is-expanded is-selected' : ''}`} aria-current={detail ? 'true' : undefined}>
     <button className="admin-entity-summary admin-ingestion-summary" type="button" aria-expanded={Boolean(detail)} disabled={busy} onClick={onSelect}>
-      <div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.sender_email || 'Unknown sender'} · {ingestion.provider} · {localDate(ingestion.received_at)}</p></div><span className={`state-badge state-${technicalStatusClass}`}>{ingestion.status === 'processed' ? 'Processed' : 'Failed'}</span></div>
+      <div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.provider === 'admin_upload' ? `Admin upload · ${sailorIdentity(ingestion.sailor_label, ingestion.sailor_email, ingestion.owner_sailor_id ?? ingestion.sailor_id)}` : `${ingestion.sender_email || 'Unknown sender'} · ${ingestion.provider}`} · {localDate(ingestion.received_at || ingestion.accepted_at || null)}</p></div><span className={`state-badge state-${technicalStatusClass}`}>{ingestionStatusLabels[ingestion.status]}</span></div>
       <div className="admin-ingestion-summary__context">{hasSailing ? <span>Sailing <strong>{sailingDate(ingestion.activity_start_time!)}</strong> · {sailingTime(ingestion.activity_start_time!)}–{sailingTime(ingestion.activity_end_time!)} · {ingestion.activity_sample_count?.toLocaleString() ?? '—'} samples</span> : <span>Sailing context unavailable</span>}{ingestion.status === 'processed' && ingestion.activity_id && <span>{activityOutcome}</span>}{ingestion.disposition === 'discarded' && <span className="state-badge state-revoked">Discarded</span>}</div>
       <DisclosureAffordance expanded={Boolean(detail)} />
     </button>
@@ -481,18 +559,18 @@ export function IngestionCard({ ingestion, detail, session, busy, onSelect, onFo
 
 export function IngestionOperationalDetail({ ingestion, session, busy, onFollow, onReprocess, onDiscard, onRestore }: { ingestion: AdminIngestionDetail, session?: AdminSessionSummary, busy: boolean, onFollow: (kind: AdminDrilldown['kind'], id: string) => void, onReprocess?: () => void, onDiscard?: () => void, onRestore?: () => void }) {
   const notification = ingestion.session_result_notification
-  const outcome = ingestion.activity_created_by_ingestion === true ? 'Created by this Ingestion' : ingestion.activity_created_by_ingestion === false ? 'Reused existing Activity' : 'Unknown (legacy provenance)'
-  const outboundStatus = !ingestion.session_result_notification_candidate ? 'Not applicable / not attempted' : !notification ? 'Not attempted' : notification.status === 'eligible' ? 'Not attempted' : notification.status[0].toUpperCase() + notification.status.slice(1)
+  const outcome = ingestionIsRunning(ingestion) ? 'Awaiting processing result' : ingestion.provider === 'admin_upload' && ingestion.status === 'failed' && !ingestion.activity_id ? 'No related Activity' : ingestion.activity_created_by_ingestion === true ? 'Created by this Ingestion' : ingestion.activity_created_by_ingestion === false ? 'Reused existing Activity' : 'Unknown (legacy provenance)'
+  const outboundStatus = ingestion.provider === 'admin_upload' ? 'Suppressed · manual source (no automatic emails)' : !ingestion.session_result_notification_candidate ? 'Not applicable / not attempted' : !notification ? 'Not attempted' : notification.status === 'eligible' ? 'Not attempted' : notification.status[0].toUpperCase() + notification.status.slice(1)
   return <div className="admin-entity-detail admin-ingestion-detail">
     <div className="admin-detail-grid">
       <section><h3>Sailing</h3>{ingestion.activity_start_time && ingestion.activity_end_time ? <dl><div><dt>Date</dt><dd>{sailingDate(ingestion.activity_start_time)}</dd></div><div><dt>Time</dt><dd>{sailingTime(ingestion.activity_start_time)}–{sailingTime(ingestion.activity_end_time)}</dd></div><div><dt>Duration</dt><dd>{sailingDuration(ingestion.activity_start_time, ingestion.activity_end_time)}</dd></div><div><dt>Samples</dt><dd>{ingestion.activity_sample_count?.toLocaleString() ?? '—'}</dd></div></dl> : <p>Unavailable</p>}</section>
-      <section><h3>Source</h3><dl><div><dt>Attachment</dt><dd>{ingestion.attachment_name || '—'}</dd></div><div><dt>Sender</dt><dd>{ingestion.sender_email || '—'}</dd></div><div><dt>Provider</dt><dd>{ingestion.provider}</dd></div><div><dt>Email received</dt><dd>{localDate(ingestion.received_at)}</dd></div></dl></section>
+      <section><h3>Source</h3><dl><div><dt>Attachment</dt><dd>{ingestion.attachment_name || '—'}</dd></div>{ingestion.provider !== 'admin_upload' && <div><dt>Sender</dt><dd>{ingestion.sender_email || '—'}</dd></div>}<div><dt>Provider</dt><dd>{ingestion.provider}</dd></div>{ingestion.provider === 'admin_upload' ? <div><dt>Accepted</dt><dd>{localDate(ingestion.accepted_at || null)}</dd></div> : <div><dt>Email received</dt><dd>{localDate(ingestion.received_at)}</dd></div>}</dl></section>
       <section className="admin-detail-grid__wide"><h3>Traceability</h3><div className="admin-relations"><RelationButton label="Sailor" id={ingestion.sailor_id} value={sailorIdentity(ingestion.sailor_label, ingestion.sailor_email, ingestion.sailor_id)} onFollow={() => ingestion.sailor_id && onFollow('sailor', ingestion.sailor_id)} /><RelationButton label="Activity" id={ingestion.activity_id} value={ingestion.activity_start_time && ingestion.activity_end_time ? activityRelationIdentity({ start_time: ingestion.activity_start_time, end_time: ingestion.activity_end_time }) : undefined} onFollow={() => ingestion.activity_id && onFollow('activity', ingestion.activity_id)} /><RelationButton label="Session" id={ingestion.session_id} value={session ? sessionRelationIdentity(session, true) : undefined} onFollow={() => ingestion.session_id && onFollow('session', ingestion.session_id)} /></div><p><strong>Activity outcome:</strong> {outcome}</p></section>
-      <section><h3>Processing</h3><dl><div><dt>Technical status</dt><dd>{ingestion.status === 'processed' ? 'Processed' : 'Failed'}</dd></div><div><dt>Disposition</dt><dd>{ingestion.disposition === 'active' ? 'Active' : 'Discarded'}</dd></div><div><dt>Attempts</dt><dd>{ingestion.attempts}</dd></div><div><dt>Last attempt</dt><dd>{localDate(ingestion.last_attempt_at)}</dd></div><div><dt>Preserved original</dt><dd>{ingestion.original_available ? 'Available' : 'Unavailable'}</dd></div></dl>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}</section>
+      <section><h3>Processing</h3><dl><div><dt>Technical status</dt><dd>{ingestionStatusLabels[ingestion.status]}</dd></div><div><dt>Disposition</dt><dd>{ingestion.disposition === 'active' ? 'Active' : 'Discarded'}</dd></div><div><dt>Attempts</dt><dd>{ingestion.attempts}</dd></div><div><dt>Last attempt</dt><dd>{localDate(ingestion.last_attempt_at)}</dd></div><div><dt>Preserved original</dt><dd>{ingestion.original_available ? 'Available' : 'Unavailable'}</dd></div></dl>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}</section>
       <section><h3>Outbound notification</h3><p><strong>Status:</strong> {outboundStatus}</p>{notification?.attempted_at && <p><strong>Attempted:</strong> {localDate(notification.attempted_at)}</p>}{notification?.sent_at && <p><strong>Sent:</strong> {localDate(notification.sent_at)}</p>}{notification?.last_error && <p className="admin-error">{notification.last_error}</p>}<p className="admin-meta">Outbound notification delivery does not change the technical Ingestion result.</p></section>
     </div>
-    {onReprocess && onDiscard && onRestore && <section className="admin-maintenance"><h3>Maintenance</h3><div className="admin-actions">{ingestion.original_available && <button disabled={busy} onClick={onReprocess}>Reprocess</button>}<button disabled={busy} onClick={ingestion.disposition === 'active' ? onDiscard : onRestore}>{ingestion.disposition === 'active' ? 'Discard' : 'Restore'}</button></div></section>}
-    <details className="admin-advanced"><summary>Advanced details</summary><h4>Technical traceability</h4><dl><div><dt>Ingestion ID</dt><dd>{ingestion.id}</dd></div><div><dt>Sailor ID</dt><dd>{ingestion.sailor_id || '—'}</dd></div><div><dt>Activity ID</dt><dd>{ingestion.activity_id || '—'}</dd></div><div><dt>Session ID</dt><dd>{ingestion.session_id || '—'}</dd></div><div><dt>Provider message ID</dt><dd>{ingestion.provider_message_id}</dd></div><div><dt>Attachment SHA-256</dt><dd>{ingestion.attachment_sha256 || '—'}</dd></div></dl></details>
+    {onReprocess && onDiscard && onRestore && <section className="admin-maintenance"><h3>Maintenance</h3><div className="admin-actions">{ingestion.original_available && <button disabled={busy || ingestionIsRunning(ingestion)} onClick={onReprocess}>Reprocess</button>}<button disabled={busy || ingestionIsRunning(ingestion)} onClick={ingestion.disposition === 'active' ? onDiscard : onRestore}>{ingestion.disposition === 'active' ? 'Discard' : 'Restore'}</button></div></section>}
+    <details className="admin-advanced"><summary>Advanced details</summary><h4>Technical traceability</h4><dl><div><dt>Ingestion ID</dt><dd>{ingestion.id}</dd></div><div><dt>Sailor ID</dt><dd>{ingestion.sailor_id || '—'}</dd></div><div><dt>Activity ID</dt><dd>{ingestion.activity_id || '—'}</dd></div><div><dt>Session ID</dt><dd>{ingestion.session_id || '—'}</dd></div>{ingestion.provider === 'admin_upload' ? <div><dt>Operation ID</dt><dd>{ingestion.operation_id || ingestion.id}</dd></div> : <div><dt>Provider message ID</dt><dd>{ingestion.provider_message_id}</dd></div>}<div><dt>Attachment SHA-256</dt><dd>{ingestion.attachment_sha256 || '—'}</dd></div></dl></details>
     <DiagnosticJson value={ingestion.diagnostic} />
   </div>
 }

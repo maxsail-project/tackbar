@@ -1,7 +1,8 @@
+import { type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminHeader, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
+import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminHeader, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, IngestionUploadResult, RelationButton, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
@@ -32,6 +33,79 @@ const sourceIngestion: AdminIngestion = { id: 'ingestion-123456789', provider: '
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('minimal Admin UI', () => {
+  it.each(['pending', 'processing', 'processed', 'failed'] as const)('displays accepted %s without treating 202 as processing success', (status) => {
+    const markup = renderToStaticMarkup(<IngestionUploadResult ingestion={{ ...sourceIngestion, status, last_error: status === 'failed' ? 'Worker activation failed; explicit Reprocess is required' : null }} onInspect={() => undefined} />)
+    expect(markup).toContain(status[0].toUpperCase() + status.slice(1))
+    expect(markup).toContain('Accepted and preserved')
+    expect(markup).toContain('Inspect upload result')
+    if (status !== 'processed') expect(markup).not.toContain('Processed')
+    if (status === 'pending' || status === 'processing') expect(markup).toContain('you can navigate elsewhere')
+    if (status === 'failed') expect(markup).toContain('Worker activation failed; explicit Reprocess is required')
+  })
+
+  it('wires manual-result inspection and all resolved entity relations to established Admin navigation', () => {
+    const inspect = vi.fn()
+    const receipt = IngestionUploadResult({ ingestion: sourceIngestion, onInspect: inspect })
+    const findRelations = (node: ReactNode): ReactElement<{ label: string; id: string; onFollow: () => void }>[] => {
+      if (Array.isArray(node)) return node.flatMap(findRelations)
+      if (!node || typeof node !== 'object' || !('props' in node)) return []
+      const element = node as ReactElement<{ children: ReactNode; label: string; id: string; onFollow: () => void }>
+      return element.type === RelationButton ? [element] : findRelations(element.props.children)
+    }
+    findRelations(receipt)[0].props.onFollow()
+    expect(inspect).toHaveBeenCalledOnce()
+    const follow = vi.fn()
+    const ingestion: AdminIngestionDetail = { ...sourceIngestion, provider: 'admin_upload', session_result_notification_candidate: false, session_result_notification: null, attachment_sha256: 'digest', diagnostic: {} }
+    const detail = IngestionOperationalDetail({ ingestion, busy: false, onFollow: follow })
+    const relations = findRelations(detail)
+    expect(relations.map((relation) => relation.props.label)).toEqual(['Sailor', 'Activity', 'Session'])
+    for (const relation of relations) {
+      relation.props.onFollow()
+      const kind = relation.props.label.toLowerCase() as 'sailor' | 'activity' | 'session'
+      expect(follow).toHaveBeenLastCalledWith(kind, relation.props.id)
+      expect(adminNavigationTarget(kind, relation.props.id, 'ingestions').section).toBe(({ sailor: 'sailors', activity: 'activities', session: 'sessions' })[kind])
+    }
+  })
+  it.each(['pending', 'processing', 'processed', 'failed'] as const)('shows the manual %s lifecycle and truthful provenance', (status) => {
+    const ingestion: AdminIngestionDetail = { ...sourceIngestion, id: 'manual-operation', provider: 'admin_upload', provider_message_id: null, sender_email: null, received_at: null, operation_id: 'manual-operation', owner_sailor_id: sourceIngestion.sailor_id, accepted_at: '2026-10-22T12:00:00Z', status, session_result_notification_candidate: false, session_result_notification: null, attachment_sha256: 'digest', diagnostic: {} }
+    const markup = renderToStaticMarkup(<IngestionCard ingestion={ingestion} detail={ingestion} busy={false} onSelect={() => undefined} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    expect(markup).toContain(status[0].toUpperCase() + status.slice(1))
+    expect(markup).toContain('Admin upload')
+    expect(markup).toContain('Pilot')
+    expect(markup).toContain('admin_upload')
+    expect(markup).toContain('Operation ID')
+    expect(markup).toContain('Accepted')
+    expect(markup).not.toContain('Unknown sender')
+    expect(markup).not.toContain('<dt>Sender</dt>')
+    expect(markup).not.toContain('Provider message ID')
+    expect(markup).not.toContain('Email received')
+    expect(markup).toContain('Suppressed · manual source (no automatic emails)')
+    if (status === 'pending' || status === 'processing') {
+      expect(markup).toContain('disabled="">Reprocess')
+      expect(markup).toContain('disabled="">Discard')
+      expect(markup).toContain('Awaiting processing result')
+    } else {
+      expect(markup).not.toContain('disabled="">Reprocess')
+    }
+  })
+
+  it('shows controlled manual activation/interruption errors and permits explicit Reprocess', () => {
+    const ingestion: AdminIngestionDetail = { ...sourceIngestion, provider: 'admin_upload', status: 'failed', last_error: 'Manual ingestion worker could not be activated; explicit Reprocess is required', session_result_notification_candidate: false, session_result_notification: null, attachment_sha256: null, diagnostic: {} }
+    const markup = renderToStaticMarkup(<IngestionOperationalDetail ingestion={ingestion} busy={false} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    expect(markup).toContain(ingestion.last_error)
+    expect(markup).toContain('>Reprocess</button>')
+    expect(markup).not.toContain('disabled="">Reprocess')
+  })
+
+  it('includes Pending and Processing in the combined technical-status filter', () => {
+    const records = ['pending', 'processing', 'processed', 'failed'].map((status) => ({ ...sourceIngestion, status: status as AdminIngestion['status'] }))
+    for (const status of ['pending', 'processing'] as const) {
+      expect(filterAdminIngestions(records, { status, disposition: 'all', sailor: 'all', search: '' })).toEqual([expect.objectContaining({ status })])
+    }
+    const markup = renderToStaticMarkup(<IngestionFilters status="pending" disposition="all" sailor="all" search="" sailors={[]} busy={false} onChange={() => undefined} onSailorChange={() => undefined} onSearchChange={() => undefined} />)
+    expect(markup).toContain('value="pending" selected="">Pending')
+    expect(markup).toContain('value="processing">Processing')
+  })
   it('presents the Admin sections in operational order and starts at Ingestions', () => {
     expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'activities', 'sailors', 'sessions'])
     expect(DEFAULT_ADMIN_SECTION).toBe('ingestions')
