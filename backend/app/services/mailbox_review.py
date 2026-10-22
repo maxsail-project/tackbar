@@ -10,16 +10,19 @@ from app.config import (
     load_ovh_imap_configuration,
 )
 from app.email_providers.ovh import (
+    OVHAcquisitionBatch,
     OVHAdapter,
     OVHMessageOutcome,
     OVHUIDValidityMismatch,
 )
+from app.models import InboundEmail
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.runtime_paths import require_private_data_root
 from app.services.ingestion_history import IngestionHistory
+from app.services.ingestion_lock import ingestion_lock
 from app.services.ingestion_processing import process_provider_email
 from app.services.mailbox_review_observability import (
     CycleFailureState,
@@ -235,6 +238,33 @@ def review_mailbox_now(provider: Any | None = None) -> MailboxReviewSummary:
             raise MailboxReviewError("Mailbox review unavailable") from error
 
     history = IngestionHistory()
+    # IMAP acquisition is complete. Protect history reads (including migrations),
+    # downstream ingestion and cursor advancement together. Nested service/history
+    # entries use the same reentrant lock.
+    with ingestion_lock(history.path.parent):
+        return _process_acquired_messages(
+            provider_key, candidates, ovh_batch, cursor_store, history
+        )
+
+
+def _process_acquired_messages(
+    provider_key: str,
+    candidates: list[InboundEmail],
+    ovh_batch: OVHAcquisitionBatch | None,
+    cursor_store: OVHMailboxCursorStore | None,
+    history: IngestionHistory,
+) -> MailboxReviewSummary:
+    cursor = None
+    if cursor_store is not None and ovh_batch is not None:
+        try:
+            cursor = cursor_store.load()
+        except Exception as error:
+            _cycle_failure_logs.record_failure(provider_key, "cursor_load", error)
+            raise MailboxReviewError("Mailbox review unavailable") from error
+        if cursor is not None and cursor.uidvalidity != ovh_batch.uidvalidity:
+            error = OVHUIDValidityMismatch("Mailbox UIDVALIDITY changed")
+            _cycle_failure_logs.record_failure(provider_key, "acquisition", error)
+            raise MailboxReviewError("Mailbox review unavailable") from error
     sailors, boats = SailorRepository(), BoatRepository()
     activities, sessions = ActivityRepository(), SessionRepository()
     track_storage = TrackStorage()
@@ -324,6 +354,9 @@ def review_mailbox_now(provider: Any | None = None) -> MailboxReviewSummary:
             if ovh_batch.examined_messages
             else (0 if cursor is None else cursor.last_seen_uid)
         )
+        if cursor is not None:
+            # A faster overlapping review may already have examined later UIDs.
+            last_seen_uid = max(last_seen_uid, cursor.last_seen_uid)
         try:
             cursor_store.write(
                 OVHMailboxCursor(ovh_batch.uidvalidity, last_seen_uid)

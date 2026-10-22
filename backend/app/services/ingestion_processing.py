@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
-from threading import Lock
 from typing import Callable
 
 from app.models import ConsentStatus, InboundEmail, Sailor, StoredActivity
@@ -17,6 +16,7 @@ from app.services.automatic_consent_requests import AutomaticConsentRequestServi
 from app.services.consent_requests import ConsentRequestService
 from app.services.email_ingestion import process_inbound_email
 from app.services.ingestion_history import IngestionHistory
+from app.services.ingestion_lock import ingestion_lock
 from app.services.maneuver_analytics import get_or_generate_maneuver_analytics
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
 from app.services.session_enrichment import automatic_session_enrichment_service
@@ -28,7 +28,6 @@ from app.storage.ingestion_original_storage import IngestionOriginalStorage
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 
 
-_INGESTION_LOCK = Lock()
 logger = logging.getLogger(__name__)
 
 
@@ -54,7 +53,7 @@ def process_provider_email(
     consent_request_sender: Callable[[str, str], None] | None = None,
     session_result_sender: Callable[[str, str, str], None] | None = None,
 ) -> IngestionProcessingResult | None:
-    with _INGESTION_LOCK:
+    with ingestion_lock(history.path.parent):
         if not email.provider_message_id:
             raise ValueError("Inbound email is missing its provider message ID")
         if history.find_provider_message(provider, email.provider_message_id) is not None:
@@ -94,7 +93,7 @@ def reprocess_ingestion(
     consent_request_sender: Callable[[str, str], None] | None = None,
     session_result_sender: Callable[[str, str, str], None] | None = None,
 ) -> dict:
-    with _INGESTION_LOCK:
+    with ingestion_lock(history.path.parent):
         record = history.get(ingestion_id)
         if record is None: raise ValueError(f"Ingestion not found: {ingestion_id}")
         establish_activity_creation_provenance = record["status"] != "processed"

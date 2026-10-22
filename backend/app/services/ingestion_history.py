@@ -6,6 +6,7 @@ from uuid import uuid4
 from app.identity import require_uuid
 from app.models import ConsentRequest
 from app.runtime_paths import PUBLIC_TEST_DATA_ROOT, runtime_paths
+from app.services.ingestion_lock import ingestion_lock
 
 DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
 FIELDS = {"id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "attachment_sha256", "original_file", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id"}
@@ -17,6 +18,11 @@ class IngestionHistory:
         self.path = runtime_paths().ingestion_history if path is None else Path(path)
 
     def records(self) -> list[dict[str, Any]]:
+        # Reads may migrate legacy records and write the complete collection.
+        with ingestion_lock(self.path.parent):
+            return self._records()
+
+    def _records(self) -> list[dict[str, Any]]:
         if not self.path.exists(): return []
         records, reservations, changed = [], set(), False
         for item in self._read(self.path):
@@ -95,6 +101,10 @@ class IngestionHistory:
         }
 
     def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None) -> dict[str, Any]:
+        with ingestion_lock(self.path.parent):
+            return self._create(provider, provider_message_id, sender_email, attachment_name, attachment_sha256)
+
+    def _create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None) -> dict[str, Any]:
         records = self.records()
         record = {"id": str(uuid4()), "provider": provider, "provider_message_id": provider_message_id, "sender_email": sender_email, "received_at": None, "attachment_name": attachment_name, "attachment_sha256": attachment_sha256, "original_file": None, "status": "failed", "disposition": "active", "attempts": 0, "last_attempt_at": None, "last_error": None, "activity_id": None, "session_id": None}
         record["activity_created_by_ingestion"] = None
@@ -104,6 +114,10 @@ class IngestionHistory:
         records.append(record); self._write(records); return record
 
     def replace(self, replacement: dict[str, Any]) -> dict[str, Any]:
+        with ingestion_lock(self.path.parent):
+            return self._replace(replacement)
+
+    def _replace(self, replacement: dict[str, Any]) -> dict[str, Any]:
         records = self.records()
         for i, record in enumerate(records):
             if record["id"] == replacement["id"]:
@@ -145,6 +159,10 @@ class IngestionHistory:
         raise ValueError(f"Ingestion not found: {replacement['id']}")
 
     def set_disposition(self, record_id: str, disposition: str) -> dict[str, Any]:
+        with ingestion_lock(self.path.parent):
+            return self._set_disposition(record_id, disposition)
+
+    def _set_disposition(self, record_id: str, disposition: str) -> dict[str, Any]:
         if disposition not in ("active", "discarded"):
             raise ValueError("Invalid ingestion disposition")
         record = self.get(record_id)
