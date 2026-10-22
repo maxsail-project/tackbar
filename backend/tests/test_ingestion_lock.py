@@ -72,6 +72,15 @@ def _worker(root, action, attempting, entered, release, done, results,
         return parse(email)
 
     processing.process_inbound_email = gated_parse
+    parse_track = processing.parse_track_attachment
+
+    def gated_track_parse(content, filename):
+        entered.set()
+        if release is not None and not release.wait(20):
+            raise RuntimeError("Test parser gate timed out")
+        return parse_track(content, filename)
+
+    processing.parse_track_attachment = gated_track_parse
     history = IngestionHistory()
     sailors, boats = SailorRepository(), BoatRepository()
     activities, sessions = ActivityRepository(), SessionRepository()
@@ -115,6 +124,12 @@ def _worker(root, action, attempting, entered, release, done, results,
             )
         elif action == "review":
             value = asdict(review_mailbox_now(Provider()))
+        elif action == "manual":
+            value = processing.process_admin_upload(
+                record_id, sailors, boats, activities, sessions, history,
+            )
+        elif action == "reconcile":
+            value = history.fail_interrupted_manual()
         elif action == "read":
             value = history.records()
         elif action == "discard":

@@ -3,8 +3,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Callable
+from uuid import uuid4
 
-from app.models import ConsentStatus, InboundEmail, Sailor, StoredActivity
+from app.models import Activity, ConsentStatus, InboundEmail, Sailor, StoredActivity
+from app.parsers.track import parse_track_attachment
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.consent_events import ConsentEventRepository
@@ -15,7 +17,7 @@ from app.services.activity_tracks import persist_activity_track
 from app.services.automatic_consent_requests import AutomaticConsentRequestService
 from app.services.consent_requests import ConsentRequestService
 from app.services.email_ingestion import process_inbound_email
-from app.services.ingestion_history import IngestionHistory
+from app.services.ingestion_history import ADMIN_UPLOAD, IngestionHistory
 from app.services.ingestion_lock import ingestion_lock
 from app.services.maneuver_analytics import get_or_generate_maneuver_analytics
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
@@ -54,6 +56,8 @@ def process_provider_email(
     session_result_sender: Callable[[str, str, str], None] | None = None,
 ) -> IngestionProcessingResult | None:
     with ingestion_lock(history.path.parent):
+        if provider == ADMIN_UPLOAD:
+            raise ValueError("Manual source cannot be processed as email")
         if not email.provider_message_id:
             raise ValueError("Inbound email is missing its provider message ID")
         if history.find_provider_message(provider, email.provider_message_id) is not None:
@@ -96,6 +100,10 @@ def reprocess_ingestion(
     with ingestion_lock(history.path.parent):
         record = history.get(ingestion_id)
         if record is None: raise ValueError(f"Ingestion not found: {ingestion_id}")
+        if record["provider"] == ADMIN_UPLOAD:
+            return _run_manual_attempt(
+                record, sailors, boats, activities, sessions, history, track_storage,
+            )
         establish_activity_creation_provenance = record["status"] != "processed"
         record["attempts"] += 1
         record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
@@ -136,6 +144,82 @@ def reprocess_ingestion(
         return updated
 
 
+def accept_admin_upload(
+    sailor_id: str,
+    filename: str,
+    content: bytes,
+    sailors: SailorRepository,
+    history: IngestionHistory,
+) -> dict:
+    """Internal preservation only. No HTTP intake, worker activation or parsing.
+
+    The later bounded acquisition adapter must enforce request/file size limits
+    before calling this service. A pending record always references an original.
+    """
+    with ingestion_lock(history.path.parent):
+        sailor = sailors.get_by_id(sailor_id)
+        if sailor is None or sailor.consent_status != ConsentStatus.ACTIVE:
+            raise ValueError("Manual ingestion requires an existing ACTIVE Sailor")
+        operation_id = str(uuid4())
+        storage = IngestionOriginalStorage(history.path.parent)
+        original = storage.preserve(operation_id, filename, content)
+        record = {
+            "id": operation_id, "operation_id": operation_id,
+            "provider": ADMIN_UPLOAD, "owner_sailor_id": sailor.id,
+            "provider_message_id": None, "sender_email": None, "received_at": None,
+            "accepted_at": datetime.now(timezone.utc).isoformat(),
+            "attachment_name": filename, "attachment_sha256": sha256(content).hexdigest(),
+            "original_file": original, "status": "pending", "disposition": "active",
+            "attempts": 0, "last_attempt_at": None, "last_error": None,
+            "activity_id": None, "session_id": None,
+            "activity_created_by_ingestion": None,
+            "session_result_notification_candidate": False,
+            "session_result_notification": None, "pending_onboarding_reservation": None,
+        }
+        return history.add_manual(record)
+
+
+def process_admin_upload(
+    ingestion_id: str,
+    sailors: SailorRepository,
+    boats: BoatRepository,
+    activities: ActivityRepository,
+    sessions: SessionRepository,
+    history: IngestionHistory,
+    track_storage: TrackStorage | None = None,
+) -> dict:
+    """Consume one pending manual operation; failed work requires Reprocess."""
+    with ingestion_lock(history.path.parent):
+        record = history.get(ingestion_id)
+        if record is None or record["provider"] != ADMIN_UPLOAD:
+            raise ValueError("Manual ingestion not found")
+        if record["status"] == "processed":
+            return record
+        if record["status"] != "pending":
+            raise ValueError("Manual ingestion requires explicit Reprocess")
+        return _run_manual_attempt(
+            record, sailors, boats, activities, sessions, history, track_storage,
+        )
+
+
+def _run_manual_attempt(record, sailors, boats, activities, sessions, history, track_storage):
+    establish_provenance = record["status"] != "processed"
+    record.update(
+        status="processing", attempts=record["attempts"] + 1,
+        last_attempt_at=datetime.now(timezone.utc).isoformat(), last_error=None,
+    )
+    history.replace(record)
+    _attempt_record(
+        record, None, sailors, boats, activities, sessions, history, track_storage,
+        None, None, False, attempt_started=True,
+        establish_activity_creation_provenance=establish_provenance,
+    )
+    updated = history.get(record["id"])
+    if updated is None:
+        raise ValueError("Ingestion disappeared after processing")
+    return updated
+
+
 def _attempt_record(
     record,
     email,
@@ -155,34 +239,38 @@ def _attempt_record(
     if not attempt_started:
         record["attempts"] += 1; record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
     record["last_error"] = None
+    manual = record["provider"] == ADMIN_UPLOAD
     try:
-        if email.attachment_bytes is None or sha256(email.attachment_bytes).hexdigest() != record["attachment_sha256"]: raise ValueError("Preserved ingestion original SHA-256 mismatch")
-        result = _process_known_email(
-            record["provider"],
-            email,
-            sailors,
-            boats,
-            activities,
-            sessions,
-            history,
-            record,
-            establish_activity_creation_provenance,
-            track_storage,
-            consent_events,
-        )
-        automatic_consent = _automatic_consent_requests(
-            sailors,
-            sessions,
-            consent_events,
-            consent_request_sender,
-        )
-        onboarding_reservation = _pending_onboarding_reservation(
-            record,
-            result,
-            history,
-            automatic_consent.requests,
-            establish_activity_creation_provenance,
-        )
+        if manual:
+            result = _process_manual_record(
+                record, sailors, boats, activities, sessions, history,
+                establish_activity_creation_provenance, track_storage,
+            )
+        else:
+            if email.attachment_bytes is None or sha256(email.attachment_bytes).hexdigest() != record["attachment_sha256"]: raise ValueError("Preserved ingestion original SHA-256 mismatch")
+            result = _process_known_email(
+                record["provider"],
+                email,
+                sailors,
+                boats,
+                activities,
+                sessions,
+                history,
+                record,
+                establish_activity_creation_provenance,
+                track_storage,
+                consent_events,
+            )
+        automatic_consent = None
+        onboarding_reservation = None
+        if not manual:
+            automatic_consent = _automatic_consent_requests(
+                sailors, sessions, consent_events, consent_request_sender,
+            )
+            onboarding_reservation = _pending_onboarding_reservation(
+                record, result, history, automatic_consent.requests,
+                establish_activity_creation_provenance,
+            )
         if (
             establish_activity_creation_provenance
             and record["session_result_notification_candidate"] is None
@@ -194,7 +282,13 @@ def _attempt_record(
         record.update(status="processed", last_error=None, activity_id=result.activity.id, session_id=result.session_match.session.id)
         history.replace(record)
     except Exception as error:
-        record.update(status="failed", last_error=_safe_error(error)); history.replace(record)
+        record.update(
+            status="failed",
+            last_error="Manual track processing failed" if manual else _safe_error(error),
+        )
+        history.replace(record)
+        if manual:
+            return None
         if raise_errors or not isinstance(error, (ValueError, OSError, EOFError, FileNotFoundError)): raise
         return None
     # Core ingestion is authoritative before capability handling or outbound mail.
@@ -202,6 +296,9 @@ def _attempt_record(
         result.session_match.session.id
     )
     result.session_match.session = session
+    if manual:
+        # Suppression is source policy, not a successful/attempted email delivery.
+        return result
     automatic_consent.attempt_for_sailor(
         result.sailor.id,
         source=f"{record['provider']}_automatic_consent_request",
@@ -312,6 +409,46 @@ def _process_known_email(
     sailor, sailor_created = sailors.find_or_create_by_email(
         ingestion.sender_email
     )
+    return _process_activity(
+        provider, ingestion.activity, email.attachment_bytes, sailor, sailor_created,
+        sailors, boats, activities, sessions, history, record,
+        establish_activity_creation_provenance, track_storage, consent_events,
+    )
+
+
+def _process_manual_record(
+    record, sailors, boats, activities, sessions, history, establish_provenance,
+    track_storage,
+):
+    content = IngestionOriginalStorage(history.path.parent).read(record["original_file"])
+    if sha256(content).hexdigest() != record["attachment_sha256"]:
+        raise ValueError("Preserved ingestion original SHA-256 mismatch")
+    sailor = sailors.get_by_id(record["owner_sailor_id"])
+    if sailor is None:
+        raise ValueError("Manual ingestion owner is unavailable")
+    parsed = parse_track_attachment(content, record["attachment_name"])
+    return _process_activity(
+        ADMIN_UPLOAD, parsed, content, sailor, False, sailors, boats, activities,
+        sessions, history, record, establish_provenance, track_storage,
+    )
+
+
+def _process_activity(
+    provider: str,
+    parsed_activity: Activity,
+    attachment_bytes: bytes,
+    sailor: Sailor,
+    sailor_created: bool,
+    sailors: SailorRepository,
+    boats: BoatRepository,
+    activities: ActivityRepository,
+    sessions: SessionRepository,
+    history: IngestionHistory,
+    record: dict,
+    establish_activity_creation_provenance: bool,
+    track_storage: TrackStorage | None = None,
+    consent_events: ConsentEventRepository | None = None,
+) -> IngestionProcessingResult:
     if sailor.consent_status == ConsentStatus.REVOKED:
         event_repository = consent_events or ConsentEventRepository(
             sailors.path.with_name("consent_events.json")
@@ -330,14 +467,14 @@ def _process_known_email(
             f"Sailor {sailor.id} references missing default Boat: {boat_id}"
         )
 
-    if email.attachment_bytes is None:
+    if attachment_bytes is None:
         raise ValueError("Inbound email has no attachment bytes")
 
     stored_activity, created = activities.find_or_create(
         sailor.id,
         boat_id,
-        ingestion.activity,
-        email.attachment_bytes,
+        parsed_activity,
+        attachment_bytes,
     )
     if (
         establish_activity_creation_provenance
@@ -348,8 +485,8 @@ def _process_known_email(
     storage = track_storage or TrackStorage(activities.path.parent)
     stored_activity = persist_activity_track(
         stored_activity,
-        ingestion.activity,
-        email.attachment_bytes,
+        parsed_activity,
+        attachment_bytes,
         activities,
         storage,
     )

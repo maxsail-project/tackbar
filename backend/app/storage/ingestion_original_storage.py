@@ -1,4 +1,5 @@
 import re
+import os
 from pathlib import Path
 from uuid import UUID
 
@@ -14,7 +15,11 @@ class IngestionOriginalStorage:
         if not name: raise ValueError("Attachment filename cannot be safely stored")
         relative = Path("originals") / "ingestions" / safe_id / name; path = self.root / relative; path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists() and path.read_bytes() != content: raise ValueError("Preserved ingestion original differs from received bytes")
-        if not path.exists(): path.write_bytes(content)
+        if not path.exists():
+            with path.open("xb") as output:
+                output.write(content)
+                output.flush()
+                os.fsync(output.fileno())
         return relative.as_posix()
 
     def read(self, relative: str) -> bytes:
