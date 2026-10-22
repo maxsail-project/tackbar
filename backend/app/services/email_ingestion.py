@@ -1,8 +1,9 @@
 from app.models import InboundEmail, IngestionResult
-from app.parsers.vakaros import (
-    is_supported_vakaros_attachment,
-    parse_vakaros_attachment,
+from app.parsers.track import (
+    is_supported_track_attachment,
+    parse_track_attachment,
 )
+from app.parsers.gpx import GPXParseError
 from app.parsers.vakaros_vkx import VKXParseError
 
 
@@ -14,16 +15,18 @@ def process_inbound_email(email: InboundEmail) -> IngestionResult:
     if email.attachment_bytes is None or not email.attachment_filename:
         raise InboundEmailRejected("Inbound email has no attachment")
 
-    if not is_supported_vakaros_attachment(email.attachment_filename):
+    if not is_supported_track_attachment(email.attachment_filename):
         raise InboundEmailRejected(
-            "Inbound email attachment filename is not a supported Vakaros format"
+            "Inbound email attachment filename is not a supported track format"
         )
 
     try:
-        activity = parse_vakaros_attachment(
+        activity = parse_track_attachment(
             email.attachment_bytes,
             original_filename=email.attachment_filename,
         )
+    except GPXParseError as error:
+        raise InboundEmailRejected(str(error)) from error
     except VKXParseError as error:
         raise InboundEmailRejected(
             "Inbound email attachment is not a valid Vakaros VKX file"

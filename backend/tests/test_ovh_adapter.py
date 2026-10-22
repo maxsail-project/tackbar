@@ -296,3 +296,33 @@ def test_ovh_treats_mixed_csv_and_vkx_as_multiple_supported_attachments(
 
     assert batch.examined_messages[0].outcome == OVHMessageOutcome.MALFORMED
     assert batch.examined_messages[0].error_class == "ValueError"
+
+
+@pytest.mark.parametrize("filename", ["track.gpx", "track.GPX"])
+def test_ovh_recognizes_plain_gpx(monkeypatch, filename):
+    content = b"synthetic GPX acquisition bytes"
+    adapter, _, _ = _adapter(monkeypatch, {
+        b"30": _message(attachments=[(filename, content)]),
+    })
+    candidate = adapter.get_candidate_emails()[0]
+    assert candidate.attachment_filename == filename
+    assert candidate.attachment_bytes == content
+    assert candidate.provider_message_id == "456:30"
+
+
+@pytest.mark.parametrize("filename", ["track.gpx.gz", "track.GPX.GZIP", "track.gpx.zip"])
+def test_ovh_does_not_accept_compressed_gpx(monkeypatch, filename):
+    adapter, _, _ = _adapter(monkeypatch, {
+        b"31": _message(attachments=[(filename, b"compressed")]),
+    })
+    assert adapter.acquire_messages().examined_messages[0].outcome == OVHMessageOutcome.UNSUPPORTED
+
+
+@pytest.mark.parametrize("filename", ["two.csv", "two.vkx.gz", "two.GPX"])
+def test_ovh_rejects_gpx_with_another_supported_attachment(monkeypatch, filename):
+    adapter, _, _ = _adapter(monkeypatch, {
+        b"32": _message(attachments=[("one.gpx", b"gpx"), (filename, b"other")]),
+    })
+    examined = adapter.acquire_messages().examined_messages[0]
+    assert examined.outcome == OVHMessageOutcome.MALFORMED
+    assert examined.error_class == "ValueError"
