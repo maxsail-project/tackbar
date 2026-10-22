@@ -1,0 +1,104 @@
+name: Validate Ingestion (Linux)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ingestion-tests:
+    name: Linux ingestion integration tests
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install backend requirements
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Run targeted ingestion tests
+        id: targeted-tests
+        working-directory: backend
+        env:
+          TACKBAR_DATA_DIR: ${{ runner.temp }}/tackbar-ingestion-linux-data
+          TACKBAR_MAILBOX_PROVIDER: ovh
+        run: |
+          mkdir -p "$TACKBAR_DATA_DIR"
+          python -m pytest \
+            tests/test_ingestion_lock.py \
+            tests/test_admin_upload.py \
+            tests/test_manual_ingestion.py \
+            tests/test_ingestion_channels_integration.py \
+            --junitxml="$RUNNER_TEMP/ingestion-linux-results.xml"
+
+      - name: Report test totals and verify POSIX fork coverage
+        if: always()
+        working-directory: backend
+        env:
+          TEST_STEP_OUTCOME: ${{ steps.targeted-tests.outcome }}
+          JUNIT_REPORT: ${{ runner.temp }}/ingestion-linux-results.xml
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          report_path = Path(os.environ["JUNIT_REPORT"])
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          outcome = os.environ.get("TEST_STEP_OUTCOME", "unknown")
+
+          if not report_path.is_file():
+              message = "FAIL — pytest did not produce a JUnit report; tests may not have run."
+              print(message)
+              with summary_path.open("a", encoding="utf-8") as summary:
+                  summary.write(f"## Linux ingestion validation\n\n{message}\n")
+              sys.exit(1)
+
+          root = ET.parse(report_path).getroot()
+          cases = root.findall(".//testcase")
+          skipped = [case for case in cases if case.find("skipped") is not None]
+          failures = [case for case in cases if case.find("failure") is not None]
+          errors = [case for case in cases if case.find("error") is not None]
+          fork_cases = [
+              case for case in cases
+              if case.attrib.get("name") == "test_fork_child_cannot_reuse_parent_lock_ownership"
+          ]
+          fork_skipped = any(case.find("skipped") is not None for case in fork_cases)
+          fork_failed = any(
+              case.find("failure") is not None or case.find("error") is not None
+              for case in fork_cases
+          )
+          fork_passed = len(fork_cases) == 1 and not fork_skipped and not fork_failed
+
+          passed = len(cases) - len(skipped) - len(failures) - len(errors)
+          success = outcome == "success" and fork_passed
+          status = "PASS" if success else "FAIL"
+          skipped_names = [
+              f"{case.attrib.get('classname', '')}::{case.attrib.get('name', 'unknown')}"
+              for case in skipped
+          ]
+          lines = [
+              f"## Linux ingestion validation: {status}",
+              "",
+              f"- Tests: **{len(cases)} total**, **{passed} passed**, **{len(failures)} failed**, **{len(errors)} errors**, **{len(skipped)} skipped**.",
+              f"- Skipped tests: {', '.join(f'`{name}`' for name in skipped_names) if skipped_names else 'none'}.",
+              f"- POSIX fork lock test: **{'ran' if fork_passed else 'did not pass'}** (found {len(fork_cases)}, skipped {str(fork_skipped).lower()}).",
+              f"- Pytest step outcome: **{outcome}**.",
+          ]
+          message = "\n".join(lines)
+          print(message)
+          with summary_path.open("a", encoding="utf-8") as summary:
+              summary.write(message + "\n")
+
+          sys.exit(0 if success else 1)
+          PY
