@@ -178,11 +178,14 @@ class AdminSessionRenewRequest(BaseModel):
 class AdminIngestionResponse(BaseModel):
     id: str
     provider: str
-    provider_message_id: str
+    provider_message_id: str | None
     sender_email: str | None
     received_at: datetime | None
     attachment_name: str | None
-    status: Literal["processed", "failed"]
+    status: Literal["pending", "processing", "processed", "failed"]
+    operation_id: str | None = None
+    owner_sailor_id: str | None = None
+    accepted_at: datetime | None = None
     disposition: Literal["active", "discarded"]
     attempts: int
     last_attempt_at: datetime | None

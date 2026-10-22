@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException, Response
+from contextlib import asynccontextmanager
+from starlette.concurrency import run_in_threadpool
 
 from app.admin_routes import router as admin_router
 from app.consent_api_models import PublicConsentResponse
@@ -50,9 +52,22 @@ from app.services.web_consent import (
     WebConsentService,
     WebConsentUnavailableError,
 )
+from app.runtime_paths import runtime_paths
+from app.services.manual_upload_worker import ManualUploadWorker, reconcile_manual_uploads
 
 
-app = FastAPI(title="TackBar API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    worker = ManualUploadWorker(runtime_paths().root)
+    app.state.manual_upload_worker = worker
+    try:
+        await run_in_threadpool(reconcile_manual_uploads, worker.root, blocking=True)
+        yield
+    finally:
+        worker.shutdown()
+
+
+app = FastAPI(title="TackBar API", version="0.1.0", lifespan=lifespan)
 app.include_router(admin_router)
 
 

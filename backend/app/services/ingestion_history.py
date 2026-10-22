@@ -8,7 +8,7 @@ from uuid import uuid4
 from app.identity import require_uuid
 from app.models import ConsentRequest
 from app.runtime_paths import PUBLIC_TEST_DATA_ROOT, runtime_paths
-from app.services.ingestion_lock import ingestion_lock
+from app.services.ingestion_lock import file_access_lock, ingestion_lock
 
 DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
 FIELDS = {"id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "attachment_sha256", "original_file", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id"}
@@ -32,7 +32,19 @@ class IngestionHistory:
             return self._records()
 
     def _records(self) -> list[dict[str, Any]]:
-        if not self.path.exists(): return []
+        records, changed = self._canonical_records()
+        if changed: self._write(records)
+        return records
+
+    def snapshot(self) -> list[dict[str, Any]]:
+        """Read the last atomic commit without waiting for long-running ingestion.
+
+        Legacy migrations still require the writer lock and a fresh read.
+        """
+        records, changed = self._canonical_records()
+        return self.records() if changed else records
+
+    def _canonical_records(self) -> tuple[list[dict[str, Any]], bool]:
         records, reservations, changed = [], set(), False
         for item in self._read(self.path):
             canonical, migrated = _canonical(item)
@@ -46,8 +58,7 @@ class IngestionHistory:
                     raise ValueError("Consent cycle has multiple onboarding reservations")
                 reservations.add(key)
             records.append(canonical); changed |= migrated
-        if changed: self._write(records)
-        return records
+        return records, changed
 
     def get(self, record_id: str) -> dict[str, Any] | None:
         return next((r for r in self.records() if r["id"] == record_id), None)
@@ -209,11 +220,18 @@ class IngestionHistory:
 
     @staticmethod
     def _read(path: Path) -> list[dict[str, Any]]:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        with file_access_lock(path.with_name(f".{path.name}.access.lock")):
+            if not path.exists():
+                return []
+            value = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(value, list) or any(not isinstance(r, dict) for r in value): raise ValueError("Ingestion history must contain a JSON list of records")
         return value
 
     def _write(self, records: list[dict[str, Any]]) -> None:
+        with file_access_lock(self.path.with_name(f".{self.path.name}.access.lock")):
+            self._write_atomic(records)
+
+    def _write_atomic(self, records: list[dict[str, Any]]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_name(f".{self.path.name}.{uuid4().hex}.tmp")
         try:
