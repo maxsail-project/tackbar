@@ -98,7 +98,11 @@ export function ManeuverEventRow({
       <td>{formatKnots(event.maneuver.sog_entry_kn)}</td>
       <td>{formatKnots(event.maneuver.sog_min_kn)}</td>
       <td>{formatKnots(event.maneuver.sog_exit_kn)}</td>
-      <td>{formatHeadingChange(event.maneuver.heading_change_deg)}</td>
+      <td>{event.maneuver.heading_change_deg !== null
+        ? `ΔHDG ${formatHeadingChange(event.maneuver.heading_change_deg)}`
+        : event.maneuver.course_change_deg !== null
+          ? `ΔCOG ${formatHeadingChange(event.maneuver.course_change_deg)}`
+          : '—'}</td>
       <td>{formatSeconds(event.maneuver.duration_s)}</td>
     </tr>
   )
@@ -183,7 +187,7 @@ export default function ManeuverEventTable({
                     <th scope="col">SOG in</th>
                     <th scope="col">SOG min</th>
                     <th scope="col">SOG out</th>
-                    <th scope="col">ΔHDG (°)</th>
+                    <th scope="col">ΔHDG / ΔCOG (°)</th>
                     <th scope="col">Dur (s)</th>
                   </tr>
                 </thead>

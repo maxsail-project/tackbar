@@ -1920,10 +1920,10 @@ def test_admin_activity_read_does_not_generate_and_recalculation_uses_canonical_
     assert recalculated.json == {
         "artifact_currency": "current",
         "detector_status": "unavailable",
-        "unavailable_reason": "missing_hdg",
+        "unavailable_reason": "missing_cog",
         "detected_count": 0,
-        "artifact_algorithm_version": 6,
-        "current_algorithm_version": 6,
+        "artifact_algorithm_version": 7,
+        "current_algorithm_version": 7,
     }
     assert artifact_path.is_file()
     assert tracks.track_path(ACTIVITY_ACTIVE).read_bytes() == canonical_before

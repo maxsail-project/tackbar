@@ -25,6 +25,7 @@ function maneuver(
     center_time: centerTime,
     end_time: endTime,
     heading_change_deg: headingChange,
+    course_change_deg: null,
     peak_turn_rate_deg_s: 12,
     peak_turn_rate_time: centerTime,
     duration_s: 0,
@@ -38,10 +39,32 @@ function maneuver(
 }
 
 function available(maneuvers: Maneuver[]): ActivityManeuverAnalytics {
-  return { activity_id: 'activity', status: 'available', maneuvers }
+  return { activity_id: 'activity', status: 'available', detector_mode: 'HIGH', signal_basis: ['hdg'], maneuvers }
 }
 
 describe('maneuver event derivation', () => {
+  it('keeps LOW filtering and selection based on center while mixing P/C modes', () => {
+    const low = {
+      ...maneuver('2031-06-15T08:05:00Z'),
+      heading_change_deg: null,
+      course_change_deg: -90,
+      peak_turn_rate_deg_s: null,
+      peak_turn_rate_time: null,
+    }
+    const analytics: ActivityManeuverAnalytics = {
+      activity_id: 'low', status: 'available', detector_mode: 'LOW',
+      signal_basis: ['cog', 'sog'], maneuvers: [low],
+    }
+    const events = deriveDisplayManeuvers(available([maneuver(low.center_time)]), analytics,
+      { start: windowStart, end: windowEnd })
+    expect(events.map((e) => e.activityRole)).toEqual(['primary', 'comparison'])
+    const key = maneuverSelectionKey(events[1])
+    expect(retainDisplayedManeuverSelection(key, events)).toBe(key)
+    const narrowed = deriveDisplayManeuvers(null, analytics,
+      { start: windowStart, end: Date.parse('2031-06-15T08:04:59Z') })
+    expect(narrowed).toEqual([])
+    expect(retainDisplayedManeuverSelection(key, narrowed)).toBeNull()
+  })
   it('filters inclusively by center_time at both Analysis Window boundaries', () => {
     const result = deriveDisplayManeuvers(
       available([
@@ -105,7 +128,9 @@ describe('maneuver event derivation', () => {
     const unavailable: ActivityManeuverAnalytics = {
       activity_id: 'primary',
       status: 'unavailable',
-      reason: 'missing_hdg',
+      detector_mode: null,
+      signal_basis: [],
+      reason: 'missing_cog',
       maneuvers: [],
     }
 

@@ -305,7 +305,7 @@ def test_shared_maneuvers_returns_public_analytics_contract(
     response = _get(_maneuver_path(TOKEN, ACTIVITY_A))
 
     assert response.status_code == 200
-    assert set(response.json) == {"activity_id", "status", "maneuvers"}
+    assert set(response.json) == {"activity_id", "status", "reason", "detector_mode", "signal_basis", "maneuvers"}
     assert response.json["activity_id"] == ACTIVITY_A
     assert response.json["status"] == "available"
     assert len(response.json["maneuvers"]) == 1
@@ -314,9 +314,12 @@ def test_shared_maneuvers_returns_public_analytics_contract(
         "center_time",
         "end_time",
         "heading_change_deg",
+        "course_change_deg",
         "peak_turn_rate_deg_s",
         "peak_turn_rate_time",
         "duration_s",
+        "sog_entry_kn", "sog_min_kn", "sog_exit_kn",
+        "recovery_time_s", "speed_loss_distance_m", "speed_loss_time_s",
     }
     assert response.json["maneuvers"][0]["duration_s"] > 0
     assert "algorithm_version" not in json.dumps(response.json)
@@ -342,11 +345,14 @@ def test_shared_maneuvers_serializes_complementary_metrics(
             "algorithm_version": MANEUVER_ALGORITHM_VERSION,
             "track_sha256": "a" * 64,
             "status": "available",
+            "detector_mode": "HIGH",
+            "signal_basis": ["hdg"],
             "maneuvers": [{
                 "start_time": "2031-06-01T08:00:05Z",
                 "center_time": "2031-06-01T08:00:10Z",
                 "end_time": "2031-06-01T08:00:15Z",
                 "heading_change_deg": 82.0,
+                "course_change_deg": None,
                 "peak_turn_rate_deg_s": 12.0,
                 "peak_turn_rate_time": "2031-06-01T08:00:10Z",
                 "duration_s": 10.0,
@@ -415,7 +421,9 @@ def test_shared_maneuvers_returns_unavailable_hdg_as_success(
     assert response.json == {
         "activity_id": ACTIVITY_A,
         "status": "unavailable",
-        "reason": "missing_hdg",
+        "detector_mode": None,
+        "signal_basis": [],
+        "reason": "missing_cog",
         "maneuvers": [],
     }
 

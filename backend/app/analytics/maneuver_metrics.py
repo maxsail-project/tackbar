@@ -7,6 +7,7 @@ from statistics import median
 import pandas as pd
 
 from app.analytics.maneuver_detector import Maneuver
+from app.analytics.low_maneuver_detector import LowManeuverCandidate
 
 
 KNOTS_TO_METRES_PER_SECOND = 0.514444
@@ -42,7 +43,7 @@ SogSample = tuple[float, float]
 
 def calculate_maneuver_metrics(
     track: pd.DataFrame,
-    maneuver: Maneuver,
+    maneuver: Maneuver | LowManeuverCandidate,
 ) -> ManeuverDebriefMetrics:
     start = pd.Timestamp(maneuver.start_time).timestamp()
     end = pd.Timestamp(maneuver.end_time).timestamp()

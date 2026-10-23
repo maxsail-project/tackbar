@@ -111,7 +111,7 @@ def test_offline_ovh_gpx_onboarding_storage_apis_and_idempotency(runtime, monkey
     assert response.json["samples"][0]["hdg"] is None
     analytics = _get(f"{base}/activities/{activity.id}/maneuvers")
     assert analytics.status_code == 200
-    assert analytics.json == {"activity_id": activity.id, "status": "unavailable", "reason": "missing_hdg", "maneuvers": []}
+    assert analytics.json == {"activity_id": activity.id, "status": "unavailable", "reason": "missing_cog", "detector_mode": None, "signal_basis": [], "maneuvers": []}
     assert len(runtime.sent) == 2  # The existing welcome flow.
     runtime.sailors.replace(replace(runtime.sailors.get_by_id(sailor.id), consent_status=ConsentStatus.REVOKED))
     assert _get(base).status_code == 404

@@ -1,8 +1,7 @@
 """Isolated LOW Phases baseline from Issue #112; never selects or persists analytics.
 
-Only canonical UTC, COG and SOG are consumed, including on rich tracks. An empty
-tuple means no accepted candidates, not a production availability assessment.
-Production selection and unavailable reasons belong to the integration increment.
+Only canonical UTC, COG and SOG are consumed, including on rich tracks. The
+candidate callable remains separate from availability assessment and persistence.
 """
 
 from bisect import bisect_left, bisect_right
@@ -121,25 +120,12 @@ def _nearest(times: list[float], target: float) -> int:
 
 
 def _detect_run(run: list[_Sample]) -> list[LowManeuverCandidate]:
-    times = [sample.time for sample in run]
-    smoothed = [
-        _circular_mean([
-            sample.cog for sample in run[
-                bisect_left(times, time - SMOOTHING_HALF_WINDOW_SECONDS):
-                bisect_right(times, time + SMOOTHING_HALF_WINDOW_SECONDS)
-            ]
-        ])
-        for time in times
-    ]
+    times, smoothed = _smooth_run(run)
     groups: list[list[int]] = []
     for index, sample in enumerate(run):
-        left = _nearest(times, sample.time - TURN_RATE_HALF_WINDOW_SECONDS)
-        right = _nearest(times, sample.time + TURN_RATE_HALF_WINDOW_SECONDS)
-        if left == right or smoothed[left] is None or smoothed[right] is None:
+        rate = _local_rate(times, smoothed, index)
+        if rate is None:
             continue
-        rate = signed_angular_difference(
-            smoothed[left], smoothed[right],
-        ) / (times[right] - times[left])
         if abs(rate) < MIN_SEED_TURN_RATE_DEG_S or sample.sog < MIN_SOG_KNOTS:
             continue
         if not groups or sample.time - times[groups[-1][-1]] > MAX_SEED_GAP_SECONDS:
@@ -152,22 +138,10 @@ def _detect_run(run: list[_Sample]) -> list[LowManeuverCandidate]:
         duration = times[end] - times[start]
         if not MIN_DURATION_SECONDS <= duration <= MAX_DURATION_SECONDS:
             continue
-        pre = smoothed[
-            bisect_left(times, times[start] - CONTEXT_OUTER_SECONDS):
-            bisect_left(times, times[start] - CONTEXT_INNER_SECONDS)
-        ]
-        post = smoothed[
-            bisect_right(times, times[end] + CONTEXT_INNER_SECONDS):
-            bisect_right(times, times[end] + CONTEXT_OUTER_SECONDS)
-        ]
-        pre_valid = [value for value in pre if value is not None]
-        post_valid = [value for value in post if value is not None]
-        if min(len(pre_valid), len(post_valid)) < MIN_CONTEXT_SAMPLES:
+        context = _context_courses(times, smoothed, start, end)
+        if context is None:
             continue
-        before, after = _circular_mean(pre_valid), _circular_mean(post_valid)
-        if before is None or after is None:
-            continue
-        change = signed_angular_difference(before, after)
+        change = signed_angular_difference(*context)
         if abs(change) < MIN_COG_CHANGE_DEG:
             continue
         interval = smoothed[start:end + 1]
@@ -193,3 +167,88 @@ def _detect_run(run: list[_Sample]) -> list[LowManeuverCandidate]:
             run[start].timestamp, run[center].timestamp, run[end].timestamp, change,
         ))
     return candidates
+
+
+def _local_rate(times: list[float], smoothed: list[float | None], index: int) -> float | None:
+    left = _nearest(times, times[index] - TURN_RATE_HALF_WINDOW_SECONDS)
+    right = _nearest(times, times[index] + TURN_RATE_HALF_WINDOW_SECONDS)
+    if left == right or smoothed[left] is None or smoothed[right] is None:
+        return None
+    return signed_angular_difference(smoothed[left], smoothed[right]) / (times[right] - times[left])
+
+
+def _smooth_run(run: list[_Sample]) -> tuple[list[float], list[float | None]]:
+    times = [sample.time for sample in run]
+    smoothed = [
+        _circular_mean([
+            sample.cog for sample in run[
+                bisect_left(times, time - SMOOTHING_HALF_WINDOW_SECONDS):
+                bisect_right(times, time + SMOOTHING_HALF_WINDOW_SECONDS)
+            ]
+        ])
+        for time in times
+    ]
+    return times, smoothed
+
+
+def _context_courses(
+    times: list[float], smoothed: list[float | None], start: int, end: int,
+) -> tuple[float, float] | None:
+    pre = smoothed[
+        bisect_left(times, times[start] - CONTEXT_OUTER_SECONDS):
+        bisect_left(times, times[start] - CONTEXT_INNER_SECONDS)
+    ]
+    post = smoothed[
+        bisect_right(times, times[end] + CONTEXT_INNER_SECONDS):
+        bisect_right(times, times[end] + CONTEXT_OUTER_SECONDS)
+    ]
+    pre_valid = [value for value in pre if value is not None]
+    post_valid = [value for value in post if value is not None]
+    if min(len(pre_valid), len(post_valid)) < MIN_CONTEXT_SAMPLES:
+        return None
+    before, after = _circular_mean(pre_valid), _circular_mean(post_valid)
+    return None if before is None or after is None else (before, after)
+
+
+def low_unavailable_reason(track: pd.DataFrame) -> str | None:
+    """Assess executable evidence, independently of turn/acceptance thresholds.
+
+    Look for potential endpoints 3–35 s apart at seed-eligible SOG with valid
+    smoothed interval and the exact Phases context on both sides. Actual turn
+    rate, course change, coherence and interval median remain candidate tests;
+    straight sailing is available with zero candidates. No coverage percentage
+    or GPS noise floor is introduced.
+    """
+    for column in ("utc", "cog", "sog"):
+        if column not in track:
+            return f"missing_{column}"
+    times = pd.to_datetime(track.utc, utc=True, errors="coerce", format="mixed")
+    if not times.notna().any():
+        return "invalid_time"
+    for column in ("cog", "sog"):
+        values = pd.to_numeric(track[column], errors="coerce")
+        if not any(pd.notna(v) and isfinite(float(v)) and (column != "sog" or v >= 0) for v in values):
+            return f"missing_{column}"
+    runs = _continuous_runs(track)
+    if not runs:
+        return "insufficient_low_evidence"
+    if not any(s.sog >= MIN_SOG_KNOTS for run in runs for s in run):
+        return "insufficient_low_speed"
+    for run in runs:
+        times, smoothed = _smooth_run(run)
+        rates = [_local_rate(times, smoothed, index) for index in range(len(run))]
+        for start, sample in enumerate(run):
+            if sample.sog < MIN_SOG_KNOTS or smoothed[start] is None or rates[start] is None:
+                continue
+            for end in range(
+                bisect_left(times, sample.time + MIN_DURATION_SECONDS),
+                bisect_right(times, sample.time + MAX_DURATION_SECONDS),
+            ):
+                if any(v is None for v in smoothed[start:end + 1]):
+                    break
+                if (
+                    run[end].sog >= MIN_SOG_KNOTS and rates[end] is not None
+                    and _context_courses(times, smoothed, start, end) is not None
+                ):
+                    return None
+    return "insufficient_low_context"

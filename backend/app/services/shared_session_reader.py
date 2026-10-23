@@ -129,6 +129,8 @@ class SharedSessionReader:
         return ActivityManeuverAnalyticsResponse(
             activity_id=activity_id,
             status=artifact["status"],
+            detector_mode=artifact["detector_mode"],
+            signal_basis=artifact["signal_basis"],
             reason=artifact.get("reason"),
             maneuvers=[
                 ManeuverResponse(**maneuver)

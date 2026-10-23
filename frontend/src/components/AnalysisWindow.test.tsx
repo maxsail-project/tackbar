@@ -59,6 +59,7 @@ function maneuver(
       center_time: centerTime,
       end_time: centerTime,
       heading_change_deg: 90,
+      course_change_deg: null,
       peak_turn_rate_deg_s: 12,
       peak_turn_rate_time: centerTime,
       duration_s: 0,
@@ -507,8 +508,14 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).not.toContain('Move replay to 10:00:09 UTC')
   })
 
-  it('selects a visible marker through the supplied replay callback', () => {
+  it.each(['HIGH', 'LOW'])('selects a visible %s marker through the supplied replay callback', (mode) => {
     const event = maneuver(5, 'primary')
+    if (mode === 'LOW') {
+      event.maneuver.heading_change_deg = null
+      event.maneuver.course_change_deg = 90
+      event.maneuver.peak_turn_rate_deg_s = null
+      event.maneuver.peak_turn_rate_time = null
+    }
     const onSelect = vi.fn()
     const stopPropagation = vi.fn()
     const annotation = AnalysisWindowManeuverMarker({

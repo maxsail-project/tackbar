@@ -240,7 +240,10 @@ class AdminActivitySummaryResponse(BaseModel):
 class AdminManeuverStateResponse(BaseModel):
     artifact_currency: Literal["current", "stale", "missing"]
     detector_status: Literal["available", "unavailable"] | None
-    unavailable_reason: Literal["missing_hdg", "insufficient_hdg"] | None
+    unavailable_reason: Literal[
+        "missing_utc", "invalid_time", "missing_cog", "missing_sog",
+        "insufficient_low_evidence", "insufficient_low_speed", "insufficient_low_context",
+    ] | None
     detected_count: int | None
     artifact_algorithm_version: int | None
     current_algorithm_version: int

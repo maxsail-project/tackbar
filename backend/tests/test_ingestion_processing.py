@@ -414,7 +414,7 @@ def test_existing_session_does_not_trigger_automatic_context_enrichment(
     assert calls == 1
 
 
-def test_eager_analytics_persists_unavailable_artifact_without_hdg(
+def test_eager_analytics_selects_low_without_hdg_when_movement_is_usable(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     sailors, boats, activities, sessions, history = _repositories(
@@ -441,9 +441,10 @@ def test_eager_analytics_persists_unavailable_artifact_without_hdg(
     artifact = ManeuverAnalyticsStorage(activities.path.parent).read(
         result.activity.id
     )
-    assert artifact["status"] == "unavailable"
-    assert artifact["reason"] == "missing_hdg"
-    assert artifact["maneuvers"] == []
+    assert artifact["status"] == "available"
+    assert artifact["detector_mode"] == "LOW"
+    assert artifact["signal_basis"] == ["cog", "sog"]
+    assert len(artifact["maneuvers"]) == 9
 
 
 def test_arbitrary_subject_preserves_downstream_activity_and_session_flow(

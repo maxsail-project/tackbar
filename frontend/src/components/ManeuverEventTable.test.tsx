@@ -18,6 +18,7 @@ const event: DisplayManeuver = {
     center_time: '2031-06-15T08:47:59Z',
     end_time: '2031-06-15T08:48:05Z',
     heading_change_deg: -90.6,
+    course_change_deg: null,
     peak_turn_rate_deg_s: 12,
     peak_turn_rate_time: '2031-06-15T08:47:59Z',
     duration_s: 10,
@@ -53,6 +54,31 @@ function cellTexts(markup: string, tag: 'th' | 'td') {
 }
 
 describe('ManeuverEventTable', () => {
+  it('labels mixed HIGH/LOW angles and preserves LOW row navigation', () => {
+    const low: DisplayManeuver = {
+      ...event,
+      activityRole: 'comparison',
+      maneuver: {
+        ...event.maneuver,
+        heading_change_deg: null,
+        course_change_deg: 85.4,
+        peak_turn_rate_deg_s: null,
+        peak_turn_rate_time: null,
+        recovery_time_s: null,
+      },
+    }
+    const onSelect = vi.fn()
+    const markup = renderToStaticMarkup(<ManeuverEventTable
+      events={[low, event]} primaryStatus="available" comparisonStatus="available" onSelect={onSelect}
+    />)
+    expect(markup).toContain('ΔHDG −91')
+    expect(markup).toContain('ΔCOG +85')
+    expect(markup).toContain('Move replay to 08:47:59 UTC, Activity C')
+    const row = ManeuverEventRow({ event: low, selected: true, onSelect })
+    row.props.onClick()
+    expect(onSelect).toHaveBeenCalledWith(low)
+    expect(sortManeuverEvents([low, event], 'desc')).toEqual([event, low])
+  })
   it('starts collapsed with its header visible', () => {
     const markup = renderToStaticMarkup(
       <ManeuverEventTable
@@ -64,7 +90,7 @@ describe('ManeuverEventTable', () => {
 
     expect(markup).toContain('Time')
     expect(markup).toContain('Act')
-    expect(markup).toContain('ΔHDG (°)')
+    expect(markup).toContain('ΔHDG / ΔCOG (°)')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('−91')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
@@ -85,7 +111,7 @@ describe('ManeuverEventTable', () => {
 
     expect(markup).toContain('Time')
     expect(markup).toContain('Act')
-    expect(markup).toContain('\u0394HDG (\u00b0)')
+    expect(markup).toContain('\u0394HDG / \u0394COG (\u00b0)')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('\u221291')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
@@ -100,7 +126,7 @@ describe('ManeuverEventTable', () => {
       'SOG in',
       'SOG min',
       'SOG out',
-      'ΔHDG (°)',
+      'ΔHDG / ΔCOG (°)',
       'Dur (s)',
     ])
     expect(cellTexts(markup, 'td')).toEqual([
@@ -112,7 +138,7 @@ describe('ManeuverEventTable', () => {
       '5.2',
       '3.1',
       '5.1',
-      '−91',
+      'ΔHDG −91',
       '10',
     ])
     expect(markup).toMatch(

@@ -263,7 +263,7 @@ def get_temporary_shared_activity_track(
 @app.get(
     "/api/temporary/sessions/{token}/activities/{activity_id}/maneuvers",
     response_model=ActivityManeuverAnalyticsResponse,
-    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
 )
 def get_temporary_shared_activity_maneuvers(
     token: str,
@@ -326,7 +326,7 @@ def get_shared_activity_track(token: str, activity_id: str) -> ActivityTrackResp
 @app.get(
     "/api/shared/sessions/{token}/activities/{activity_id}/maneuvers",
     response_model=ActivityManeuverAnalyticsResponse,
-    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
 )
 def get_shared_activity_maneuvers(
     token: str,

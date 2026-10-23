@@ -109,6 +109,8 @@ describe('TackBar Session API client', () => {
     const analytics = {
       activity_id: 'activity/id',
       status: 'available',
+      detector_mode: 'HIGH',
+      signal_basis: ['hdg'],
       maneuvers: [],
     }
     const fetchMock = vi.fn().mockResolvedValue(
@@ -215,6 +217,22 @@ describe('TackBar Session API client', () => {
       '/api/temporary/sessions/temporary%2Ftoken/activities/activity/maneuvers',
     ])
     expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('original')
+  })
+
+  it.each(['original', 'temporary'] as const)('preserves LOW angle and null rate fields through %s access', async (kind) => {
+    const analytics = {
+      activity_id: 'activity', status: 'available', detector_mode: 'LOW', signal_basis: ['cog', 'sog'],
+      maneuvers: [{ start_time: '2031-06-15T08:00:00Z', center_time: '2031-06-15T08:00:05Z',
+        end_time: '2031-06-15T08:00:10Z', duration_s: 10, heading_change_deg: null,
+        course_change_deg: 90, peak_turn_rate_deg_s: null, peak_turn_rate_time: null,
+        sog_entry_kn: null, sog_min_kn: 5, sog_exit_kn: null, recovery_time_s: null,
+        speed_loss_distance_m: null, speed_loss_time_s: null }],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(analytics), { status: 200 })))
+    const access = kind === 'original'
+      ? { kind: 'original' as const, token: 'token' }
+      : { kind: 'temporary' as const, token: 'token', expiresAt: '2031-06-17T08:00:00Z' }
+    await expect(getActivityManeuversForAccess(access, 'activity')).resolves.toEqual(analytics)
   })
 
   it('distinguishes unknown, expired and invalidated temporary access', async () => {

@@ -5,20 +5,24 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Any, Literal
 
+import pandas as pd
+
 from app.analytics.maneuver_detector import detect_maneuvers
+from app.analytics.low_maneuver_detector import detect_low_maneuvers, low_unavailable_reason
 from app.analytics.maneuver_metrics import calculate_maneuver_metrics
 from app.storage.activity_ids import canonical_activity_id
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
 
 
-MANEUVER_ALGORITHM_VERSION = 6
+MANEUVER_ALGORITHM_VERSION = 7
 
 _MANEUVER_FIELDS = {
     "start_time",
     "center_time",
     "end_time",
     "heading_change_deg",
+    "course_change_deg",
     "peak_turn_rate_deg_s",
     "peak_turn_rate_time",
     "duration_s",
@@ -37,7 +41,10 @@ _OPTIONAL_METRIC_FIELDS = {
     "speed_loss_distance_m",
     "speed_loss_time_s",
 }
-_UNAVAILABLE_REASONS = {"missing_hdg", "insufficient_hdg"}
+_UNAVAILABLE_REASONS = {
+    "missing_utc", "invalid_time", "missing_cog", "missing_sog",
+    "insufficient_low_evidence", "insufficient_low_speed", "insufficient_low_context",
+}
 
 
 @dataclass(frozen=True)
@@ -163,18 +170,41 @@ def _generate_maneuver_analytics(
 ) -> dict[str, Any]:
     track = track_storage.read_normalized_track(activity_id)
     result = detect_maneuvers(track)
+    mode = "HIGH" if result.status == "available" else None
+    reason = None
+    basis = list(result.signal_basis) if mode else []
+    maneuvers = result.maneuvers if mode else ()
+    if mode is None:
+        reason = low_unavailable_reason(track)
+        if reason is None:
+            mode = "LOW"
+            basis = ["cog", "sog"]
+            maneuvers = detect_low_maneuvers(track)
 
     artifact: dict[str, Any] = {
         "activity_id": activity_id,
         "algorithm_version": MANEUVER_ALGORITHM_VERSION,
         "track_sha256": track_sha256,
-        "status": result.status,
+        "status": "available" if mode else "unavailable",
+        "detector_mode": mode,
+        "signal_basis": basis,
     }
-    if result.reason is not None:
-        artifact["reason"] = result.reason
+    if reason is not None:
+        artifact["reason"] = reason
     artifact["maneuvers"] = []
-    for maneuver in result.maneuvers:
-        serialized = maneuver.to_dict()
+    for maneuver in maneuvers:
+        if mode == "HIGH":
+            serialized = {**maneuver.to_dict(), "course_change_deg": None}
+        else:
+            serialized = {
+                "start_time": maneuver.start_time,
+                "center_time": maneuver.center_time,
+                "end_time": maneuver.end_time,
+                "heading_change_deg": None,
+                "course_change_deg": maneuver.cog_change_deg,
+                "peak_turn_rate_deg_s": None,
+                "peak_turn_rate_time": None,
+            }
         serialized.update(calculate_maneuver_metrics(track, maneuver).to_dict())
         artifact["maneuvers"].append(serialized)
     analytics_storage.write(activity_id, artifact)
@@ -210,6 +240,8 @@ def _is_valid_artifact(
         "track_sha256",
         "status",
         "maneuvers",
+        "detector_mode",
+        "signal_basis",
     }
     if status == "unavailable":
         expected_fields.add("reason")
@@ -220,23 +252,39 @@ def _is_valid_artifact(
     if artifact.get("activity_id") != activity_id:
         return False
     version = artifact.get("algorithm_version")
-    if not isinstance(version, int) or isinstance(version, bool):
+    if type(version) is not int or version != MANEUVER_ALGORITHM_VERSION:
         return False
     track_sha256 = artifact.get("track_sha256")
-    if not isinstance(track_sha256, str) or len(track_sha256) != 64:
+    if not isinstance(track_sha256, str) or len(track_sha256) != 64 or any(c not in "0123456789abcdef" for c in track_sha256):
         return False
+    mode, basis = artifact.get("detector_mode"), artifact.get("signal_basis")
     if status == "unavailable" and (
-        artifact.get("reason") not in _UNAVAILABLE_REASONS
+        not isinstance(artifact.get("reason"), str)
+        or artifact.get("reason") not in _UNAVAILABLE_REASONS
         or artifact.get("maneuvers") != []
+        or mode is not None or basis != []
     ):
         return False
+    if status == "available":
+        if mode == "LOW":
+            if basis != ["cog", "sog"]:
+                return False
+        elif mode == "HIGH":
+            if not isinstance(basis, list) or not basis or basis[0] != "hdg":
+                return False
+            if any(not isinstance(s, str) or s not in ("hdg", "cog", "heel", "sog") for s in basis):
+                return False
+            if len(set(basis)) != len(basis):
+                return False
+        else:
+            return False
     maneuvers = artifact.get("maneuvers")
     return isinstance(maneuvers, list) and all(
-        _is_valid_maneuver(item) for item in maneuvers
+        _is_valid_maneuver(item, mode) for item in maneuvers
     )
 
 
-def _is_valid_maneuver(value: object) -> bool:
+def _is_valid_maneuver(value: object, mode: str) -> bool:
     if not isinstance(value, dict) or set(value) != _MANEUVER_FIELDS:
         return False
     if not all(
@@ -245,18 +293,36 @@ def _is_valid_maneuver(value: object) -> bool:
             "start_time",
             "center_time",
             "end_time",
-            "peak_turn_rate_time",
         )
     ):
         return False
+    try:
+        start, center, end = (pd.Timestamp(value[f]) for f in ("start_time", "center_time", "end_time"))
+        if any(pd.isna(t) or t.tzinfo is None for t in (start, center, end)) or not start < center < end:
+            return False
+        if not _is_finite_number(value["duration_s"]) or abs(value["duration_s"] - (end - start).total_seconds()) > 1e-6:
+            return False
+        if mode == "HIGH":
+            peak = pd.Timestamp(value["peak_turn_rate_time"])
+            if pd.isna(peak) or peak.tzinfo is None or not start <= peak <= end:
+                return False
+    except (ValueError, TypeError, OverflowError):
+        return False
+    if mode == "HIGH":
+        if value["course_change_deg"] is not None or not _is_finite_number(value["heading_change_deg"]):
+            return False
+        if not _is_finite_number(value["peak_turn_rate_deg_s"]) or value["peak_turn_rate_deg_s"] <= 0:
+            return False
+    elif mode == "LOW":
+        if value["heading_change_deg"] is not None or not _is_finite_number(value["course_change_deg"]):
+            return False
+        if not -180 <= value["course_change_deg"] < 180:
+            return False
+        if value["peak_turn_rate_deg_s"] is not None or value["peak_turn_rate_time"] is not None:
+            return False
+    else:
+        return False
     return all(
-        _is_finite_number(value[field])
-        for field in (
-            "heading_change_deg",
-            "peak_turn_rate_deg_s",
-            "duration_s",
-        )
-    ) and all(
         value[field] is None or _is_finite_number(value[field])
         for field in _OPTIONAL_METRIC_FIELDS
     )

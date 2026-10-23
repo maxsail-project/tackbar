@@ -2,9 +2,10 @@ export interface Maneuver {
   start_time: string
   center_time: string
   end_time: string
-  heading_change_deg: number
-  peak_turn_rate_deg_s: number
-  peak_turn_rate_time: string
+  heading_change_deg: number | null
+  course_change_deg: number | null
+  peak_turn_rate_deg_s: number | null
+  peak_turn_rate_time: string | null
   duration_s: number
   sog_entry_kn?: number | null
   sog_min_kn?: number | null
@@ -17,6 +18,8 @@ export interface Maneuver {
 export interface ActivityManeuverAnalytics {
   activity_id: string
   status: 'available' | 'unavailable'
-  reason?: string
+  detector_mode: 'HIGH' | 'LOW' | null
+  signal_basis: ('hdg' | 'cog' | 'heel' | 'sog')[]
+  reason?: string | null
   maneuvers: Maneuver[]
 }

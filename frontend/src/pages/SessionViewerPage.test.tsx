@@ -23,6 +23,8 @@ import type { ActivityTrack, TrackSample } from '../types/track'
 const analytics: ActivityManeuverAnalytics = {
   activity_id: 'activity-a',
   status: 'available',
+  detector_mode: 'HIGH',
+  signal_basis: ['hdg'],
   maneuvers: [],
 }
 

@@ -73,6 +73,7 @@ class ManeuverDetectionResult:
     status: str
     maneuvers: tuple[Maneuver, ...]
     reason: str | None = None
+    signal_basis: tuple[str, ...] = ("hdg",)
 
 
 @dataclass(frozen=True)
@@ -133,10 +134,23 @@ def detect_maneuvers(track: pd.DataFrame) -> ManeuverDetectionResult:
         return prepared
 
     maneuvers: list[Maneuver] = []
+    used = {"hdg"}
     for samples in prepared:
-        detected, _ = _detect_segment_maneuvers(samples)
+        detected, assessments = _detect_segment_maneuvers(samples)
         maneuvers.extend(detected)
-    return ManeuverDetectionResult("available", tuple(maneuvers))
+        for assessment in assessments:
+            for signal, evidence in (
+                ("cog", assessment.cog_change_deg),
+                ("heel", assessment.heel_excursion_deg),
+                ("sog", assessment.sog_local_range_knots),
+            ):
+                if evidence is not None:
+                    used.add(signal)
+    return ManeuverDetectionResult(
+        "available", tuple(maneuvers), signal_basis=tuple(
+            signal for signal in ("hdg", "cog", "heel", "sog") if signal in used
+        ),
+    )
 
 
 def analyze_maneuver_candidates(

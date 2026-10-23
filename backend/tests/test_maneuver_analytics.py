@@ -110,7 +110,7 @@ def test_body_fixed_vkx_uses_existing_maneuver_analytics_pipeline(
     assert len(artifact["maneuvers"]) == 1
 
 
-def test_vkx_without_body_frame_evidence_keeps_analytics_unavailable(
+def test_vkx_without_body_frame_evidence_selects_low_when_movement_is_usable(
     temporary_directory: Path,
 ) -> None:
     tracks = TrackStorage(temporary_directory)
@@ -127,8 +127,9 @@ def test_vkx_without_body_frame_evidence_keeps_analytics_unavailable(
     assert track["hdg"].isna().all()
     assert track["heel"].isna().all()
     assert track["trim"].isna().all()
-    assert artifact["status"] == "unavailable"
-    assert artifact["reason"] == "missing_hdg"
+    assert artifact["status"] == "available"
+    assert artifact["detector_mode"] == "LOW"
+    assert artifact["signal_basis"] == ["cog", "sog"]
     assert artifact["maneuvers"] == []
 
 
@@ -146,7 +147,7 @@ def test_generates_available_artifact_without_mutating_canonical_track(
         temporary_directory / "analytics" / f"{ACTIVITY_ID}.maneuvers.json"
     )
     assert artifact["activity_id"] == ACTIVITY_ID
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 6
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 7
     assert artifact["track_sha256"] == hashlib.sha256(canonical_before).hexdigest()
     assert artifact["status"] == "available"
     assert len(artifact["maneuvers"]) == 1
@@ -174,7 +175,7 @@ def test_generates_unavailable_artifact_when_hdg_is_missing(
     artifact = generate_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
 
     assert artifact["status"] == "unavailable"
-    assert artifact["reason"] == "missing_hdg"
+    assert artifact["reason"] == "missing_cog"
     assert artifact["maneuvers"] == []
 
 
@@ -258,13 +259,13 @@ def test_inspection_reuses_validation_for_current_stale_and_unavailable_states(
 
     assert current.artifact_currency == "current"
     assert current.detector_status == "unavailable"
-    assert current.unavailable_reason == "missing_hdg"
+    assert current.unavailable_reason == "missing_cog"
     assert current.detected_count == 0
     assert stale.artifact_currency == "stale"
     assert stale.artifact_algorithm_version == MANEUVER_ALGORITHM_VERSION - 1
 
 
-def test_version_five_artifact_is_regenerated_for_entry_reference_v6(
+def test_version_five_artifact_is_regenerated_for_current_generation(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -297,7 +298,7 @@ def test_version_five_artifact_is_regenerated_for_entry_reference_v6(
         analytics,
     )
 
-    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 6
+    assert artifact["algorithm_version"] == MANEUVER_ALGORITHM_VERSION == 7
     assert artifact["track_sha256"] == expected_track_sha
     assert artifact["maneuvers"][0]["speed_loss_distance_m"] is None
     assert artifact["maneuvers"][0]["speed_loss_time_s"] is None

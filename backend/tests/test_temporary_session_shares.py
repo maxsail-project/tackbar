@@ -384,3 +384,41 @@ def test_temporary_access_uses_same_visible_track_and_analytics_boundaries(
     assert len(track.samples) == 2
     assert analytics.activity_id == ACTIVITY_ID
     assert analytics.status == "unavailable"
+
+
+@pytest.mark.parametrize("consent", ["PENDING", "REVOKED"])
+def test_low_v7_original_and_temporary_http_contract_and_active_visibility(
+    monkeypatch, temporary_directory, consent,
+):
+    from test_session_api import _get
+    from test_maneuver_modes import low_track
+
+    service, _, _, sailors = _runtime(temporary_directory, [NOW])
+    monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(temporary_directory))
+    monkeypatch.setattr("app.main._temporary_share_service", lambda: service)
+    share = service.create_or_reuse(ORIGINAL_TOKEN)
+    assert share is not None
+    tracks = TrackStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, low_track())
+    before = tracks.track_path(ACTIVITY_ID).read_bytes()
+    paths = [
+        f"/api/shared/sessions/{ORIGINAL_TOKEN}/activities/{ACTIVITY_ID}/maneuvers",
+        f"/api/temporary/sessions/{share.token}/activities/{ACTIVITY_ID}/maneuvers",
+    ]
+    original, temporary = [_get(path) for path in paths]
+    assert original.status_code == temporary.status_code == 200
+    assert original.json == temporary.json
+    assert original.json["detector_mode"] == "LOW"
+    assert original.json["signal_basis"] == ["cog", "sog"]
+    event, = original.json["maneuvers"]
+    assert event["heading_change_deg"] is None
+    assert event["course_change_deg"] == pytest.approx(90, abs=1)
+    assert event["peak_turn_rate_deg_s"] is event["peak_turn_rate_time"] is None
+    assert event["sog_entry_kn"] == event["sog_exit_kn"] == 5
+    assert tracks.track_path(ACTIVITY_ID).read_bytes() == before
+    sailor = sailors.get_by_id(SAILOR_ID)
+    sailors.replace(replace(sailor, consent_status=ConsentStatus(consent)))
+    for path in paths:
+        assert _get(path).status_code == 404
+    for path in paths:
+        assert _get(path.replace(ACTIVITY_ID, SECOND_ACTIVITY_ID)).status_code == 404

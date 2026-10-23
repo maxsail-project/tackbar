@@ -199,7 +199,8 @@ export interface AdminActivitySummary {
 export interface AdminManeuverState {
   artifact_currency: 'current' | 'stale' | 'missing'
   detector_status: 'available' | 'unavailable' | null
-  unavailable_reason: 'missing_hdg' | 'insufficient_hdg' | null
+  unavailable_reason: 'missing_utc' | 'invalid_time' | 'missing_cog' | 'missing_sog'
+    | 'insufficient_low_evidence' | 'insufficient_low_speed' | 'insufficient_low_context' | null
   detected_count: number | null
   artifact_algorithm_version: number | null
   current_algorithm_version: number

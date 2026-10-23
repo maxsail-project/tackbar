@@ -108,9 +108,10 @@ class ManeuverResponse(BaseModel):
     start_time: str
     center_time: str
     end_time: str
-    heading_change_deg: float
-    peak_turn_rate_deg_s: float
-    peak_turn_rate_time: str
+    heading_change_deg: float | None
+    course_change_deg: float | None
+    peak_turn_rate_deg_s: float | None
+    peak_turn_rate_time: str | None
     duration_s: float
     sog_entry_kn: float | None = None
     sog_min_kn: float | None = None
@@ -123,5 +124,7 @@ class ManeuverResponse(BaseModel):
 class ActivityManeuverAnalyticsResponse(BaseModel):
     activity_id: str
     status: Literal["available", "unavailable"]
+    detector_mode: Literal["HIGH", "LOW"] | None
+    signal_basis: list[Literal["hdg", "cog", "heel", "sog"]]
     reason: str | None = None
     maneuvers: list[ManeuverResponse]
