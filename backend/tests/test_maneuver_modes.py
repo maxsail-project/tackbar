@@ -139,6 +139,60 @@ def test_low_angle_null_peak_and_existing_sog_metrics(temporary_directory):
     assert event["speed_loss_distance_m"] == event["recovery_time_s"] == 0
 
 
+def test_three_second_low_center_at_end_is_current_and_reused(temporary_directory, monkeypatch):
+    tracks, artifacts = TrackStorage(temporary_directory), ManeuverAnalyticsStorage(temporary_directory)
+    track = normalize_track(ACTIVITY, [
+        {"utc": pd.Timestamp("2031-06-01T09:00:00Z") + pd.Timedelta(seconds=t),
+         "lat": 39, "lon": -.3, "sog": 5, "cog": 330 if t < 30 else 60}
+        for t in range(0, 91, 3)
+    ])
+    # Only one circular increment lies inside the two-seed interval, so the
+    # first sample reaching 50% rotation is its end, not an interpolated time.
+    candidate, = detect_low_maneuvers(track)
+    assert candidate.start_time == "2031-06-01T09:00:27Z"
+    assert candidate.center_time == candidate.end_time == "2031-06-01T09:00:30Z"
+    tracks.write_normalized_track(ACTIVITY, track)
+    canonical_before = tracks.track_path(ACTIVITY).read_bytes()
+    result = generate_maneuver_analytics(ACTIVITY, tracks, artifacts)
+    event, = result["maneuvers"]
+    assert result["algorithm_version"] == 7 and result["detector_mode"] == "LOW"
+    assert event["start_time"] < event["center_time"] == event["end_time"]
+    assert _is_valid_artifact(result, ACTIVITY)
+    assert inspect_maneuver_analytics(ACTIVITY, tracks, artifacts).artifact_currency == "current"
+    path = artifacts.artifact_path(ACTIVITY)
+    before, modified = path.read_bytes(), path.stat().st_mtime_ns
+
+    def fail(*_args):
+        raise AssertionError("current LOW artifact must be reused without generation or writing")
+    monkeypatch.setattr("app.services.maneuver_analytics._generate_maneuver_analytics", fail)
+    monkeypatch.setattr(artifacts, "write", fail)
+    assert get_or_generate_maneuver_analytics(ACTIVITY, tracks, artifacts) == result
+    assert path.read_bytes() == before and path.stat().st_mtime_ns == modified
+    assert tracks.track_path(ACTIVITY).read_bytes() == canonical_before
+
+
+@pytest.mark.parametrize("mode", ["HIGH", "LOW"])
+@pytest.mark.parametrize("position", ["before", "start", "middle", "end", "after"])
+def test_mode_specific_center_boundaries(temporary_directory, mode, position):
+    tracks, artifacts = TrackStorage(temporary_directory), ManeuverAnalyticsStorage(temporary_directory)
+    track = low_track()
+    if mode == "HIGH":
+        track.hdg = track.cog
+    tracks.write_normalized_track(ACTIVITY, track)
+    result = generate_maneuver_analytics(ACTIVITY, tracks, artifacts)
+    event, = result["maneuvers"]
+    start, end = pd.Timestamp(event["start_time"]), pd.Timestamp(event["end_time"])
+    centers = {
+        "before": start - pd.Timedelta(seconds=1), "start": start,
+        "middle": start + (end - start) / 2, "end": end,
+        "after": end + pd.Timedelta(seconds=1),
+    }
+    event["center_time"] = centers[position].isoformat().replace("+00:00", "Z")
+    assert _is_valid_artifact(result, ACTIVITY) == (
+        position == "middle" or (mode == "LOW" and position == "end")
+    )
+
+
 def test_low_zero_events_is_current_and_short_track_metrics_remain_null(temporary_directory, monkeypatch):
     tracks, artifacts = TrackStorage(temporary_directory), ManeuverAnalyticsStorage(temporary_directory)
     tracks.write_normalized_track(ACTIVITY, low_track(straight=True))

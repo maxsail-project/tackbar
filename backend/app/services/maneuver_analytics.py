@@ -302,7 +302,11 @@ def _is_valid_maneuver(value: object, mode: str) -> bool:
         return False
     try:
         start, center, end = (pd.Timestamp(value[f]) for f in ("start_time", "center_time", "end_time"))
-        if any(pd.isna(t) or t.tzinfo is None for t in (start, center, end)) or not start < center < end:
+        if any(pd.isna(t) or t.tzinfo is None for t in (start, center, end)):
+            return False
+        # LOW selects a real sample at 50% rotation, which can be the end at
+        # coarse cadence. HIGH retains its strict interior-center contract.
+        if not (start < center <= end if mode == "LOW" else start < center < end):
             return False
         if not _is_finite_number(value["duration_s"]) or abs(value["duration_s"] - (end - start).total_seconds()) > 1e-6:
             return False

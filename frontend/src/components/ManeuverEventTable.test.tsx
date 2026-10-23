@@ -111,7 +111,7 @@ describe('ManeuverEventTable', () => {
 
     expect(markup).toContain('Time')
     expect(markup).toContain('Act')
-    expect(markup).toContain('\u0394HDG / \u0394COG (\u00b0)')
+    expect(markup).toContain('\u0394 (\u00b0)')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('\u221291')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
@@ -126,7 +126,7 @@ describe('ManeuverEventTable', () => {
       'SOG in',
       'SOG min',
       'SOG out',
-      'ΔHDG / ΔCOG (°)',
+      'Δ (°)',
       'Dur (s)',
     ])
     expect(cellTexts(markup, 'td')).toEqual([
