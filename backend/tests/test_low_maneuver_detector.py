@@ -174,11 +174,11 @@ def test_antipodal_smoothed_evidence_has_no_invented_mean_direction():
 
 
 @pytest.mark.parametrize("filename,expected", [
-    ("2025-06-21-ESP29375-P01.gpx", 20),
+    ("2025-06-21-ESP29375-P01.gpx", 21),
     ("2025-06-21-ESP30782-P01.gpx", 16),
 ])
 def test_representative_canonical_gpx(filename, expected):
-    # Recorded PoC: 21/16 respectively. Canonical input yields 20/16; preserve
+    # Recorded PoC: 21/16 respectively. Canonical input yields 21/16; preserve
     # the difference for review rather than tuning thresholds to recover counts.
     track = normalize_track("review", parse_gpx(FIXTURES / filename).samples)
     before = track.copy(deep=True)

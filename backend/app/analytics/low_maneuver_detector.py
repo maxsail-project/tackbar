@@ -154,10 +154,10 @@ def _detect_run(run: list[_Sample]) -> list[LowManeuverCandidate]:
             continue
         pre = smoothed[
             bisect_left(times, times[start] - CONTEXT_OUTER_SECONDS):
-            bisect_right(times, times[start] - CONTEXT_INNER_SECONDS)
+            bisect_left(times, times[start] - CONTEXT_INNER_SECONDS)
         ]
         post = smoothed[
-            bisect_left(times, times[end] + CONTEXT_INNER_SECONDS):
+            bisect_right(times, times[end] + CONTEXT_INNER_SECONDS):
             bisect_right(times, times[end] + CONTEXT_OUTER_SECONDS)
         ]
         pre_valid = [value for value in pre if value is not None]
