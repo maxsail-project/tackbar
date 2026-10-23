@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { DisplayManeuver, ManeuverActivityRole } from '../utils/maneuverEvents'
@@ -125,6 +125,7 @@ export default function ManeuverEventTable({
   const [sortDirection, setSortDirection] = useState<ManeuverSortDirection>('asc')
   const contentId = useId()
   const helpId = useId()
+  const helpRef = useRef<HTMLDivElement>(null)
   const evidence = [
     { role: 'primary' as const, status: primaryStatus, mode: primaryDetectorMode },
     { role: 'comparison' as const, status: comparisonStatus, mode: comparisonDetectorMode },
@@ -149,7 +150,10 @@ export default function ManeuverEventTable({
           className="maneuver-section__collapse"
           aria-expanded={expanded}
           aria-controls={contentId}
-          onClick={() => setExpanded((current) => toggledExpandedState(current))}
+          onClick={() => {
+            helpRef.current?.hidePopover()
+            setExpanded((current) => toggledExpandedState(current))
+          }}
         >
           {expanded ? 'Collapse' : 'Expand'}
         </button>
@@ -169,16 +173,24 @@ export default function ManeuverEventTable({
                 aria-label="About maneuver evidence"
                 aria-expanded={helpExpanded}
                 aria-controls={helpId}
-                onClick={() => setHelpExpanded((current) => !current)}
+                popoverTarget={helpId}
               >
-                (i)
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v6" />
+                  <circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none" />
+                </svg>
               </button>
             </div>
-            <div id={helpId} className="maneuver-evidence__help" hidden={!helpExpanded}>
-              <p><strong>HIGH evidence:</strong> maneuver detection uses heading (HDG) and may use additional supporting telemetry.</p>
-              <p><strong>LOW evidence:</strong> maneuver detection uses course over ground (COG) and speed over ground (SOG).</p>
-              <p>These levels describe maneuver detection evidence only. HIGH does not guarantee correctness; LOW is not a failure or a statement about general track quality.</p>
-              <p>ΔHDG is heading change; ΔCOG is course-over-ground change. They are not identical measurements.</p>
+            <div id={helpId} ref={helpRef} className="maneuver-evidence__help" popover="auto"
+              role="note" aria-labelledby={`${helpId}-title`}
+              onToggle={(event) => setHelpExpanded(event.newState === 'open')}
+            >
+              <h3 id={`${helpId}-title`}>Maneuver detection evidence</h3>
+              <p><strong>HIGH evidence:</strong> Detection based on heading (HDG), with supporting signals such as heel (HEEL), course (COG), and speed (SOG) when available.</p>
+              <p><strong>LOW evidence:</strong> Detection based on course (COG) and speed (SOG).</p>
+              <p className="maneuver-evidence__secondary">HIGH uses richer telemetry, but neither level guarantees detection accuracy or indicates overall track quality.</p>
+              <p className="maneuver-evidence__secondary">ΔHDG = heading change · ΔCOG = course change</p>
             </div>
           </>}
           <div className="maneuver-statuses" aria-live="polite">

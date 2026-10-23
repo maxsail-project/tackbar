@@ -99,23 +99,30 @@ describe('ManeuverEventTable', () => {
     expect(markup).not.toContain('About maneuver evidence')
   })
 
-  it('provides a named native disclosure button associated with the complete evidence explanation', () => {
+  it('provides an accessible icon controlling a native dismissible popover with the exact approved copy', () => {
     const markup = renderToStaticMarkup(<ManeuverEventTable
       events={[]} primaryStatus="available" primaryDetectorMode="HIGH" onSelect={vi.fn()}
     />)
-    const control = markup.match(/<button[^>]*aria-label="About maneuver evidence"[^>]*>\(i\)<\/button>/)?.[0]
+    const control = markup.match(/<button[^>]*aria-label="About maneuver evidence"[^>]*>.*?<\/button>/)?.[0]
     expect(control).toBeDefined()
     expect(control).toContain('type="button"')
     expect(control).toContain('aria-expanded="false"')
     const helpId = control!.match(/aria-controls="([^"]+)"/)![1]
-    expect(markup).toContain(`id="${helpId}" class="maneuver-evidence__help" hidden=""`)
-    expect(markup).toContain('heading (HDG) and may use additional supporting telemetry')
-    expect(markup).toContain('course over ground (COG) and speed over ground (SOG)')
-    expect(markup).toContain('maneuver detection evidence only')
-    expect(markup).toContain('HIGH does not guarantee correctness')
-    expect(markup).toContain('LOW is not a failure or a statement about general track quality')
-    expect(markup).toContain('ΔHDG is heading change; ΔCOG is course-over-ground change')
-    expect(markup).toContain('not identical measurements')
+    expect(control).toContain(`popoverTarget="${helpId}"`)
+    expect(control).toContain('aria-hidden="true"')
+    expect(control).toContain('focusable="false"')
+    expect(control).not.toContain('(i)')
+    expect(markup).toContain(`id="${helpId}" class="maneuver-evidence__help" popover="auto" role="note" aria-labelledby="${helpId}-title"`)
+    const paragraphs = [...markup.matchAll(/<p(?: class="maneuver-evidence__secondary")?>(.*?)<\/p>/g)]
+      .map((match) => match[1].replace(/<[^>]+>/g, ''))
+    expect(markup).toContain(`<h3 id="${helpId}-title">Maneuver detection evidence</h3>`)
+    expect(paragraphs.slice(0, 4)).toEqual([
+      'HIGH evidence: Detection based on heading (HDG), with supporting signals such as heel (HEEL), course (COG), and speed (SOG) when available.',
+      'LOW evidence: Detection based on course (COG) and speed (SOG).',
+      'HIGH uses richer telemetry, but neither level guarantees detection accuracy or indicates overall track quality.',
+      'ΔHDG = heading change · ΔCOG = course change',
+    ])
+    expect(markup.match(/class="maneuver-evidence__secondary"/g)).toHaveLength(2)
   })
 
   it('labels mixed HIGH/LOW angles and preserves LOW row navigation', () => {

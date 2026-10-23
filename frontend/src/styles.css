@@ -1207,7 +1207,6 @@ input:focus-visible {
 }
 
 .maneuver-section__collapse,
-.maneuver-evidence__info,
 .maneuver-event-table__sort {
   padding: 4px 7px;
   border: 1px solid #c8d7da;
@@ -1221,7 +1220,6 @@ input:focus-visible {
 }
 
 .maneuver-section__collapse:hover,
-.maneuver-evidence__info:hover,
 .maneuver-event-table__sort:hover {
   background: #edf4f5;
 }
@@ -1248,19 +1246,60 @@ input:focus-visible {
 }
 
 .maneuver-evidence__info {
-  min-width: 44px;
-  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: #68777b;
+  background: transparent;
+  cursor: pointer;
+}
+
+.maneuver-evidence__info:hover {
+  color: #31515a;
 }
 
 .maneuver-evidence__help {
-  margin-top: 8px;
-  padding: 0 12px;
+  position: fixed;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 12px;
   border: 1px solid #d5e1e3;
   border-radius: 10px;
   background: #f7fafb;
-  color: #526d74;
+  color: #31515a;
+  box-shadow: 0 4px 16px rgb(1 54 99 / 14%);
   font-size: 0.82rem;
-  line-height: 1.5;
+  line-height: 1.4;
+}
+
+@supports (position-area: bottom span-left) {
+  .maneuver-evidence__help {
+    inset: auto;
+    position-area: bottom span-left;
+    position-try-fallbacks: flip-inline, flip-block;
+    position-try-order: most-width;
+    margin: 6px 0;
+  }
+}
+
+.maneuver-evidence__help h3 {
+  margin: 0;
+  font-size: inherit;
+}
+
+.maneuver-evidence__help p {
+  margin: 8px 0 0;
+}
+
+.maneuver-evidence__help .maneuver-evidence__secondary {
+  color: #526d74;
+  font-size: 0.75rem;
 }
 
 .maneuver-statuses p,
