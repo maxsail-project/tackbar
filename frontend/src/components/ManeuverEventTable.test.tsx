@@ -54,6 +54,70 @@ function cellTexts(markup: string, tag: 'th' | 'td') {
 }
 
 describe('ManeuverEventTable', () => {
+  it.each([
+    ['HIGH', 'HIGH'], ['LOW', 'LOW'], ['HIGH', 'LOW'], ['LOW', 'HIGH'],
+  ] as const)('shows P %s and C %s evidence above the unchanged table', (primary, comparison) => {
+    const markup = renderToStaticMarkup(<ManeuverEventTable
+      events={[event]} primaryStatus="available" comparisonStatus="available"
+      primaryDetectorMode={primary} comparisonDetectorMode={comparison} onSelect={vi.fn()}
+    />)
+    expect(markup).toContain(`P · ${primary} evidence`)
+    expect(markup).toContain(`C · ${comparison} evidence`)
+    expect(markup.indexOf('id="maneuver-title"')).toBeLessThan(markup.indexOf('class="maneuver-evidence"'))
+    expect(markup.indexOf('class="maneuver-evidence"')).toBeLessThan(markup.indexOf('<table'))
+    expect(cellTexts(markup, 'th')).toHaveLength(10)
+    expect(cellTexts(markup, 'td').join(' ')).not.toContain('evidence')
+  })
+
+  it.each(['HIGH', 'LOW'] as const)('retains single-P %s evidence with available zero events', (mode) => {
+    const markup = renderToStaticMarkup(<ManeuverEventTable
+      events={[]} primaryStatus="available" primaryDetectorMode={mode}
+      comparisonDetectorMode="LOW" onSelect={vi.fn()}
+    />)
+    expect(markup).toContain(`P · ${mode} evidence`)
+    expect(markup).not.toContain('C ·')
+    expect(markup).toContain('No maneuvers detected in this Analysis Window.')
+  })
+
+  it.each(['unavailable', 'error', 'loading'] as const)('omits evidence for %s analytics without hiding the available role', (status) => {
+    const markup = renderToStaticMarkup(<ManeuverEventTable
+      events={[]} primaryStatus={status} comparisonStatus="available"
+      primaryDetectorMode="LOW" comparisonDetectorMode="HIGH" onSelect={vi.fn()}
+    />)
+    expect(markup).not.toContain('P · LOW evidence')
+    expect(markup).toContain('C · HIGH evidence')
+    expect(markup).toContain(status === 'loading'
+      ? 'Loading maneuver analytics for P…' : 'Maneuver analytics unavailable for P.')
+  })
+
+  it('does not infer evidence for null or absent provenance', () => {
+    const markup = renderToStaticMarkup(<ManeuverEventTable
+      events={[event]} primaryStatus="available" comparisonStatus="available"
+      primaryDetectorMode={null} onSelect={vi.fn()}
+    />)
+    expect(markup).not.toContain('class="maneuver-evidence"')
+    expect(markup).not.toContain('About maneuver evidence')
+  })
+
+  it('provides a named native disclosure button associated with the complete evidence explanation', () => {
+    const markup = renderToStaticMarkup(<ManeuverEventTable
+      events={[]} primaryStatus="available" primaryDetectorMode="HIGH" onSelect={vi.fn()}
+    />)
+    const control = markup.match(/<button[^>]*aria-label="About maneuver evidence"[^>]*>\(i\)<\/button>/)?.[0]
+    expect(control).toBeDefined()
+    expect(control).toContain('type="button"')
+    expect(control).toContain('aria-expanded="false"')
+    const helpId = control!.match(/aria-controls="([^"]+)"/)![1]
+    expect(markup).toContain(`id="${helpId}" class="maneuver-evidence__help" hidden=""`)
+    expect(markup).toContain('heading (HDG) and may use additional supporting telemetry')
+    expect(markup).toContain('course over ground (COG) and speed over ground (SOG)')
+    expect(markup).toContain('maneuver detection evidence only')
+    expect(markup).toContain('HIGH does not guarantee correctness')
+    expect(markup).toContain('LOW is not a failure or a statement about general track quality')
+    expect(markup).toContain('ΔHDG is heading change; ΔCOG is course-over-ground change')
+    expect(markup).toContain('not identical measurements')
+  })
+
   it('labels mixed HIGH/LOW angles and preserves LOW row navigation', () => {
     const low: DisplayManeuver = {
       ...event,

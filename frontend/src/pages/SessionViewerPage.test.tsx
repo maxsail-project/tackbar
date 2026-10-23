@@ -19,6 +19,7 @@ import type { DisplayManeuver } from '../utils/maneuverEvents'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
 import type { SessionActivity } from '../types/session'
 import type { ActivityTrack, TrackSample } from '../types/track'
+import ManeuverEventTable from '../components/ManeuverEventTable'
 
 const analytics: ActivityManeuverAnalytics = {
   activity_id: 'activity-a',
@@ -388,6 +389,32 @@ describe('selected maneuver analytics alignment', () => {
     expect(resolveSelectedManeuverAnalytics(state, 'activity-a')).toBe(
       state.analytics,
     )
+  })
+
+  it('updates role evidence as Activities switch, suppressing stale and cleared selections', () => {
+    const high = readyAnalyticsState('high')
+    const low = readyAnalyticsState('low')
+    low.analytics = { ...low.analytics, detector_mode: 'LOW', signal_basis: ['cog', 'sog'] }
+    function renderEvidence(primaryId: string, comparisonId: string | null, primary = high, comparison = low) {
+      return renderToStaticMarkup(<ManeuverEventTable
+        events={[]} primaryStatus="available"
+        comparisonStatus={comparisonId === null ? undefined : 'available'}
+        primaryDetectorMode={resolveSelectedManeuverAnalytics(primary, primaryId)?.detector_mode}
+        comparisonDetectorMode={resolveSelectedManeuverAnalytics(comparison, comparisonId)?.detector_mode}
+        onSelect={vi.fn()}
+      />)
+    }
+    const initial = renderEvidence('high', 'low')
+    expect(initial).toContain('P · HIGH evidence')
+    expect(initial).toContain('C · LOW evidence')
+    const pending = renderEvidence('low', 'high')
+    expect(pending).not.toContain('class="maneuver-evidence"')
+    const switched = renderEvidence('low', 'high', low, high)
+    expect(switched).toContain('P · LOW evidence')
+    expect(switched).toContain('C · HIGH evidence')
+    const cleared = renderEvidence('low', null, low, high)
+    expect(cleared).toContain('P · LOW evidence')
+    expect(cleared).not.toContain('C ·')
   })
 
   it('resolves the selected event only from maneuvers in the displayed window', () => {

@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
+import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { DisplayManeuver, ManeuverActivityRole } from '../utils/maneuverEvents'
 import {
   formatHeadingChange,
@@ -20,6 +21,8 @@ interface ManeuverEventTableProps {
   events: DisplayManeuver[]
   primaryStatus: ManeuverPresentationStatus
   comparisonStatus?: ManeuverPresentationStatus
+  primaryDetectorMode?: ActivityManeuverAnalytics['detector_mode']
+  comparisonDetectorMode?: ActivityManeuverAnalytics['detector_mode']
   selectedManeuverKey?: string | null
   onSelect: (event: DisplayManeuver) => void
 }
@@ -112,12 +115,20 @@ export default function ManeuverEventTable({
   events,
   primaryStatus,
   comparisonStatus,
+  primaryDetectorMode,
+  comparisonDetectorMode,
   selectedManeuverKey = null,
   onSelect,
 }: ManeuverEventTableProps) {
   const [expanded, setExpanded] = useState(false)
+  const [helpExpanded, setHelpExpanded] = useState(false)
   const [sortDirection, setSortDirection] = useState<ManeuverSortDirection>('asc')
   const contentId = useId()
+  const helpId = useId()
+  const evidence = [
+    { role: 'primary' as const, status: primaryStatus, mode: primaryDetectorMode },
+    { role: 'comparison' as const, status: comparisonStatus, mode: comparisonDetectorMode },
+  ].filter(({ status, mode }) => status === 'available' && (mode === 'HIGH' || mode === 'LOW'))
   const statuses = [primaryStatus, comparisonStatus].filter(
     (status): status is ManeuverPresentationStatus => status !== undefined,
   )
@@ -145,6 +156,31 @@ export default function ManeuverEventTable({
       </div>
 
       <div id={contentId} hidden={!expanded}>
+          {evidence.length > 0 && <>
+            <div className="maneuver-evidence">
+              {evidence.map(({ role, mode }) => (
+                <span key={role} style={{ color: ACTIVITY_COLORS[role] }}>
+                  {roleLabel(role)} · {mode} evidence
+                </span>
+              ))}
+              <button
+                type="button"
+                className="maneuver-evidence__info"
+                aria-label="About maneuver evidence"
+                aria-expanded={helpExpanded}
+                aria-controls={helpId}
+                onClick={() => setHelpExpanded((current) => !current)}
+              >
+                (i)
+              </button>
+            </div>
+            <div id={helpId} className="maneuver-evidence__help" hidden={!helpExpanded}>
+              <p><strong>HIGH evidence:</strong> maneuver detection uses heading (HDG) and may use additional supporting telemetry.</p>
+              <p><strong>LOW evidence:</strong> maneuver detection uses course over ground (COG) and speed over ground (SOG).</p>
+              <p>These levels describe maneuver detection evidence only. HIGH does not guarantee correctness; LOW is not a failure or a statement about general track quality.</p>
+              <p>ΔHDG is heading change; ΔCOG is course-over-ground change. They are not identical measurements.</p>
+            </div>
+          </>}
           <div className="maneuver-statuses" aria-live="polite">
             {primaryStatus === 'loading' && <p>Loading maneuver analytics for P…</p>}
             {(primaryStatus === 'unavailable' || primaryStatus === 'error') && (

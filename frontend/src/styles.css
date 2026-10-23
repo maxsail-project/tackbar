@@ -1207,6 +1207,7 @@ input:focus-visible {
 }
 
 .maneuver-section__collapse,
+.maneuver-evidence__info,
 .maneuver-event-table__sort {
   padding: 4px 7px;
   border: 1px solid #c8d7da;
@@ -1220,14 +1221,46 @@ input:focus-visible {
 }
 
 .maneuver-section__collapse:hover,
+.maneuver-evidence__info:hover,
 .maneuver-event-table__sort:hover {
   background: #edf4f5;
 }
 
 .maneuver-section__collapse:focus-visible,
+.maneuver-evidence__info:focus-visible,
 .maneuver-event-table__sort:focus-visible {
   outline: 2px solid #28788a;
   outline-offset: 2px;
+}
+
+.maneuver-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin-top: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.maneuver-evidence > span {
+  white-space: nowrap;
+}
+
+.maneuver-evidence__info {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.maneuver-evidence__help {
+  margin-top: 8px;
+  padding: 0 12px;
+  border: 1px solid #d5e1e3;
+  border-radius: 10px;
+  background: #f7fafb;
+  color: #526d74;
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .maneuver-statuses p,

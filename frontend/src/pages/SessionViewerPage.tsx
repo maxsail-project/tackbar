@@ -978,6 +978,8 @@ export function SessionViewer({
       {analysisWindow !== null && (
         <ManeuverEventTable
           events={displayManeuvers}
+          primaryDetectorMode={primaryManeuverAnalytics?.detector_mode}
+          comparisonDetectorMode={comparisonManeuverAnalytics?.detector_mode}
           primaryStatus={maneuverPresentationStatus(
             primaryManeuverState,
             primaryActivityId || null,
