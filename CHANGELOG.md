@@ -2,6 +2,192 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.14 Californian — GPX & Maneuver Analytics
+
+### English
+
+Adds plain GPX to the existing track pipeline and protected Admin uploads for
+operators, then makes reduced-evidence maneuver analytics available alongside
+the existing heading-based detector. Email remains the normal Sailor sharing
+channel; analytical comparison remains limited to two Activities.
+
+### Added
+
+* Plain `.gpx` intake through OVH email and Admin normalizes GPS/UTC samples
+  into the existing Activity track model. SOG and circular COG are derived
+  from real positions and elapsed time; missing HDG and other sensor values
+  remain absent. Originals and Sailor-scoped exact-byte Activity reuse use the
+  common ingestion pipeline.
+* Protected Admin → Ingestions → **Upload track** accepts one supported file
+  up to 16 MiB for an explicitly selected existing `ACTIVE` Sailor, using that
+  Sailor's default Boat. Durable acceptance starts request-independent work
+  with truthful Pending/Processing/Processed/Failed feedback and related
+  Activity/Session navigation. Manual uploads have genuine `admin_upload`
+  provenance and send no automatic emails, including on manual-source Reprocess.
+* Maneuver analytics selects HIGH when canonical HDG supports the existing
+  detector, including available zero-event results. Otherwise LOW uses usable
+  canonical COG + SOG with the accepted Phases detector; insufficient evidence
+  remains explicitly unavailable. Available artifacts carry one selected mode
+  and the actual signal basis.
+* The Viewer shows role-aware **HIGH evidence / LOW evidence** above the
+  maneuver table, with a touch/keyboard-accessible explanation. Mode-specific
+  ΔHDG and ΔCOG values distinguish heading change from course-over-ground
+  change. Evidence describes maneuver detection, not general track quality or
+  guaranteed accuracy. Admin can inspect persisted mode and artifact currency.
+
+### Changed
+
+* Cooperating ingestion writers share cross-process exclusion. Accepted manual
+  work survives browser navigation; abandoned work after worker/backend exit
+  becomes inspectable failed/interrupted work with preserved original and
+  explicit Reprocess, without automatic retry. This is not transactional crash
+  rollback or exclusion for every persistence service.
+* Shared maneuver algorithm version 7 makes v6 artifacts stale. Established
+  authorized analytics paths regenerate them lazily; deployment does not run
+  a bulk recalculation. SOG-based measures remain independently nullable.
+* My TackBar places Sessions with usable links before unavailable history,
+  keeping newest-first sailing order and deterministic ties within each group.
+  Admin runtime Open links consistently request a new browser context with
+  opener/referrer protections, preserving Admin navigation.
+* Current ingestion/analytics guidance, bilingual project overview/roadmap and
+  operational upload/recovery notes are reconciled with accepted delivery.
+
+### Issues
+
+- [#32](https://github.com/maxsail-project/tackbar/issues/32) — [#32] GPX ingestion
+- [#130](https://github.com/maxsail-project/tackbar/issues/130) — [#130] Admin Ingestions: direct track file upload with explicit Sailor, provenance and notification semantics
+- [#112](https://github.com/maxsail-project/tackbar/issues/112) — [#112] Introduce dual High/Low maneuver detection and validate reduced-evidence mode
+- [#113](https://github.com/maxsail-project/tackbar/issues/113) — [#113] Expose HIGH evidence / LOW evidence for maneuver analytics in the Session Viewer
+- [#127](https://github.com/maxsail-project/tackbar/issues/127) — Order My TackBar Sessions by availability, then newest first
+- [#128](https://github.com/maxsail-project/tackbar/issues/128) — Review and standardize Admin Open-link behavior across sections
+
+### Validation
+
+The six Issues are closed as completed and their delivered commits are in the
+18-commit range from v0.7.13 to the preparation target. Prior #130 reports
+record 330 backend checks passed with one skipped, 151 parser/storage/Viewer
+API checks and 180 frontend checks passed, typecheck/build and real-backend
+browser checks. Its separate Linux gate reports 103 passed with no skips,
+including POSIX fork ownership. Offline channel checks used two real GPX
+fixtures, representative CSV/CSV.GZ and synthetic VKX/VKX.GZ; the owner also
+accepted an actual VKX upload and GPX repeat-file reuse. Real VKX export/size
+coverage is not exhaustive. #112 records 404 backend and 264 frontend checks
+passed for integration, followed by focused fixes and owner acceptance.
+These are attributed implementation reports, not preparation reruns.
+
+Preparation additionally ran eight focused frontend files: **235 tests passed**,
+plus the production build including TypeScript checking. The existing headless
+browser check passed for original and temporary Viewer routes, including
+keyboard/touch help interaction and 320/375/768px layouts. Documentation,
+canonical Issue lists, bilingual structure, exact publication-body equivalence,
+whitespace, dependency diff and remote-state checks cover the preparation.
+No dependencies changed. A full product regression was not run.
+
+GPX accepts one track/one nonempty segment and rejects adjacent time gaps over
+10 seconds, compressed GPX and unsupported XML; extensions are not mapped.
+LOW is sensitive to noise/cadence and can miss gradual turns, including the
+known ESP29375 P02 cases near 12:19:30 and 12:33:42 UTC. It is not equivalent
+to HIGH and does not classify tacks/gybes. The first real production OVH GPX
+receipt and release-specific upload checks are later operator confirmations;
+offline mail simulation and Admin success do not establish production receipt.
+Use the production runbook for manual interruption recovery and lazy artifact
+regeneration. These notes assert no production functional validation.
+
+---
+
+### Español
+
+Añade GPX sin comprimir al pipeline de tracks y carga protegida en Admin para
+operadores, además de analítica de maniobras con evidencia reducida junto al
+detector basado en heading. El email sigue siendo el canal habitual del Sailor
+y la comparación analítica sigue limitada a dos Activities.
+
+### Añadido
+
+* La ingesta de `.gpx` sin comprimir por email OVH y Admin normaliza muestras
+  GPS/UTC al modelo de track existente. SOG y COG circular se derivan de
+  posiciones reales y tiempo transcurrido; HDG y otros sensores ausentes no se
+  inventan. Originales y reutilización exacta por bytes para el mismo Sailor
+  utilizan el pipeline común.
+* Admin protegido → Ingestions → **Upload track** admite un archivo soportado
+  de hasta 16 MiB para un Sailor existente `ACTIVE` seleccionado explícitamente,
+  con su Boat por defecto. La aceptación durable activa trabajo independiente
+  de la petición, con estados Pending/Processing/Processed/Failed y navegación
+  a Activity/Session. La procedencia es `admin_upload` real y no se envían emails
+  automáticos, tampoco al reprocesar originales de carga manual.
+* La analítica prefiere HIGH cuando HDG canónico permite ejecutar el detector
+  existente, incluso con cero eventos. Si no está disponible, LOW usa COG + SOG
+  canónicos utilizables con el detector Phases aceptado; evidencia insuficiente
+  sigue siendo unavailable. Cada artefacto disponible conserva un modo
+  seleccionado y las señales realmente utilizadas.
+* El Viewer muestra **HIGH evidence / LOW evidence** por rol sobre la tabla,
+  con explicación accesible por toque/teclado. ΔHDG y ΔCOG distinguen cambio de
+  heading de cambio de rumbo sobre el fondo. La evidencia describe detección
+  de maniobras, no calidad global ni precisión garantizada. Admin permite
+  inspeccionar el modo persistido y la vigencia del artefacto.
+
+### Cambiado
+
+* Los escritores cooperantes de ingesta comparten exclusión entre procesos.
+  El trabajo manual aceptado continúa al navegar; tras la salida del worker o
+  backend, el trabajo abandonado queda failed/interrupted, con original y
+  Reprocess explícito, sin reintento automático. No aporta rollback
+  transaccional ni exclusión para todos los servicios de persistencia.
+* La versión compartida 7 invalida artefactos v6 y las rutas analíticas
+  autorizadas los regeneran bajo demanda; el despliegue no recalcula todo.
+  Las métricas basadas en SOG conservan su disponibilidad independiente.
+* My TackBar coloca Sessions con enlace utilizable antes del historial no
+  disponible, manteniendo orden de navegación más reciente y desempates
+  deterministas en cada grupo. Los enlaces Open de Admin solicitan un nuevo
+  contexto con protecciones opener/referrer, conservando Admin.
+* Se concilian las especificaciones de ingesta/analítica, la presentación y
+  roadmap bilingües y las instrucciones operativas de carga/recuperación.
+
+### Issues
+
+- [#32](https://github.com/maxsail-project/tackbar/issues/32) — [#32] GPX ingestion
+- [#130](https://github.com/maxsail-project/tackbar/issues/130) — [#130] Admin Ingestions: direct track file upload with explicit Sailor, provenance and notification semantics
+- [#112](https://github.com/maxsail-project/tackbar/issues/112) — [#112] Introduce dual High/Low maneuver detection and validate reduced-evidence mode
+- [#113](https://github.com/maxsail-project/tackbar/issues/113) — [#113] Expose HIGH evidence / LOW evidence for maneuver analytics in the Session Viewer
+- [#127](https://github.com/maxsail-project/tackbar/issues/127) — Order My TackBar Sessions by availability, then newest first
+- [#128](https://github.com/maxsail-project/tackbar/issues/128) — Review and standardize Admin Open-link behavior across sections
+
+### Validación
+
+Los seis Issues están cerrados como completed y sus commits están en el rango
+de 18 commits desde v0.7.13 al objetivo de preparación. Los informes previos
+de #130 registran 330 checks backend aprobados y uno omitido, 151 checks de
+parser/storage/API del Viewer y 180 frontend aprobados, typecheck/build y
+pruebas de navegador con backend real. Su gate Linux separado registra 103
+aprobados sin omisiones, incluida propiedad de locks tras fork POSIX. Las
+pruebas offline usaron dos GPX reales, CSV/CSV.GZ representativos y VKX/VKX.GZ
+sintéticos; el propietario también aceptó una carga VKX real y reutilización
+de GPX idéntico. La cobertura de variantes/tamaños VKX reales no es exhaustiva.
+#112 registra 404 checks backend y 264 frontend aprobados en integración,
+seguidos de correcciones focalizadas y aceptación del propietario. Son
+informes de implementación atribuidos, no nuevas ejecuciones de preparación.
+
+La preparación ejecutó además ocho archivos frontend focalizados: **235 tests
+aprobados**, más build de producción con comprobación TypeScript. El check
+existente de navegador headless aprobó las rutas original y temporal, ayuda
+por teclado/toque y layouts de 320/375/768px. Los checks
+de preparación cubren documentación, títulos canónicos de Issues, estructura
+bilingüe, igualdad exacta del cuerpo de publicación, whitespace, diff de
+dependencias y estado remoto. No cambian dependencias. No se ejecutó una
+regresión completa del producto.
+
+GPX admite un track/un segmento no vacío y rechaza saltos temporales superiores
+a 10 segundos, GPX comprimido y XML no soportado; no mapea extensiones. LOW
+es sensible a ruido/cadencia y puede omitir giros graduales, incluidos los
+casos ESP29375 P02 próximos a 12:19:30 y 12:33:42 UTC. No equivale a HIGH ni
+clasifica viradas/trasluchadas. La primera recepción GPX real por OVH en
+producción y las comprobaciones de carga específicas son confirmaciones
+operativas posteriores; simulación offline y éxito en Admin no prueban esa
+recepción. El runbook explica recuperación manual y regeneración bajo demanda.
+Estas notas no afirman validación funcional de producción.
+
+---
+
 ## v0.7.13 Californian — Finding Our Bearings
 
 ### English

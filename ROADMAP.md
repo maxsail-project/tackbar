@@ -33,7 +33,9 @@ with real sailors before adding complexity.
   Session access and matured onboarding, mailbox, Admin and Viewer operation.
 - **v0.7.x Californian — Collaborative Debrief Analytics:** added
   maneuver-oriented collaborative debrief analytics, richer signal and
-  distribution comparison, and per-Activity Individual Analysis.
+  distribution comparison, and per-Activity Individual Analysis. Accepted
+  increments also add plain GPX ingestion, protected Admin track upload and
+  HIGH/LOW maneuver detection with explicit evidence in the Viewer.
 
 See [CHANGELOG.md](CHANGELOG.md) and
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) for
@@ -97,7 +99,9 @@ completo posterior a la navegación antes de añadir complejidad.
   personal a Sessions y maduró onboarding, correo, Admin y operación del Viewer.
 - **v0.7.x Californian — Collaborative Debrief Analytics:** añadió análisis
   colaborativo orientado a maniobras, comparación más rica de señales y
-  distribuciones, e Individual Analysis por Activity.
+  distribuciones, e Individual Analysis por Activity. Los incrementos aceptados
+  también añaden ingesta GPX sin comprimir, carga protegida de tracks en Admin y
+  detección HIGH/LOW de maniobras con evidencia explícita en el Viewer.
 
 Consulta [CHANGELOG.md](CHANGELOG.md) y
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) para el

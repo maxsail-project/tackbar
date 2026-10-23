@@ -273,7 +273,7 @@ lifecycle.
 After a release that changes mailbox acquisition/configuration:
 
 1. confirm the service environment uses the intended provider without exposing secrets;
-2. send or retain one supported Vakaros `.csv`/`.csv.gz` message in the operational mailbox from the intended Sailor email identity;
+2. send or retain one supported Vakaros `.csv`, `.csv.gz`, `.vkx`, `.vkx.gz` or plain `.gpx` attachment in the operational mailbox from the intended Sailor email identity;
 3. wait for the automatic timer activation, or open
    `https://app.tackbar.eu/admin` and use **Review mailbox now** as the manual
    fallback;
@@ -296,6 +296,54 @@ real email
 ```
 
 See `docs/v0.6.1-manual-validation.md`.
+
+## Manual track upload and ingestion ownership
+
+Email remains the normal Sailor sharing channel. Protected Admin → Ingestions
+→ **Upload track** is the exceptional operator/testing path. Select an existing
+`ACTIVE` Sailor and one supported file up to 16 MiB. The Sailor's existing
+default Boat applies; manual uploads and their Reprocess send no automatic
+consent, welcome or Session-result email. No new service or queue platform is
+required: the backend lifespan owns the immediate worker.
+
+HTTP `202` confirms durable acceptance, not completion. Navigation or browser
+closure does not cancel accepted processing. Inspect the persisted Ingestion
+for Pending/Processing/Processed/Failed, source `admin_upload`, original-file
+availability, controlled errors and Activity/Session relations. If acceptance
+was uncertain after a network error, inspect history before resubmitting.
+Identical received bytes for the same Sailor can reuse an Activity, while each
+accepted upload retains its separate Ingestion.
+
+Cooperating ingestion writers (backend upload/reprocess and mailbox processing)
+must use the same resolved `TACKBAR_DATA_DIR` with writable private storage.
+The `.ingestion.lock` and `.manual-workers/*.lock` files carry OS-owned
+exclusion/leases; do not delete or replace them to clear a busy operation.
+File presence alone does not mean a process still owns its lock. This does not
+provide atomic rollback across metadata collections or protect unrelated
+persistence services.
+
+After backend/worker interruption, startup or Admin inspection reconciles
+unowned pending/processing work as failed/interrupted, retaining the original.
+Inspection can defer reconciliation while another writer holds the lock; live
+queued/running work is preserved. There is no automatic retry. Inspect the
+failure and use explicit **Reprocess** when appropriate, preserving the original
+Sailor/source and the existing consent rules.
+
+After a separately authorized deployment that introduces plain GPX, the
+operator's first real OVH GPX receipt check should cover Ingestion → Activity
+→ Session → Viewer and repeat-review idempotency. Offline mail simulation and
+successful Admin GPX upload do not establish real mailbox reception.
+For Admin upload confirmation, inspect the durable result, created/reused
+Activity, Session/Viewer and manual-email suppression; a known test upload can
+also confirm duplicate reuse. These are operational confirmations outside the
+release lifecycle, not additional publication/deployment gates.
+
+Maneuver artifacts use shared algorithm version 7. Version-6 artifacts become
+stale and regenerate through established authorized analytics reads/generation;
+deployment does not perform a bulk recalculation. Admin's read-only persisted
+mode/currency inspection does not itself generate analytics; explicit Activity
+recalculation remains available. No manual metadata migration or data reset is
+required for these changes.
 
 ## Persistent-data reset
 

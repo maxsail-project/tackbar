@@ -34,9 +34,10 @@ The debrief starts when the sailing stops.
 
 ## Current pilot workflow
 
-`Sail → share Vakaros activity → email ingestion → Sailor → Activity → Session → capability URL → shared Session Viewer → collaborative debrief`
+`Sail → share track → email ingestion → Sailor → Activity → Session → capability URL → shared Session Viewer → collaborative debrief`
 
-The current pilot accepts **Vakaros CSV, CSV.GZ, VKX and VKX.GZ** exports
+The accepted implementation supports **Vakaros CSV, CSV.GZ, VKX and VKX.GZ,
+plus plain GPX** tracks
 through the OVH mailbox `share@tackbar.eu`.
 TackBar reviews that mailbox automatically on the current single-VPS systemd
 schedule; Admin **Review mailbox now** remains the manual fallback. Admin also
@@ -48,8 +49,15 @@ Consent controls shared visibility, not technical ingestion or Session matching.
 Only Activities of currently `ACTIVE` Sailors appear in shared Sessions.
 Access uses a valid Session capability URL, without a general Sailor login.
 
-GPX and FIT are Future / Unassigned, not current support or committed v0.7.x
-scope. Generalized multi-provider ingestion remains future work.
+Protected Admin also offers an exceptional operator/testing upload path for
+one file up to 16 MiB and an explicitly selected existing `ACTIVE` Sailor.
+Accepted uploads process independently of the browser and send no automatic
+emails. Email remains the normal Sailor sharing path.
+
+GPX requires one track and one nonempty segment, strictly increasing UTC and
+no adjacent gap over 10 seconds. Compressed GPX and extension telemetry mapping
+are unsupported. FIT and generalized multi-provider ingestion remain future
+work. See [Ingestion and Data](docs/current/ingestion-and-data.md).
 
 ---
 
@@ -130,6 +138,13 @@ while analysis remains limited to two. Session-owned location and optional
 historical conditions support Viewer and Personal TackBar recognition; public
 headers offer About and release identity from available build metadata.
 
+Maneuver analytics prefers HIGH detection from canonical HDG; otherwise usable
+canonical COG/SOG can support LOW. The Viewer identifies P/C maneuver evidence
+and distinguishes heading change (ΔHDG) from course change (ΔCOG). Evidence is
+not an overall track-quality rating or an accuracy guarantee. Version-6
+artifacts regenerate lazily as version 7 through authorized analytics paths.
+See [Analytics](docs/current/analytics.md) for availability and limitations.
+
 The ingestion layer is intended to remain independent from the analytics layer.
 
 This makes it possible to add new activity sources without changing the core sailing analysis.
@@ -171,17 +186,19 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. v0.7.12 Californian — Signal Analytics &
-Individual Analysis was published and technically deployed to production.**
+**Controlled real-sailing pilot. Latest published release: v0.7.13 Californian
+— Finding Our Bearings.**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
 TackBar, capability-based shared Session access and neutral maneuver analytics
 integrated into the collaborative Viewer. It also includes richer native-SVG
 signal and distribution comparison plus per-Activity Individual Analysis.
-The release-triggered production deployment and health check completed
-successfully; separate manual functional validation of the v0.7.12 production
-features is not claimed here.
+Accepted increments for v0.7.14 add plain GPX, protected Admin upload and
+HIGH/LOW maneuver evidence. Publication is established by immutable tags and
+GitHub Releases; production deployment is established by successful execution
+of the exact-release deployment workflow, as described in the
+[production runbook](docs/production-runbook.md).
 
 The delivered v0.5.x baseline includes Sailor / optional Boat context, automatic
 Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
@@ -198,16 +215,15 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ## Published release and next direction
 
-### v0.7.12 Californian — Signal Analytics & Individual Analysis
+### v0.7.13 Californian — Finding Our Bearings
 
-v0.7.12 deepens the current collaborative Viewer with clearer native-SVG
-SOG/COG/HEEL/TRIM signal charts, represented-time VS distributions, signed
-HEEL/TRIM Summary medians and Individual Analysis for each Activity, including
-its own HEEL × SOG represented-time density map.
+v0.7.13 adds optional Session location and historical conditions, passive fleet
+map context, improved Personal Session recognition and public About/release
+identity. Analytical comparison remains limited to two Activities.
 
-The GitHub Release is published and the exact v0.7.12 tag has been technically
-deployed to production with a successful health check. This does not assert a
-separate manual functional PASS for the v0.7.12 production surfaces.
+The accepted scope for **v0.7.14 Californian — GPX & Maneuver Analytics** is
+recorded in the [CHANGELOG](CHANGELOG.md). The
+[current specification index](docs/current/index.md) owns functional behavior.
 
 Open GitHub Issues are the canonical pending-work inventory, and the GitHub
 Project provides its physical ordering without assigning release scope.
@@ -270,9 +286,10 @@ El debriefing empieza cuando termina la navegación.
 
 ## Flujo actual del piloto
 
-`Navegar → compartir actividad Vakaros → ingesta por email → Sailor → Activity → Session → capability URL → Session Viewer compartido → debriefing colaborativo`
+`Navegar → compartir track → ingesta por email → Sailor → Activity → Session → capability URL → Session Viewer compartido → debriefing colaborativo`
 
-El piloto actual admite exportaciones **Vakaros CSV, CSV.GZ, VKX y VKX.GZ**
+La implementación aceptada admite tracks **Vakaros CSV, CSV.GZ, VKX y VKX.GZ,
+además de GPX sin comprimir**
 mediante el buzón OVH `share@tackbar.eu`.
 TackBar revisa ese buzón automáticamente mediante el calendario systemd actual
 del VPS; **Review mailbox now** en Admin sigue siendo la alternativa manual.
@@ -286,9 +303,16 @@ el Session matching. Sólo las Activities de Sailors actualmente `ACTIVE`
 aparecen en Sessions compartidas. El acceso utiliza una capability URL de
 Session válida, sin un sistema general de login de Sailor.
 
-GPX y FIT quedan Future / Unassigned, sin soporte actual ni compromiso v0.7.x.
-La ingesta operativa actual utiliza OVH; proveedores adicionales siguen siendo
-trabajo futuro sin release asignada.
+Admin protegido también ofrece una carga excepcional para operadores/pruebas:
+un archivo de hasta 16 MiB y un Sailor existente `ACTIVE` seleccionado
+explícitamente. La carga aceptada se procesa independientemente del navegador
+y no envía emails automáticos. El email sigue siendo el canal habitual.
+
+GPX exige un track y un segmento no vacío, UTC estrictamente creciente y
+ningún salto entre muestras superior a 10 segundos. GPX comprimido y el mapeo
+de telemetría de extensiones no están soportados. FIT y proveedores adicionales
+siguen siendo trabajo futuro. Consulta
+[Ingestion and Data](docs/current/ingestion-and-data.md).
 
 ---
 
@@ -370,6 +394,14 @@ condiciones históricas opcionales ayudan a reconocerla en Viewer y Personal
 TackBar; las cabeceras públicas ofrecen About y la identidad de release según
 los metadatos de build disponibles.
 
+La analítica de maniobras prefiere HIGH con HDG canónico; si no está disponible,
+COG/SOG canónicos utilizables pueden permitir LOW. El Viewer identifica la
+evidencia P/C y distingue cambio de heading (ΔHDG) de cambio de rumbo sobre el
+fondo (ΔCOG). La evidencia no califica la calidad global del track ni garantiza
+precisión. Los artefactos v6 se regeneran bajo demanda como v7 mediante las
+rutas analíticas autorizadas. Consulta [Analytics](docs/current/analytics.md)
+para disponibilidad y limitaciones.
+
 La capa de ingestión permanecerá separada de la capa analítica.
 
 De esta forma podrán incorporarse nuevas fuentes de actividad sin modificar el núcleo de análisis de navegación.
@@ -411,18 +443,19 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Piloto controlado con navegaciones reales. v0.7.12 Californian — Signal
-Analytics & Individual Analysis se publicó y desplegó técnicamente en
-producción.**
+**Piloto controlado con navegaciones reales. Última release publicada:
+v0.7.13 Californian — Finding Our Bearings.**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
 Personal TackBar, acceso compartido a Sessions mediante capability y analítica
 neutral de maniobras integrada en el Viewer colaborativo. También incluye una
 comparación más rica de señales y distribuciones en SVG nativo e Individual
-Analysis por Activity. El despliegue de producción activado por la release y su
-health check terminaron correctamente; aquí no se afirma una validación
-funcional manual separada de las funcionalidades v0.7.12 en producción.
+Analysis por Activity. Los incrementos aceptados para v0.7.14 añaden GPX sin
+comprimir, carga protegida en Admin y evidencia HIGH/LOW de maniobras. Los tags
+inmutables y GitHub Releases establecen la publicación; la ejecución correcta
+del workflow para esa release establece el despliegue técnico, según el
+[runbook de producción](docs/production-runbook.md).
 
 La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session
 matching automático, comparación de una/dos Activities, Analysis Window GPS/UTC
@@ -439,17 +472,17 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ## Release publicada y próxima dirección
 
-### v0.7.12 Californian — Signal Analytics & Individual Analysis
+### v0.7.13 Californian — Finding Our Bearings
 
-v0.7.12 profundiza el Viewer colaborativo actual con charts de señal
-SOG/COG/HEEL/TRIM más claros en SVG nativo, distribuciones VS por tiempo
-representado, medianas con signo HEEL/TRIM en Summary e Individual Analysis
-para cada Activity, incluido su propio mapa de densidad HEEL × SOG por tiempo
-representado.
+v0.7.13 añade ubicación y condiciones históricas opcionales de Session,
+contexto pasivo de flota en el mapa, mejor reconocimiento de Sessions en
+Personal y About/identidad de release públicos. La comparación analítica sigue
+limitada a dos Activities.
 
-La GitHub Release está publicada y el tag exacto v0.7.12 se ha desplegado
-técnicamente en producción con un health check correcto. Esto no afirma un PASS
-funcional manual separado de las superficies v0.7.12 en producción.
+El alcance aceptado de **v0.7.14 Californian — GPX & Maneuver Analytics** queda
+recogido en [CHANGELOG](CHANGELOG.md). El
+[índice de especificaciones actuales](docs/current/index.md) define el
+comportamiento funcional.
 
 Los Issues abiertos de GitHub son el inventario canónico de trabajo pendiente y
 GitHub Project aporta su orden físico sin asignar alcance de release.
