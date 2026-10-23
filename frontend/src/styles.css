@@ -1235,7 +1235,7 @@ input:focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 16px;
+  gap: 4px 8px;
   margin-top: 8px;
   font-size: 0.82rem;
   font-weight: 700;

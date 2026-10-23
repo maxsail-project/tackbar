@@ -128,12 +128,24 @@ try {
         return { fits: r.left >= 0 && r.right <= innerWidth && r.width > 200 && panel.scrollWidth <= panel.clientWidth + 1, touch: b.width >= 44 && b.height >= 44, subtle: style.borderTopWidth === '0px' && style.backgroundColor === 'rgba(0, 0, 0, 0)' }
       })()`)
       assert.deepEqual(layout, { fits: true, touch: true, subtle: true }, `${route} ${width}px`)
+      assert.equal(await evaluate(`(() => {
+        const labels = document.querySelectorAll('.maneuver-evidence > span'), b = ${info}.getBoundingClientRect()
+        return [...labels].every(el => { const r = el.getBoundingClientRect(); return r.top >= b.top && r.bottom <= b.bottom })
+      })()`), true, 'Icon remains inline with P/C at tested widths')
       if (process.env.TACKBAR_TEST_SCREENSHOTS) {
         await mkdir(process.env.TACKBAR_TEST_SCREENSHOTS, { recursive: true })
         const shot = await send('Page.captureScreenshot', { format: 'png' })
         await writeFile(join(process.env.TACKBAR_TEST_SCREENSHOTS, `${route}-${width}.png`), Buffer.from(shot.data, 'base64'))
       }
     }
+    // Exercise the centered fallback used without CSS anchor positioning.
+    await evaluate(`${help}.style.positionArea = 'none'; ${help}.style.inset = '0'; ${help}.style.margin = 'auto'`)
+    await send('Emulation.setDeviceMetricsOverride', { width: 320, height: 400, deviceScaleFactor: 1, mobile: true })
+    assert.equal(await evaluate(`(() => {
+      const el = ${help}, r = el.getBoundingClientRect()
+      return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight && el.scrollWidth <= el.clientWidth + 1
+    })()`), true, 'Small viewport fallback stays within screen')
+    await evaluate(`${help}.removeAttribute('style')`)
     await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 2, y: 2, button: 'left', clickCount: 1 })
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 2, y: 2, button: 'left', clickCount: 1 })
     await waitFor(`!(${open})`)
