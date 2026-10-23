@@ -1920,6 +1920,7 @@ def test_admin_activity_read_does_not_generate_and_recalculation_uses_canonical_
     assert recalculated.json == {
         "artifact_currency": "current",
         "detector_status": "unavailable",
+        "detector_mode": None,
         "unavailable_reason": "missing_cog",
         "detected_count": 0,
         "artifact_algorithm_version": 7,
@@ -1927,6 +1928,45 @@ def test_admin_activity_read_does_not_generate_and_recalculation_uses_canonical_
     }
     assert artifact_path.is_file()
     assert tracks.track_path(ACTIVITY_ACTIVE).read_bytes() == canonical_before
+
+
+@pytest.mark.parametrize("case,mode", [
+    ("HIGH", "HIGH"), ("LOW", "LOW"), ("v6", None),
+    ("missing", None), ("malformed", None), ("unavailable", None),
+])
+def test_admin_activity_inspection_returns_persisted_mode_without_writing(
+    monkeypatch, temporary_directory, case, mode,
+):
+    from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
+
+    root = _use_runtime(monkeypatch, temporary_directory)
+    tracks, analytics = TrackStorage(root), ManeuverAnalyticsStorage(root)
+    tracks.write_normalized_track(ACTIVITY_ACTIVE, normalize_track(ACTIVITY_ACTIVE, [
+        {"utc": "2026-08-10T09:00:00Z", "lat": .1, "lon": -30.1},
+        {"utc": "2026-08-10T09:00:01Z", "lat": .1, "lon": -30.1},
+    ]))
+    artifact = {
+        "activity_id": ACTIVITY_ACTIVE, "algorithm_version": 7,
+        "track_sha256": sha256(tracks.track_path(ACTIVITY_ACTIVE).read_bytes()).hexdigest(),
+        "status": "available", "detector_mode": mode or "HIGH",
+        "signal_basis": ["cog", "sog"] if mode == "LOW" else ["hdg"], "maneuvers": [],
+    }
+    if case == "v6":
+        artifact["algorithm_version"] = 6
+        artifact.pop("detector_mode")
+        artifact.pop("signal_basis")
+    elif case == "malformed":
+        artifact["detector_mode"] = "MEDIUM"
+    elif case == "unavailable":
+        artifact.update(status="unavailable", detector_mode=None, signal_basis=[], reason="missing_cog")
+    if case != "missing":
+        analytics.write(ACTIVITY_ACTIVE, artifact)
+    path = analytics.artifact_path(ACTIVITY_ACTIVE)
+    before = path.read_bytes() if path.exists() else None
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    assert response.status_code == 200
+    assert response.json["maneuvers"]["detector_mode"] == mode
+    assert (path.read_bytes() if path.exists() else None) == before
 
 
 def test_admin_activity_recalculation_reports_missing_track_safely(

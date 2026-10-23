@@ -90,7 +90,7 @@ describe('ManeuverEventTable', () => {
 
     expect(markup).toContain('Time')
     expect(markup).toContain('Act')
-    expect(markup).toContain('ΔHDG / ΔCOG (°)')
+    expect(markup).toContain('Δ (°)')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('−91')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')

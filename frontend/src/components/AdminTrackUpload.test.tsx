@@ -19,10 +19,31 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [element, ...elements(element.props.children as ReactNode)]
 }
 
-const props = () => ({ sailors, sailorId: '', uploading: false, error: null, inputKey: 0, onSailorChange: vi.fn(), onFileChange: vi.fn(), onSubmit: vi.fn() })
+const props = () => ({ sailors, sailorId: '', file: null as File | null, uploading: false, error: null, inputKey: 0, onSailorChange: vi.fn(), onFileChange: vi.fn(), onSubmit: vi.fn() })
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Admin single-track intake', () => {
+  it.each([
+    ['', false, true], ['ACTIVE', false, true], ['', true, true],
+    ['PENDING', true, true], ['REVOKED', true, true], ['missing', true, true], ['ACTIVE', true, false],
+  ])('gates submit for Sailor %s and file selection %s', (sailorId, selected, disabled) => {
+    const view = UploadTrackForm({ ...props(), sailorId: String(sailorId),
+      file: selected ? new File(['track'], 'pilot.gpx') : null })
+    const button = elements(view).find((e) => e.type === 'button')!
+    expect(button.props.disabled).toBe(disabled)
+  })
+
+  it('keeps selected invalid files actionable with useful validation feedback', () => {
+    for (const file of [new File([], 'empty.gpx'), new File(['x'], 'pilot.zip'),
+      new File([new Uint8Array(MAX_TRACK_UPLOAD_BYTES + 1)], 'large.gpx')]) {
+      const error = trackUploadValidation(file, 'ACTIVE', sailors)
+      expect(error).toBeTruthy()
+      const view = UploadTrackForm({ ...props(), sailorId: 'ACTIVE', file, error })
+      expect(elements(view).find((e) => e.type === 'button')!.props.disabled).toBe(false)
+      expect(renderToStaticMarkup(view)).toContain('role="alert"')
+      expect(renderToStaticMarkup(view)).toContain(error!)
+    }
+  })
   it('offers only existing ACTIVE Sailors with an explicit empty initial choice and one file', () => {
     const markup = renderToStaticMarkup(<UploadTrackForm {...props()} />)
     expect(markup).toContain('ACTIVE Sailor')
@@ -92,11 +113,18 @@ describe('Admin single-track intake', () => {
     const onAccepted = vi.fn()
     const uploading = submitTrackUpload('secret', 'sailor/id', file, onAccepted)
     expect(onAccepted).not.toHaveBeenCalled()
+    const waiting = UploadTrackForm({ ...props(), sailorId: 'ACTIVE', file, uploading: true })
+    expect(elements(waiting).find((e) => e.type === 'button')!.props.disabled).toBe(true)
+    expect(renderToStaticMarkup(waiting)).toContain('>Uploading</button>')
     // Navigating away has no cancellation handle for this request. The parent
     // receives the accepted record even when the upload view is no longer shown.
     acknowledge(new Response(JSON.stringify({ id: 'operation', status }), { status: 202 }))
     await uploading
     expect(onAccepted).toHaveBeenCalledWith({ id: 'operation', status })
+    // Acknowledgement clears the selected file; a new file is required to submit again.
+    const acknowledged = UploadTrackForm({ ...props(), sailorId: 'ACTIVE', file: null })
+    expect(elements(acknowledged).find((e) => e.type === 'button')!.props.disabled).toBe(true)
+    expect(renderToStaticMarkup(acknowledged)).not.toContain('>Uploading</button>')
     const [url, options] = fetchMock.mock.calls[0]
     expect(url).toContain('sailor_id=sailor%2Fid&filename=pilot+%231.GPX')
     expect(options).toMatchObject({ method: 'POST', body: file, headers: { 'Content-Type': 'application/octet-stream', 'X-TackBar-Admin-Key': 'secret' } })

@@ -51,6 +51,7 @@ _UNAVAILABLE_REASONS = {
 class ManeuverAnalyticsInspection:
     artifact_currency: Literal["current", "stale", "missing"]
     detector_status: Literal["available", "unavailable"] | None
+    detector_mode: Literal["HIGH", "LOW"] | None
     unavailable_reason: str | None
     detected_count: int | None
     artifact_algorithm_version: int | None
@@ -95,6 +96,7 @@ def inspect_maneuver_analytics(
     return _inspection(
         currency,
         detector_status=status,
+        detector_mode=artifact["detector_mode"] if status == "available" else None,
         unavailable_reason=artifact.get("reason"),
         detected_count=len(artifact["maneuvers"]),
         artifact_algorithm_version=artifact_version,
@@ -105,6 +107,7 @@ def _inspection(
     currency: Literal["current", "stale", "missing"],
     *,
     detector_status: Literal["available", "unavailable"] | None = None,
+    detector_mode: Literal["HIGH", "LOW"] | None = None,
     unavailable_reason: str | None = None,
     detected_count: int | None = None,
     artifact_algorithm_version: int | None = None,
@@ -112,6 +115,7 @@ def _inspection(
     return ManeuverAnalyticsInspection(
         artifact_currency=currency,
         detector_status=detector_status,
+        detector_mode=detector_mode,
         unavailable_reason=unavailable_reason,
         detected_count=detected_count,
         artifact_algorithm_version=artifact_algorithm_version,

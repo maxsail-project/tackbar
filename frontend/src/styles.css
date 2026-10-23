@@ -1252,7 +1252,7 @@ input:focus-visible {
 
 .maneuver-event-table {
   width: 100%;
-  min-width: 808px;
+  min-width: 774px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.8rem;
@@ -1268,7 +1268,7 @@ input:focus-visible {
 }
 
 .maneuver-event-table__heading-column {
-  width: 144px;
+  width: 110px;
 }
 
 .maneuver-event-table__duration-column,

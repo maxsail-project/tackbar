@@ -240,6 +240,7 @@ class AdminActivitySummaryResponse(BaseModel):
 class AdminManeuverStateResponse(BaseModel):
     artifact_currency: Literal["current", "stale", "missing"]
     detector_status: Literal["available", "unavailable"] | None
+    detector_mode: Literal["HIGH", "LOW"] | None
     unavailable_reason: Literal[
         "missing_utc", "invalid_time", "missing_cog", "missing_sog",
         "insufficient_low_evidence", "insufficient_low_speed", "insufficient_low_context",

@@ -52,11 +52,11 @@ export default function AdminTrackUpload({ adminKey, sailors, onAccepted, onUnau
       if (cause instanceof AdminApiError && cause.status === 401) onUnauthorized(cause)
     } finally { setUploading(false) }
   }
-  return <UploadTrackForm sailors={sailors} sailorId={sailorId} uploading={uploading} error={error} inputKey={inputKey} onSailorChange={setSailorId} onFileChange={setFile} onSubmit={(event) => void submit(event)} />
+  return <UploadTrackForm sailors={sailors} sailorId={sailorId} file={file} uploading={uploading} error={error} inputKey={inputKey} onSailorChange={setSailorId} onFileChange={setFile} onSubmit={(event) => void submit(event)} />
 }
 
-export function UploadTrackForm({ sailors, sailorId, uploading, error, inputKey, onSailorChange, onFileChange, onSubmit }: {
-  sailors: AdminSailor[]; sailorId: string; uploading: boolean; error: string | null; inputKey: number
+export function UploadTrackForm({ sailors, sailorId, file, uploading, error, inputKey, onSailorChange, onFileChange, onSubmit }: {
+  sailors: AdminSailor[]; sailorId: string; file: File | null; uploading: boolean; error: string | null; inputKey: number
   onSailorChange: (id: string) => void; onFileChange: (file: File | null) => void; onSubmit: (event: FormEvent) => void
 }) {
   const eligible = sailors.filter((sailor) => sailor.consent_status === 'ACTIVE')
@@ -69,7 +69,7 @@ export function UploadTrackForm({ sailors, sailorId, uploading, error, inputKey,
     </div>
     {eligible.length === 0 && <p>No ACTIVE Sailors are available. Confirm consent in Sailors before uploading.</p>}
     {error && <p className="admin-error" role="alert">{error}</p>}
-    <div className="admin-actions"><button className="admin-primary" disabled={uploading || eligible.length === 0}>{uploading ? 'Uploading' : 'Upload track'}</button></div>
+    <div className="admin-actions"><button className="admin-primary" disabled={uploading || !file || !eligible.some((sailor) => sailor.id === sailorId)}>{uploading ? 'Uploading' : 'Upload track'}</button></div>
     {uploading && <p role="status">Uploading — waiting for server acceptance. Keep this page open until acceptance is confirmed.</p>}
   </form>
 }

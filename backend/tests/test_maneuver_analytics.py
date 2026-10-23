@@ -240,6 +240,49 @@ def test_inspection_reports_missing_without_generating(
     assert not analytics.artifact_path(ACTIVITY_ID).exists()
 
 
+@pytest.mark.parametrize("case,expected_mode", [
+    ("HIGH", "HIGH"), ("LOW", "LOW"), ("v6", None),
+    ("missing", None), ("malformed", None), ("unavailable", None),
+])
+def test_read_only_inspection_exposes_only_valid_persisted_v7_mode(
+    temporary_directory, monkeypatch, case, expected_mode,
+):
+    tracks = TrackStorage(temporary_directory)
+    analytics = ManeuverAnalyticsStorage(temporary_directory)
+    tracks.write_normalized_track(ACTIVITY_ID, _canonical_track(ACTIVITY_ID))
+    artifact = {
+        "activity_id": ACTIVITY_ID, "algorithm_version": 7,
+        "track_sha256": hashlib.sha256(tracks.track_path(ACTIVITY_ID).read_bytes()).hexdigest(),
+        "status": "available", "detector_mode": case if expected_mode else "HIGH",
+        "signal_basis": ["cog", "sog"] if case == "LOW" else ["hdg"],
+        "maneuvers": [],
+    }
+    if case == "v6":
+        artifact["algorithm_version"] = 6  # Even a spurious mode must not be trusted.
+    elif case == "malformed":
+        artifact["signal_basis"] = []
+    elif case == "unavailable":
+        artifact.update(status="unavailable", detector_mode=None, signal_basis=[], reason="missing_cog")
+    if case != "missing":
+        analytics.write(ACTIVITY_ID, artifact)
+    path = analytics.artifact_path(ACTIVITY_ID)
+    before = path.read_bytes() if path.exists() else None
+    canonical_before = tracks.track_path(ACTIVITY_ID).read_bytes()
+
+    def fail(*_args):
+        raise AssertionError("inspection must never generate or run detection")
+    monkeypatch.setattr("app.services.maneuver_analytics.generate_maneuver_analytics", fail)
+    monkeypatch.setattr("app.services.maneuver_analytics.detect_maneuvers", fail)
+    monkeypatch.setattr("app.services.maneuver_analytics.detect_low_maneuvers", fail)
+    inspection = inspect_maneuver_analytics(ACTIVITY_ID, tracks, analytics)
+    assert inspection.detector_mode == expected_mode
+    assert inspection.artifact_currency == (
+        "missing" if case == "missing" else "stale" if case in ("v6", "malformed") else "current"
+    )
+    assert (path.read_bytes() if path.exists() else None) == before
+    assert tracks.track_path(ACTIVITY_ID).read_bytes() == canonical_before
+
+
 def test_inspection_reuses_validation_for_current_stale_and_unavailable_states(
     temporary_directory: Path,
 ) -> None:

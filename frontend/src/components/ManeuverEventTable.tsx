@@ -187,7 +187,7 @@ export default function ManeuverEventTable({
                     <th scope="col">SOG in</th>
                     <th scope="col">SOG min</th>
                     <th scope="col">SOG out</th>
-                    <th scope="col">ΔHDG / ΔCOG (°)</th>
+                    <th scope="col">Δ (°)</th>
                     <th scope="col">Dur (s)</th>
                   </tr>
                 </thead>

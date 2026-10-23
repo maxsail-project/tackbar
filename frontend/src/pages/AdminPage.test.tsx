@@ -27,7 +27,7 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   location: null, historical_conditions: null,
   diagnostic: { session: { id: 'session-123' }, temporary_shares: [{ id: 'share-1', state: 'VALID' }] },
 })
-const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 6, current_algorithm_version: 6 }, diagnostic: { id: 'activity-123456789' } }
+const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', detector_mode: 'HIGH', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 7, current_algorithm_version: 7 }, diagnostic: { id: 'activity-123456789' } }
 const sourceIngestion: AdminIngestion = { id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'pilot@example.test', received_at: '2026-09-05T17:25:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: '2026-09-05T17:26:00Z', last_error: null, activity_id: activity.id, session_id: activity.session_id, activity_created_by_ingestion: true, sailor_id: activity.sailor_id, sailor_label: activity.sailor_label, sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: activity.start_time, activity_end_time: activity.end_time, activity_sample_count: activity.sample_count }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
@@ -764,6 +764,27 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('<dt>Available telemetry channels</dt><dd>SOG · COG · HDG · HEEL · TRIM · QUATERNION</dd>')
     for (const id of [activity.id, activity.sailor_id, activity.session_id, activity.source_ingestion_id]) expect(markup).toContain(`<dd>${id}</dd>`)
     expect(markup).not.toContain('Map'); expect(markup).not.toContain('Metrics')
+  })
+
+  it.each(['HIGH', 'LOW'] as const)('shows persisted %s in Maneuvers detail', (mode) => {
+    const markup = renderToStaticMarkup(<ActivityAdminDetail
+      activity={{ ...activity, maneuvers: { ...activity.maneuvers, detector_mode: mode } }}
+      onFollow={() => undefined}
+    />)
+    expect(markup).toContain(`<dt>Detector mode</dt><dd>${mode}</dd>`)
+  })
+
+  it.each(['v6', 'missing', 'malformed', 'unavailable'] as const)('shows unavailable mode for %s', (state) => {
+    const maneuvers = {
+      ...activity.maneuvers, detector_mode: null, detector_status: null,
+      artifact_currency: state === 'missing' ? 'missing' as const : 'stale' as const,
+      artifact_algorithm_version: state === 'v6' ? 6 : null,
+    }
+    if (state === 'unavailable') {
+      Object.assign(maneuvers, { artifact_currency: 'current', detector_status: 'unavailable', artifact_algorithm_version: 7 })
+    }
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, maneuvers }} onFollow={() => undefined} />)
+    expect(markup).toContain('<dt>Detector mode</dt><dd>Not available</dd>')
   })
 
   it('shows an absent source Ingestion as unavailable without a navigation control', () => {
