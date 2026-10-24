@@ -116,6 +116,12 @@ automatically require a specification edit. Create or update a durable ADR only 
 rationale is justified and the edit is authorized. This rule applies prospectively from
 this cutover; do not reopen earlier completed Issues solely to satisfy it retroactively.
 
+The informational solution overview at `docs/current/solution-overview.md` must be kept consistent with the authoritative current specifications.
+
+When an explicitly approved Issue changes the functional modules, major flows, or relationships represented in the diagram, update the overview in the same authorized implementation increment.
+
+The overview is non-normative and must not introduce or override product contracts. Changes that do not materially affect the diagram do not require an overview update.
+
 ## Git, release and production safety
 
 Normal development staging, commits, merges and pushes are human-controlled unless

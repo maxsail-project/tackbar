@@ -2,10 +2,11 @@
 
 **Status: ACTIVE from the Issue #119 Gate C cutover.** This index routes agents to the authoritative current functional specifications. [AGENTS.md](../../AGENTS.md) supplies operating safeguards and precedence; the [AI Development Guidelines](../ai-development-guidelines.md) supply stable engineering principles. Select only the domains affected by the task, including any cross-domain contract it changes.
 
-Living Documentation describes TackBar's accepted current behavior by product domain. Each contract has one authoritative home, with links from other domains where needed. The eight specifications are:
+Living Documentation describes TackBar's accepted current behavior by product domain. Each contract has one authoritative home, with links from other domains where needed. The documentation includes one informational Solution Overview and eight authoritative functional specifications:
 
-| Domain specification | Responsibility |
+| Document | Responsibility |
 | --- | --- |
+| [Solution Overview](solution-overview.md) | Informational functional map of TackBar modules, relationships and major flows; not an authoritative product contract |
 | [Domain and Sessions](domain-and-sessions.md) | Sailor, Boat, Activity and Session meaning; membership, matching and lifetime |
 | [Ingestion and Data](ingestion-and-data.md) | Email acquisition, formats, normalization, exact-file deduplication, processing and persistence |
 | [Access and Consent](access-and-consent.md) | Consent, shared visibility, purpose-specific capabilities and temporary access |
