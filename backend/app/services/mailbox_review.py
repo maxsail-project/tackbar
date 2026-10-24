@@ -22,6 +22,7 @@ from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.runtime_paths import require_private_data_root
 from app.services.ingestion_history import IngestionHistory
+from app.services.mail_receipts import MailReceiptStore
 from app.services.ingestion_lock import ingestion_lock
 from app.services.ingestion_processing import process_provider_email
 from app.services.mailbox_review_observability import (
@@ -261,6 +262,33 @@ def _process_acquired_messages(
         except Exception as error:
             _cycle_failure_logs.record_failure(provider_key, "cursor_load", error)
             raise MailboxReviewError("Mailbox review unavailable") from error
+    staged_blocked = False
+    safe_examined = ovh_batch.examined_messages if ovh_batch is not None else ()
+    if ovh_batch is not None:
+        try:
+            receipt_index = {
+                (receipt["provider"], receipt["provider_message_id"]): receipt
+                for receipt in MailReceiptStore(history.path).receipts()
+            }
+        except Exception as error:
+            _cycle_failure_logs.record_failure(provider_key, "receipt_load", error)
+            raise MailboxReviewError("Mailbox review unavailable") from error
+        safe_prefix = []
+        for examined in ovh_batch.examined_messages:
+            key = (provider_key, f"{ovh_batch.uidvalidity}:{examined.uid}")
+            receipt = receipt_index.get(key)
+            if receipt is not None and receipt["receipt_state"] == "incomplete":
+                staged_blocked = True
+                break
+            safe_prefix.append(examined)
+        safe_examined = tuple(safe_prefix)
+        candidates = []
+        for examined in safe_examined:
+            if examined.candidate is None:
+                continue
+            receipt = receipt_index.get((provider_key, f"{ovh_batch.uidvalidity}:{examined.uid}"))
+            if receipt is None or receipt["receipt_state"] not in ("complete", "rejected"):
+                candidates.append(examined.candidate)
         if cursor is not None and cursor.uidvalidity != ovh_batch.uidvalidity:
             error = OVHUIDValidityMismatch("Mailbox UIDVALIDITY changed")
             _cycle_failure_logs.record_failure(provider_key, "acquisition", error)
@@ -350,8 +378,8 @@ def _process_acquired_messages(
     )
     if ovh_batch is not None and cursor_store is not None:
         last_seen_uid = (
-            ovh_batch.examined_messages[-1].uid
-            if ovh_batch.examined_messages
+            safe_examined[-1].uid
+            if safe_examined
             else (0 if cursor is None else cursor.last_seen_uid)
         )
         if cursor is not None:
@@ -366,7 +394,7 @@ def _process_acquired_messages(
                 provider_key, "cursor_write", error
             )
             raise MailboxReviewError("Mailbox review unavailable") from error
-        if ovh_batch.acquisition_failed:
+        if ovh_batch.acquisition_failed or staged_blocked:
             _log_cycle_summary(
                 provider_key,
                 summary,

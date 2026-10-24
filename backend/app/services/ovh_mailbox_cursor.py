@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.runtime_paths import runtime_paths
+from app.storage.fs_durability import mkdir_durable, sync_parent_directory
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,7 @@ class OVHMailboxCursorStore:
             )
             + "\n"
         ).encode("utf-8")
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        mkdir_durable(self.path.parent)
         temporary = self.path.with_name(
             f".{self.path.name}.{uuid4().hex}.tmp"
         )
@@ -65,6 +66,7 @@ class OVHMailboxCursorStore:
                 output.flush()
                 os.fsync(output.fileno())
             os.replace(temporary, self.path)
+            sync_parent_directory(self.path)
         finally:
             if temporary.exists():
                 temporary.unlink()

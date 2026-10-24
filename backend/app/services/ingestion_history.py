@@ -9,6 +9,7 @@ from app.identity import require_uuid
 from app.models import ConsentRequest
 from app.runtime_paths import PUBLIC_TEST_DATA_ROOT, runtime_paths
 from app.services.ingestion_lock import file_access_lock, ingestion_lock
+from app.storage.fs_durability import mkdir_durable, sync_parent_directory
 
 DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
 FIELDS = {"id", "provider", "provider_message_id", "attachment_ordinal", "attachment_ordinal_verified", "sender_email", "received_at", "attachment_name", "attachment_sha256", "original_file", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id"}
@@ -138,19 +139,21 @@ class IngestionHistory:
             "session_id": request.onboarding_session_id,
         }
 
-    def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None, *, attachment_ordinal: int | None = None) -> dict[str, Any]:
+    def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None, *, attachment_ordinal: int | None = None, status: str = "failed") -> dict[str, Any]:
         with ingestion_lock(self.path.parent):
-            return self._create(provider, provider_message_id, sender_email, attachment_name, attachment_sha256, attachment_ordinal=attachment_ordinal)
+            return self._create(provider, provider_message_id, sender_email, attachment_name, attachment_sha256, attachment_ordinal=attachment_ordinal, status=status)
 
-    def _create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None, *, attachment_ordinal: int | None = None) -> dict[str, Any]:
+    def _create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None, *, attachment_ordinal: int | None = None, status: str = "failed") -> dict[str, Any]:
         if provider == ADMIN_UPLOAD:
             raise ValueError("Manual ingestion requires explicit Sailor ownership")
+        if status not in ("failed", "pending") or (status == "pending" and attachment_ordinal is None):
+            raise ValueError("Invalid mail acquisition state")
         ordinal = 1 if attachment_ordinal is None else attachment_ordinal
         _validate_attachment_identity(ordinal, attachment_ordinal is not None)
         records = self.records()
         if any(r["provider"] == provider and r["provider_message_id"] == provider_message_id and r["attachment_ordinal"] == ordinal for r in records):
             raise ValueError("Mail attachment identity already exists")
-        record = {"id": str(uuid4()), "provider": provider, "provider_message_id": provider_message_id, "attachment_ordinal": ordinal, "attachment_ordinal_verified": attachment_ordinal is not None, "sender_email": sender_email, "received_at": None, "attachment_name": attachment_name, "attachment_sha256": attachment_sha256, "original_file": None, "status": "failed", "disposition": "active", "attempts": 0, "last_attempt_at": None, "last_error": None, "activity_id": None, "session_id": None}
+        record = {"id": str(uuid4()), "provider": provider, "provider_message_id": provider_message_id, "attachment_ordinal": ordinal, "attachment_ordinal_verified": attachment_ordinal is not None, "sender_email": sender_email, "received_at": None, "attachment_name": attachment_name, "attachment_sha256": attachment_sha256, "original_file": None, "status": status, "disposition": "active", "attempts": 0, "last_attempt_at": None, "last_error": None, "activity_id": None, "session_id": None}
         record["activity_created_by_ingestion"] = None
         record["session_result_notification_candidate"] = None
         record["session_result_notification"] = None
@@ -262,7 +265,7 @@ class IngestionHistory:
             self._write_atomic(records)
 
     def _write_atomic(self, records: list[dict[str, Any]]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        mkdir_durable(self.path.parent)
         temporary = self.path.with_name(f".{self.path.name}.{uuid4().hex}.tmp")
         try:
             with temporary.open("xb") as output:
@@ -272,6 +275,7 @@ class IngestionHistory:
                 output.flush()
                 os.fsync(output.fileno())
             os.replace(temporary, self.path)
+            sync_parent_directory(self.path)
         finally:
             temporary.unlink(missing_ok=True)
 
@@ -334,7 +338,21 @@ def _canonical(item: dict[str, Any], *, assign_id: bool = True) -> tuple[dict[st
             "pending_onboarding_reservation",
         )
     }
-    if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed"): raise ValueError("Malformed ingestion record")
+    if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed", "pending", "acquisition_failed"): raise ValueError("Malformed ingestion record")
+    if item["status"] in ("pending", "acquisition_failed"):
+        if (
+            "id" not in item or item.get("attachment_ordinal_verified") is not True
+            or item.get("attempts") != 0 or item.get("last_attempt_at") is not None
+            or item.get("activity_id") is not None or item.get("session_id") is not None
+            or notification_candidate is not None or notification is not None
+            or onboarding_reservation is not None or activity_created is not None
+            or (item["status"] == "pending" and item.get("last_error") is not None)
+            or (item["status"] == "acquisition_failed" and (
+                not isinstance(item.get("last_error"), str) or not item["last_error"]
+                or item.get("original_file") is not None or item.get("attachment_sha256") is not None
+            ))
+        ):
+            raise ValueError("Malformed mail acquisition state")
     if "id" in item:
         if set(item) in (LEGACY_FIELDS, LEGACY_FIELDS - {"disposition"}):
             item = {**item, "attachment_ordinal": 1, "attachment_ordinal_verified": False}

@@ -104,6 +104,8 @@ def reprocess_ingestion(
             return _run_manual_attempt(
                 record, sailors, boats, activities, sessions, history, track_storage,
             )
+        if record["status"] in ("pending", "acquisition_failed"):
+            raise ValueError("Staged mail ingestion has no processing attempt to reprocess")
         establish_activity_creation_provenance = record["status"] != "processed"
         record["attempts"] += 1
         record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
