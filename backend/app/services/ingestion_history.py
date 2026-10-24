@@ -11,11 +11,12 @@ from app.runtime_paths import PUBLIC_TEST_DATA_ROOT, runtime_paths
 from app.services.ingestion_lock import file_access_lock, ingestion_lock
 
 DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
-FIELDS = {"id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "attachment_sha256", "original_file", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id"}
+FIELDS = {"id", "provider", "provider_message_id", "attachment_ordinal", "attachment_ordinal_verified", "sender_email", "received_at", "attachment_name", "attachment_sha256", "original_file", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id"}
+LEGACY_FIELDS = FIELDS - {"attachment_ordinal", "attachment_ordinal_verified"}
 SESSION_RESULT_DELIVERY_FAILURE = "Session-result email delivery failed"
 ADMIN_UPLOAD = "admin_upload"
 ADMIN_UPLOAD_INTERRUPTED = "Manual ingestion was interrupted; explicit Reprocess is required"
-MANUAL_FIELDS = FIELDS | {
+MANUAL_FIELDS = LEGACY_FIELDS | {
     "operation_id", "owner_sailor_id", "accepted_at",
     "activity_created_by_ingestion", "session_result_notification_candidate",
     "session_result_notification", "pending_onboarding_reservation",
@@ -45,9 +46,17 @@ class IngestionHistory:
         return self.records() if changed else records
 
     def _canonical_records(self) -> tuple[list[dict[str, Any]], bool]:
-        records, reservations, changed = [], set(), False
+        records, reservations, identities, ids, changed = [], set(), set(), set(), False
         for item in self._read(self.path):
             canonical, migrated = _canonical(item)
+            if canonical["id"] in ids:
+                raise ValueError("Duplicate ingestion ID")
+            ids.add(canonical["id"])
+            if canonical["provider"] != ADMIN_UPLOAD:
+                identity = (canonical["provider"], canonical["provider_message_id"], canonical["attachment_ordinal"])
+                if identity in identities:
+                    raise ValueError("Duplicate mail attachment identity")
+                identities.add(identity)
             reservation = canonical["pending_onboarding_reservation"]
             if reservation is not None:
                 key = (
@@ -66,9 +75,18 @@ class IngestionHistory:
     def find_provider_message(self, provider: str, message_id: str) -> dict[str, Any] | None:
         return next((r for r in self.records() if r["provider"] == provider and r["provider_message_id"] == message_id), None)
 
+    def find_mail_attachment(self, provider: str, message_id: str, ordinal: int) -> dict[str, Any] | None:
+        return next((r for r in self.records() if r["provider"] == provider and r["provider_message_id"] == message_id and r["attachment_ordinal"] == ordinal), None)
+
+    def find_mail_attachments(self, provider: str, message_id: str) -> list[dict[str, Any]]:
+        return sorted(
+            (r for r in self.records() if r["provider"] == provider and r["provider_message_id"] == message_id),
+            key=lambda r: r["attachment_ordinal"],
+        )
+
     def is_processed(self, provider: str, provider_message_id: str) -> bool:
-        record = self.find_provider_message(provider, provider_message_id)
-        return record is not None and record["status"] == "processed"
+        records = self.find_mail_attachments(provider, provider_message_id)
+        return bool(records) and all(record["status"] == "processed" for record in records)
 
     def find_pending_onboarding_reservation(
         self,
@@ -120,15 +138,19 @@ class IngestionHistory:
             "session_id": request.onboarding_session_id,
         }
 
-    def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None) -> dict[str, Any]:
+    def create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None, *, attachment_ordinal: int | None = None) -> dict[str, Any]:
         with ingestion_lock(self.path.parent):
-            return self._create(provider, provider_message_id, sender_email, attachment_name, attachment_sha256)
+            return self._create(provider, provider_message_id, sender_email, attachment_name, attachment_sha256, attachment_ordinal=attachment_ordinal)
 
-    def _create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None) -> dict[str, Any]:
+    def _create(self, provider: str, provider_message_id: str, sender_email: str, attachment_name: str | None, attachment_sha256: str | None, *, attachment_ordinal: int | None = None) -> dict[str, Any]:
         if provider == ADMIN_UPLOAD:
             raise ValueError("Manual ingestion requires explicit Sailor ownership")
+        ordinal = 1 if attachment_ordinal is None else attachment_ordinal
+        _validate_attachment_identity(ordinal, attachment_ordinal is not None)
         records = self.records()
-        record = {"id": str(uuid4()), "provider": provider, "provider_message_id": provider_message_id, "sender_email": sender_email, "received_at": None, "attachment_name": attachment_name, "attachment_sha256": attachment_sha256, "original_file": None, "status": "failed", "disposition": "active", "attempts": 0, "last_attempt_at": None, "last_error": None, "activity_id": None, "session_id": None}
+        if any(r["provider"] == provider and r["provider_message_id"] == provider_message_id and r["attachment_ordinal"] == ordinal for r in records):
+            raise ValueError("Mail attachment identity already exists")
+        record = {"id": str(uuid4()), "provider": provider, "provider_message_id": provider_message_id, "attachment_ordinal": ordinal, "attachment_ordinal_verified": attachment_ordinal is not None, "sender_email": sender_email, "received_at": None, "attachment_name": attachment_name, "attachment_sha256": attachment_sha256, "original_file": None, "status": "failed", "disposition": "active", "attempts": 0, "last_attempt_at": None, "last_error": None, "activity_id": None, "session_id": None}
         record["activity_created_by_ingestion"] = None
         record["session_result_notification_candidate"] = None
         record["session_result_notification"] = None
@@ -168,6 +190,14 @@ class IngestionHistory:
                     ):
                         if record[field] != replacement[field]:
                             raise ValueError("Manual ingestion provenance is immutable")
+                else:
+                    canonical, _ = _canonical(replacement)
+                    replacement = canonical
+                    for field in ("id", "provider", "provider_message_id", "attachment_ordinal", "attachment_ordinal_verified", "attachment_name", "attachment_sha256"):
+                        if record[field] != replacement[field]:
+                            raise ValueError("Mail ingestion identity is immutable")
+                    if record["original_file"] is not None and record["original_file"] != replacement["original_file"]:
+                        raise ValueError("Mail ingestion original reference is immutable")
                 previous = record["activity_created_by_ingestion"]
                 current = replacement["activity_created_by_ingestion"]
                 if previous is not None and current != previous:
@@ -276,7 +306,12 @@ class IngestionHistory:
             return interrupted
 
 
-def _canonical(item: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+def _validate_attachment_identity(ordinal: object, verified: object) -> None:
+    if type(ordinal) is not int or ordinal < 1 or type(verified) is not bool:
+        raise ValueError("Malformed mail attachment identity")
+
+
+def _canonical(item: dict[str, Any], *, assign_id: bool = True) -> tuple[dict[str, Any], bool]:
     if item.get("provider") == ADMIN_UPLOAD:
         _validate_manual(item)
         return dict(item), False
@@ -301,13 +336,21 @@ def _canonical(item: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     }
     if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed"): raise ValueError("Malformed ingestion record")
     if "id" in item:
+        if set(item) in (LEGACY_FIELDS, LEGACY_FIELDS - {"disposition"}):
+            item = {**item, "attachment_ordinal": 1, "attachment_ordinal_verified": False}
+            migrated = True
+        else:
+            migrated = False
         if set(item) == FIELDS - {"disposition"}:
             item = {**item, "disposition": "active"}
             return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}, True
-        if set(item) != FIELDS or item.get("disposition") not in ("active", "discarded") or not isinstance(item["attempts"], int) or item["attempts"] < 0: raise ValueError("Malformed ingestion record")
-        return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}, False
+        if set(item) != FIELDS or item.get("disposition") not in ("active", "discarded") or type(item["attempts"]) is not int or item["attempts"] < 0: raise ValueError("Malformed ingestion record")
+        _validate_attachment_identity(item["attachment_ordinal"], item["attachment_ordinal_verified"])
+        return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}, migrated
+    if set(item) - {"provider", "provider_message_id", "status", "processed_at", "activity_id"}:
+        raise ValueError("Malformed legacy ingestion record")
     attempted = item.get("processed_at")
-    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "activity_created_by_ingestion": None, "session_result_notification_candidate": None, "session_result_notification": notification, "pending_onboarding_reservation": None}, True
+    return {"id": str(uuid4()) if assign_id else None, "provider": item["provider"], "provider_message_id": item["provider_message_id"], "attachment_ordinal": 1, "attachment_ordinal_verified": False, "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "activity_created_by_ingestion": None, "session_result_notification_candidate": None, "session_result_notification": notification, "pending_onboarding_reservation": None}, True
 
 
 def _validate_manual(record: dict[str, Any]) -> None:
