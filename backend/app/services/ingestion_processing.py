@@ -17,8 +17,9 @@ from app.services.activity_tracks import persist_activity_track
 from app.services.automatic_consent_requests import AutomaticConsentRequestService
 from app.services.consent_requests import ConsentRequestService
 from app.services.email_ingestion import process_inbound_email
-from app.services.ingestion_history import ADMIN_UPLOAD, IngestionHistory
+from app.services.ingestion_history import ADMIN_UPLOAD, IngestionHistory, STAGED_MAIL_INTERRUPTED
 from app.services.ingestion_lock import ingestion_lock
+from app.services.mail_receipts import MailReceiptStore
 from app.services.maneuver_analytics import get_or_generate_maneuver_analytics
 from app.services.session_matcher import SessionMatchResult, match_activity_to_session
 from app.services.session_enrichment import automatic_session_enrichment_service
@@ -104,24 +105,35 @@ def reprocess_ingestion(
             return _run_manual_attempt(
                 record, sailors, boats, activities, sessions, history, track_storage,
             )
+        staged = record["attachment_ordinal_verified"] is True
+        if staged:
+            _require_complete_staged_receipt(record, history)
+            if record["status"] == "processing":
+                record.update(status="failed", last_error=STAGED_MAIL_INTERRUPTED)
+                history.replace(record)
         if record["status"] in ("pending", "acquisition_failed"):
             raise ValueError("Staged mail ingestion has no processing attempt to reprocess")
-        establish_activity_creation_provenance = record["status"] != "processed"
+        establish_activity_creation_provenance = (
+            record["status"] != "processed"
+            and not (staged and record["last_error"] == STAGED_MAIL_INTERRUPTED)
+        )
         record["attempts"] += 1
         record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
         record["last_error"] = None
-        record["status"] = "failed"
+        record["status"] = "processing" if staged else "failed"
+        if staged:
+            record["session_result_notification_candidate"] = False
         history.replace(record)
         try:
             if not record["original_file"] or not record["attachment_name"] or not record["sender_email"]:
                 raise FileNotFoundError("Preserved ingestion original is unavailable")
-            content = IngestionOriginalStorage(activities.path.parent).read(record["original_file"])
+            content = IngestionOriginalStorage(history.path.parent if staged else activities.path.parent).read(record["original_file"])
             email = InboundEmail(sender_email=record["sender_email"], subject=record["attachment_name"], attachment_filename=record["attachment_name"], attachment_bytes=content, provider_message_id=record["provider_message_id"])
         except (ValueError, OSError, EOFError, FileNotFoundError) as error:
-            record["last_error"] = _safe_error(error)
+            record.update(status="failed", last_error=_safe_error(error))
             history.replace(record)
         except Exception as error:
-            record["last_error"] = _safe_error(error)
+            record.update(status="failed", last_error=_safe_error(error))
             history.replace(record)
             raise
         else:
@@ -140,9 +152,75 @@ def reprocess_ingestion(
                 attempt_started=True,
                 establish_activity_creation_provenance=establish_activity_creation_provenance,
                 session_result_sender=session_result_sender,
+                suppress_automatic_communication=staged,
             )
         updated = history.get(ingestion_id)
         if updated is None: raise ValueError("Ingestion disappeared after reprocessing")
+        return updated
+
+
+def _require_complete_staged_receipt(record: dict, history: IngestionHistory) -> None:
+    if record["provider"] != "ovh" or record["attachment_ordinal_verified"] is not True:
+        raise ValueError("Ingestion is not a staged OVH attachment")
+    receipt = MailReceiptStore(history.path).get("ovh", record["provider_message_id"])
+    if receipt is None or receipt["receipt_state"] != "complete":
+        raise ValueError("Staged mail receipt is incomplete")
+    members = history.find_mail_attachments("ovh", record["provider_message_id"])
+    if [member["id"] for member in members] != receipt["attachment_ingestion_ids"] or record["id"] not in receipt["attachment_ingestion_ids"]:
+        raise ValueError("Staged mail receipt conflicts with Ingestion identity")
+
+
+def process_staged_ingestion(
+    ingestion_id: str,
+    sailors: SailorRepository,
+    boats: BoatRepository,
+    activities: ActivityRepository,
+    sessions: SessionRepository,
+    history: IngestionHistory,
+    track_storage: TrackStorage | None = None,
+) -> dict:
+    """Run only an unattempted, completely acquired OVH child; never send mail."""
+    with ingestion_lock(history.path.parent):
+        record = history.get(ingestion_id)
+        if record is None:
+            raise ValueError(f"Ingestion not found: {ingestion_id}")
+        _require_complete_staged_receipt(record, history)
+        if record["status"] == "processing":
+            record.update(status="failed", last_error=STAGED_MAIL_INTERRUPTED)
+            return history.replace(record)
+        if record["status"] != "pending":
+            return record
+        record.update(
+            status="processing", attempts=1,
+            last_attempt_at=datetime.now(timezone.utc).isoformat(), last_error=None,
+            session_result_notification_candidate=False,
+        )
+        history.replace(record)
+        try:
+            if not record["original_file"] or not record["attachment_name"] or not record["sender_email"]:
+                raise FileNotFoundError("Preserved ingestion original is unavailable")
+            content = IngestionOriginalStorage(history.path.parent).read(record["original_file"])
+            if sha256(content).hexdigest() != record["attachment_sha256"]:
+                raise ValueError("Preserved ingestion original SHA-256 mismatch")
+            email = InboundEmail(
+                sender_email=record["sender_email"], subject=record["attachment_name"],
+                attachment_filename=record["attachment_name"], attachment_bytes=content,
+                provider_message_id=record["provider_message_id"],
+            )
+        except Exception as error:
+            record.update(status="failed", last_error=_safe_error(error))
+            history.replace(record)
+            if not isinstance(error, (ValueError, OSError, EOFError, FileNotFoundError)):
+                raise
+            return record
+        _attempt_record(
+            record, email, sailors, boats, activities, sessions, history,
+            track_storage, None, None, False, attempt_started=True,
+            suppress_automatic_communication=True,
+        )
+        updated = history.get(ingestion_id)
+        if updated is None:
+            raise ValueError("Ingestion disappeared after processing")
         return updated
 
 
@@ -237,11 +315,14 @@ def _attempt_record(
     attempt_started=False,
     establish_activity_creation_provenance=True,
     session_result_sender=None,
+    suppress_automatic_communication=False,
 ):
     if not attempt_started:
         record["attempts"] += 1; record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
     record["last_error"] = None
     manual = record["provider"] == ADMIN_UPLOAD
+    if not manual and record["attachment_ordinal_verified"] is True:
+        suppress_automatic_communication = True
     try:
         if manual:
             result = _process_manual_record(
@@ -278,9 +359,14 @@ def _attempt_record(
             and record["session_result_notification_candidate"] is None
         ):
             record["session_result_notification_candidate"] = (
-                record["activity_created_by_ingestion"] is True
+                not suppress_automatic_communication
+                and record["activity_created_by_ingestion"] is True
                 and result.sailor.consent_status == ConsentStatus.ACTIVE
             )
+        if suppress_automatic_communication and not manual:
+            result.session_match.session = SessionCapabilityService(
+                sessions, activities, sailors
+            ).ensure_for_session(result.session_match.session.id)
         record.update(status="processed", last_error=None, activity_id=result.activity.id, session_id=result.session_match.session.id)
         history.replace(record)
     except Exception as error:
@@ -293,12 +379,12 @@ def _attempt_record(
             return None
         if raise_errors or not isinstance(error, (ValueError, OSError, EOFError, FileNotFoundError)): raise
         return None
-    # Core ingestion is authoritative before capability handling or outbound mail.
-    session = SessionCapabilityService(sessions, activities, sailors).ensure_for_session(
-        result.session_match.session.id
-    )
-    result.session_match.session = session
-    if manual:
+    # Legacy sources retain their established post-result capability handling.
+    if not suppress_automatic_communication or manual:
+        result.session_match.session = SessionCapabilityService(
+            sessions, activities, sailors
+        ).ensure_for_session(result.session_match.session.id)
+    if manual or suppress_automatic_communication:
         # Suppression is source policy, not a successful/attempted email delivery.
         return result
     automatic_consent.attempt_for_sailor(

@@ -17,6 +17,7 @@ LEGACY_FIELDS = FIELDS - {"attachment_ordinal", "attachment_ordinal_verified"}
 SESSION_RESULT_DELIVERY_FAILURE = "Session-result email delivery failed"
 ADMIN_UPLOAD = "admin_upload"
 ADMIN_UPLOAD_INTERRUPTED = "Manual ingestion was interrupted; explicit Reprocess is required"
+STAGED_MAIL_INTERRUPTED = "Staged mail processing was interrupted; explicit Reprocess is required"
 MANUAL_FIELDS = LEGACY_FIELDS | {
     "operation_id", "owner_sailor_id", "accepted_at",
     "activity_created_by_ingestion", "session_result_notification_candidate",
@@ -201,6 +202,8 @@ class IngestionHistory:
                             raise ValueError("Mail ingestion identity is immutable")
                     if record["original_file"] is not None and record["original_file"] != replacement["original_file"]:
                         raise ValueError("Mail ingestion original reference is immutable")
+                    if record["attachment_ordinal_verified"]:
+                        _validate_staged_transition(record, replacement)
                 previous = record["activity_created_by_ingestion"]
                 current = replacement["activity_created_by_ingestion"]
                 if previous is not None and current != previous:
@@ -315,6 +318,25 @@ def _validate_attachment_identity(ordinal: object, verified: object) -> None:
         raise ValueError("Malformed mail attachment identity")
 
 
+def _validate_staged_transition(old: dict[str, Any], new: dict[str, Any]) -> None:
+    if old["sender_email"] != new["sender_email"] or (
+        old["received_at"] is not None and old["received_at"] != new["received_at"]
+    ):
+        raise ValueError("Staged mail provenance is immutable")
+    allowed = {
+        "pending": {"pending", "acquisition_failed", "processing"},
+        "acquisition_failed": {"acquisition_failed"},
+        "processing": {"processing", "processed", "failed"},
+        "processed": {"processed", "processing"},
+        "failed": {"failed", "processing"},
+    }
+    if new["status"] not in allowed[old["status"]]:
+        raise ValueError("Invalid staged mail processing transition")
+    expected_attempts = old["attempts"] + (new["status"] == "processing" and old["status"] != "processing")
+    if new["attempts"] != expected_attempts:
+        raise ValueError("Invalid staged mail processing attempt count")
+
+
 def _canonical(item: dict[str, Any], *, assign_id: bool = True) -> tuple[dict[str, Any], bool]:
     if item.get("provider") == ADMIN_UPLOAD:
         _validate_manual(item)
@@ -338,7 +360,9 @@ def _canonical(item: dict[str, Any], *, assign_id: bool = True) -> tuple[dict[st
             "pending_onboarding_reservation",
         )
     }
-    if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed", "pending", "acquisition_failed"): raise ValueError("Malformed ingestion record")
+    if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed", "pending", "processing", "acquisition_failed"): raise ValueError("Malformed ingestion record")
+    if item["status"] == "processing" and item.get("attachment_ordinal_verified") is not True:
+        raise ValueError("Mail processing state requires a verified attachment identity")
     if item["status"] in ("pending", "acquisition_failed"):
         if (
             "id" not in item or item.get("attachment_ordinal_verified") is not True
@@ -353,6 +377,16 @@ def _canonical(item: dict[str, Any], *, assign_id: bool = True) -> tuple[dict[st
             ))
         ):
             raise ValueError("Malformed mail acquisition state")
+    if item.get("attachment_ordinal_verified") is True and item["status"] == "processing":
+        if (
+            "id" not in item or type(item.get("attempts")) is not int or item["attempts"] < 1
+            or not isinstance(item.get("last_attempt_at"), str) or not item["last_attempt_at"]
+            or not isinstance(item.get("original_file"), str) or not item["original_file"]
+            or not isinstance(item.get("attachment_sha256"), str) or not item["attachment_sha256"]
+            or item.get("last_error") is not None
+            or notification_candidate is not False or notification is not None
+        ):
+            raise ValueError("Malformed staged mail processing state")
     if "id" in item:
         if set(item) in (LEGACY_FIELDS, LEGACY_FIELDS - {"disposition"}):
             item = {**item, "attachment_ordinal": 1, "attachment_ordinal_verified": False}

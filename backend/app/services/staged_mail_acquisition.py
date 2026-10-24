@@ -11,7 +11,7 @@ from app.email_providers.ovh import (
     OVHUIDValidityMismatch,
 )
 from app.runtime_paths import require_private_data_root
-from app.services.ingestion_history import IngestionHistory
+from app.services.ingestion_history import IngestionHistory, STAGED_MAIL_INTERRUPTED
 from app.services.ingestion_lock import ingestion_lock
 from app.services.mail_receipts import MailReceiptStore
 from app.services.mailbox_review import MailboxReviewError, _configured_provider
@@ -177,7 +177,7 @@ def _persist_occurrence(
         or record["attachment_sha256"] != digest
         or record["attachment_ordinal_verified"] is not True
         or record["sender_email"] != mail.sender_email
-        or record["status"] not in ("pending", "acquisition_failed")
+        or record["status"] not in ("pending", "processing", "processed", "failed", "acquisition_failed")
     ):
         raise ValueError("Conflicting persisted attachment identity")
     received_at = mail.received_at.isoformat() if mail.received_at else None
@@ -193,15 +193,18 @@ def _persist_occurrence(
             record.update(status="acquisition_failed", last_error=item.acquisition_error)
             history.replace(record)
     else:
-        if item.content is None or record["status"] != "pending":
+        if item.content is None or record["status"] == "acquisition_failed":
             raise ValueError("Accepted attachment is unavailable")
         expected = originals.relative_reference(record["id"], item.filename)
         if record["original_file"] not in (None, expected):
             raise ValueError("Conflicting persisted original reference")
-        relative = originals.preserve(record["id"], item.filename, item.content)
-        if record["original_file"] is None:
-            record["original_file"] = relative
-            history.replace(record)
+        if record["status"] == "pending":
+            relative = originals.preserve(record["id"], item.filename, item.content)
+            if record["original_file"] is None:
+                record["original_file"] = relative
+                history.replace(record)
+        elif record["original_file"] is None or originals.read(record["original_file"]) != item.content:
+            raise ValueError("Processed attachment original differs from MIME bytes")
     return record
 
 
@@ -212,14 +215,14 @@ def _verify_occurrence(record: dict | None, originals: IngestionOriginalStorage,
         if record["status"] != "acquisition_failed" or record["last_error"] != item.acquisition_error or record["original_file"] is not None:
             raise ValueError("Acquisition failure was not durably accounted")
         return
-    if record["status"] != "pending" or record["original_file"] is None or item.content is None:
+    if record["status"] not in ("pending", "processing", "processed", "failed") or record["original_file"] is None or item.content is None:
         raise ValueError("Accepted attachment original is incomplete")
     if originals.read(record["original_file"]) != item.content:
         raise ValueError("Accepted attachment original differs from MIME bytes")
 
 
 def recover_unattempted_ingestions(history_path: str | Path | None = None) -> list[dict]:
-    """Read complete receipts independently of the OVH cursor; never process them."""
+    """Find unattempted children beyond the cursor; fail abandoned claims, never replay."""
     history = IngestionHistory(history_path)
     with ingestion_lock(history.path.parent):
         originals = IngestionOriginalStorage(history.path.parent)
@@ -231,6 +234,9 @@ def recover_unattempted_ingestions(history_path: str | Path | None = None) -> li
             if [record["id"] for record in records] != receipt["attachment_ingestion_ids"]:
                 raise ValueError("Complete mail receipt conflicts with history")
             for record in records:
+                if record["status"] == "processing":
+                    record.update(status="failed", last_error=STAGED_MAIL_INTERRUPTED)
+                    history.replace(record)
                 if record["status"] == "pending":
                     if record["attempts"] != 0 or record["original_file"] is None:
                         raise ValueError("Incomplete pending mail Ingestion")
