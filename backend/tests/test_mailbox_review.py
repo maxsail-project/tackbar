@@ -9,11 +9,14 @@ from app.email_providers.ovh import (
     OVHAcquisitionBatch,
     OVHExaminedMessage,
     OVHMessageOutcome,
+    OVHStagedMail,
     OVHUIDValidityMismatch,
 )
 from app.services.ingestion_history import IngestionHistory
 from app.services.mailbox_review import MailboxReviewError, review_mailbox_now
+from app.services.mail_receipts import MailReceiptStore
 from app.services import mailbox_review as mailbox_review_module
+from app.mailbox_review_once import main as review_once_main
 from app.runtime_paths import runtime_paths
 from app.services.ovh_mailbox_cursor import (
     OVHMailboxCursor,
@@ -46,6 +49,52 @@ def _new_suppression_process(monkeypatch, clock):
         "_cycle_failure_logs",
         mailbox_review_module._CycleFailureLogSuppressor(clock=clock),
     )
+
+
+def test_staged_review_is_opt_in_and_same_entrypoint_serves_timer(monkeypatch, tmp_path):
+    _runtime(monkeypatch, tmp_path)
+    monkeypatch.setenv("TACKBAR_OVH_STAGED_MAIL_ENABLED", "1")
+    mail = OVHStagedMail("456:7", "sailor@example.test", None, (), "attachment_count_limit")
+    examined = OVHExaminedMessage(7, None, OVHMessageOutcome.REJECTED, staged_mail=mail)
+    calls = []
+
+    class Provider:
+        def acquire_messages(self, last_seen_uid, expected_uidvalidity, *, staged):
+            calls.append((last_seen_uid, expected_uidvalidity, staged))
+            return OVHAcquisitionBatch(456, (examined,))
+
+    provider = Provider()
+    sent = []
+    monkeypatch.setattr("app.services.mailbox_review._configured_provider", lambda _: provider)
+    monkeypatch.setattr("app.services.mail_feedback._send", sent.append)
+    first = review_mailbox_now(provider)
+    assert first.staged_mode is True
+    assert (first.examined_messages, first.completed_receipts, first.rejected_receipts) == (1, 0, 1)
+    assert first.evaluated_receipts == 1
+    assert review_once_main() == 0
+    assert calls == [(None, None, True), (7, 456, True)]
+    assert len(sent) == 1
+    receipt = MailReceiptStore(IngestionHistory().path).get("ovh", "456:7")
+    assert receipt["feedback_state"] == "sent" and receipt["feedback_attempts"][0]["kind"] == "automatic"
+    assert IngestionHistory().records() == []
+    assert OVHMailboxCursorStore().load().last_seen_uid == 7
+
+
+def test_staged_review_refuses_unmigrated_history_before_acquisition(monkeypatch, tmp_path):
+    _runtime(monkeypatch, tmp_path)
+    monkeypatch.setenv("TACKBAR_OVH_STAGED_MAIL_ENABLED", "1")
+    history = IngestionHistory()
+    history.create("ovh", "456:1", "sailor@example.test", "race.gpx", None)
+    before = history.path.read_bytes()
+
+    class Provider:
+        def acquire_messages(self, *_args, **_kwargs):
+            pytest.fail("Unmigrated history must block mailbox acquisition")
+
+    with pytest.raises(MailboxReviewError, match="verified migration"):
+        review_mailbox_now(Provider())
+    assert history.path.read_bytes() == before
+    assert MailReceiptStore(history.path).get("ovh", "456:1") is None
 
 
 def test_ovh_review_uses_distinct_history_identity_and_is_idempotent(monkeypatch, tmp_path):

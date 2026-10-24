@@ -36,7 +36,7 @@ flowchart TB
     ANALYTICS["Maneuver analytics / artifacts"]
     CONTEXT["Session context enrichment"]
     ACCESS["Consent and purpose-specific capabilities"]
-    FEEDBACK["Internal per-mail feedback and welcome delivery"]
+    FEEDBACK["Gated per-mail feedback and welcome delivery"]
     API["FastAPI: authorized read / Admin APIs"]
     STORE[("Private persistence: JSON metadata, CSV.GZ tracks, originals, artifacts")]
 
@@ -55,6 +55,7 @@ flowchart TB
     ANALYTICS --> API
     CONTEXT --> API
     API --> STORE
+    API -->|"Admin feedback inspection and explicit resend"| FEEDBACK
   end
 
   subgraph WEB["React / TypeScript web experience"]

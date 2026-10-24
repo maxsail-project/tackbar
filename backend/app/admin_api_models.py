@@ -188,6 +188,9 @@ class AdminMailFeedbackResponse(BaseModel):
     provider: str
     provider_message_id: str
     receipt_state: str
+    attachment_ingestion_ids: list[str]
+    rejection_reason: str | None = None
+    sender_email: str | None = None
     feedback_state: str
     feedback_suppressed_reason: str | None = None
     feedback_attempts: list[AdminMailFeedbackAttemptResponse]
@@ -200,7 +203,9 @@ class AdminIngestionResponse(BaseModel):
     sender_email: str | None
     received_at: datetime | None
     attachment_name: str | None
-    status: Literal["pending", "processing", "processed", "failed"]
+    attachment_ordinal: int | None = None
+    attachment_ordinal_verified: bool | None = None
+    status: Literal["acquisition_failed", "pending", "processing", "processed", "failed"]
     operation_id: str | None = None
     owner_sailor_id: str | None = None
     accepted_at: datetime | None = None
@@ -306,3 +311,8 @@ class AdminMailboxReviewResponse(BaseModel):
     skipped_already_processed: int
     known_failed: int
     failed: int
+    staged_mode: bool = False
+    examined_messages: int = 0
+    completed_receipts: int = 0
+    rejected_receipts: int = 0
+    evaluated_receipts: int = 0

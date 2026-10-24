@@ -154,7 +154,8 @@ export interface AdminSession extends AdminSessionSummary {
 
 export interface AdminIngestion {
   id: string; provider: string; provider_message_id: string | null; sender_email: string | null
-  received_at: string | null; attachment_name: string | null; status: 'pending' | 'processing' | 'processed' | 'failed'
+  received_at: string | null; attachment_name: string | null; status: 'acquisition_failed' | 'pending' | 'processing' | 'processed' | 'failed'
+  attachment_ordinal?: number | null; attachment_ordinal_verified?: boolean | null
   operation_id?: string | null
   owner_sailor_id?: string | null
   accepted_at?: string | null
@@ -167,6 +168,25 @@ export interface AdminIngestion {
   sailor_email: string | null
   sailor_consent_status: 'PENDING' | 'ACTIVE' | 'REVOKED' | null
   activity_start_time: string | null; activity_end_time: string | null; activity_sample_count: number | null
+}
+
+export interface AdminMailFeedback {
+  provider: string
+  provider_message_id: string
+  receipt_state: 'incomplete' | 'complete' | 'rejected' | 'legacy_complete'
+  attachment_ingestion_ids: string[]
+  rejection_reason: string | null
+  sender_email: string | null
+  feedback_state: 'unreserved' | 'suppressed' | 'attempted' | 'sent' | 'failed' | 'legacy_suppressed'
+  feedback_suppressed_reason: string | null
+  feedback_attempts: Array<{
+    id: string
+    kind: 'automatic' | 'manual'
+    status: 'attempted' | 'sent' | 'failed'
+    attempted_at: string
+    sent_at: string | null
+    last_error: string | null
+  }>
 }
 
 export interface AdminSessionResultNotification {
@@ -230,4 +250,4 @@ export interface AdminActivity extends AdminActivitySummary {
   maneuvers: AdminManeuverState
   diagnostic: Record<string, unknown>
 }
-export interface AdminMailboxReview { discovered_candidates: number; processed: number; skipped_already_processed: number; known_failed: number; failed: number }
+export interface AdminMailboxReview { discovered_candidates: number; processed: number; skipped_already_processed: number; known_failed: number; failed: number; staged_mode: boolean; examined_messages: number; completed_receipts: number; rejected_receipts: number; evaluated_receipts: number }

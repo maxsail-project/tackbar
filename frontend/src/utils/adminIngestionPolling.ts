@@ -2,7 +2,7 @@ import { getAdminIngestion } from '../api/adminApi'
 import type { AdminIngestion, AdminIngestionDetail } from '../types/admin'
 
 export const ingestionIsRunning = (record: Pick<AdminIngestion, 'status'>) => record.status === 'pending' || record.status === 'processing'
-export const ingestionStatusLabels: Record<AdminIngestion['status'], string> = { pending: 'Pending', processing: 'Processing', processed: 'Processed', failed: 'Failed' }
+export const ingestionStatusLabels: Record<AdminIngestion['status'], string> = { acquisition_failed: 'Acquisition failed', pending: 'Pending', processing: 'Processing', processed: 'Processed', failed: 'Failed' }
 
 // One outstanding pass, only active Ingestions. Cleanup stops reads, never work.
 export function pollAdminIngestions(key: string, ids: string[], onUpdate: (record: AdminIngestionDetail) => void, onError: (error: unknown) => void) {

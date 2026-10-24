@@ -270,6 +270,22 @@ def test_reprocess_cannot_hide_preconsent_processing_from_feedback(runtime):
     assert receipt["feedback_suppressed_reason"] == "uncertain_consent"
 
 
+def test_active_mail_reprocessed_before_first_decision_is_conservatively_suppressed(runtime):
+    _active(runtime)
+    stage_ovh_mailbox_now(_provider(1, [("race.gpx", GPX)]))
+    record = recover_unattempted_ingestions()[0]
+    assert process_staged_ingestion(record["id"], *runtime)["status"] == "processed"
+    from app.services.ingestion_processing import reprocess_ingestion
+
+    reprocess_ingestion(record["id"], *runtime)
+    sent = []
+    _feedback(runtime, sent.append).attempt_automatic("456:1")
+    receipt = MailReceiptStore(runtime[-1].path).get("ovh", "456:1")
+    assert sent == []
+    assert receipt["feedback_state"] == "suppressed"
+    assert receipt["feedback_suppressed_reason"] == "uncertain_consent"
+
+
 def test_restart_recovers_durable_children_and_feedback_without_imap(runtime):
     _active(runtime)
     stage_ovh_mailbox_now(_provider(1, [("race.gpx", GPX)]))

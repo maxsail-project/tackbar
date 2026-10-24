@@ -232,7 +232,7 @@ def list_sessions() -> list[AdminSessionSummaryResponse]:
 
 @router.get("/ingestions", response_model=list[AdminIngestionResponse])
 def list_ingestions(
-    status: Literal["all", "pending", "processing", "processed", "failed"] = "all",
+    status: Literal["all", "acquisition_failed", "pending", "processing", "processed", "failed"] = "all",
     disposition: Literal["all", "active", "discarded"] = "all",
 ) -> list[AdminIngestionResponse]:
     try:
@@ -303,6 +303,15 @@ def review_mailbox() -> AdminMailboxReviewResponse:
         raise HTTPException(status_code=503, detail="Mailbox review unavailable") from error
     except MailboxReviewError as error:
         raise HTTPException(status_code=503, detail="Mailbox review unavailable") from error
+
+
+@router.get("/mail-receipts/ovh", response_model=list[AdminMailFeedbackResponse])
+def list_ovh_mail_receipts() -> list[AdminMailFeedbackResponse]:
+    try:
+        receipts = MailReceiptStore(IngestionHistory().path).receipts()
+    except ValueError as error:
+        raise _admin_integrity_error() from error
+    return [AdminMailFeedbackResponse(**receipt) for receipt in receipts if receipt["provider"] == "ovh"]
 
 
 @router.get("/mail-receipts/ovh/{message_id}/feedback", response_model=AdminMailFeedbackResponse)
@@ -613,7 +622,7 @@ def _ingestion_response(record: dict, *, resolve_context: bool = True) -> AdminI
             sailor_label = sailor.name or sailor.email
             sailor_email = sailor.email
             sailor_consent_status = sailor.consent_status.value
-    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id", "activity_created_by_ingestion")}, operation_id=record.get("operation_id"), owner_sailor_id=record.get("owner_sailor_id"), accepted_at=record.get("accepted_at"), sailor_id=sailor_id, sailor_label=sailor_label, sailor_email=sailor_email, sailor_consent_status=sailor_consent_status, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
+    return AdminIngestionResponse(**{key: record[key] for key in ("id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id", "activity_created_by_ingestion")}, attachment_ordinal=record.get("attachment_ordinal"), attachment_ordinal_verified=record.get("attachment_ordinal_verified"), operation_id=record.get("operation_id"), owner_sailor_id=record.get("owner_sailor_id"), accepted_at=record.get("accepted_at"), sailor_id=sailor_id, sailor_label=sailor_label, sailor_email=sailor_email, sailor_consent_status=sailor_consent_status, original_available=available, activity_start_time=activity.start_time if activity else None, activity_end_time=activity.end_time if activity else None, activity_sample_count=activity.sample_count if activity else None)
 
 
 def _ingestion_detail_response(record: dict, *, resolve_context: bool = True) -> AdminIngestionDetailResponse:
@@ -628,6 +637,8 @@ def _ingestion_detail_response(record: dict, *, resolve_context: bool = True) ->
         "sender_email": record["sender_email"],
         "received_at": record["received_at"],
         "attachment_name": record["attachment_name"],
+        "attachment_ordinal": record.get("attachment_ordinal"),
+        "attachment_ordinal_verified": record.get("attachment_ordinal_verified"),
         "attachment_sha256": record["attachment_sha256"],
         "status": record["status"],
         "disposition": record["disposition"],

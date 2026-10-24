@@ -1,4 +1,4 @@
-import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary } from '../types/admin'
+import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailFeedback, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary } from '../types/admin'
 
 export type IngestionStatusFilter = 'all' | AdminIngestion['status']
 export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
@@ -91,3 +91,6 @@ export const reprocessIngestion = (key: string, id: string) => adminRequest<Admi
 export const discardIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/discard`, key, 'POST')
 export const restoreIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/restore`, key, 'POST')
 export const reviewMailbox = (key: string) => adminRequest<AdminMailboxReview>('/api/admin/ingestions/review-mailbox', key, 'POST')
+export const listAdminMailReceipts = (key: string) => adminRequest<AdminMailFeedback[]>('/api/admin/mail-receipts/ovh', key)
+export const getAdminMailFeedback = (key: string, messageId: string) => adminRequest<AdminMailFeedback>(`/api/admin/mail-receipts/ovh/${encodeURIComponent(messageId)}/feedback`, key)
+export const resendAdminMailFeedback = (key: string, messageId: string) => adminRequest<AdminMailFeedback>(`/api/admin/mail-receipts/ovh/${encodeURIComponent(messageId)}/feedback/resend`, key, 'POST')

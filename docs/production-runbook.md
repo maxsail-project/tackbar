@@ -131,6 +131,42 @@ sudo systemctl reset-failed tackbar-mailbox-review.service
 After installing a release that changes either versioned unit, repeat the two
 `install` commands and `daemon-reload`, then restart the timer explicitly.
 
+## Future #132 staged OVH activation handoff
+
+The staged mailbox path is disabled unless the private runtime environment sets
+`TACKBAR_OVH_STAGED_MAIL_ENABLED=1`. Keep it unset or `0` during ordinary release
+preparation and deployment. This section is a procedure for a separately
+authorized migration and rollout, not authorization to perform one.
+
+In a coordinated maintenance window, stop the mailbox timer and backend, then
+take and validate a consistent backup of `TACKBAR_DATA_DIR`, including
+`ingestion_history.json`, `mail_receipts.json`, originals and the OVH cursor.
+With a compatible deployed release and the services still stopped, run the
+versioned script against the reviewed history path:
+
+```bash
+/opt/tackbar/.venv/bin/python /opt/tackbar/backend/scripts/migrate_ingestion_history_v2.py check --history <DATA_DIR>/ingestion_history.json
+/opt/tackbar/.venv/bin/python /opt/tackbar/backend/scripts/migrate_ingestion_history_v2.py migrate --history <DATA_DIR>/ingestion_history.json
+/opt/tackbar/.venv/bin/python /opt/tackbar/backend/scripts/migrate_ingestion_history_v2.py verify --history <DATA_DIR>/ingestion_history.json
+```
+
+Review the read-only `check` result before `migrate`; require successful
+`verify` and a repeated idempotent migration/verification rehearsal on a
+production-like backup. Only after separate rollout approval, set the flag to
+`1` in the private service environment, restart the backend and timer, and
+perform targeted mailbox/Admin checks with controlled mail. Both timer and
+Admin **Review mailbox now** then use the same staged path. The application
+also performs read-only verification before an enabled staged review and fails
+closed if historical mail receipts are missing or inconsistent.
+
+If migration or verification fails, keep the services stopped and the flag
+disabled; recover from the validated backup with compatible code. If staged
+review later needs to stop, disable the flag and timer before assessing code
+rollback. Do not rewind the OVH cursor or run migration at application startup.
+The release publication workflow can restart the backend automatically, so
+coordinate the release and maintenance window while the staged flag remains
+disabled until verification is complete.
+
 ## v0.6.4 outbound SMTP runtime configuration
 
 The v0.6.4 welcome email uses an independent authenticated OVH SMTP

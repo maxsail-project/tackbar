@@ -15,6 +15,9 @@ import {
   discardIngestion,
   getAdminActivity,
   getAdminIngestion,
+  getAdminMailFeedback,
+  listAdminMailReceipts,
+  resendAdminMailFeedback,
   getAdminSession,
   listAdminActivities,
   recalculateAdminActivityManeuvers,
@@ -24,6 +27,21 @@ import {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Admin API client', () => {
+  it('inspects mail receipts with protected reads and sends only on explicit resend', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await listAdminMailReceipts('private-admin-key')
+    await getAdminMailFeedback('private-admin-key', '456:7')
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/admin/mail-receipts/ovh',
+      '/api/admin/mail-receipts/ovh/456%3A7/feedback',
+    ])
+    expect(fetchMock.mock.calls.every(([, options]) => options.method === 'GET' && options.headers['X-TackBar-Admin-Key'] === 'private-admin-key')).toBe(true)
+    await resendAdminMailFeedback('private-admin-key', '456:7')
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/admin/mail-receipts/ovh/456%3A7/feedback/resend')
+    expect(fetchMock.mock.calls[2][1].method).toBe('POST')
+  })
+
   it('sends the key only in the Admin header', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('[]', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)

@@ -48,6 +48,11 @@ def _safe_sender(value: object) -> str | None:
 class StagedMailCycleSummary:
     processed_children: int
     evaluated_receipts: int
+    successful_children: int = 0
+    failed_children: int = 0
+    examined_messages: int = 0
+    completed_receipts: int = 0
+    rejected_receipts: int = 0
 
 
 class MailFeedbackService:
@@ -255,12 +260,12 @@ def orchestrate_staged_mailbox_now(
     consent_request_sender: Callable[[str, str], None] | None = None,
 ) -> StagedMailCycleSummary:
     """Internal acquisition -> recovery -> processing -> feedback entry point."""
-    if acquire:
-        stage_ovh_mailbox_now(provider)
+    acquisition = stage_ovh_mailbox_now(provider) if acquire else None
     sailors, boats, activities, sessions, history = (
         SailorRepository(), BoatRepository(), ActivityRepository(), SessionRepository(), IngestionHistory(),
     )
     pending = recover_unattempted_ingestions(history.path)
+    successful = failed = 0
     for record in pending:
         try:
             process_staged_ingestion(record["id"], sailors, boats, activities, sessions, history)
@@ -268,6 +273,9 @@ def orchestrate_staged_mailbox_now(
             current = history.get(record["id"])
             if current is None or current["status"] not in ("failed", "processed"):
                 raise
+        current = history.get(record["id"])
+        successful += current is not None and current["status"] == "processed"
+        failed += current is not None and current["status"] in ("failed", "acquisition_failed")
     feedback = MailFeedbackService(
         history, sailors, boats, activities, sessions,
         sender=feedback_sender, consent_request_sender=consent_request_sender,
@@ -277,4 +285,9 @@ def orchestrate_staged_mailbox_now(
         if receipt["provider"] == "ovh" and receipt["receipt_state"] in ("complete", "rejected"):
             feedback.attempt_automatic(receipt["provider_message_id"])
             evaluated += 1
-    return StagedMailCycleSummary(len(pending), evaluated)
+    return StagedMailCycleSummary(
+        len(pending), evaluated, successful, failed,
+        acquisition.examined if acquisition else 0,
+        acquisition.completed if acquisition else 0,
+        acquisition.rejected if acquisition else 0,
+    )

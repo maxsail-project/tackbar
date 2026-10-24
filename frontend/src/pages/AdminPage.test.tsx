@@ -1,8 +1,8 @@
 import { type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminHeader, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, IngestionUploadResult, RelationButton, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
+import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminMailFeedback, AdminSailorDetail, AdminSession } from '../types/admin'
+import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminHeader, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, IngestionUploadResult, MailFeedbackPanel, mailFeedbackLabel, mailRejectionLabel, RelationButton, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
@@ -29,10 +29,50 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
 })
 const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', detector_mode: 'HIGH', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 7, current_algorithm_version: 7 }, diagnostic: { id: 'activity-123456789' } }
 const sourceIngestion: AdminIngestion = { id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'pilot@example.test', received_at: '2026-09-05T17:25:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: '2026-09-05T17:26:00Z', last_error: null, activity_id: activity.id, session_id: activity.session_id, activity_created_by_ingestion: true, sailor_id: activity.sailor_id, sailor_label: activity.sailor_label, sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: activity.start_time, activity_end_time: activity.end_time, activity_sample_count: activity.sample_count }
+const mailReceipt: AdminMailFeedback = { provider: 'ovh', provider_message_id: '456:7', receipt_state: 'complete', attachment_ingestion_ids: ['ing-1', 'ing-2'], rejection_reason: null, sender_email: null, feedback_state: 'attempted', feedback_suppressed_reason: null, feedback_attempts: [{ id: 'attempt-1', kind: 'automatic', status: 'attempted', attempted_at: '2026-10-24T12:00:00Z', sent_at: null, last_error: null }] }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('minimal Admin UI', () => {
+  it('renders distinct MIME attachment rows and keeps historical logical identity qualified', () => {
+    const base: AdminIngestionDetail = { ...sourceIngestion, provider_message_id: '456:7', attachment_ordinal: 1, attachment_ordinal_verified: true, session_result_notification_candidate: false, session_result_notification: null, attachment_sha256: 'digest', diagnostic: {} }
+    const first = renderToStaticMarkup(<IngestionCard ingestion={base} detail={base} receipt={mailReceipt} busy={false} onSelect={() => undefined} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    const second = renderToStaticMarkup(<IngestionCard ingestion={{ ...base, id: 'ing-2', attachment_ordinal: 2 }} busy={false} onSelect={() => undefined} onFollow={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    const historical = renderToStaticMarkup(<IngestionOperationalDetail ingestion={{ ...base, attachment_ordinal_verified: false }} busy={false} onFollow={() => undefined} />)
+    expect(first).not.toBe(second)
+    expect(first).toContain('MIME attachment #1')
+    expect(second).toContain('attachment #2')
+    expect(first).toContain('MAIL_ID')
+    expect(historical).toContain('historical MIME position unverified')
+    expect(historical).not.toContain('MIME attachment #1')
+  })
+
+  it('shows acquisition failure and mail feedback as separate operational states', () => {
+    const detail: AdminIngestionDetail = { ...sourceIngestion, provider_message_id: '456:7', attachment_ordinal: 2, attachment_ordinal_verified: true, status: 'acquisition_failed', activity_id: null, session_id: null, original_available: false, last_error: 'Attachment acquisition failed', session_result_notification_candidate: null, session_result_notification: null, attachment_sha256: null, diagnostic: {} }
+    const markup = renderToStaticMarkup(<IngestionCard ingestion={detail} detail={detail} receipt={mailReceipt} inspectedReceipt={mailReceipt} busy={false} onSelect={() => undefined} onFollow={() => undefined} onInspectMail={() => undefined} onResendMail={() => undefined} onReprocess={() => undefined} onDiscard={() => undefined} onRestore={() => undefined} />)
+    expect(markup).toContain('Acquisition failed')
+    expect(markup).toContain('no original was preserved')
+    expect(markup).toContain('Attempted · delivery uncertain')
+    expect(markup).not.toContain('>Reprocess</button>')
+    expect(markup).toContain('>Resend mail feedback</button>')
+    expect(markup).not.toContain('Outbound notification</h3>')
+  })
+
+  it('shows controlled whole-mail rejection and manual attempt audit without invented track rows', () => {
+    const rejected: AdminMailFeedback = { ...mailReceipt, receipt_state: 'rejected', attachment_ingestion_ids: [], sender_email: 'sender@example.test', rejection_reason: 'attachment_count_limit', feedback_state: 'failed', feedback_attempts: [...mailReceipt.feedback_attempts.map((attempt) => ({ ...attempt, status: 'failed' as const, last_error: 'Mail feedback delivery failed' })), { id: 'manual-1', kind: 'manual' as const, status: 'sent' as const, attempted_at: '2026-10-24T12:01:00Z', sent_at: '2026-10-24T12:01:01Z', last_error: null }] }
+    const markup = renderToStaticMarkup(<MailFeedbackPanel receipt={rejected} busy={false} onResend={() => undefined} />)
+    expect(mailRejectionLabel(rejected.rejection_reason)).toBe('More than 12 supported attachments')
+    expect(mailRejectionLabel('named_part_limit')).toBe('Named attachment part limit exceeded')
+    expect(markup).toContain('More than 12 supported attachments')
+    expect(markup).toContain('Automatic')
+    expect(markup).toContain('Manual')
+    expect(markup).toContain('accepted by SMTP')
+    expect(markup).not.toContain('Attachment outcomes')
+    expect(mailFeedbackLabel({ ...rejected, feedback_state: 'suppressed' })).toContain('Suppressed')
+    expect(renderToStaticMarkup(<MailFeedbackPanel receipt={{ ...rejected, feedback_state: 'suppressed', feedback_suppressed_reason: 'uncertain_consent', feedback_attempts: [] }} busy={false} />)).toContain('Consent at first processing cannot be proven')
+    expect(renderToStaticMarkup(<MailFeedbackPanel receipt={{ ...rejected, feedback_attempts: [] }} busy={false} onResend={() => undefined} />)).not.toContain('Resend mail feedback')
+  })
+
   it.each(['pending', 'processing', 'processed', 'failed'] as const)('displays accepted %s without treating 202 as processing success', (status) => {
     const markup = renderToStaticMarkup(<IngestionUploadResult ingestion={{ ...sourceIngestion, status, last_error: status === 'failed' ? 'Worker activation failed; explicit Reprocess is required' : null }} onInspect={() => undefined} />)
     expect(markup).toContain(status[0].toUpperCase() + status.slice(1))
@@ -840,6 +880,15 @@ describe('minimal Admin UI', () => {
 })
 
 describe('Admin Ingestion search and Sailor filters', () => {
+  it('searches real MAIL_ID and stable attachment ordinal', () => {
+    const records = [
+      { ...sourceIngestion, id: 'one', provider_message_id: '456:18', attachment_ordinal: 1, attachment_ordinal_verified: true },
+      { ...sourceIngestion, id: 'two', provider_message_id: '456:18', attachment_ordinal: 2, attachment_ordinal_verified: true },
+    ]
+    const all = { status: 'all' as const, disposition: 'all' as const, sailor: 'all' }
+    expect(filterAdminIngestions(records, { ...all, search: '456:18' }).map((item) => item.id)).toEqual(['one', 'two'])
+    expect(filterAdminIngestions(records, { ...all, search: '#2' }).map((item) => item.id)).toEqual(['two'])
+  })
   const ingestion = (overrides: Partial<AdminIngestion>): AdminIngestion => ({
     id: 'ingestion-1', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'sender@example.test', received_at: null, attachment_name: 'track.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: null, last_error: null, activity_id: 'activity-alpha', session_id: 'session-alpha', activity_created_by_ingestion: true, sailor_id: 'sailor-maxi', sailor_label: 'Maxi', sailor_email: 'maxi@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: null, activity_end_time: null, activity_sample_count: null,
     ...overrides,

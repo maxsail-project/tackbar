@@ -157,6 +157,40 @@ class MailboxReviewSummary:
     skipped_already_processed: int
     known_failed: int
     failed: int
+    staged_mode: bool = False
+    examined_messages: int = 0
+    completed_receipts: int = 0
+    rejected_receipts: int = 0
+    evaluated_receipts: int = 0
+
+
+def _staged_ovh_enabled() -> bool:
+    value = os.environ.get("TACKBAR_OVH_STAGED_MAIL_ENABLED", "0")
+    if value not in ("0", "1"):
+        raise MailboxReviewError("Invalid staged mailbox setting")
+    return value == "1"
+
+
+def _review_staged_ovh(provider: Any | None) -> MailboxReviewSummary:
+    # Verify only: migration remains an explicit, offline operator command.
+    from scripts.migrate_ingestion_history_v2 import verify
+    from app.services.mail_feedback import orchestrate_staged_mailbox_now
+
+    history_path = IngestionHistory().path
+    if history_path.exists():
+        try:
+            verify(history_path)
+        except (OSError, ValueError) as error:
+            raise MailboxReviewError("Staged mailbox requires verified migration") from error
+    elif any(receipt["receipt_state"] != "rejected" for receipt in MailReceiptStore(history_path).receipts()):
+        raise MailboxReviewError("Staged mailbox requires verified migration")
+    adapter = provider if provider is not None else _configured_provider("ovh")
+    staged = orchestrate_staged_mailbox_now(adapter)
+    return MailboxReviewSummary(
+        staged.processed_children, staged.successful_children, 0, 0, staged.failed_children,
+        True, staged.examined_messages, staged.completed_receipts,
+        staged.rejected_receipts, staged.evaluated_receipts,
+    )
 
 
 def _configured_provider_key() -> str:
@@ -183,11 +217,20 @@ def review_mailbox_now(provider: Any | None = None) -> MailboxReviewSummary:
     try:
         require_private_data_root()
         provider_key = _configured_provider_key()
+        staged_enabled = _staged_ovh_enabled()
     except Exception as error:
         _cycle_failure_logs.record_failure(
             "unknown", "configuration", error
         )
         raise
+    if staged_enabled:
+        try:
+            summary = _review_staged_ovh(provider)
+        except Exception as error:
+            _cycle_failure_logs.record_failure(provider_key, "staged_review", error)
+            raise
+        _cycle_failure_logs.record_success(provider_key)
+        return summary
     try:
         adapter = (
             provider

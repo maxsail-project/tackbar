@@ -10,6 +10,7 @@ import pytest
 from app.admin_auth import ADMIN_KEY_ENVIRONMENT_VARIABLE
 from app.admin_routes import router as admin_router
 from app.config import CURRENT_CONSENT_AGREEMENT_VERSION
+from app.email_providers.ovh import OVHAcquisitionBatch, OVHExaminedMessage, OVHMessageOutcome, OVHStagedMail
 from app.main import app
 from app.models import (
     ConsentRequest,
@@ -238,8 +239,46 @@ def test_admin_mailbox_review_remains_a_manual_fallback(
         "skipped_already_processed": 1,
         "known_failed": 1,
         "failed": 1,
+        "staged_mode": False,
+        "examined_messages": 0,
+        "completed_receipts": 0,
+        "rejected_receipts": 0,
+        "evaluated_receipts": 0,
     }
     assert calls == ["reviewed"]
+
+
+def test_admin_review_uses_gated_staged_flow_without_duplicate_feedback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(tmp_path))
+    monkeypatch.setenv(ADMIN_KEY_ENVIRONMENT_VARIABLE, ADMIN_KEY)
+    monkeypatch.setenv("TACKBAR_OVH_STAGED_MAIL_ENABLED", "1")
+    mail = OVHStagedMail("456:9", "sender@example.test", None, (), "attachment_count_limit")
+    examined = OVHExaminedMessage(9, None, OVHMessageOutcome.REJECTED, staged_mail=mail)
+    calls = []
+
+    class Provider:
+        def acquire_messages(self, last_seen_uid, expected_uidvalidity, *, staged):
+            calls.append((last_seen_uid, expected_uidvalidity, staged))
+            return OVHAcquisitionBatch(456, (examined,))
+
+    sent = []
+    monkeypatch.setattr("app.services.mailbox_review._configured_provider", lambda _: Provider())
+    monkeypatch.setattr("app.services.mailbox_review.process_provider_email", lambda *_: pytest.fail("Legacy processing ran"))
+    monkeypatch.setattr("app.services.mail_feedback._send", sent.append)
+    path = "/api/admin/ingestions/review-mailbox"
+    assert _request("POST", path, admin_key=None).status_code == 401
+    first = _request("POST", path)
+    second = _request("POST", path)
+    assert first.status_code == second.status_code == 200
+    assert first.json["staged_mode"] is True
+    assert first.json["rejected_receipts"] == 1
+    assert second.json["rejected_receipts"] == 0
+    assert calls == [(None, None, True), (9, 456, True)]
+    assert len(sent) == 1
+    assert _request("GET", "/api/admin/ingestions").json == []
+    assert _request("GET", "/api/admin/mail-receipts/ovh").json[0]["feedback_state"] == "sent"
 
 
 def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
@@ -265,7 +304,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 28
+    assert len(admin_router.routes) == 29
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -733,6 +772,54 @@ def test_admin_mail_feedback_resend_is_protected_and_audited(
     assert [item["kind"] for item in resent.json["feedback_attempts"]] == ["automatic", "manual"]
     assert [item["status"] for item in resent.json["feedback_attempts"]] == ["attempted", "sent"]
     assert store.get("ovh", "456:7")["feedback_state"] == "attempted"
+
+
+def test_admin_lists_rejected_mail_receipts_without_fabricating_ingestions(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    store = MailReceiptStore(IngestionHistory().path)
+    store.add({
+        "provider": "ovh", "provider_message_id": "456:13",
+        "receipt_state": "rejected", "attachment_ingestion_ids": [],
+        "sender_email": "sender@example.test", "rejection_reason": "attachment_count_limit",
+        "feedback_state": "unreserved", "feedback_attempts": [],
+    })
+    before = store.path.read_bytes()
+    unauthorized = _request("GET", "/api/admin/mail-receipts/ovh", admin_key=None)
+    listing = _request("GET", "/api/admin/mail-receipts/ovh")
+    ingestions = _request("GET", "/api/admin/ingestions")
+    assert unauthorized.status_code == 401
+    assert listing.status_code == ingestions.status_code == 200
+    assert ingestions.json == []
+    assert listing.json[0]["provider_message_id"] == "456:13"
+    assert listing.json[0]["rejection_reason"] == "attachment_count_limit"
+    assert listing.json[0]["attachment_ingestion_ids"] == []
+    assert listing.json[0]["sender_email"] == "sender@example.test"
+    assert store.path.read_bytes() == before
+    assert not (root / "ingestion_history.json").exists()
+
+
+def test_admin_exposes_distinct_staged_attachment_identity_and_acquisition_failure(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    history = IngestionHistory()
+    first = history.create("ovh", "456:19", "sender@example.test", "race.gpx", None, attachment_ordinal=1, status="pending")
+    second = history.create("ovh", "456:19", "sender@example.test", "race.gpx", None, attachment_ordinal=2, status="pending")
+    first.update(status="acquisition_failed", last_error="Attachment acquisition failed")
+    history.replace(first)
+    all_records = _request("GET", "/api/admin/ingestions")
+    failed = _request("GET", "/api/admin/ingestions", query_string="status=acquisition_failed")
+    detail = _request("GET", f"/api/admin/ingestions/{first['id']}")
+    assert all_records.status_code == failed.status_code == detail.status_code == 200
+    assert {item["id"] for item in all_records.json} == {first["id"], second["id"]}
+    assert {item["attachment_ordinal"] for item in all_records.json} == {1, 2}
+    assert all(item["attachment_ordinal_verified"] is True and item["provider_message_id"] == "456:19" for item in all_records.json)
+    assert [item["id"] for item in failed.json] == [first["id"]]
+    assert detail.json["status"] == "acquisition_failed"
+    assert detail.json["original_available"] is False
+    assert detail.json["diagnostic"]["attachment_ordinal"] == 1
 
 
 def test_mark_request_and_confirm_use_semantic_service(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

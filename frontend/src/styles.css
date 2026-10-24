@@ -2445,6 +2445,13 @@ input:focus-visible {
 .admin-maintenance-groups > div { padding-top: 10px; border-top: 1px solid var(--color-pale); }
 .admin-maintenance-groups > div:first-child { padding-top: 0; border-top: 0; }
 .admin-ingestion-summary__context { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 14px; margin-top: 10px; color: var(--color-navy); font-size: .8rem; }
+.admin-mail-rejections { margin-top: 24px; }
+.admin-mail-rejections > h2 { margin: 0 0 6px; color: var(--color-navy); font-size: 1rem; }
+.admin-mail-rejections > .admin-meta { margin: 0 0 12px; }
+.admin-mail-feedback { margin-top: 12px; padding: 12px; border: 1px solid var(--color-pale); border-radius: 10px; background: var(--color-white); overflow-wrap: anywhere; }
+.admin-mail-feedback h4 { margin: 12px 0 6px; color: var(--color-navy); font-size: .8rem; }
+.admin-mail-feedback ul { display: grid; gap: 7px; margin: 0 0 12px; padding-left: 20px; font-size: .82rem; }
+.admin-mail-feedback p { margin: 5px 0; font-size: .82rem; }
 .admin-detail-grid { display: grid; gap: 12px; }
 .admin-detail-grid > section { min-width: 0; padding: 14px; border-radius: 10px; background: var(--color-background); }
 .admin-detail-grid h3, .admin-maintenance h3 { margin: 0 0 10px; color: var(--color-navy); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }

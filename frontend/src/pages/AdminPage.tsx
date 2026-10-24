@@ -8,11 +8,13 @@ import {
   enrichSession,
   getAdminActivity,
   getAdminIngestion,
+  getAdminMailFeedback,
   getAdminSailor,
   getAdminSession,
   listAdminSailors,
   listAdminSessions,
   listAdminIngestions,
+  listAdminMailReceipts,
   listAdminActivities,
   markConsentRequested,
   sendConsentRequest,
@@ -28,11 +30,12 @@ import {
   discardIngestion,
   restoreIngestion,
   reviewMailbox,
+  resendAdminMailFeedback,
   recalculateAdminActivityManeuvers,
   type IngestionDispositionFilter,
   type IngestionStatusFilter,
 } from '../api/adminApi'
-import type { AdminActivity, AdminActivitySummary, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary, CapabilityState, ConsentOperationalGroup } from '../types/admin'
+import type { AdminActivity, AdminActivitySummary, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminMailFeedback, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 import { sessionDisplayLocation } from '../utils/sessionPresentation'
 
 export type Section = 'sailors' | 'sessions' | 'ingestions' | 'activities'
@@ -89,6 +92,9 @@ export function filterAdminIngestions(ingestions: AdminIngestion[], filters: Ing
     return [
       ingestion.id,
       ingestion.attachment_name,
+      ingestion.provider_message_id,
+      ingestion.attachment_ordinal?.toString(),
+      ingestion.attachment_ordinal_verified ? `#${ingestion.attachment_ordinal}` : null,
       ingestion.sender_email,
       ingestion.sailor_id,
       ingestion.sailor_label,
@@ -248,6 +254,9 @@ export default function AdminPage() {
   const [sailors, setSailors] = useState<AdminSailor[]>([])
   const [sessions, setSessions] = useState<AdminSessionSummary[]>([])
   const [ingestions, setIngestions] = useState<AdminIngestion[]>([])
+  const [mailReceipts, setMailReceipts] = useState<AdminMailFeedback[]>([])
+  const [selectedMailFeedback, setSelectedMailFeedback] = useState<AdminMailFeedback | null>(null)
+  const [selectedRejectedMailId, setSelectedRejectedMailId] = useState<string | null>(null)
   const ingestionRevision = useRef(0)
   const [activities, setActivities] = useState<AdminActivitySummary[]>([])
   const [ingestionStatus, setIngestionStatus] = useState<IngestionStatusFilter>('all')
@@ -276,6 +285,9 @@ export default function AdminPage() {
       setSessions([])
       setActivities([])
       setIngestions([])
+      setMailReceipts([])
+      setSelectedMailFeedback(null)
+      setSelectedRejectedMailId(null)
       setLastUploadId(null)
       setUploadOpen(false)
       setSelectedSailor(null)
@@ -286,12 +298,13 @@ export default function AdminPage() {
   }
   const loadAll = async (key: string) => {
     const revision = ingestionRevision.current
-    const [nextSailors, nextSessions, nextIngestions, nextActivities] = await Promise.all([listAdminSailors(key), listAdminSessions(key), listAdminIngestions(key), listAdminActivities(key)])
+    const [nextSailors, nextSessions, nextIngestions, nextActivities, nextReceipts] = await Promise.all([listAdminSailors(key), listAdminSessions(key), listAdminIngestions(key), listAdminActivities(key), listAdminMailReceipts(key)])
     if (revision === ingestionRevision.current) {
       ingestionRevision.current += 1
       setIngestions(nextIngestions)
     }
     setSailors(nextSailors); setSessions(nextSessions); setActivities(nextActivities)
+    setMailReceipts(nextReceipts)
   }
   // Re-entering Ingestions inspects persisted results, including work completed
   // while this section was closed. No other dashboard collection is polled.
@@ -299,9 +312,10 @@ export default function AdminPage() {
     if (!adminKey || section !== 'ingestions') return
     const controller = new AbortController()
     const revision = ingestionRevision.current
-    void listAdminIngestions(adminKey, 'all', 'all', controller.signal).then((records) => {
+    void Promise.all([listAdminIngestions(adminKey, 'all', 'all', controller.signal), listAdminMailReceipts(adminKey)]).then(([records, receipts]) => {
       // An earlier read must not replace a newer acceptance or worker update.
       if (!controller.signal.aborted && revision === ingestionRevision.current) setIngestions(records)
+      if (!controller.signal.aborted) setMailReceipts(receipts)
     }).catch((cause: unknown) => { if (!controller.signal.aborted) handleError(cause) })
     return () => controller.abort()
   }, [adminKey, section])
@@ -334,6 +348,7 @@ export default function AdminPage() {
       if (selectedSailor) setSelectedSailor(await getAdminSailor(adminKey, selectedSailor.id))
       if (selectedSession) setSelectedSession(await getAdminSession(adminKey, selectedSession.id))
       if (selectedActivity) setSelectedActivity(await getAdminActivity(adminKey, selectedActivity.id))
+      if (selectedMailFeedback) setSelectedMailFeedback(await getAdminMailFeedback(adminKey, selectedMailFeedback.provider_message_id))
       const selected = drilldown.find((item) => item.kind === 'ingestion')
       if (selected) {
         const detail = await getAdminIngestion(adminKey, selected.value.id)
@@ -377,7 +392,34 @@ export default function AdminPage() {
   const mailboxAction = async () => {
     if (!adminKey) return
     setBusy(true); setError(null); setReviewSummary(null)
-    try { const result = await reviewMailbox(adminKey); setReviewSummary(`Mailbox review complete: ${result.processed} processed · ${result.skipped_already_processed} skipped · ${result.known_failed} known failed · ${result.failed} failed`); setIngestions(await listAdminIngestions(adminKey)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    try {
+      const result = await reviewMailbox(adminKey)
+      setReviewSummary(result.staged_mode
+        ? `Staged mailbox review: ${result.examined_messages} examined · ${result.completed_receipts} accepted mails · ${result.rejected_receipts} rejected mails · ${result.processed} tracks processed · ${result.failed} processing failures. Inspect Ingestions for acquisition failures.`
+        : `Mailbox review complete: ${result.processed} processed · ${result.skipped_already_processed} skipped · ${result.known_failed} known failed · ${result.failed} failed`)
+      setIngestions(await listAdminIngestions(adminKey))
+      setMailReceipts(await listAdminMailReceipts(adminKey))
+    } catch (cause) { handleError(cause) } finally { setBusy(false) }
+  }
+  const inspectMailFeedback = async (messageId: string, rejected = false) => {
+    if (!adminKey) return
+    if (selectedMailFeedback?.provider_message_id === messageId && (!rejected || selectedRejectedMailId === messageId)) { setSelectedMailFeedback(null); setSelectedRejectedMailId(null); return }
+    setBusy(true); setError(null)
+    try {
+      const receipt = await getAdminMailFeedback(adminKey, messageId)
+      setSelectedMailFeedback(receipt)
+      setSelectedRejectedMailId(rejected ? messageId : null)
+      if (rejected) setDrilldown([])
+    } catch (cause) { handleError(cause) } finally { setBusy(false) }
+  }
+  const resendMailFeedback = async (messageId: string) => {
+    if (!adminKey || !window.confirm(`Resend mail feedback for MAIL_ID ${messageId}? This may send another email.`)) return
+    setBusy(true); setError(null)
+    try {
+      const receipt = await resendAdminMailFeedback(adminKey, messageId)
+      setSelectedMailFeedback(receipt)
+      setMailReceipts((current) => current.map((item) => item.provider_message_id === messageId ? receipt : item))
+    } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
   const fetchDrilldown = async (kind: AdminDrilldown['kind'], id: string): Promise<AdminDrilldown> => {
     if (!adminKey) throw new Error('Admin access unavailable')
@@ -400,7 +442,7 @@ export default function AdminPage() {
     if (selected && !reveal) { setDrilldown([]); return }
     if (reveal) ingestionToReveal.current = id
     setBusy(true); setError(null)
-    try { setDrilldown([await fetchDrilldown('ingestion', id)]) } catch (cause) { ingestionToReveal.current = null; handleError(cause) } finally { setBusy(false) }
+    try { setDrilldown([await fetchDrilldown('ingestion', id)]); setSelectedRejectedMailId(null); setSelectedMailFeedback(null) } catch (cause) { ingestionToReveal.current = null; handleError(cause) } finally { setBusy(false) }
   }
   const selectActivity = async (id: string) => {
     if (selectedActivity?.id === id) { setSelectedActivity(null); return }
@@ -459,6 +501,7 @@ export default function AdminPage() {
     sailor: ingestionSailor,
     search: ingestionSearch,
   })
+  const visibleRejectedMails = mailReceipts.filter((receipt) => receipt.receipt_state === 'rejected' && (!ingestionSearch.trim() || [receipt.provider_message_id, receipt.sender_email].some((value) => value?.toLocaleLowerCase().includes(ingestionSearch.trim().toLocaleLowerCase()))))
   const visibleActivities = filterAdminActivities(activities, activitySearch)
   const visibleSailors = filterAdminSailors(sailors, sailorSearch)
   const visibleSessions = filterAdminSessions(sessions, activities, sessionSearch)
@@ -483,8 +526,11 @@ export default function AdminPage() {
       {lastUpload && <IngestionUploadResult ingestion={lastUpload} onInspect={() => { setIngestionStatus('all'); setIngestionDisposition('all'); setIngestionSailor('all'); setIngestionSearch(''); void selectIngestion(lastUpload.id, true) }} />}
       <IngestionFilters status={ingestionStatus} disposition={ingestionDisposition} sailor={ingestionSailor} search={ingestionSearch} sailors={sailorOptions} busy={busy} onChange={changeIngestionFilters} onSailorChange={(value) => { setIngestionSailor(value); setDrilldown([]) }} onSearchChange={(value) => { setIngestionSearch(value); setDrilldown([]) }} />{reviewSummary && <p className="admin-meta">{reviewSummary}</p>}{<>{visibleIngestions.length === 0 && <p className="admin-meta">No Ingestions match the active filters.</p>}<div className="admin-list admin-ingestion-list">{visibleIngestions.map((item) => {
       const selected = drilldown.length === 1 && drilldown[0].kind === 'ingestion' && drilldown[0].value.id === item.id ? withSailorLabel(drilldown[0].value) : null
-      return <IngestionCard key={item.id} ingestion={item} detail={selected} session={sessions.find((session) => session.id === item.session_id)} busy={busy} onSelect={() => void selectIngestion(item.id)} onFollow={(kind, id) => void followRelation(kind, id)} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} onDiscard={() => void ingestionDispositionAction(item.id, () => discardIngestion(adminKey!, item.id))} onRestore={() => void ingestionDispositionAction(item.id, () => restoreIngestion(adminKey!, item.id))} />
-    })}</div></>}</section>}
+      const receipt = item.provider === 'ovh' ? mailReceipts.find((entry) => entry.provider_message_id === item.provider_message_id) : undefined
+      return <IngestionCard key={item.id} ingestion={item} detail={selected} session={sessions.find((session) => session.id === item.session_id)} receipt={receipt} inspectedReceipt={selectedMailFeedback?.provider_message_id === item.provider_message_id && !selectedRejectedMailId ? selectedMailFeedback : null} mailChildren={presentedIngestions.filter((entry) => entry.provider === 'ovh' && entry.provider_message_id === item.provider_message_id)} busy={busy} onSelect={() => void selectIngestion(item.id)} onFollow={(kind, id) => void followRelation(kind, id)} onInspectMail={() => item.provider_message_id && void inspectMailFeedback(item.provider_message_id)} onResendMail={() => item.provider_message_id && void resendMailFeedback(item.provider_message_id)} onReprocess={() => { if (window.confirm('Reprocess this ingestion from its preserved original?')) void ingestionAction(item.id) }} onDiscard={() => void ingestionDispositionAction(item.id, () => discardIngestion(adminKey!, item.id))} onRestore={() => void ingestionDispositionAction(item.id, () => restoreIngestion(adminKey!, item.id))} />
+    })}</div></>}
+      {visibleRejectedMails.length > 0 && <section className="admin-mail-rejections"><h2>Rejected mails</h2><p className="admin-meta">Whole-mail rejections have no attachment Ingestions.</p><div className="admin-list">{visibleRejectedMails.map((receipt) => <article key={receipt.provider_message_id} className="admin-card admin-entity-card"><button className="admin-entity-summary" type="button" aria-expanded={selectedRejectedMailId === receipt.provider_message_id} disabled={busy} onClick={() => void inspectMailFeedback(receipt.provider_message_id, true)}><div className="admin-card__heading"><div><h3>MAIL_ID {receipt.provider_message_id}</h3><p>{receipt.sender_email || 'Sender unavailable'} · {mailRejectionLabel(receipt.rejection_reason)}</p></div><span className="state-badge state-expired">Rejected</span></div><DisclosureAffordance expanded={selectedRejectedMailId === receipt.provider_message_id} /></button>{selectedRejectedMailId === receipt.provider_message_id && selectedMailFeedback && <MailFeedbackPanel receipt={selectedMailFeedback} busy={busy} onResend={() => void resendMailFeedback(receipt.provider_message_id)} />}</article>)}</div></section>}
+    </section>}
   </main>
 }
 
@@ -511,7 +557,7 @@ export function AdminSearch({ value, busy, placeholder, onChange }: { value: str
 }
 
 export function IngestionFilters({ status, disposition, sailor, search, sailors, busy, onChange, onSailorChange, onSearchChange }: { status: IngestionStatusFilter, disposition: IngestionDispositionFilter, sailor: string, search: string, sailors: Array<{ value: string; label: string }>, busy: boolean, onChange: (status: IngestionStatusFilter, disposition: IngestionDispositionFilter) => void, onSailorChange: (sailor: string) => void, onSearchChange: (search: string) => void }) {
-  return <div className="admin-filters"><AdminSearch value={search} busy={busy} placeholder="Filename, email or ID" onChange={onSearchChange} /><label>Status<select value={status} disabled={busy} onChange={(event) => onChange(event.target.value as IngestionStatusFilter, disposition)}><option value="all">All</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="processed">Processed</option><option value="failed">Failed</option></select></label><label>Disposition<select value={disposition} disabled={busy} onChange={(event) => onChange(status, event.target.value as IngestionDispositionFilter)}><option value="all">All</option><option value="active">Active</option><option value="discarded">Discarded</option></select></label><label>Sailor<select value={sailor} disabled={busy} onChange={(event) => onSailorChange(event.target.value)}><option value="all">All sailors</option>{sailors.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
+  return <div className="admin-filters"><AdminSearch value={search} busy={busy} placeholder="Filename, email, MAIL_ID or attachment number" onChange={onSearchChange} /><label>Status<select value={status} disabled={busy} onChange={(event) => onChange(event.target.value as IngestionStatusFilter, disposition)}><option value="all">All</option><option value="acquisition_failed">Acquisition failed</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="processed">Processed</option><option value="failed">Failed</option></select></label><label>Disposition<select value={disposition} disabled={busy} onChange={(event) => onChange(status, event.target.value as IngestionDispositionFilter)}><option value="all">All</option><option value="active">Active</option><option value="discarded">Discarded</option></select></label><label>Sailor<select value={sailor} disabled={busy} onChange={(event) => onSailorChange(event.target.value)}><option value="all">All sailors</option>{sailors.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
 }
 
 function compactId(value: string | null) {
@@ -554,33 +600,72 @@ export function RelationButton({ label, id, value, unavailableValue = 'Unavailab
   return id ? <button className="admin-relation" type="button" onClick={onFollow}><span>{label}</span><strong>{value || compactId(id)}</strong><span aria-hidden="true">›</span></button> : <div className="admin-relation admin-relation--unavailable"><span>{label}</span><strong>{unavailableValue}</strong></div>
 }
 
-export function IngestionCard({ ingestion, detail, session, busy, onSelect, onFollow, onReprocess, onDiscard, onRestore }: { ingestion: AdminIngestion, detail?: AdminIngestionDetail | null, session?: AdminSessionSummary, busy: boolean, onSelect: () => void, onFollow: (kind: AdminDrilldown['kind'], id: string) => void, onReprocess: () => void, onDiscard: () => void, onRestore: () => void }) {
+export function mailRejectionLabel(reason: string | null) {
+  const labels: Record<string, string> = {
+    attachment_count_limit: 'More than 12 supported attachments',
+    decoded_bytes_limit: 'Supported attachments exceed 16 MiB combined',
+    raw_message_limit: 'Raw message size limit exceeded',
+    mime_part_limit: 'MIME part limit exceeded',
+    named_part_limit: 'Named attachment part limit exceeded',
+  }
+  return reason ? labels[reason] || 'Mail rejected during acquisition' : 'Mail rejected during acquisition'
+}
+
+export function mailFeedbackLabel(receipt: AdminMailFeedback) {
+  if (receipt.feedback_state === 'attempted') return 'Attempted · delivery uncertain'
+  if (receipt.feedback_state === 'sent') return 'Sent · accepted by SMTP'
+  if (receipt.feedback_state === 'failed') return 'Failed · delivery not accepted'
+  if (receipt.feedback_state === 'legacy_suppressed') return 'Legacy mail · feedback suppressed'
+  if (receipt.feedback_state === 'suppressed') return 'Suppressed · no automatic results'
+  return receipt.receipt_state === 'incomplete' ? 'Acquisition incomplete' : 'Not attempted'
+}
+
+function mailSuppressionLabel(reason: string | null) {
+  const labels: Record<string, string> = {
+    non_active: 'Consent was not ACTIVE at the feedback decision',
+    unsafe_recipient: 'Usable outer sender unavailable',
+    unusable_access: 'Current recipient or access unavailable',
+    uncertain_consent: 'Consent at first processing cannot be proven after Reprocess',
+  }
+  return reason ? labels[reason] || 'Automatic feedback unavailable' : 'Automatic feedback unavailable'
+}
+
+export function MailFeedbackPanel({ receipt, children: mailChildren = [], busy, onResend }: { receipt: AdminMailFeedback, children?: AdminIngestion[], busy: boolean, onResend?: () => void }) {
+  const canResend = (receipt.receipt_state === 'complete' || receipt.receipt_state === 'rejected') && receipt.feedback_attempts.some((attempt) => attempt.kind === 'automatic')
+  return <div className="admin-mail-feedback"><p><strong>MAIL_ID:</strong> {receipt.provider_message_id}</p><p><strong>Feedback:</strong> {mailFeedbackLabel(receipt)}</p>{receipt.receipt_state === 'rejected' && <p><strong>Rejection:</strong> {mailRejectionLabel(receipt.rejection_reason)}</p>}{receipt.feedback_state === 'suppressed' && <p className="admin-meta">{mailSuppressionLabel(receipt.feedback_suppressed_reason)}. Consent and welcome delivery have separate states.</p>}{mailChildren.length > 0 && <><h4>Attachment outcomes</h4><ul>{mailChildren.map((child) => <li key={child.id}>#{child.attachment_ordinal ?? '?'} · {child.attachment_name || 'Unknown attachment'} · {ingestionStatusLabels[child.status]}{child.status === 'processed' && child.activity_created_by_ingestion === false ? ' · previously received' : ''}</li>)}</ul></>}
+    <h4>Delivery attempts</h4>{receipt.feedback_attempts.length === 0 ? <p>None</p> : <ul>{receipt.feedback_attempts.map((attempt) => <li key={attempt.id}>{attempt.kind === 'automatic' ? 'Automatic' : 'Manual'} · {attempt.status === 'attempted' ? 'Attempted · delivery uncertain' : attempt.status === 'sent' ? 'Sent · accepted by SMTP' : 'Failed'} · {localDate(attempt.attempted_at)}{attempt.last_error && ` · ${attempt.last_error}`}</li>)}</ul>}
+    {canResend && onResend && <button type="button" disabled={busy} onClick={onResend}>Resend mail feedback</button>}
+  </div>
+}
+
+export function IngestionCard({ ingestion, detail, session, receipt, inspectedReceipt, mailChildren, busy, onSelect, onFollow, onInspectMail, onResendMail, onReprocess, onDiscard, onRestore }: { ingestion: AdminIngestion, detail?: AdminIngestionDetail | null, session?: AdminSessionSummary, receipt?: AdminMailFeedback, inspectedReceipt?: AdminMailFeedback | null, mailChildren?: AdminIngestion[], busy: boolean, onSelect: () => void, onFollow: (kind: AdminDrilldown['kind'], id: string) => void, onInspectMail?: () => void, onResendMail?: () => void, onReprocess: () => void, onDiscard: () => void, onRestore: () => void }) {
   const hasSailing = Boolean(ingestion.activity_start_time && ingestion.activity_end_time)
   const technicalStatusClass = ingestion.status === 'processed' ? 'active' : ingestion.status === 'failed' ? 'expired' : 'pending_needs_request'
   const activityOutcome = ingestion.activity_created_by_ingestion === true ? 'Activity created' : ingestion.activity_created_by_ingestion === false ? 'Existing Activity reused' : 'Activity creation status unknown'
   return <article id={`admin-ingestion-${ingestion.id}`} className={`admin-card admin-entity-card admin-ingestion-card${detail ? ' is-expanded is-selected' : ''}`} aria-current={detail ? 'true' : undefined}>
     <button className="admin-entity-summary admin-ingestion-summary" type="button" aria-expanded={Boolean(detail)} disabled={busy} onClick={onSelect}>
       <div className="admin-card__heading"><div><h2>{ingestion.attachment_name || 'Unknown attachment'}</h2><p>{ingestion.provider === 'admin_upload' ? `Admin upload · ${sailorIdentity(ingestion.sailor_label, ingestion.sailor_email, ingestion.owner_sailor_id ?? ingestion.sailor_id)}` : `${ingestion.sender_email || 'Unknown sender'} · ${ingestion.provider}`} · {localDate(ingestion.received_at || ingestion.accepted_at || null)}</p></div><span className={`state-badge state-${technicalStatusClass}`}>{ingestionStatusLabels[ingestion.status]}</span></div>
-      <div className="admin-ingestion-summary__context">{hasSailing ? <span>Sailing <strong>{sailingDate(ingestion.activity_start_time!)}</strong> · {sailingTime(ingestion.activity_start_time!)}–{sailingTime(ingestion.activity_end_time!)} · {ingestion.activity_sample_count?.toLocaleString() ?? '—'} samples</span> : <span>Sailing context unavailable</span>}{ingestion.status === 'processed' && ingestion.activity_id && <span>{activityOutcome}</span>}{ingestion.disposition === 'discarded' && <span className="state-badge state-revoked">Discarded</span>}</div>
+      <div className="admin-ingestion-summary__context">{ingestion.provider_message_id && <span>MAIL_ID <strong>{ingestion.provider_message_id}</strong>{ingestion.attachment_ordinal_verified && ` · attachment #${ingestion.attachment_ordinal}`}</span>}{hasSailing ? <span>Sailing <strong>{sailingDate(ingestion.activity_start_time!)}</strong> · {sailingTime(ingestion.activity_start_time!)}–{sailingTime(ingestion.activity_end_time!)} · {ingestion.activity_sample_count?.toLocaleString() ?? '—'} samples</span> : <span>Sailing context unavailable</span>}{ingestion.status === 'processed' && ingestion.activity_id && <span>{activityOutcome}</span>}{ingestion.disposition === 'discarded' && <span className="state-badge state-revoked">Discarded</span>}</div>
       <DisclosureAffordance expanded={Boolean(detail)} />
     </button>
-    {detail && <IngestionOperationalDetail ingestion={detail} session={session} busy={busy} onFollow={onFollow} onReprocess={onReprocess} onDiscard={onDiscard} onRestore={onRestore} />}
+    {detail && <IngestionOperationalDetail ingestion={detail} session={session} receipt={receipt} inspectedReceipt={inspectedReceipt} mailChildren={mailChildren} busy={busy} onFollow={onFollow} onInspectMail={onInspectMail} onResendMail={onResendMail} onReprocess={onReprocess} onDiscard={onDiscard} onRestore={onRestore} />}
   </article>
 }
 
-export function IngestionOperationalDetail({ ingestion, session, busy, onFollow, onReprocess, onDiscard, onRestore }: { ingestion: AdminIngestionDetail, session?: AdminSessionSummary, busy: boolean, onFollow: (kind: AdminDrilldown['kind'], id: string) => void, onReprocess?: () => void, onDiscard?: () => void, onRestore?: () => void }) {
+export function IngestionOperationalDetail({ ingestion, session, receipt, inspectedReceipt, mailChildren, busy, onFollow, onInspectMail, onResendMail, onReprocess, onDiscard, onRestore }: { ingestion: AdminIngestionDetail, session?: AdminSessionSummary, receipt?: AdminMailFeedback, inspectedReceipt?: AdminMailFeedback | null, mailChildren?: AdminIngestion[], busy: boolean, onFollow: (kind: AdminDrilldown['kind'], id: string) => void, onInspectMail?: () => void, onResendMail?: () => void, onReprocess?: () => void, onDiscard?: () => void, onRestore?: () => void }) {
   const notification = ingestion.session_result_notification
-  const outcome = ingestionIsRunning(ingestion) ? 'Awaiting processing result' : ingestion.provider === 'admin_upload' && ingestion.status === 'failed' && !ingestion.activity_id ? 'No related Activity' : ingestion.activity_created_by_ingestion === true ? 'Created by this Ingestion' : ingestion.activity_created_by_ingestion === false ? 'Reused existing Activity' : 'Unknown (legacy provenance)'
+  const outcome = ingestion.status === 'acquisition_failed' ? 'Acquisition failed; no original was preserved' : ingestionIsRunning(ingestion) ? 'Awaiting processing result' : ingestion.status === 'failed' && !ingestion.activity_id ? 'No related Activity' : ingestion.activity_created_by_ingestion === true ? 'Created by this Ingestion' : ingestion.activity_created_by_ingestion === false ? 'Reused existing Activity' : 'Unknown (legacy provenance)'
   const outboundStatus = ingestion.provider === 'admin_upload' ? 'Suppressed · manual source (no automatic emails)' : !ingestion.session_result_notification_candidate ? 'Not applicable / not attempted' : !notification ? 'Not attempted' : notification.status === 'eligible' ? 'Not attempted' : notification.status[0].toUpperCase() + notification.status.slice(1)
   return <div className="admin-entity-detail admin-ingestion-detail">
     <div className="admin-detail-grid">
       <section><h3>Sailing</h3>{ingestion.activity_start_time && ingestion.activity_end_time ? <dl><div><dt>Date</dt><dd>{sailingDate(ingestion.activity_start_time)}</dd></div><div><dt>Time</dt><dd>{sailingTime(ingestion.activity_start_time)}–{sailingTime(ingestion.activity_end_time)}</dd></div><div><dt>Duration</dt><dd>{sailingDuration(ingestion.activity_start_time, ingestion.activity_end_time)}</dd></div><div><dt>Samples</dt><dd>{ingestion.activity_sample_count?.toLocaleString() ?? '—'}</dd></div></dl> : <p>Unavailable</p>}</section>
-      <section><h3>Source</h3><dl><div><dt>Attachment</dt><dd>{ingestion.attachment_name || '—'}</dd></div>{ingestion.provider !== 'admin_upload' && <div><dt>Sender</dt><dd>{ingestion.sender_email || '—'}</dd></div>}<div><dt>Provider</dt><dd>{ingestion.provider}</dd></div>{ingestion.provider === 'admin_upload' ? <div><dt>Accepted</dt><dd>{localDate(ingestion.accepted_at || null)}</dd></div> : <div><dt>Email received</dt><dd>{localDate(ingestion.received_at)}</dd></div>}</dl></section>
+      <section><h3>Source</h3><dl><div><dt>Attachment</dt><dd>{ingestion.attachment_name || '—'}</dd></div>{ingestion.provider !== 'admin_upload' && <div><dt>Sender</dt><dd>{ingestion.sender_email || '—'}</dd></div>}<div><dt>Provider</dt><dd>{ingestion.provider}</dd></div>{ingestion.provider_message_id && <div><dt>MAIL_ID</dt><dd>{ingestion.provider_message_id}</dd></div>}{ingestion.attachment_ordinal_verified ? <div><dt>Attachment identity</dt><dd>MIME attachment #{ingestion.attachment_ordinal}</dd></div> : ingestion.attachment_ordinal != null ? <div><dt>Attachment identity</dt><dd>Logical single-file #{ingestion.attachment_ordinal} · historical MIME position unverified</dd></div> : null}{ingestion.provider === 'admin_upload' ? <div><dt>Accepted</dt><dd>{localDate(ingestion.accepted_at || null)}</dd></div> : <div><dt>Email received</dt><dd>{localDate(ingestion.received_at)}</dd></div>}</dl></section>
       <section className="admin-detail-grid__wide"><h3>Traceability</h3><div className="admin-relations"><RelationButton label="Sailor" id={ingestion.sailor_id} value={sailorIdentity(ingestion.sailor_label, ingestion.sailor_email, ingestion.sailor_id)} onFollow={() => ingestion.sailor_id && onFollow('sailor', ingestion.sailor_id)} /><RelationButton label="Activity" id={ingestion.activity_id} value={ingestion.activity_start_time && ingestion.activity_end_time ? activityRelationIdentity({ start_time: ingestion.activity_start_time, end_time: ingestion.activity_end_time }) : undefined} onFollow={() => ingestion.activity_id && onFollow('activity', ingestion.activity_id)} /><RelationButton label="Session" id={ingestion.session_id} value={session ? sessionRelationIdentity(session, true) : undefined} onFollow={() => ingestion.session_id && onFollow('session', ingestion.session_id)} /></div><p><strong>Activity outcome:</strong> {outcome}</p></section>
       <section><h3>Processing</h3><dl><div><dt>Technical status</dt><dd>{ingestionStatusLabels[ingestion.status]}</dd></div><div><dt>Disposition</dt><dd>{ingestion.disposition === 'active' ? 'Active' : 'Discarded'}</dd></div><div><dt>Attempts</dt><dd>{ingestion.attempts}</dd></div><div><dt>Last attempt</dt><dd>{localDate(ingestion.last_attempt_at)}</dd></div><div><dt>Preserved original</dt><dd>{ingestion.original_available ? 'Available' : 'Unavailable'}</dd></div></dl>{ingestion.last_error && <p className="admin-error">{ingestion.last_error}</p>}</section>
-      <section><h3>Outbound notification</h3><p><strong>Status:</strong> {outboundStatus}</p>{notification?.attempted_at && <p><strong>Attempted:</strong> {localDate(notification.attempted_at)}</p>}{notification?.sent_at && <p><strong>Sent:</strong> {localDate(notification.sent_at)}</p>}{notification?.last_error && <p className="admin-error">{notification.last_error}</p>}<p className="admin-meta">Outbound notification delivery does not change the technical Ingestion result.</p></section>
+      {(!ingestion.attachment_ordinal_verified || ingestion.provider === 'admin_upload') && <section><h3>Outbound notification</h3><p><strong>Status:</strong> {outboundStatus}</p>{notification?.attempted_at && <p><strong>Attempted:</strong> {localDate(notification.attempted_at)}</p>}{notification?.sent_at && <p><strong>Sent:</strong> {localDate(notification.sent_at)}</p>}{notification?.last_error && <p className="admin-error">{notification.last_error}</p>}<p className="admin-meta">Outbound notification delivery does not change the technical Ingestion result.</p></section>}
+      {ingestion.provider === 'ovh' && receipt && <section className="admin-detail-grid__wide"><h3>Mail feedback</h3><p>{mailFeedbackLabel(receipt)} · {receipt.attachment_ingestion_ids.length} supported attachment{receipt.attachment_ingestion_ids.length === 1 ? '' : 's'}</p>{onInspectMail && <button type="button" disabled={busy} onClick={onInspectMail}>{inspectedReceipt ? 'Close mail feedback' : 'Inspect mail feedback'}</button>}{inspectedReceipt && <MailFeedbackPanel receipt={inspectedReceipt} children={mailChildren} busy={busy} onResend={onResendMail} />}</section>}
     </div>
-    {onReprocess && onDiscard && onRestore && <section className="admin-maintenance"><h3>Maintenance</h3><div className="admin-actions">{ingestion.original_available && <button disabled={busy || ingestionIsRunning(ingestion)} onClick={onReprocess}>Reprocess</button>}<button disabled={busy || ingestionIsRunning(ingestion)} onClick={ingestion.disposition === 'active' ? onDiscard : onRestore}>{ingestion.disposition === 'active' ? 'Discard' : 'Restore'}</button></div></section>}
+    {onReprocess && onDiscard && onRestore && <section className="admin-maintenance"><h3>Maintenance</h3><div className="admin-actions">{ingestion.original_available && ingestion.status !== 'acquisition_failed' && <button disabled={busy || ingestionIsRunning(ingestion)} onClick={onReprocess}>Reprocess</button>}<button disabled={busy || ingestionIsRunning(ingestion)} onClick={ingestion.disposition === 'active' ? onDiscard : onRestore}>{ingestion.disposition === 'active' ? 'Discard' : 'Restore'}</button></div></section>}
     <details className="admin-advanced"><summary>Advanced details</summary><h4>Technical traceability</h4><dl><div><dt>Ingestion ID</dt><dd>{ingestion.id}</dd></div><div><dt>Sailor ID</dt><dd>{ingestion.sailor_id || '—'}</dd></div><div><dt>Activity ID</dt><dd>{ingestion.activity_id || '—'}</dd></div><div><dt>Session ID</dt><dd>{ingestion.session_id || '—'}</dd></div>{ingestion.provider === 'admin_upload' ? <div><dt>Operation ID</dt><dd>{ingestion.operation_id || ingestion.id}</dd></div> : <div><dt>Provider message ID</dt><dd>{ingestion.provider_message_id}</dd></div>}<div><dt>Attachment SHA-256</dt><dd>{ingestion.attachment_sha256 || '—'}</dd></div></dl></details>
     <DiagnosticJson value={ingestion.diagnostic} />
   </div>
