@@ -11,7 +11,7 @@ from app.email_providers.ovh import (
 )
 from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_processing import reprocess_ingestion
-from app.services.mail_receipts import MailReceiptStore
+from app.services.mail_receipts import MailReceiptStore, validate_receipt
 from app.services.mailbox_review import MailboxReviewError, review_mailbox_now
 from app.models import InboundEmail
 from app.services.ovh_mailbox_cursor import OVHMailboxCursor, OVHMailboxCursorStore
@@ -19,6 +19,7 @@ from app.services.staged_mail_acquisition import (
     recover_unattempted_ingestions, stage_ovh_mailbox_now,
 )
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
+from scripts.migrate_ingestion_history_v2 import check, verify
 
 
 def _raw(attachments):
@@ -158,6 +159,7 @@ def test_staged_adapter_prefetches_size_and_skips_oversized_body(monkeypatch):
     monkeypatch.setattr("app.email_providers.ovh.imaplib.IMAP4_SSL", lambda *_args: fake)
     batch = OVHAdapter("host", 993, "user", "password").acquire_messages(staged=True)
     assert [m.outcome for m in batch.examined_messages] == [OVHMessageOutcome.SUPPORTED, OVHMessageOutcome.REJECTED]
+    assert batch.examined_messages[1].staged_mail.sender_email == ""
     assert not any(call == ("FETCH", b"2", "(BODY.PEEK[])") for call in fake.calls)
 
 
@@ -250,6 +252,116 @@ def test_whole_mail_rejection_has_no_child_and_advances_cursor(root):
     assert receipt["receipt_state"] == "rejected"
     assert receipt["rejection_reason"] == "attachment_count_limit"
     assert receipt["feedback_attempts"] == []
+
+
+@pytest.mark.parametrize(
+    ("attachments", "reason"),
+    [
+        ([("track.gpx", b"x")] * 13, "attachment_count_limit"),
+        ([("track.gpx", b"x" * (MAX_DECODED_SUPPORTED_BYTES + 1))], "decoded_bytes_limit"),
+    ],
+)
+def test_capacity_rejection_persists_parsed_outer_sender(root, attachments, reason):
+    raw = _raw(attachments).replace(b"From: sailor@example.test", b"From: Sailor <sailor@example.test>")
+    mail = _extract_staged_mail(raw, "456:1")
+    assert mail.rejection_reason == reason and mail.sender_email == "sailor@example.test"
+    stage_ovh_mailbox_now(_provider(_examined(1, mail, OVHMessageOutcome.REJECTED)))
+    receipt = MailReceiptStore(IngestionHistory().path).get("ovh", "456:1")
+    assert receipt["sender_email"] == "sailor@example.test"
+    assert receipt["rejection_reason"] == reason
+    assert receipt["feedback_state"] == "unreserved" and receipt["feedback_attempts"] == []
+    assert IngestionHistory().records() == []
+    history_path = IngestionHistory().path
+    history_path.write_text("[]", encoding="utf-8")
+    before = MailReceiptStore(history_path).path.read_bytes()
+    assert check(history_path)["ingestions"] == 0
+    assert verify(history_path)["stored_receipts"] == 1
+    assert MailReceiptStore(history_path).path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "from_headers",
+    [b"", b"From: invalid sender text\n", b"From: bad@\n", b"From: first@example.test, second@example.test\n", b"From: first@example.test\nFrom: second@example.test\n"],
+)
+def test_unusable_outer_from_is_not_persisted_as_recipient(root, from_headers):
+    raw = _raw([("track.gpx", b"x")] * 13).replace(b"From: sailor@example.test\n", from_headers)
+    mail = _extract_staged_mail(raw, "456:1")
+    assert mail.rejection_reason == "attachment_count_limit" and mail.sender_email == ""
+    stage_ovh_mailbox_now(_provider(_examined(1, mail, OVHMessageOutcome.REJECTED)))
+    assert "sender_email" not in MailReceiptStore(IngestionHistory().path).get("ovh", "456:1")
+
+
+def test_raw_size_rejection_has_no_invented_sender(root):
+    mail = OVHStagedMail("456:1", "", None, (), "raw_message_limit")
+    stage_ovh_mailbox_now(_provider(_examined(1, mail, OVHMessageOutcome.REJECTED)))
+    receipt = MailReceiptStore(IngestionHistory().path).get("ovh", "456:1")
+    assert receipt["rejection_reason"] == "raw_message_limit"
+    assert "sender_email" not in receipt
+    assert IngestionHistory().records() == []
+
+
+def test_rejected_receipt_rereview_preserves_terminal_sender_and_bytes(root, monkeypatch):
+    mail = _extract_staged_mail(_raw([("track.gpx", b"x")] * 13), "456:1")
+    original_write = OVHMailboxCursorStore.write
+    fail_once = True
+
+    def interrupted(self, cursor):
+        nonlocal fail_once
+        if fail_once:
+            fail_once = False
+            raise OSError("cursor interruption")
+        return original_write(self, cursor)
+
+    monkeypatch.setattr(OVHMailboxCursorStore, "write", interrupted)
+    provider = _provider(_examined(1, mail, OVHMessageOutcome.REJECTED))
+    with pytest.raises(MailboxReviewError, match="cursor"):
+        stage_ovh_mailbox_now(provider)
+    receipt_path = MailReceiptStore(IngestionHistory().path).path
+    before = receipt_path.read_bytes()
+    stage_ovh_mailbox_now(provider)
+    assert receipt_path.read_bytes() == before
+    assert IngestionHistory().records() == []
+
+
+def test_legacy_rejected_receipt_without_sender_stays_readable_and_terminal(root):
+    history = IngestionHistory()
+    history.path.write_text("[]", encoding="utf-8")
+    receipts = MailReceiptStore(history.path)
+    original = {
+        "provider": "ovh", "provider_message_id": "456:1", "receipt_state": "rejected",
+        "attachment_ingestion_ids": [], "feedback_state": "unreserved",
+        "feedback_attempts": [], "rejection_reason": "attachment_count_limit",
+    }
+    receipts.add(original)
+    before = receipts.path.read_bytes()
+    files_before = sorted(str(path.relative_to(root)) for path in root.rglob("*") if path.is_file())
+    assert check(history.path)["ingestions"] == 0
+    assert verify(history.path)["stored_receipts"] == 1
+    assert receipts.path.read_bytes() == before
+    assert sorted(str(path.relative_to(root)) for path in root.rglob("*") if path.is_file()) == files_before
+    assert receipts.get("ovh", "456:1") == original
+    stage_ovh_mailbox_now(_provider(_examined(1, _mail(reason="attachment_count_limit", attachments=()), OVHMessageOutcome.REJECTED)))
+    assert receipts.path.read_bytes() == before
+    with pytest.raises(ValueError, match="immutable"):
+        receipts.replace({**original, "sender_email": "sailor@example.test"})
+
+
+def test_rejected_sender_field_rejects_raw_headers_and_other_receipt_states(root):
+    receipts = MailReceiptStore(IngestionHistory().path)
+    rejected = {
+        "provider": "ovh", "provider_message_id": "456:1", "receipt_state": "rejected",
+        "attachment_ingestion_ids": [], "feedback_state": "unreserved",
+        "feedback_attempts": [], "rejection_reason": "attachment_count_limit",
+    }
+    for sender in ("Sailor <sailor@example.test>", "invalid sender text", "first@example.test,second@example.test"):
+        with pytest.raises(ValueError, match="sender"):
+            receipts.add({**rejected, "sender_email": sender})
+    validate_receipt({**rejected, "sender_email": None})
+    with pytest.raises(ValueError, match="sender"):
+        receipts.add({**rejected, "receipt_state": "incomplete", "rejection_reason": None, "sender_email": "sailor@example.test"})
+    with pytest.raises(ValueError, match="sender"):
+        validate_receipt({**rejected, "receipt_state": "incomplete", "rejection_reason": None, "sender_email": None})
+    assert not receipts.path.exists()
 
 
 def test_malformed_occurrence_keeps_valid_sibling_and_is_not_retryable(root):

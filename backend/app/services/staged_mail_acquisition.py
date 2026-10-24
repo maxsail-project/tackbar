@@ -94,12 +94,15 @@ def _persist_staged_mail(history: IngestionHistory, receipts: MailReceiptStore, 
         if existing or mail.attachments:
             raise ValueError("Rejected mail conflicts with accepted attachments")
         if receipt is None:
-            receipts.add({
+            rejected_receipt = {
                 "provider": provider, "provider_message_id": message_id,
                 "receipt_state": "rejected", "attachment_ingestion_ids": [],
                 "feedback_state": "unreserved", "feedback_attempts": [],
                 "rejection_reason": mail.rejection_reason,
-            })
+            }
+            if mail.sender_email:
+                rejected_receipt["sender_email"] = mail.sender_email
+            receipts.add(rejected_receipt)
         elif receipt["receipt_state"] != "rejected" or receipt.get("rejection_reason") != mail.rejection_reason:
             raise ValueError("Conflicting mail rejection")
         return

@@ -2,6 +2,7 @@
 
 import json
 import os
+from email.utils import parseaddr
 from pathlib import Path
 from uuid import uuid4
 
@@ -40,7 +41,7 @@ def validate_receipt(receipt: object) -> None:
     if (
         not isinstance(receipt, dict)
         or not {"provider", "provider_message_id", "receipt_state", "attachment_ingestion_ids", "feedback_state", "feedback_attempts"}.issubset(receipt)
-        or set(receipt) - {"provider", "provider_message_id", "receipt_state", "attachment_ingestion_ids", "feedback_state", "feedback_attempts", "rejection_reason"}
+        or set(receipt) - {"provider", "provider_message_id", "receipt_state", "attachment_ingestion_ids", "feedback_state", "feedback_attempts", "rejection_reason", "sender_email"}
         or not isinstance(receipt["provider"], str) or not receipt["provider"] or receipt["provider"] == ADMIN_UPLOAD
         or not isinstance(receipt["provider_message_id"], str) or not receipt["provider_message_id"]
         or not isinstance(receipt["receipt_state"], str) or receipt["receipt_state"] not in RECEIPT_STATES
@@ -54,6 +55,17 @@ def validate_receipt(receipt: object) -> None:
     reason = receipt.get("rejection_reason")
     if reason is not None and (receipt["receipt_state"] != "rejected" or not isinstance(reason, str) or not reason):
         raise ValueError("Malformed mail rejection reason")
+    sender = receipt.get("sender_email")
+    if "sender_email" in receipt and receipt["receipt_state"] != "rejected":
+        raise ValueError("Malformed rejected mail sender")
+    if sender is not None and (
+        not isinstance(sender, str)
+        or not sender
+        or sender.count("@") != 1
+        or any(ord(char) < 33 or ord(char) == 127 for char in sender)
+        or parseaddr(sender)[1] != sender
+    ):
+        raise ValueError("Malformed rejected mail sender")
     if receipt["receipt_state"] == "rejected" and receipt["attachment_ingestion_ids"]:
         raise ValueError("Rejected mail cannot have accepted attachments")
     if receipt["receipt_state"] in ("complete", "legacy_complete") and not receipt["attachment_ingestion_ids"]:

@@ -230,6 +230,28 @@ def _header_text(value: str) -> str:
         return value
 
 
+def _staged_sender_address(message) -> str:
+    """Return one parsed outer mailbox, never raw From header text."""
+    headers = message.get_all("From", [])
+    if len(headers) != 1:
+        return ""
+    header = headers[0]
+    addresses = getattr(header, "addresses", ())
+    if header.defects or len(addresses) != 1:
+        return ""
+    address = addresses[0]
+    if not address.username or not address.domain:
+        return ""
+    sender = address.addr_spec
+    if (
+        sender.count("@") != 1
+        or any(ord(char) < 33 or ord(char) == 127 for char in sender)
+        or parseaddr(sender)[1] != sender
+    ):
+        return ""
+    return sender
+
+
 def _extract_email(raw: bytes, provider_message_id: str) -> InboundEmail | None:
     message = BytesParser(policy=policy.default).parsebytes(raw)
     subject = _header_text(str(message.get("Subject", "")))
@@ -285,8 +307,7 @@ def _extract_staged_mail(raw: bytes, provider_message_id: str) -> OVHStagedMail 
         return OVHStagedMail(provider_message_id, "", None, (), "mime_part_limit")
     if message.defects:
         raise ValueError("OVH MIME structure cannot be safely enumerated")
-    sender_header = _header_text(str(message.get("From", "")))
-    sender_email = parseaddr(sender_header)[1] or sender_header
+    sender_email = _staged_sender_address(message)
     received_at = None
     date_header = message.get("Date")
     if date_header:
