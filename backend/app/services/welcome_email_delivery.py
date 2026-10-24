@@ -14,20 +14,17 @@ class WelcomeEmailDeliveryError(RuntimeError):
 class WelcomeEmailSender(Protocol):
     def __call__(
         self, recipient: str, personal_capability_path: str,
-        session_capability_path: str | None = None,
     ) -> None: ...
 
 
 def send_welcome_email(
     recipient: str,
     personal_capability_path: str,
-    session_capability_path: str | None = None,
 ) -> None:
     try:
         message = compose_welcome_email_from_environment(
             recipient,
             personal_capability_path,
-            session_capability_path=session_capability_path,
         )
         OvhSmtpTransport.from_environment().send(message)
     except (OutboundMailError, ValueError):

@@ -18,6 +18,7 @@ from app.admin_api_models import (
     AdminSessionSummaryResponse,
     AdminIngestionResponse,
     AdminMailboxReviewResponse,
+    AdminMailFeedbackResponse,
 )
 from app.admin_auth import require_admin_key
 from app.repositories.activities import ActivityRepository
@@ -59,6 +60,8 @@ from app.services.ingestion_processing import reprocess_ingestion
 from app.repositories.boats import BoatRepository
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
 from app.services.mailbox_review import MailboxReviewError, review_mailbox_now
+from app.services.mail_feedback import MailFeedbackEligibilityError, MailFeedbackService
+from app.services.mail_receipts import MailReceiptStore
 
 
 router = APIRouter(
@@ -300,6 +303,33 @@ def review_mailbox() -> AdminMailboxReviewResponse:
         raise HTTPException(status_code=503, detail="Mailbox review unavailable") from error
     except MailboxReviewError as error:
         raise HTTPException(status_code=503, detail="Mailbox review unavailable") from error
+
+
+@router.get("/mail-receipts/ovh/{message_id}/feedback", response_model=AdminMailFeedbackResponse)
+def get_mail_feedback(message_id: str) -> AdminMailFeedbackResponse:
+    try:
+        receipt = MailReceiptStore(IngestionHistory().path).get("ovh", message_id)
+    except ValueError as error:
+        raise _admin_integrity_error() from error
+    if receipt is None:
+        raise HTTPException(status_code=404, detail="Mail receipt not found")
+    return AdminMailFeedbackResponse(**receipt)
+
+
+@router.post("/mail-receipts/ovh/{message_id}/feedback/resend", response_model=AdminMailFeedbackResponse)
+def resend_mail_feedback(message_id: str) -> AdminMailFeedbackResponse:
+    history = IngestionHistory()
+    try:
+        receipt = MailFeedbackService(
+            history, SailorRepository(), BoatRepository(), ActivityRepository(), SessionRepository(),
+        ).resend(message_id)
+    except MailFeedbackEligibilityError as error:
+        raise HTTPException(status_code=409, detail="Mail feedback resend rejected") from error
+    except ValueError as error:
+        if str(error) == "Mail receipt not found":
+            raise HTTPException(status_code=404, detail="Mail receipt not found") from error
+        raise _admin_integrity_error() from error
+    return AdminMailFeedbackResponse(**receipt)
 
 
 @router.get("/ingestions/{ingestion_id}", response_model=AdminIngestionDetailResponse)

@@ -10,7 +10,6 @@ from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.session_capabilities import SessionCapabilityService
 from app.services.personal_capabilities import PersonalCapabilityService
-from app.services.onboarding_session import onboarding_session_path
 from app.services.welcome_email_delivery import (
     WELCOME_EMAIL_DELIVERY_FAILURE,
     WelcomeEmailDeliveryError,
@@ -132,14 +131,8 @@ class SailorConsentService:
         ):
             return active_sailor
         capability_path = self._personal_capability_path(active_sailor)
-        session_path = onboarding_session_path(
-            sailor_id, self.sailors, self.events, self.session_capabilities
-        )
         try:
-            if session_path is None:
-                self.welcome_email_sender(active_sailor.email, capability_path)
-            else:
-                self.welcome_email_sender(active_sailor.email, capability_path, session_path)
+            self.welcome_email_sender(active_sailor.email, capability_path)
         except WelcomeEmailDeliveryError:
             return self.sailors.replace(
                 replace(

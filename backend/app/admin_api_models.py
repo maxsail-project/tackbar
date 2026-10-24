@@ -175,6 +175,24 @@ class AdminSessionRenewRequest(BaseModel):
     days: StrictInt = 90
 
 
+class AdminMailFeedbackAttemptResponse(BaseModel):
+    id: str
+    kind: Literal["automatic", "manual"]
+    status: Literal["attempted", "sent", "failed"]
+    attempted_at: datetime
+    sent_at: datetime | None
+    last_error: str | None
+
+
+class AdminMailFeedbackResponse(BaseModel):
+    provider: str
+    provider_message_id: str
+    receipt_state: str
+    feedback_state: str
+    feedback_suppressed_reason: str | None = None
+    feedback_attempts: list[AdminMailFeedbackAttemptResponse]
+
+
 class AdminIngestionResponse(BaseModel):
     id: str
     provider: str

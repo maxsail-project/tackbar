@@ -2,6 +2,7 @@
 
 import json
 import os
+from datetime import datetime, timezone
 from email.utils import parseaddr
 from pathlib import Path
 from uuid import uuid4
@@ -13,7 +14,9 @@ from app.storage.fs_durability import mkdir_durable, sync_parent_directory
 
 SCHEMA_VERSION = 1
 RECEIPT_STATES = {"incomplete", "complete", "rejected", "legacy_complete"}
-FEEDBACK_STATES = {"unreserved", "attempted", "sent", "failed", "legacy_suppressed"}
+FEEDBACK_STATES = {"unreserved", "suppressed", "attempted", "sent", "failed", "legacy_suppressed"}
+SUPPRESSION_REASONS = {"non_active", "unsafe_recipient", "unusable_access", "uncertain_consent"}
+FEEDBACK_DELIVERY_FAILURE = "Mail feedback delivery failed"
 
 
 def receipt_path(history_path: Path) -> Path:
@@ -41,7 +44,7 @@ def validate_receipt(receipt: object) -> None:
     if (
         not isinstance(receipt, dict)
         or not {"provider", "provider_message_id", "receipt_state", "attachment_ingestion_ids", "feedback_state", "feedback_attempts"}.issubset(receipt)
-        or set(receipt) - {"provider", "provider_message_id", "receipt_state", "attachment_ingestion_ids", "feedback_state", "feedback_attempts", "rejection_reason", "sender_email"}
+        or set(receipt) - {"provider", "provider_message_id", "receipt_state", "attachment_ingestion_ids", "feedback_state", "feedback_attempts", "rejection_reason", "sender_email", "feedback_suppressed_reason", "feedback_consent_sailor_id", "feedback_consent_cycle"}
         or not isinstance(receipt["provider"], str) or not receipt["provider"] or receipt["provider"] == ADMIN_UPLOAD
         or not isinstance(receipt["provider_message_id"], str) or not receipt["provider_message_id"]
         or not isinstance(receipt["receipt_state"], str) or receipt["receipt_state"] not in RECEIPT_STATES
@@ -72,6 +75,24 @@ def validate_receipt(receipt: object) -> None:
         raise ValueError("Complete mail receipt lacks attachments")
     if receipt["receipt_state"] == "legacy_complete" and (receipt["feedback_state"] != "legacy_suppressed" or receipt["feedback_attempts"]):
         raise ValueError("Historical mail feedback must stay suppressed")
+    suppression_reason = receipt.get("feedback_suppressed_reason")
+    if (
+        receipt["feedback_state"] == "suppressed"
+        and (not isinstance(suppression_reason, str) or suppression_reason not in SUPPRESSION_REASONS)
+    ) or (receipt["feedback_state"] != "suppressed" and "feedback_suppressed_reason" in receipt):
+        raise ValueError("Malformed mail feedback suppression")
+    has_sailor = "feedback_consent_sailor_id" in receipt
+    has_cycle = "feedback_consent_cycle" in receipt
+    if has_sailor != has_cycle or (has_sailor and (
+        suppression_reason != "non_active"
+        or not isinstance(receipt["feedback_consent_sailor_id"], str)
+        or not receipt["feedback_consent_sailor_id"]
+        or type(receipt["feedback_consent_cycle"]) is not int
+        or receipt["feedback_consent_cycle"] < 0
+    )):
+        raise ValueError("Malformed mail feedback consent-cycle evidence")
+    if receipt["receipt_state"] == "incomplete" and receipt["feedback_state"] != "unreserved":
+        raise ValueError("Incomplete mail cannot have feedback decision")
     attempt_ids = set()
     automatic_attempts = []
     for attempt in receipt["feedback_attempts"]:
@@ -93,7 +114,7 @@ def validate_receipt(receipt: object) -> None:
         raise ValueError("Mail has multiple automatic feedback attempts")
     if receipt["feedback_state"] in ("attempted", "sent", "failed") and (len(automatic_attempts) != 1 or automatic_attempts[0]["status"] != receipt["feedback_state"]):
         raise ValueError("Mail feedback state lacks an automatic attempt")
-    if receipt["feedback_state"] in ("unreserved", "legacy_suppressed") and automatic_attempts:
+    if receipt["feedback_state"] in ("unreserved", "suppressed", "legacy_suppressed") and automatic_attempts:
         raise ValueError("Mail feedback state conflicts with automatic attempt")
 
 
@@ -135,6 +156,74 @@ class MailReceiptStore:
                     write_receipts(self.path, receipts)
                     return replacement
         raise ValueError("Mail receipt not found")
+
+    def suppress_feedback(
+        self, provider: str, message_id: str, reason: str,
+        *, consent_sailor_id: str | None = None, consent_cycle: int | None = None,
+    ) -> dict:
+        if reason not in SUPPRESSION_REASONS:
+            raise ValueError("Invalid mail feedback suppression reason")
+        if (consent_sailor_id is None) != (consent_cycle is None) or (consent_sailor_id is not None and (
+            reason != "non_active" or not consent_sailor_id or type(consent_cycle) is not int or consent_cycle < 0
+        )):
+            raise ValueError("Invalid mail feedback consent-cycle evidence")
+        with ingestion_lock(self.path.parent):
+            receipts, index = self._feedback_target(provider, message_id)
+            receipt = receipts[index]
+            if receipt["feedback_state"] != "unreserved":
+                return receipt
+            receipt["feedback_state"] = "suppressed"
+            receipt["feedback_suppressed_reason"] = reason
+            if consent_sailor_id is not None:
+                receipt["feedback_consent_sailor_id"] = consent_sailor_id
+                receipt["feedback_consent_cycle"] = consent_cycle
+            write_receipts(self.path, receipts)
+            return receipt
+
+    def reserve_feedback(self, provider: str, message_id: str, kind: str) -> dict | None:
+        if kind not in ("automatic", "manual"):
+            raise ValueError("Invalid mail feedback attempt kind")
+        with ingestion_lock(self.path.parent):
+            receipts, index = self._feedback_target(provider, message_id)
+            receipt = receipts[index]
+            if kind == "automatic" and receipt["feedback_state"] != "unreserved":
+                return None
+            if kind == "manual" and not any(attempt["kind"] == "automatic" for attempt in receipt["feedback_attempts"]):
+                raise ValueError("Mail feedback has no automatic attempt to resend")
+            attempt = {
+                "id": str(uuid4()), "kind": kind, "status": "attempted",
+                "attempted_at": datetime.now(timezone.utc).isoformat(),
+                "sent_at": None, "last_error": None,
+            }
+            receipt["feedback_attempts"].append(attempt)
+            if kind == "automatic":
+                receipt["feedback_state"] = "attempted"
+            write_receipts(self.path, receipts)
+            return attempt
+
+    def finish_feedback(self, provider: str, message_id: str, attempt_id: str, status: str) -> dict:
+        if status not in ("sent", "failed"):
+            raise ValueError("Invalid mail feedback delivery result")
+        with ingestion_lock(self.path.parent):
+            receipts, index = self._feedback_target(provider, message_id)
+            receipt = receipts[index]
+            attempt = next((item for item in receipt["feedback_attempts"] if item["id"] == attempt_id), None)
+            if attempt is None or attempt["status"] != "attempted":
+                raise ValueError("Mail feedback attempt is not pending")
+            attempt["status"] = status
+            attempt["sent_at"] = datetime.now(timezone.utc).isoformat() if status == "sent" else None
+            attempt["last_error"] = FEEDBACK_DELIVERY_FAILURE if status == "failed" else None
+            if attempt["kind"] == "automatic":
+                receipt["feedback_state"] = status
+            write_receipts(self.path, receipts)
+            return attempt
+
+    def _feedback_target(self, provider: str, message_id: str) -> tuple[list[dict], int]:
+        receipts = self.receipts()
+        index = next((i for i, item in enumerate(receipts) if (item["provider"], item["provider_message_id"]) == (provider, message_id)), None)
+        if index is None or receipts[index]["receipt_state"] not in ("complete", "rejected"):
+            raise ValueError("Mail receipt is not eligible for feedback mutation")
+        return receipts, index
 
 
 def write_receipts(path: Path, receipts: list[dict]) -> None:

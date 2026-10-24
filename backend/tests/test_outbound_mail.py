@@ -12,8 +12,10 @@ from app.config import (
     load_ovh_smtp_configuration,
 )
 from app.services.outbound_mail import (
+    OutboundMailDefiniteFailure,
     OutboundMailError,
     OutboundMailMessage,
+    OutboundMailUncertainError,
     OvhSmtpTransport,
 )
 from app.services.session_result_email import compose_session_result_email
@@ -65,7 +67,7 @@ def test_invalid_public_base_url_is_controlled():
 @pytest.mark.parametrize("message", [
     OutboundMailMessage("sailor@example.test", "Subject", "Plain text body"),
     compose_session_result_email("sailor@example.test", "/s/session-token", "/me/personal-token", "https://app.example.test"),
-    compose_welcome_email("sailor@example.test", "/me/personal-token", "https://app.example.test", "/s/session-token"),
+    compose_welcome_email("sailor@example.test", "/me/personal-token", "https://app.example.test"),
 ], ids=["plain", "session-result", "onboarding-welcome"])
 def test_smtp_success_appends_same_message_to_tackbar_sent(monkeypatch, message):
     calls: list[tuple] = []
@@ -227,6 +229,35 @@ def test_smtp_failure_performs_no_imap_append(monkeypatch):
 
     with pytest.raises(OutboundMailError, match="Outbound mail delivery failed"):
         transport.send(OutboundMailMessage("sailor@example.test", "Subject", "Body"))
+
+
+@pytest.mark.parametrize("error,expected_type", [
+    (smtplib.SMTPRecipientsRefused({"sailor@example.test": (550, b"rejected")}), OutboundMailDefiniteFailure),
+    (smtplib.SMTPDataError(550, b"rejected"), OutboundMailDefiniteFailure),
+    (smtplib.SMTPServerDisconnected("after DATA"), OutboundMailUncertainError),
+])
+def test_smtp_classifies_definite_rejection_and_uncertain_disconnect(monkeypatch, error, expected_type):
+    class FailingSMTP:
+        def __init__(self, *_):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def login(self, *_):
+            pass
+
+        def send_message(self, _message):
+            raise error
+
+    monkeypatch.setattr("app.services.outbound_mail.smtplib.SMTP_SSL", FailingSMTP)
+    transport = OvhSmtpTransport.from_environment(_environment())
+    with pytest.raises(expected_type) as captured:
+        transport.send(OutboundMailMessage("sailor@example.test", "Subject", "Body"))
+    assert isinstance(captured.value, OutboundMailDefiniteFailure) is (expected_type is OutboundMailDefiniteFailure)
 
 
 def test_smtp_transport_hides_provider_failure_details(monkeypatch):

@@ -32,6 +32,7 @@ from app.services.consent_requests import (
 )
 from app.services.ingestion_history import IngestionHistory
 from app.services.mailbox_review import MailboxReviewSummary
+from app.services.mail_receipts import MailReceiptStore
 from app.services.sailor_consent import SailorConsentService
 from app.services.session_enrichment import SessionEnrichmentService
 from app.session_context_providers.geocoding import GeographicContext
@@ -264,7 +265,7 @@ def test_admin_authorization_fails_closed_and_never_exposes_secret(monkeypatch: 
 
 
 def test_every_registered_admin_route_is_protected_and_schema_has_no_secret() -> None:
-    assert len(admin_router.routes) == 26
+    assert len(admin_router.routes) == 28
     assert all(len(route.dependencies) == 1 for route in admin_router.routes)
     assert ADMIN_KEY not in json.dumps(app.openapi())
 
@@ -703,6 +704,35 @@ def test_admin_resend_welcome_email_is_protected_and_unknown_is_not_found(
     assert unauthorized.status_code == 401
     assert unknown.status_code == 404
     assert delivered == []
+
+
+def test_admin_mail_feedback_resend_is_protected_and_audited(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    store = MailReceiptStore(IngestionHistory().path)
+    store.add({
+        "provider": "ovh", "provider_message_id": "456:7",
+        "receipt_state": "rejected", "attachment_ingestion_ids": [],
+        "sender_email": "sender@example.test", "rejection_reason": "attachment_count_limit",
+        "feedback_state": "attempted", "feedback_attempts": [{
+            "id": "earlier-attempt", "kind": "automatic", "status": "attempted",
+            "attempted_at": "2026-10-24T12:00:00+00:00", "sent_at": None, "last_error": None,
+        }],
+    })
+    sent = []
+    monkeypatch.setattr("app.services.mail_feedback._send", sent.append)
+    path = "/api/admin/mail-receipts/ovh/456:7/feedback"
+    assert _request("GET", path, admin_key=None).status_code == 401
+    assert _request("POST", path + "/resend", admin_key=None).status_code == 401
+    inspected = _request("GET", path)
+    assert inspected.status_code == 200 and len(inspected.json["feedback_attempts"]) == 1
+    resent = _request("POST", path + "/resend")
+    assert resent.status_code == 200 and len(sent) == 1
+    assert [item["kind"] for item in resent.json["feedback_attempts"]] == ["automatic", "manual"]
+    assert [item["status"] for item in resent.json["feedback_attempts"]] == ["attempted", "sent"]
+    assert store.get("ovh", "456:7")["feedback_state"] == "attempted"
 
 
 def test_mark_request_and_confirm_use_semantic_service(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:

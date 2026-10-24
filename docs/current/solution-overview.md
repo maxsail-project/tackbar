@@ -36,6 +36,7 @@ flowchart TB
     ANALYTICS["Maneuver analytics / artifacts"]
     CONTEXT["Session context enrichment"]
     ACCESS["Consent and purpose-specific capabilities"]
+    FEEDBACK["Internal per-mail feedback and welcome delivery"]
     API["FastAPI: authorized read / Admin APIs"]
     STORE[("Private persistence: JSON metadata, CSV.GZ tracks, originals, artifacts")]
 
@@ -48,6 +49,8 @@ flowchart TB
     SES --> STORE
     ANALYTICS --> STORE
     ACCESS -->|"enforces shared visibility"| API
+    ACCESS -->|"checks current eligibility"| FEEDBACK
+    PIPE -.->|"staged receipts and results"| FEEDBACK
     SES --> API
     ANALYTICS --> API
     CONTEXT --> API
@@ -70,6 +73,8 @@ flowchart TB
   ADMIN --> API
   ADMIN --> UPLOAD
   PERSONAL -.->|"opens only a usable shared Session link"| VIEWER
+
+  FEEDBACK --> SMTP["OVH SMTP"]
 
   GEO["Geoapify"] -.-> CONTEXT
   METEO["Open-Meteo"] -.-> CONTEXT
@@ -97,6 +102,8 @@ flowchart TB
   sailing analytics.
 - **Providers and storage are backend concerns.** The frontend consumes
   APIs, not private files; acquisition and context providers remain replaceable.
+- **Per-mail feedback is an internal staged flow.** It is not connected to the
+  current scheduled or Admin OVH mailbox-review trigger.
 
 ## Authoritative specifications
 

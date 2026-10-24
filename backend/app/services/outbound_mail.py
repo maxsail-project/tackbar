@@ -24,6 +24,14 @@ class OutboundMailError(RuntimeError):
     """Controlled failure while preparing or sending outbound mail."""
 
 
+class OutboundMailDefiniteFailure(OutboundMailError):
+    """Delivery is known not to have been accepted by SMTP."""
+
+
+class OutboundMailUncertainError(OutboundMailError):
+    """SMTP may have accepted the message before transport failed."""
+
+
 @dataclass(frozen=True)
 class OutboundMailMessage:
     recipient: str
@@ -50,7 +58,7 @@ class OvhSmtpTransport:
         try:
             configuration = load_ovh_smtp_configuration(environment)
         except OutboundMailConfigurationError:
-            raise OutboundMailError("Outbound mail is unavailable") from None
+            raise OutboundMailDefiniteFailure("Outbound mail is unavailable") from None
         try:
             imap_configuration = load_ovh_imap_configuration(environment)
         except OvhImapConfigurationError:
@@ -59,7 +67,7 @@ class OvhSmtpTransport:
 
     def send(self, message: OutboundMailMessage) -> None:
         if not message.recipient.strip() or not message.subject.strip() or not message.body.strip():
-            raise OutboundMailError("Outbound mail message is incomplete")
+            raise OutboundMailDefiniteFailure("Outbound mail message is incomplete")
         email = EmailMessage()
         email["From"] = self.configuration.from_address
         email["To"] = message.recipient
@@ -69,8 +77,14 @@ class OvhSmtpTransport:
             with smtplib.SMTP_SSL(self.configuration.host, self.configuration.port) as connection:
                 connection.login(self.configuration.username, self.configuration.password)
                 connection.send_message(email)
+        except smtplib.SMTPRecipientsRefused:
+            raise OutboundMailDefiniteFailure("Outbound mail recipient was refused") from None
+        except smtplib.SMTPDataError as error:
+            if 500 <= error.smtp_code < 600:
+                raise OutboundMailDefiniteFailure("Outbound mail content was refused") from None
+            raise OutboundMailUncertainError("Outbound mail delivery uncertain") from None
         except (OSError, smtplib.SMTPException):
-            raise OutboundMailError("Outbound mail delivery failed") from None
+            raise OutboundMailUncertainError("Outbound mail delivery failed") from None
         if self.imap_configuration is None:
             _log_append_failure()
             return

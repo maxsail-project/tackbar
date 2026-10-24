@@ -144,7 +144,7 @@ def test_pending_onboarding_is_immutable_and_activation_uses_exact_session(runti
     assert welcome.subject == WELCOME_EMAIL_SUBJECT
     session = runtime.sessions.get_by_id(request.onboarding_session_id)
     other = runtime.sessions.get_by_id(later.session_match.session.id)
-    assert welcome.body.count(f"{ORIGIN}/s/{session.capability_token}") == 2
+    assert "/s/" not in welcome.body
     assert other.capability_token not in welcome.body
     assert welcome.body.count(f"{ORIGIN}/me/{sailor.personal_capability_token}") == 2
     for record in runtime.history.records():
@@ -252,7 +252,7 @@ def test_reprocess_recovers_onboarding_binding_after_request_persistence_interru
     assert welcome.subject == WELCOME_EMAIL_SUBJECT
     onboarding_session = runtime.sessions.get_by_id(session.id)
     other_session = runtime.sessions.get_by_id(later.session_match.session.id)
-    assert welcome.body.count(f"{ORIGIN}/s/{onboarding_session.capability_token}") == 2
+    assert "/s/" not in welcome.body
     assert welcome.body.count(f"{ORIGIN}/me/{activated.personal_capability_token}") == 2
     assert other_session.capability_token not in welcome.body
 
@@ -320,9 +320,7 @@ def test_first_pending_reservation_survives_request_persistence_failure(
     activated_second_session = runtime.sessions.get_by_id(second.session_match.session.id)
     welcome = runtime.sent[-1]
     assert welcome.subject == WELCOME_EMAIL_SUBJECT
-    assert welcome.body.count(
-        f"{ORIGIN}/s/{activated_first_session.capability_token}"
-    ) == 2
+    assert "/s/" not in welcome.body
     assert activated_second_session.capability_token not in welcome.body
     assert welcome.body.count(
         f"{ORIGIN}/me/{activated.personal_capability_token}"
@@ -386,7 +384,7 @@ def test_admin_send_uses_reservation_after_request_persistence_failure(
     session = runtime.sessions.get_by_id(reservation["session_id"])
     welcome = runtime.sent[-1]
     assert welcome.subject == WELCOME_EMAIL_SUBJECT
-    assert welcome.body.count(f"{ORIGIN}/s/{session.capability_token}") == 2
+    assert "/s/" not in welcome.body
     assert welcome.body.count(
         f"{ORIGIN}/me/{activated.personal_capability_token}"
     ) == 2
@@ -418,7 +416,7 @@ def test_direct_admin_confirmation_uses_reservation_without_request(
     assert len(runtime.sent) == 1
     welcome = runtime.sent[0]
     assert welcome.subject == WELCOME_EMAIL_SUBJECT
-    assert welcome.body.count(f"{ORIGIN}/s/{session.capability_token}") == 2
+    assert "/s/" not in welcome.body
     assert welcome.body.count(
         f"{ORIGIN}/me/{activated.personal_capability_token}"
     ) == 2
@@ -469,7 +467,7 @@ def test_pending_reprocess_recovers_onboarding_after_track_persistence_failure(
     session = runtime.sessions.get_by_id(recovered["session_id"])
     welcome = runtime.sent[-1]
     assert welcome.subject == WELCOME_EMAIL_SUBJECT
-    assert welcome.body.count(f"{ORIGIN}/s/{session.capability_token}") == 2
+    assert "/s/" not in welcome.body
     assert welcome.body.count(
         f"{ORIGIN}/me/{activated.personal_capability_token}"
     ) == 2
@@ -749,10 +747,7 @@ def test_welcome_resend_reuses_onboarding_or_falls_back_to_personal(runtime, una
     message = runtime.sent[-1]
     assert message.subject == WELCOME_EMAIL_SUBJECT
     assert f"{ORIGIN}/me/{current_personal}" in message.body
-    if unavailable is None:
-        assert f"{ORIGIN}/s/{session.capability_token}" in message.body
-    else:
-        assert "/s/" not in message.body
+    assert "/s/" not in message.body
     assert runtime.sessions.get_by_id(session.id) == session
     assert runtime.sailors.get_by_id(sailor.id).personal_capability_token == current_personal
 
@@ -945,11 +940,11 @@ def test_onboarding_delivery_failure_preserves_binding_and_welcome_recovery(runt
     assert len(attempted) == 2
     assert sailor.consent_status == ConsentStatus.ACTIVE
     session = runtime.sessions.get_by_id(association.onboarding_session_id)
-    assert f"{ORIGIN}/s/{session.capability_token}" in attempted[-1].body
+    assert "/s/" not in attempted[-1].body
     if failed_message == "welcome":
         assert sailor.welcome_email_sent_at is None
         assert sailor.welcome_email_last_error == "Welcome email delivery failed"
         resent = WelcomeEmailResendService(runtime.sailors).resend(sailor.id)
         assert resent.welcome_email_last_error is None
-        assert f"{ORIGIN}/s/{session.capability_token}" in runtime.sent[-1].body
+        assert "/s/" not in runtime.sent[-1].body
         assert runtime.sessions.get_by_id(session.id) == session
