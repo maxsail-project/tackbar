@@ -24,3 +24,9 @@ export const MANEUVER_COG_INSIGHTS = {
   endFraction: 0.9,
   confirmationSeconds: 2,
 } as const
+
+export const MANEUVER_HEEL_INSIGHTS = {
+  entry: MANEUVER_SOG_INSIGHTS.entry,
+  central: MANEUVER_SOG_INSIGHTS.minimum,
+  exit: MANEUVER_SOG_INSIGHTS.exit,
+} as const

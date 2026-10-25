@@ -20,6 +20,7 @@ import { aggregatePreparedSogPopulation, type PreparedSogPopulation, type Typica
 import { aggregatePreparedCogPopulation, aggregatePreparedHeelPopulation, type TypicalCogProfile, type TypicalHeelProfile } from '../utils/typicalSogProfile'
 import { relativeCogAxisBounds } from '../utils/typicalCogProfile'
 import { calculateCogManeuverInsights, type CogManeuverInsights } from '../utils/maneuverCogInsights'
+import { calculateHeelManeuverInsights, heelManeuverAxisBounds, type HeelManeuverInsights } from '../utils/maneuverHeelInsights'
 import ManeuverAngleRange, { type AngleBand } from './ManeuverAngleRange'
 
 export function supportedSogPoints(profile: TypicalSogProfile): SogChartPoint[] {
@@ -142,6 +143,25 @@ function cogInsightCard(label: string, metric: 'turnAngleDeg' | 'turnMidpointSec
   </div>
 }
 
+function heelInsightCard(label: string, metric: keyof HeelManeuverInsights,
+  primary: HeelManeuverInsights | null, comparison: HeelManeuverInsights | null) {
+  const p = primary?.[metric] ?? null
+  const c = comparison?.[metric] ?? null
+  const value = (number: number | null) => number === null ? 'Unavailable'
+    : `${metric === 'heelVariation' && number > 0 ? '+' : ''}${number.toFixed(1)}°`
+  const difference = p !== null && c !== null
+    ? Math.abs(p - c).toFixed(1) === '0.0' ? 'Same to 0.1°' : `Difference ${Math.abs(p - c).toFixed(1)}°`
+    : 'Unavailable'
+  return <div className="maneuver-insights__card">
+    <h4>{label}</h4>
+    <div className="maneuver-insights__values">
+      <span><strong style={{ color: ACTIVITY_COLORS.primary }}>P</strong> {value(p)}</span>
+      <span><strong style={{ color: ACTIVITY_COLORS.comparison }}>C</strong> {value(c)}</span>
+    </div>
+    <p>{difference}</p>
+  </div>
+}
+
 export default function ManeuverSogComparison({ primary, comparison }: {
   primary: PreparedSogPopulation | null
   comparison?: PreparedSogPopulation | null
@@ -171,7 +191,10 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     : signal === 'COG' ? (cCog ? supportedCogPoints(cCog) : []) : (cHeel ? supportedHeelPoints(cHeel) : [])
   const pCogInsights = signal === 'COG' && pCog ? calculateCogManeuverInsights(pRaw) : null
   const cCogInsights = signal === 'COG' && cCog ? calculateCogManeuverInsights(cRaw) : null
-  const bounds = signal === 'COG' ? relativeCogAxisBounds(pRaw, cRaw) : sogManeuverAxisBounds(pRaw, cRaw)
+  const pHeelInsights = signal === 'HEEL' && pHeel ? calculateHeelManeuverInsights(pRaw) : null
+  const cHeelInsights = signal === 'HEEL' && cHeel ? calculateHeelManeuverInsights(cRaw) : null
+  const bounds = signal === 'COG' ? relativeCogAxisBounds(pRaw, cRaw)
+    : signal === 'HEEL' ? heelManeuverAxisBounds(pRaw, cRaw) : sogManeuverAxisBounds(pRaw, cRaw)
   const pInsights = signal === 'SOG' && pSog ? calculateSogManeuverInsights(pRaw) : null
   const cInsights = signal === 'SOG' && cSog ? calculateSogManeuverInsights(cRaw) : null
   const pRecovery = calculateSogProfileRecovery(pRaw, pInsights?.entrySog ?? null)
@@ -206,7 +229,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
             const rawPath = buildSogManeuverPath(raw, bounds)
             const smoothPath = buildSogManeuverPath(signal === 'SOG' ? smoothedAfterMedian(raw) : buildSogTrendPoints(raw), bounds)
             return <g key={role}>
-              {rawPath && <path data-profile-series={`${role}-raw`} d={rawPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.rawStrokeWidth} strokeOpacity={SOG_SIGNAL_TUNING.rawOpacity} vectorEffect="non-scaling-stroke" />}
+              {rawPath && <path data-profile-series={`${role}-raw`} d={rawPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.rawStrokeWidth} strokeOpacity={signal === 'HEEL' ? SOG_SIGNAL_TUNING.rawOpacity / 2 : SOG_SIGNAL_TUNING.rawOpacity} vectorEffect="non-scaling-stroke" />}
               {smoothPath && <path data-profile-series={`${role}-smoothed`} d={smoothPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.smoothedStrokeWidth} strokeOpacity={SOG_SIGNAL_TUNING.smoothedOpacity} vectorEffect="non-scaling-stroke" />}
             </g>
           })}
@@ -240,6 +263,15 @@ export default function ManeuverSogComparison({ primary, comparison }: {
         {cogInsightCard('Turn angle', 'turnAngleDeg', pCogInsights, cCogInsights)}
         {cogInsightCard('Turn midpoint', 'turnMidpointSeconds', pCogInsights, cCogInsights)}
         {cogInsightCard('Turn duration (10–90%)', 'turnDurationSeconds', pCogInsights, cCogInsights)}
+      </div>
+    </section>}
+    {signal === 'HEEL' && <section className="maneuver-insights" aria-label="HEEL Maneuver Insights">
+      <h3>HEEL Maneuver Insights</h3>
+      <p>Change in typical absolute inclination magnitude; not signed side or peak excursion</p>
+      <div className="maneuver-insights__grid">
+        {heelInsightCard('Entry HEEL', 'entryHeel', pHeelInsights, cHeelInsights)}
+        {heelInsightCard('HEEL variation', 'heelVariation', pHeelInsights, cHeelInsights)}
+        {heelInsightCard('Exit HEEL', 'exitHeel', pHeelInsights, cHeelInsights)}
       </div>
     </section>}
     <p className="maneuver-profile__basis">Curves require 3 {signal}-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.{signal === 'COG' ? ' COG shows oriented relative turn degrees, not geographic course; t=0 remains the event center.' : ''}</p>

@@ -14,10 +14,11 @@ vi.mock('react', async (importOriginal) => {
 
 import ManeuverSogComparison from './ManeuverSogComparison'
 
-function population(values: number[]): PreparedSogPopulation {
+function population(values: number[], centralAdjustment = 0): PreparedSogPopulation {
   return { detectedCount: values.length, windowEligibleCount: values.length, missingCourseCount: 0,
     maneuvers: values.map((value) => ({ courseChangeDeg: 60, nominalCoverage: 1, grid: Array(51).fill(5),
-      heelNominalCoverage: 1, heelGrid: Array(51).fill(value) })) }
+      heelNominalCoverage: 1, heelGrid: Array.from({ length: 51 }, (_, index) =>
+        index >= 15 && index <= 35 ? value + centralAdjustment : value) })) }
 }
 
 function signalButton(node: unknown, signal: string): { props: { onClick: () => void } } | null {
@@ -46,18 +47,27 @@ describe('typical HEEL chart selection', () => {
     expect(html).toContain('Profile recovery')
   })
 
-  it('shows independent P/C HEEL curves, magnitude label, shared nonnegative axis and no Insights', () => {
+  it('shows independent P/C HEEL curves, zero-based axis, softer raw traces and three Insights', () => {
     selection.signal = 'HEEL'
-    const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([4, 6, 8])}
-      comparison={population([10, 12, 14])} />)
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([4, 6, 8], 2)}
+      comparison={population([10, 12, 14], -2)} />)
     expect(html).toContain('Typical HEEL maneuver comparison')
     expect(html).toContain('Median |HEEL| (°), magnitude of signed inclination')
     expect(html).toContain('Median absolute HEEL magnitude')
     expect(html).toContain('data-profile-series="primary-raw"')
     expect(html).toContain('data-profile-series="comparison-smoothed"')
-    expect(html).toMatch(/sog-signal-chart__y-axis[^>]*><span>13 °<\/span><span>9\.0 °<\/span><span>5 °<\/span>/)
+    expect(html).toMatch(/sog-signal-chart__y-axis[^>]*><span>13 °<\/span><span>6\.5 °<\/span><span>0 °<\/span>/)
     expect(html).toContain('data-maneuver-center="true"')
-    expect(html).not.toContain('Maneuver Insights')
+    expect(html).toContain('HEEL Maneuver Insights')
+    expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(html).toContain('Entry HEEL')
+    expect(html).toContain('HEEL variation')
+    expect(html).toContain('Exit HEEL')
+    expect(html).toContain('P</strong> +2.0°')
+    expect(html).toContain('C</strong> -2.0°')
+    expect(html).toContain('Difference 4.0°')
+    expect(html).toContain('not signed side or peak excursion')
+    expect(html).toMatch(/data-profile-series="primary-raw"[^>]*stroke-opacity="0.3"/)
     expect(html).not.toContain('Profile recovery')
   })
 
@@ -67,6 +77,7 @@ describe('typical HEEL chart selection', () => {
     weak.maneuvers[2].heelGrid![25] = null
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={weak} />)
     expect(html).toContain('3 used')
+    expect(html).toContain('P</strong> Unavailable')
     expect(html).toContain('data-profile-series="primary-raw"')
     expect(html).toMatch(/data-profile-series="primary-raw" d="M[^"]* M/)
     expect(html).not.toContain('data-profile-series="comparison-raw"')
@@ -75,5 +86,13 @@ describe('typical HEEL chart selection', () => {
     expect(sparse).not.toContain('data-profile-series="primary-raw"')
     const missing = renderToStaticMarkup(<ManeuverSogComparison primary={null} />)
     expect(missing).toContain('P profile data unavailable')
+  })
+
+  it('keeps one-sided HEEL insights and unavailable comparison explicit', () => {
+    selection.signal = 'HEEL'
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([4, 6, 8], 0)} />)
+    expect(html).toContain('P</strong> 0.0°')
+    expect(html).toContain('C</strong> Unavailable')
+    expect(html).toContain('class="maneuver-insights__grid"')
   })
 })
