@@ -7,7 +7,10 @@ export const MANEUVER_ANGLE_RANGE = {
 } as const
 
 export const MANEUVER_SOG_INSIGHTS = {
+  profileHalfSpanSeconds: 25,
   entry: { firstOffsetSeconds: -25, lastOffsetSeconds: -15, minimumSupportedPositions: 8 },
   minimum: { firstOffsetSeconds: -10, lastOffsetSeconds: 10, minimumSupportedPositions: 21 },
+  exit: { firstOffsetSeconds: 15, lastOffsetSeconds: 25, minimumSupportedPositions: 8 },
   similarityKnots: 0.2,
+  recoveryFractionOfEntry: 0.95,
 } as const

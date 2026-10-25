@@ -1260,9 +1260,28 @@ input:focus-visible {
   color: #526d74;
   font-size: 0.72rem;
 }
+.maneuver-insights > .maneuver-insights__recovery {
+  margin-top: 8px;
+  line-height: 1.4;
+}
+.maneuver-insights__recovery strong { color: #31515a; }
 @media (min-width: 700px) {
   .maneuver-insights__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+.maneuver-profile .sog-signal-chart__plot { position: relative; }
+.maneuver-profile__recovery-label {
+  position: absolute;
+  z-index: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.maneuver-profile__recovery-label--p { top: 3px; }
+.maneuver-profile__recovery-label--c { bottom: 3px; }
 .maneuver-profile [data-maneuver-center] {
   stroke: #60777e;
   stroke-width: 1.5;

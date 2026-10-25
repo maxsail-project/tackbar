@@ -48,7 +48,9 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('Maneuver Insights')
     expect(html).toContain('Entry SOG')
     expect(html).toContain('Minimum SOG')
-    expect(html).toContain('SOG drop')
+    expect(html).toContain('Exit SOG')
+    expect(html).toContain('Profile recovery')
+    expect(html).not.toContain('SOG drop')
     expect(html).not.toContain('detected')
     expect(html).toContain('t=0')
   })
@@ -78,6 +80,7 @@ describe('maneuver SOG comparison', () => {
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population(3)} />)
     expect(html).toContain('4.0 kt')
     expect(html).toContain('Maneuver Insights')
+    expect(html).toContain('P unavailable')
     expect(html).not.toContain('C profile data unavailable')
     expect(html).toContain('6 kt')
     expect(html).toContain('3 kt')
@@ -91,8 +94,54 @@ describe('maneuver SOG comparison', () => {
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />)
     expect(html).toContain('4.0 kt')
     expect(html).toContain('4.4 kt')
-    expect(html.match(/C higher/g)).toHaveLength(2)
-    expect(html).toContain('Similar')
+    expect(html.match(/C higher/g)).toHaveLength(3)
+    expect(html).toContain('separate from table Recovery')
+  })
+
+  it('shows coincident P/C recovery markers and separated accessible labels', () => {
+    const primary = population(3)
+    const comparison = population(3)
+    for (const maneuver of [...primary.maneuvers, ...comparison.maneuvers]) {
+      maneuver.grid.fill(5)
+      maneuver.grid[27] = 4
+    }
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />)
+    expect(html).toContain('data-profile-recovery="P"')
+    expect(html).toContain('data-profile-recovery="C"')
+    expect(html).toContain('P +3s')
+    expect(html).toContain('C +3s')
+    expect(html).toContain('Same recovery time')
+    expect(html).toContain('maneuver-profile__recovery-label--p')
+    expect(html).toContain('maneuver-profile__recovery-label--c')
+    expect(html).toContain('P profile recovery at +3 seconds')
+    expect(html).toContain('C profile recovery at +3 seconds')
+    expect(html).toMatch(/data-profile-recovery="P"[\s\S]*?<circle cx="560" cy="69\.33/)
+    expect(html).toMatch(/data-profile-recovery="C"[\s\S]*?<circle cx="560" cy="69\.33/)
+    expect(html).toContain('r="4"')
+    expect(html).toContain('r="8"')
+  })
+
+  it('keeps a one-sided recovered marker without a C recovery claim', () => {
+    const primary = population(3)
+    for (const maneuver of primary.maneuvers) {
+      maneuver.grid.fill(5)
+      maneuver.grid[27] = 4
+    }
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={primary} />)
+    expect(html).toContain('data-profile-recovery="P"')
+    expect(html).not.toContain('data-profile-recovery="C"')
+    expect(html).not.toContain('C +3s')
+  })
+
+  it('shows an evidenced unrecovered state without placing a marker', () => {
+    const primary = population(3)
+    for (const maneuver of primary.maneuvers) {
+      maneuver.grid.fill(5)
+      for (let index = 27; index <= 50; index += 1) maneuver.grid[index] = 4
+    }
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={primary} />)
+    expect(html).toContain('P not reached by +25s')
+    expect(html).not.toContain('data-profile-recovery="P"')
   })
 
   it('updates counts and insight availability for a filtered population', () => {

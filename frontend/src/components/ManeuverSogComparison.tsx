@@ -1,15 +1,20 @@
 import { useMemo, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
-import { MANEUVER_ANGLE_RANGE } from '../config/maneuverProfile'
+import { MANEUVER_ANGLE_RANGE, MANEUVER_SOG_INSIGHTS } from '../config/maneuverProfile'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
 import { buildSogTrendPoints, type SogChartPoint } from '../utils/metricChartData'
 import {
   buildSogManeuverPath,
   calculateSogManeuverInsights,
+  calculateSogProfileRecovery,
   compareSogManeuverInsight,
+  compareSogProfileRecovery,
   sogManeuverAxisBounds,
+  sogManeuverCoordinates,
+  type SogAxisBounds,
   type SogInsightMetric,
   type SogManeuverInsights,
+  type SogProfileRecovery,
 } from '../utils/maneuverSogInsights'
 import { aggregatePreparedSogPopulation, type PreparedSogPopulation, type TypicalSogProfile } from '../utils/typicalSogProfile'
 import ManeuverAngleRange, { type AngleBand } from './ManeuverAngleRange'
@@ -47,10 +52,9 @@ function countSummary(role: 'P' | 'C', profile: TypicalSogProfile, missingCourse
   </p>
 }
 
-function insightValue(value: number | null, metric: SogInsightMetric) {
+function insightValue(value: number | null) {
   if (value === null) return '—'
-  const displayed = `${value.toFixed(1)} kt`
-  return metric === 'sogDrop' && value < 0 ? `${displayed} · no confirmed drop` : displayed
+  return `${value.toFixed(1)} kt`
 }
 
 function insightCard(label: string, metric: SogInsightMetric, p: SogManeuverInsights | null, c: SogManeuverInsights | null) {
@@ -59,11 +63,38 @@ function insightCard(label: string, metric: SogInsightMetric, p: SogManeuverInsi
   return <div className="maneuver-insights__card" key={metric}>
     <h4>{label}</h4>
     <div className="maneuver-insights__values">
-      <span><strong style={{ color: ACTIVITY_COLORS.primary }}>P</strong> {insightValue(primary, metric)}</span>
-      <span><strong style={{ color: ACTIVITY_COLORS.comparison }}>C</strong> {insightValue(comparison, metric)}</span>
+      <span><strong style={{ color: ACTIVITY_COLORS.primary }}>P</strong> {insightValue(primary)}</span>
+      <span><strong style={{ color: ACTIVITY_COLORS.comparison }}>C</strong> {insightValue(comparison)}</span>
     </div>
-    <p>{compareSogManeuverInsight(metric, primary, comparison)}</p>
+    <p>{compareSogManeuverInsight(primary, comparison)}</p>
   </div>
+}
+
+function recoveryMarker(role: 'P' | 'C', recovery: SogProfileRecovery, bounds: SogAxisBounds) {
+  if (recovery.status !== 'recovered') return null
+  const { x, y } = sogManeuverCoordinates(recovery.offsetSeconds, recovery.sogKnots, bounds)
+  const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
+  return <g key={role} data-profile-recovery={role} aria-label={`${role} profile recovery at +${recovery.offsetSeconds} seconds`}>
+    <title>{`${role} profile recovery at +${recovery.offsetSeconds} seconds, ${recovery.sogKnots.toFixed(1)} knots`}</title>
+    <circle cx={x} cy={y} r={role === 'P' ? 4 : 8} fill={role === 'P' ? color : 'none'} stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+  </g>
+}
+
+function recoveryChartLabel(role: 'P' | 'C', recovery: SogProfileRecovery) {
+  if (recovery.status !== 'recovered') return null
+  const span = MANEUVER_SOG_INSIGHTS.profileHalfSpanSeconds
+  const position = (recovery.offsetSeconds + span) / (2 * span) * 100
+  const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
+  return <span className={`maneuver-profile__recovery-label maneuver-profile__recovery-label--${role.toLowerCase()}`}
+    style={{ left: `${position}%`, color, transform: position > 95 ? 'translateX(-100%)' : 'translateX(-50%)' }}
+    aria-label={`${role} profile recovery at +${recovery.offsetSeconds} seconds`}>
+    {role} +{recovery.offsetSeconds}s
+  </span>
+}
+
+function recoveryText(role: 'P' | 'C', recovery: SogProfileRecovery) {
+  if (recovery.status === 'recovered') return `${role} +${recovery.offsetSeconds}s`
+  return recovery.status === 'not_reached' ? `${role} not reached by +${MANEUVER_SOG_INSIGHTS.profileHalfSpanSeconds}s` : `${role} unavailable`
 }
 
 export default function ManeuverSogComparison({ primary, comparison }: {
@@ -81,6 +112,9 @@ export default function ManeuverSogComparison({ primary, comparison }: {
   const bounds = sogManeuverAxisBounds(pRaw, cRaw)
   const pInsights = p ? calculateSogManeuverInsights(pRaw) : null
   const cInsights = c ? calculateSogManeuverInsights(cRaw) : null
+  const pRecovery = calculateSogProfileRecovery(pRaw, pInsights?.entrySog ?? null)
+  const cRecovery = calculateSogProfileRecovery(cRaw, cInsights?.entrySog ?? null)
+  const recoveryComparison = comparison === undefined ? '' : compareSogProfileRecovery(pRecovery, cRecovery)
   const curves = [
     { role: 'comparison', raw: cRaw, color: ACTIVITY_COLORS.comparison },
     { role: 'primary', raw: pRaw, color: ACTIVITY_COLORS.primary },
@@ -108,7 +142,12 @@ export default function ManeuverSogComparison({ primary, comparison }: {
               {smoothPath && <path data-profile-series={`${role}-smoothed`} d={smoothPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.smoothedStrokeWidth} strokeOpacity={SOG_SIGNAL_TUNING.smoothedOpacity} vectorEffect="non-scaling-stroke" />}
             </g>
           })}
-        </svg></div>
+          {recoveryMarker('P', pRecovery, bounds)}
+          {recoveryMarker('C', cRecovery, bounds)}
+        </svg>
+          {recoveryChartLabel('P', pRecovery)}
+          {recoveryChartLabel('C', cRecovery)}
+        </div>
         <div className="sog-signal-chart__x-axis" aria-hidden="true"><span>−25 s</span><span>t=0</span><span>+25 s</span></div>
       </div>
     </div>
@@ -118,8 +157,13 @@ export default function ManeuverSogComparison({ primary, comparison }: {
       <div className="maneuver-insights__grid">{[
         insightCard('Entry SOG', 'entrySog', pInsights, cInsights),
         insightCard('Minimum SOG', 'minimumSog', pInsights, cInsights),
-        insightCard('SOG drop', 'sogDrop', pInsights, cInsights),
+        insightCard('Exit SOG', 'exitSog', pInsights, cInsights),
       ]}</div>
+      <p className="maneuver-insights__recovery"><strong>Profile recovery</strong> · <span style={{ color: ACTIVITY_COLORS.primary }}>{recoveryText('P', pRecovery)}</span>
+        {comparison !== undefined && <> · <span style={{ color: ACTIVITY_COLORS.comparison }}>{recoveryText('C', cRecovery)}</span></>}
+        {recoveryComparison && ` · ${recoveryComparison}`}
+        <span> · from t=0; separate from table Recovery</span>
+      </p>
     </section>
     <p className="maneuver-profile__basis">Curves require 3 SOG-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.</p>
   </section>
