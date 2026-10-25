@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { PreparedSogPopulation } from '../utils/typicalSogProfile'
@@ -59,12 +60,13 @@ describe('maneuver signal selection', () => {
     expect(html).toContain('Turn angle')
     expect(html).toContain('Turn midpoint')
     expect(html).toContain('Turn duration (10–90%)')
-    expect(html).toContain('data-cog-turn-interval="P"')
-    expect(html).toContain('data-cog-turn-interval="C"')
-    expect(html).toContain('data-cog-turn-label="P"')
-    expect(html).toContain('data-cog-turn-label="C"')
-    expect(html).toContain('P: -4.8s → +4.8s')
-    expect(html).toContain('C: -4.8s → +4.8s')
+    expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(html).toContain('P</strong> 9.6s')
+    expect(html).toContain('C</strong> 9.6s')
+    expect(html).toContain('Same to 0.1s')
+    expect(html).not.toContain('data-cog-turn-interval')
+    expect(html).not.toContain('data-cog-turn-label')
+    expect(html).not.toContain('<circle')
     expect(html).not.toContain('Profile recovery')
     expect(html).not.toContain('Entry SOG')
     expect(html).toContain('class="metric-options"')
@@ -72,20 +74,20 @@ describe('maneuver signal selection', () => {
     expect(html).toMatch(/aria-pressed="true"[^>]*>COG<\/button>/)
   })
 
-  it('keeps close P/C interval labels on separate chart rows and supports one Activity', () => {
+  it('uses the responsive three-card layout and supports one Activity', () => {
     selection.signal = 'COG'
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30, 40])}
-      comparison={population([25, 35, 45], -5.5, 6.5)} />)
-    expect(html).toContain('data-cog-turn-interval="P"')
-    expect(html).toContain('data-cog-turn-interval="C"')
-    expect(html).toMatch(/data-cog-turn-interval="P"[\s\S]*?<rect[^>]* y="12"/)
-    expect(html).toMatch(/data-cog-turn-interval="C"[\s\S]*?<rect[^>]* y="178"/)
-    expect(html).toContain('maneuver-profile__recovery-label--p')
-    expect(html).toContain('maneuver-profile__recovery-label--c')
-    expect(html).toContain('fill-opacity="0.22"')
+      comparison={population([25, 35, 45], -5.5, 7)} />)
+    expect(html).toContain('class="maneuver-insights__grid"')
+    expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(html).toContain('Difference 0.4s')
+    expect(html).not.toContain('data-cog-turn-interval')
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(css).toMatch(/\.maneuver-insights__grid\s*\{\s*display: grid;\s*gap: 8px;\s*\}/)
+    expect(css).toMatch(/@media \(min-width: 700px\)\s*\{\s*\.maneuver-insights__grid\s*\{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/)
     const alone = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30, 40])} />)
-    expect(alone).toContain('data-cog-turn-interval="P"')
-    expect(alone).not.toContain('data-cog-turn-interval="C"')
+    expect(alone.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(alone).toContain('P</strong> 9.6s')
     expect(alone).toContain('C</strong> Unavailable')
   })
 
@@ -93,8 +95,9 @@ describe('maneuver signal selection', () => {
     selection.signal = 'COG'
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30])} />)
     expect(html).toContain('At least 3 profiles needed')
-    expect(html).toContain('P Unavailable')
-    expect(html).not.toContain('data-cog-turn-interval="P"')
+    expect(html).toContain('P</strong> Unavailable')
+    expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(html).not.toContain('data-cog-turn-interval')
   })
 
   it('returns to existing SOG display with its insights and recovery', () => {

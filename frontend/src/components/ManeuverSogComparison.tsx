@@ -117,7 +117,7 @@ function cogValue(value: number | null, unit: '°' | 's', signed = false) {
   return `${signed && value >= 0 ? '+' : ''}${value.toFixed(1)}${unit}`
 }
 
-function cogInsightCard(label: string, metric: 'turnAngleDeg' | 'turnMidpointSeconds',
+function cogInsightCard(label: string, metric: 'turnAngleDeg' | 'turnMidpointSeconds' | 'turnDurationSeconds',
   primary: CogManeuverInsights | null, comparison: CogManeuverInsights | null) {
   const p = primary?.[metric] ?? null
   const c = comparison?.[metric] ?? null
@@ -133,32 +133,6 @@ function cogInsightCard(label: string, metric: 'turnAngleDeg' | 'turnMidpointSec
     </div>
     <p>{difference}</p>
   </div>
-}
-
-function turnInterval(role: 'P' | 'C', insights: CogManeuverInsights | null) {
-  if (insights?.turnStartSeconds === null || insights?.turnStartSeconds === undefined
-    || insights.turnEndSeconds === null || insights.turnEndSeconds === undefined) return null
-  const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
-  const x1 = (insights.turnStartSeconds + 25) * 20
-  const x2 = (insights.turnEndSeconds + 25) * 20
-  return <g data-cog-turn-interval={role} aria-label={`${role} 10 to 90 percent turn interval`}>
-    <title>{`${role} turn from ${insights.turnStartSeconds.toFixed(1)} to ${insights.turnEndSeconds.toFixed(1)} seconds`}</title>
-    <rect x={x1} y={role === 'P' ? 12 : 178} width={x2 - x1} height="10" rx="5" fill={color} fillOpacity="0.22" stroke={color} strokeOpacity="0.6" vectorEffect="non-scaling-stroke" />
-    <circle cx={x1} cy={role === 'P' ? 17 : 183} r="3" fill={color} />
-    <circle cx={x2} cy={role === 'P' ? 17 : 183} r="3" fill={color} />
-  </g>
-}
-
-function turnIntervalLabel(role: 'P' | 'C', insights: CogManeuverInsights | null) {
-  if (insights?.turnStartSeconds === null || insights?.turnStartSeconds === undefined
-    || insights.turnEndSeconds === null || insights.turnEndSeconds === undefined) return null
-  const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
-  const position = Math.max(20, Math.min(80, insights.turnStartSeconds + insights.turnEndSeconds + 50))
-  return <span data-cog-turn-label={role}
-    className={`maneuver-profile__recovery-label maneuver-profile__recovery-label--${role.toLowerCase()}`}
-    style={{ left: `${position}%`, backgroundColor: `${color}33`, borderColor: `${color}80`, transform: 'translateX(-50%)' }}>
-    {role}: {cogValue(insights.turnStartSeconds, 's', true)} → {cogValue(insights.turnEndSeconds, 's', true)}
-  </span>
 }
 
 export default function ManeuverSogComparison({ primary, comparison }: {
@@ -221,13 +195,9 @@ export default function ManeuverSogComparison({ primary, comparison }: {
           })}
           {signal === 'SOG' && recoveryMarker('P', pRecovery, bounds, coincidentRecovery)}
           {signal === 'SOG' && recoveryMarker('C', cRecovery, bounds, coincidentRecovery)}
-          {signal === 'COG' && turnInterval('P', pCogInsights)}
-          {signal === 'COG' && turnInterval('C', cCogInsights)}
         </svg>
           {signal === 'SOG' && recoveryChartLabel('P', pRecovery, bounds)}
           {signal === 'SOG' && recoveryChartLabel('C', cRecovery, bounds)}
-          {signal === 'COG' && turnIntervalLabel('P', pCogInsights)}
-          {signal === 'COG' && turnIntervalLabel('C', cCogInsights)}
         </div>
         <div className="sog-signal-chart__x-axis" aria-hidden="true"><span>−25 s</span><span>t=0</span><span>+25 s</span></div>
       </div>
@@ -249,16 +219,11 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     {signal === 'COG' && <section className="maneuver-insights" aria-label="COG Maneuver Insights">
       <h3>COG Maneuver Insights</h3>
       <p>Supported raw median relative COG</p>
-      <div className="maneuver-insights__grid maneuver-insights__grid--cog">
+      <div className="maneuver-insights__grid">
         {cogInsightCard('Turn angle', 'turnAngleDeg', pCogInsights, cCogInsights)}
         {cogInsightCard('Turn midpoint', 'turnMidpointSeconds', pCogInsights, cCogInsights)}
+        {cogInsightCard('Turn duration (10–90%)', 'turnDurationSeconds', pCogInsights, cCogInsights)}
       </div>
-      <p className="maneuver-insights__recovery"><strong>Turn duration (10–90%)</strong> · <span style={{ color: ACTIVITY_COLORS.primary }}>P {cogValue(pCogInsights?.turnDurationSeconds ?? null, 's')}</span>
-        {comparison !== undefined && <> · <span style={{ color: ACTIVITY_COLORS.comparison }}>C {cogValue(cCogInsights?.turnDurationSeconds ?? null, 's')}</span></>}
-        {pCogInsights?.turnDurationSeconds !== null && pCogInsights?.turnDurationSeconds !== undefined
-          && cCogInsights?.turnDurationSeconds !== null && cCogInsights?.turnDurationSeconds !== undefined
-          && ` · Difference ${Math.abs(pCogInsights.turnDurationSeconds - cCogInsights.turnDurationSeconds).toFixed(1)}s`}
-      </p>
     </section>}
     <p className="maneuver-profile__basis">Curves require 3 {signal}-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.{signal === 'COG' ? ' COG shows oriented relative turn degrees, not geographic course; t=0 remains the event center.' : ''}</p>
   </section>

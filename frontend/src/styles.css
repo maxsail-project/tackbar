@@ -1267,7 +1267,6 @@ input:focus-visible {
 .maneuver-insights__recovery strong { color: #31515a; }
 @media (min-width: 700px) {
   .maneuver-insights__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .maneuver-insights__grid--cog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .maneuver-profile .sog-signal-chart__plot { position: relative; overflow: visible; }
 .maneuver-profile__recovery-label {
