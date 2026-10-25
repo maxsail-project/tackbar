@@ -204,6 +204,17 @@ class IngestionHistory:
                         raise ValueError("Mail ingestion original reference is immutable")
                     if record["attachment_ordinal_verified"]:
                         _validate_staged_transition(record, replacement)
+                    previous_consent = record.get("first_processing_consent")
+                    current_consent = replacement.get("first_processing_consent")
+                    if previous_consent is not None and current_consent != previous_consent:
+                        raise ValueError("First-processing consent evidence is immutable")
+                    if previous_consent is None and current_consent is not None and not (
+                        record["provider"] == "ovh"
+                        and record["attachment_ordinal_verified"] is True
+                        and record["status"] == replacement["status"] == "processing"
+                        and record["attempts"] == replacement["attempts"] == 1
+                    ):
+                        raise ValueError("First-processing consent evidence requires the first claimed attempt")
                 previous = record["activity_created_by_ingestion"]
                 current = replacement["activity_created_by_ingestion"]
                 if previous is not None and current != previous:
@@ -318,6 +329,33 @@ def _validate_attachment_identity(ordinal: object, verified: object) -> None:
         raise ValueError("Malformed mail attachment identity")
 
 
+def _validate_first_processing_consent(evidence: object) -> None:
+    if not isinstance(evidence, dict) or set(evidence) != {
+        "sailor_id", "consent_status", "consent_cycle_sequence", "consent_granted_at",
+    }:
+        raise ValueError("Malformed first-processing consent evidence")
+    if not isinstance(evidence["sailor_id"], str):
+        raise ValueError("Malformed first-processing consent evidence")
+    require_uuid(evidence["sailor_id"], "First-processing Sailor")
+    if (
+        evidence["consent_status"] not in ("ACTIVE", "PENDING")
+        or type(evidence["consent_cycle_sequence"]) is not int
+        or evidence["consent_cycle_sequence"] < 0
+        or (evidence["consent_status"] == "PENDING" and evidence["consent_granted_at"] is not None)
+    ):
+        raise ValueError("Malformed first-processing consent evidence")
+    granted_at = evidence["consent_granted_at"]
+    if granted_at is not None:
+        if not isinstance(granted_at, str):
+            raise ValueError("Malformed first-processing consent grant")
+        try:
+            parsed = datetime.fromisoformat(granted_at)
+        except ValueError as error:
+            raise ValueError("Malformed first-processing consent grant") from error
+        if parsed.tzinfo is None:
+            raise ValueError("Malformed first-processing consent grant")
+
+
 def _validate_staged_transition(old: dict[str, Any], new: dict[str, Any]) -> None:
     if old["sender_email"] != new["sender_email"] or (
         old["received_at"] is not None and old["received_at"] != new["received_at"]
@@ -341,6 +379,9 @@ def _canonical(item: dict[str, Any], *, assign_id: bool = True) -> tuple[dict[st
     if item.get("provider") == ADMIN_UPLOAD:
         _validate_manual(item)
         return dict(item), False
+    first_consent = item.get("first_processing_consent")
+    if "first_processing_consent" in item:
+        _validate_first_processing_consent(first_consent)
     activity_created = item.get("activity_created_by_ingestion")
     if activity_created is not None and not isinstance(activity_created, bool):
         raise ValueError("Malformed ingestion Activity-creation provenance")
@@ -358,9 +399,18 @@ def _canonical(item: dict[str, Any], *, assign_id: bool = True) -> tuple[dict[st
             "session_result_notification_candidate",
             "session_result_notification",
             "pending_onboarding_reservation",
+            "first_processing_consent",
         )
     }
     if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed", "pending", "processing", "acquisition_failed"): raise ValueError("Malformed ingestion record")
+    if first_consent is not None and (
+        item["provider"] != "ovh"
+        or item.get("attachment_ordinal_verified") is not True
+        or item["status"] in ("pending", "acquisition_failed")
+        or type(item.get("attempts")) is not int
+        or item["attempts"] < 1
+    ):
+        raise ValueError("Malformed first-processing consent evidence")
     if item["status"] == "processing" and item.get("attachment_ordinal_verified") is not True:
         raise ValueError("Mail processing state requires a verified attachment identity")
     if item["status"] in ("pending", "acquisition_failed"):
@@ -395,10 +445,16 @@ def _canonical(item: dict[str, Any], *, assign_id: bool = True) -> tuple[dict[st
             migrated = False
         if set(item) == FIELDS - {"disposition"}:
             item = {**item, "disposition": "active"}
-            return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}, True
+            result = {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}
+            if first_consent is not None:
+                result["first_processing_consent"] = first_consent
+            return result, True
         if set(item) != FIELDS or item.get("disposition") not in ("active", "discarded") or type(item["attempts"]) is not int or item["attempts"] < 0: raise ValueError("Malformed ingestion record")
         _validate_attachment_identity(item["attachment_ordinal"], item["attachment_ordinal_verified"])
-        return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}, migrated
+        result = {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation}
+        if first_consent is not None:
+            result["first_processing_consent"] = first_consent
+        return result, migrated
     if set(item) - {"provider", "provider_message_id", "status", "processed_at", "activity_id"}:
         raise ValueError("Malformed legacy ingestion record")
     attempted = item.get("processed_at")

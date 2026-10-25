@@ -191,6 +191,41 @@ def test_verify_rejects_missing_verified_receipt_and_unmigrated_mail(tmp_path):
         verify(path)
 
 
+def test_optional_first_processing_evidence_round_trips_without_migration_write(tmp_path):
+    path = tmp_path / "ingestion_history.json"
+    history = IngestionHistory(path)
+    record = history.create("ovh", "456:1", "sailor@example.test", "race.gpx", "a" * 64, attachment_ordinal=1, status="pending")
+    record.update(
+        status="processing", attempts=1,
+        last_attempt_at="2026-10-25T10:00:00+00:00",
+        original_file=f"originals/ingestions/{record['id']}/race.gpx",
+        session_result_notification_candidate=False,
+    )
+    history.replace(record)
+    evidence = {
+        "sailor_id": "30000000-0000-4000-8000-000000000001",
+        "consent_status": "ACTIVE", "consent_cycle_sequence": 0,
+        "consent_granted_at": "2026-10-24T10:00:00+00:00",
+    }
+    history.replace({**record, "first_processing_consent": evidence})
+    MailReceiptStore(path).add({
+        "provider": "ovh", "provider_message_id": "456:1",
+        "receipt_state": "complete", "attachment_ingestion_ids": [record["id"]],
+        "feedback_state": "unreserved", "feedback_attempts": [],
+    })
+    before = (path.read_bytes(), MailReceiptStore(path).path.read_bytes())
+    assert history.get(record["id"])["first_processing_consent"] == evidence
+    assert check(path)["missing_ids"] == 0
+    assert verify(path)["stored_receipts"] == 1
+    assert migrate(path)["history_changed"] is False
+    assert before == (path.read_bytes(), MailReceiptStore(path).path.read_bytes())
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    rows[0]["first_processing_consent"]["consent_cycle_sequence"] = -1
+    _write(path, rows)
+    with pytest.raises(ValueError, match="consent evidence"):
+        verify(path)
+
+
 def test_receipt_write_failure_restores_original_history(tmp_path, monkeypatch):
     path = tmp_path / "ingestion_history.json"
     _write(path, [_legacy("record-1")])

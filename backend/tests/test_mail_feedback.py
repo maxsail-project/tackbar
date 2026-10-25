@@ -267,10 +267,10 @@ def test_reprocess_cannot_hide_preconsent_processing_from_feedback(runtime):
     receipt = MailReceiptStore(runtime[-1].path).get("ovh", "456:1")
     assert sent == []
     assert receipt["feedback_state"] == "suppressed"
-    assert receipt["feedback_suppressed_reason"] == "uncertain_consent"
+    assert receipt["feedback_suppressed_reason"] == "non_active"
 
 
-def test_active_mail_reprocessed_before_first_decision_is_conservatively_suppressed(runtime):
+def test_active_mail_reprocessed_before_first_decision_keeps_original_eligibility(runtime):
     _active(runtime)
     stage_ovh_mailbox_now(_provider(1, [("race.gpx", GPX)]))
     record = recover_unattempted_ingestions()[0]
@@ -281,9 +281,118 @@ def test_active_mail_reprocessed_before_first_decision_is_conservatively_suppres
     sent = []
     _feedback(runtime, sent.append).attempt_automatic("456:1")
     receipt = MailReceiptStore(runtime[-1].path).get("ovh", "456:1")
+    assert len(sent) == 1
+    assert receipt["feedback_state"] == "sent"
+    assert len(receipt["feedback_attempts"]) == 1
+
+
+def test_first_processing_evidence_is_immutable_across_reprocess_and_restart(runtime):
+    sailor = _active(runtime)
+    stage_ovh_mailbox_now(_provider(1, [("race.gpx", GPX)]))
+    record = recover_unattempted_ingestions()[0]
+    assert process_staged_ingestion(record["id"], *runtime)["status"] == "processed"
+    first = runtime[-1].get(record["id"])["first_processing_consent"]
+    assert first == {
+        "sailor_id": sailor.id, "consent_status": "ACTIVE",
+        "consent_cycle_sequence": 0, "consent_granted_at": None,
+    }
+    from app.services.ingestion_processing import reprocess_ingestion
+
+    reprocess_ingestion(record["id"], *runtime)
+    assert IngestionHistory(runtime[-1].path).get(record["id"])["first_processing_consent"] == first
+    with pytest.raises(ValueError, match="immutable"):
+        runtime[-1].replace({**runtime[-1].get(record["id"]), "first_processing_consent": {**first, "consent_cycle_sequence": 1}})
+    with pytest.raises(ValueError, match="immutable"):
+        runtime[-1].replace({key: value for key, value in runtime[-1].get(record["id"]).items() if key != "first_processing_consent"})
+
+
+def test_active_first_processing_in_old_consent_cycle_cannot_gain_feedback(runtime):
+    sailor = _active(runtime)
+    stage_ovh_mailbox_now(_provider(1, [("race.gpx", GPX)]))
+    record = recover_unattempted_ingestions()[0]
+    process_staged_ingestion(record["id"], *runtime)
+    consent = SailorConsentService(runtime[0], ConsentEventRepository(), welcome_email_sender=lambda *_: None)
+    consent.revoke_consent(sailor.id, "test")
+    consent.start_new_consent_cycle(sailor.id, "test")
+    consent.confirm_consent(sailor.id, "test")
+    sent = []
+    _feedback(runtime, sent.append).attempt_automatic("456:1")
+    receipt = MailReceiptStore(runtime[-1].path).get("ovh", "456:1")
     assert sent == []
     assert receipt["feedback_state"] == "suppressed"
-    assert receipt["feedback_suppressed_reason"] == "uncertain_consent"
+    assert receipt["feedback_suppressed_reason"] == "non_active"
+
+
+def test_revoked_first_processing_and_later_activation_stays_ineligible(runtime):
+    sailor = _active(runtime)
+    consent = SailorConsentService(runtime[0], ConsentEventRepository(), welcome_email_sender=lambda *_: None)
+    consent.revoke_consent(sailor.id, "test")
+    stage_ovh_mailbox_now(_provider(1, [("race.gpx", GPX)]))
+    record = recover_unattempted_ingestions()[0]
+    process_staged_ingestion(record["id"], *runtime)
+    evidence = runtime[-1].get(record["id"])["first_processing_consent"]
+    assert evidence["consent_status"] == "PENDING" and evidence["consent_cycle_sequence"] == 1
+    consent.confirm_consent(sailor.id, "test")
+    from app.services.ingestion_processing import reprocess_ingestion
+
+    reprocess_ingestion(record["id"], *runtime)
+    sent = []
+    _feedback(runtime, sent.append).attempt_automatic("456:1")
+    assert sent == []
+    assert MailReceiptStore(runtime[-1].path).get("ovh", "456:1")["feedback_suppressed_reason"] == "non_active"
+
+
+def test_missing_first_processing_evidence_is_not_backfilled(runtime):
+    _active(runtime)
+    stage_ovh_mailbox_now(_provider(1, [("race.gpx", GPX)]))
+    record = recover_unattempted_ingestions()[0]
+    process_staged_ingestion(record["id"], *runtime)
+    path = runtime[-1].path
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    rows[0].pop("first_processing_consent")
+    path.write_text(json.dumps(rows), encoding="utf-8")
+    before = path.read_bytes()
+    assert check(path)["missing_ids"] == 0
+    assert verify(path)["stored_receipts"] == 1
+    assert path.read_bytes() == before
+    from app.services.ingestion_processing import reprocess_ingestion
+
+    reprocess_ingestion(record["id"], *runtime)
+    assert runtime[-1].get(record["id"]).get("first_processing_consent") is None
+    sent = []
+    _feedback(runtime, sent.append).attempt_automatic("456:1")
+    assert sent == []
+    assert MailReceiptStore(path).get("ovh", "456:1")["feedback_suppressed_reason"] == "uncertain_consent"
+
+
+def test_interruption_before_first_evidence_write_cannot_authorize_feedback(runtime, monkeypatch):
+    _active(runtime)
+    stage_ovh_mailbox_now(_provider(1, [("race.gpx", GPX)]))
+    record = recover_unattempted_ingestions()[0]
+    original_replace = IngestionHistory.replace
+
+    def interrupt(self, replacement):
+        if replacement.get("first_processing_consent") is not None:
+            raise KeyboardInterrupt("evidence write interrupted")
+        return original_replace(self, replacement)
+
+    monkeypatch.setattr(IngestionHistory, "replace", interrupt)
+    with pytest.raises(KeyboardInterrupt, match="evidence write interrupted"):
+        process_staged_ingestion(record["id"], *runtime)
+    monkeypatch.setattr(IngestionHistory, "replace", original_replace)
+    claimed = runtime[-1].get(record["id"])
+    assert claimed["status"] == "processing" and claimed["attempts"] == 1
+    assert claimed.get("first_processing_consent") is None
+    assert runtime[2].all() == []
+    assert recover_unattempted_ingestions() == []
+    assert runtime[-1].get(record["id"])["status"] == "failed"
+    from app.services.ingestion_processing import reprocess_ingestion
+
+    assert reprocess_ingestion(record["id"], *runtime)["status"] == "processed"
+    sent = []
+    _feedback(runtime, sent.append).attempt_automatic("456:1")
+    assert sent == []
+    assert MailReceiptStore(runtime[-1].path).get("ovh", "456:1")["feedback_suppressed_reason"] == "uncertain_consent"
 
 
 def test_restart_recovers_durable_children_and_feedback_without_imap(runtime):

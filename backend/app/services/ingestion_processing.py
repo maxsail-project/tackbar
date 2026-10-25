@@ -5,7 +5,7 @@ from hashlib import sha256
 from typing import Callable
 from uuid import uuid4
 
-from app.models import Activity, ConsentStatus, InboundEmail, Sailor, StoredActivity
+from app.models import Activity, ConsentEventType, ConsentStatus, InboundEmail, Sailor, StoredActivity
 from app.parsers.track import parse_track_attachment
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
@@ -548,6 +548,29 @@ def _process_activity(
             sailor.id,
             source=f"{provider}_valid_track",
         )
+
+    if (
+        provider == "ovh"
+        and record["attachment_ordinal_verified"] is True
+        and record["attempts"] == 1
+        and record.get("first_processing_consent") is None
+    ):
+        events = consent_events or ConsentEventRepository(
+            sailors.path.with_name("consent_events.json")
+        )
+        record["first_processing_consent"] = {
+            "sailor_id": sailor.id,
+            "consent_status": sailor.consent_status.value,
+            "consent_cycle_sequence": sum(
+                event.event_type == ConsentEventType.CONSENT_CYCLE_STARTED
+                for event in events.for_sailor(sailor.id)
+            ),
+            "consent_granted_at": (
+                sailor.consent_granted_at.isoformat()
+                if sailor.consent_granted_at is not None else None
+            ),
+        }
+        history.replace(record)
 
     boat_id = sailor.default_boat_id
     if boat_id is not None and boats.get_by_id(boat_id) is None:

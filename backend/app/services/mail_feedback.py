@@ -1,16 +1,16 @@
 """Internal per-mail feedback. The production mailbox trigger does not call this."""
 
 from dataclasses import dataclass
-from datetime import datetime
 from email.utils import parseaddr
 from typing import Callable
 from unicodedata import category
 
 from app.config import configured_public_base_url
 from app.email_providers.ovh import OVHAdapter
-from app.models import ConsentStatus
+from app.models import ConsentEventType, ConsentStatus
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
+from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.ingestion_history import IngestionHistory
@@ -162,21 +162,25 @@ class MailFeedbackService:
             return None, "unusable_access", None
         if sailor.consent_status != ConsentStatus.ACTIVE:
             return None, "non_active", sailor.id
-        if any(record["attempts"] > 1 for record in successful):
-            # Reprocess overwrites last_attempt_at. With no immutable first
-            # attempt time, the original consent state cannot be proven.
+        evidence = [record.get("first_processing_consent") for record in successful]
+        if any(item is None for item in evidence):
             return None, "uncertain_consent", sailor.id
-        # A crash after child processing but before the mail decision must not
-        # turn a previously PENDING submission into a retrospective result.
-        if sailor.consent_granted_at is not None:
-            try:
-                if any(
-                    datetime.fromisoformat(record["last_attempt_at"]) < sailor.consent_granted_at
-                    for record in successful
-                ):
-                    return None, "non_active", sailor.id
-            except (TypeError, ValueError):
-                return None, "unusable_access", sailor.id
+        cycle = sum(
+            event.event_type == ConsentEventType.CONSENT_CYCLE_STARTED
+            for event in ConsentEventRepository(
+                self.sailors.path.with_name("consent_events.json")
+            ).for_sailor(sailor.id)
+        )
+        current_grant = sailor.consent_granted_at.isoformat() if sailor.consent_granted_at else None
+        if any(
+            item["consent_status"] != ConsentStatus.ACTIVE.value
+            or item["consent_cycle_sequence"] != cycle
+            or item["consent_granted_at"] != current_grant
+            for item in evidence
+        ):
+            return None, "non_active", sailor.id
+        if any(item["sailor_id"] != sailor.id for item in evidence):
+            return None, "unusable_access", sailor.id
         # Do not disclose an Activity belonging to another Sailor, even when
         # a corrupt Ingestion happens to point to an otherwise valid Session.
         for record in successful:
