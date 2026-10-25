@@ -225,7 +225,6 @@ def recover_unattempted_ingestions(history_path: str | Path | None = None) -> li
     """Find unattempted children beyond the cursor; fail abandoned claims, never replay."""
     history = IngestionHistory(history_path)
     with ingestion_lock(history.path.parent):
-        originals = IngestionOriginalStorage(history.path.parent)
         result = []
         for receipt in MailReceiptStore(history.path).receipts():
             if receipt["provider"] != "ovh" or receipt["receipt_state"] != "complete":
@@ -240,8 +239,5 @@ def recover_unattempted_ingestions(history_path: str | Path | None = None) -> li
                 if record["status"] == "pending":
                     if record["attempts"] != 0 or record["original_file"] is None:
                         raise ValueError("Incomplete pending mail Ingestion")
-                    content = originals.read(record["original_file"])
-                    if sha256(content).hexdigest() != record["attachment_sha256"]:
-                        raise ValueError("Pending mail original SHA-256 mismatch")
                     result.append(record)
         return result

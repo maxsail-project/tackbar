@@ -177,13 +177,10 @@ def _review_staged_ovh(provider: Any | None) -> MailboxReviewSummary:
     from app.services.mail_feedback import orchestrate_staged_mailbox_now
 
     history_path = IngestionHistory().path
-    if history_path.exists():
-        try:
-            verify(history_path)
-        except (OSError, ValueError) as error:
-            raise MailboxReviewError("Staged mailbox requires verified migration") from error
-    elif any(receipt["receipt_state"] != "rejected" for receipt in MailReceiptStore(history_path).receipts()):
-        raise MailboxReviewError("Staged mailbox requires verified migration")
+    try:
+        verify(history_path)
+    except (OSError, ValueError) as error:
+        raise MailboxReviewError("Staged mailbox requires verified migration") from error
     adapter = provider if provider is not None else _configured_provider("ovh")
     staged = orchestrate_staged_mailbox_now(adapter)
     return MailboxReviewSummary(

@@ -23,8 +23,8 @@ def _read_history(path: Path) -> tuple[bytes, list[dict]]:
     return raw, data
 
 
-def _plan(history_path: Path, *, assign_ids: bool) -> tuple[bytes, list[dict], list[dict], dict]:
-    raw, source = _read_history(history_path)
+def _plan(history_path: Path, *, assign_ids: bool, allow_missing_history: bool = False) -> tuple[bytes, list[dict], list[dict], dict]:
+    raw, source = (b"", []) if allow_missing_history and not history_path.exists() else _read_history(history_path)
     current_receipts = read_receipts(receipt_path(history_path))
     ids, identities, reservations = set(), set(), set()
     records, groups = [], {}
@@ -59,7 +59,10 @@ def _plan(history_path: Path, *, assign_ids: bool) -> tuple[bytes, list[dict], l
     if set(receipt_index) - set(groups):
         # A rejected mail has no Ingestion, so its receipt is valid independently.
         for key in set(receipt_index) - set(groups):
-            if receipt_index[key]["receipt_state"] != "rejected" or receipt_index[key]["attachment_ingestion_ids"]:
+            receipt = receipt_index[key]
+            if receipt["receipt_state"] != "rejected" and not (
+                receipt["receipt_state"] == "incomplete" and not receipt["attachment_ingestion_ids"]
+            ):
                 raise ValueError("Orphan mail receipt")
     additions = []
     for key, members in groups.items():
@@ -68,7 +71,9 @@ def _plan(history_path: Path, *, assign_ids: bool) -> tuple[bytes, list[dict], l
         if len({record["attachment_ordinal_verified"] for record in members}) != 1:
             raise ValueError("Mixed logical and verified attachment ordinals")
         if existing is not None:
-            if None not in member_ids and existing["attachment_ingestion_ids"] != member_ids:
+            stored_ids = existing["attachment_ingestion_ids"]
+            expected_ids = member_ids[:len(stored_ids)] if existing["receipt_state"] == "incomplete" else member_ids
+            if None not in member_ids and stored_ids != expected_ids:
                 raise ValueError("Mail receipt conflicts with ingestion identities")
             if not members[0]["attachment_ordinal_verified"] and existing["receipt_state"] != "legacy_complete":
                 raise ValueError("Historical mail receipt must suppress feedback")
@@ -120,10 +125,10 @@ def migrate(history_path: str | Path) -> dict:
 
 def verify(history_path: str | Path) -> dict:
     path = Path(history_path)
-    _, source = _read_history(path)
+    source = [] if not path.exists() else _read_history(path)[1]
     if any(item.get("provider") != ADMIN_UPLOAD and ("id" not in item or "attachment_ordinal" not in item or "attachment_ordinal_verified" not in item) for item in source):
         raise ValueError("Unmigrated mail ingestion")
-    _, _, receipts, summary = _plan(path, assign_ids=False)
+    _, _, receipts, summary = _plan(path, assign_ids=False, allow_missing_history=True)
     if summary["receipts_to_create"]:
         raise ValueError("Missing mail receipts")
     return {**summary, "stored_receipts": len(receipts)}

@@ -152,6 +152,45 @@ def test_verify_detects_receipt_identity_tampering(tmp_path):
     assert receipt_file.read_bytes() == before
 
 
+def test_verify_accepts_only_ordered_incomplete_prefix_without_writing(tmp_path):
+    path = tmp_path / "ingestion_history.json"
+    store = MailReceiptStore(path)
+    receipt = {
+        "provider": "ovh", "provider_message_id": "456:1",
+        "receipt_state": "incomplete", "attachment_ingestion_ids": [],
+        "feedback_state": "unreserved", "feedback_attempts": [],
+    }
+    store.add(receipt)
+    before = store.path.read_bytes()
+    assert verify(path)["stored_receipts"] == 1
+    assert not path.exists() and store.path.read_bytes() == before
+    history = IngestionHistory(path)
+    first = history.create("ovh", "456:1", "sailor@example.test", "one.gpx", "a" * 64, attachment_ordinal=1, status="pending")
+    second = history.create("ovh", "456:1", "sailor@example.test", "two.gpx", "b" * 64, attachment_ordinal=2, status="pending")
+    store.replace({**receipt, "attachment_ingestion_ids": [first["id"]]})
+    history_before, receipt_before = path.read_bytes(), store.path.read_bytes()
+    assert verify(path)["stored_receipts"] == 1
+    assert path.read_bytes() == history_before and store.path.read_bytes() == receipt_before
+    for ids in ([second["id"]], [first["id"], "phantom"]):
+        store.replace({**receipt, "attachment_ingestion_ids": ids})
+        with pytest.raises(ValueError, match="conflicts"):
+            verify(path)
+    store.replace({**receipt, "attachment_ingestion_ids": [first["id"]]})
+    store.replace({**receipt, "receipt_state": "complete", "attachment_ingestion_ids": [first["id"]]})
+    with pytest.raises(ValueError, match="conflicts"):
+        verify(path)
+
+
+def test_verify_rejects_missing_verified_receipt_and_unmigrated_mail(tmp_path):
+    path = tmp_path / "ingestion_history.json"
+    IngestionHistory(path).create("ovh", "456:1", "sailor@example.test", "one.gpx", "a" * 64, attachment_ordinal=1, status="pending")
+    with pytest.raises(ValueError, match="receipt"):
+        verify(path)
+    _write(path, [_legacy("old")])
+    with pytest.raises(ValueError, match="Unmigrated"):
+        verify(path)
+
+
 def test_receipt_write_failure_restores_original_history(tmp_path, monkeypatch):
     path = tmp_path / "ingestion_history.json"
     _write(path, [_legacy("record-1")])

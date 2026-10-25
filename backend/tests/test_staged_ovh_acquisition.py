@@ -562,10 +562,9 @@ def test_overlapping_review_rechecks_cursor_and_uidvalidity(root):
     assert store.load() == OVHMailboxCursor(789, 20)
 
 
-def test_recovery_fails_on_original_corruption(root):
+def test_recovery_defers_original_corruption_to_claimed_processing(root):
     stage_ovh_mailbox_now(_provider(_examined(1)))
     record = IngestionHistory().records()[0]
     path = root / record["original_file"]
     path.write_bytes(b"different")
-    with pytest.raises(ValueError, match="SHA-256"):
-        recover_unattempted_ingestions()
+    assert [item["id"] for item in recover_unattempted_ingestions()] == [record["id"]]
