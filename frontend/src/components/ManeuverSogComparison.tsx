@@ -17,7 +17,7 @@ import {
   type SogProfileRecovery,
 } from '../utils/maneuverSogInsights'
 import { aggregatePreparedSogPopulation, type PreparedSogPopulation, type TypicalSogProfile } from '../utils/typicalSogProfile'
-import { aggregatePreparedCogPopulation, type TypicalCogProfile } from '../utils/typicalSogProfile'
+import { aggregatePreparedCogPopulation, aggregatePreparedHeelPopulation, type TypicalCogProfile, type TypicalHeelProfile } from '../utils/typicalSogProfile'
 import { relativeCogAxisBounds } from '../utils/typicalCogProfile'
 import { calculateCogManeuverInsights, type CogManeuverInsights } from '../utils/maneuverCogInsights'
 import ManeuverAngleRange, { type AngleBand } from './ManeuverAngleRange'
@@ -33,6 +33,13 @@ export function supportedCogPoints(profile: TypicalCogProfile): SogChartPoint[] 
   return profile.grid.map((point) => ({
     time: point.offsetSeconds * 1_000,
     sog: profile.status === 'ready' && point.contributorCount >= 3 ? point.medianCogDeg : null,
+  }))
+}
+
+export function supportedHeelPoints(profile: TypicalHeelProfile): SogChartPoint[] {
+  return profile.grid.map((point) => ({
+    time: point.offsetSeconds * 1_000,
+    sog: profile.status === 'ready' && point.contributorCount >= 3 ? point.medianHeelDeg : null,
   }))
 }
 
@@ -139,22 +146,32 @@ export default function ManeuverSogComparison({ primary, comparison }: {
   primary: PreparedSogPopulation | null
   comparison?: PreparedSogPopulation | null
 }) {
-  const [signal, setSignal] = useState<'SOG' | 'COG'>('SOG')
+  const [signal, setSignal] = useState<'SOG' | 'COG' | 'HEEL'>('SOG')
   const [range, setRange] = useState<AngleBand>({
     minimum: MANEUVER_ANGLE_RANGE.initialMinimum,
     maximum: MANEUVER_ANGLE_RANGE.initialMaximum,
   })
-  const pSog = useMemo(() => primary && aggregatePreparedSogPopulation(primary, range.minimum, range.maximum), [primary, range])
-  const cSog = useMemo(() => comparison && aggregatePreparedSogPopulation(comparison, range.minimum, range.maximum), [comparison, range])
-  const pCog = useMemo(() => primary && aggregatePreparedCogPopulation(primary, range.minimum, range.maximum), [primary, range])
-  const cCog = useMemo(() => comparison && aggregatePreparedCogPopulation(comparison, range.minimum, range.maximum), [comparison, range])
-  const p = signal === 'SOG' ? pSog : pCog
-  const c = signal === 'SOG' ? cSog : cCog
-  const pRaw = signal === 'SOG' ? (pSog ? supportedSogPoints(pSog) : []) : (pCog ? supportedCogPoints(pCog) : [])
-  const cRaw = signal === 'SOG' ? (cSog ? supportedSogPoints(cSog) : []) : (cCog ? supportedCogPoints(cCog) : [])
+  const pSog = useMemo(() => signal === 'SOG' && primary
+    ? aggregatePreparedSogPopulation(primary, range.minimum, range.maximum) : null, [primary, range, signal])
+  const cSog = useMemo(() => signal === 'SOG' && comparison
+    ? aggregatePreparedSogPopulation(comparison, range.minimum, range.maximum) : null, [comparison, range, signal])
+  const pCog = useMemo(() => signal === 'COG' && primary
+    ? aggregatePreparedCogPopulation(primary, range.minimum, range.maximum) : null, [primary, range, signal])
+  const cCog = useMemo(() => signal === 'COG' && comparison
+    ? aggregatePreparedCogPopulation(comparison, range.minimum, range.maximum) : null, [comparison, range, signal])
+  const pHeel = useMemo(() => signal === 'HEEL' && primary
+    ? aggregatePreparedHeelPopulation(primary, range.minimum, range.maximum) : null, [primary, range, signal])
+  const cHeel = useMemo(() => signal === 'HEEL' && comparison
+    ? aggregatePreparedHeelPopulation(comparison, range.minimum, range.maximum) : null, [comparison, range, signal])
+  const p = signal === 'SOG' ? pSog : signal === 'COG' ? pCog : pHeel
+  const c = signal === 'SOG' ? cSog : signal === 'COG' ? cCog : cHeel
+  const pRaw = signal === 'SOG' ? (pSog ? supportedSogPoints(pSog) : [])
+    : signal === 'COG' ? (pCog ? supportedCogPoints(pCog) : []) : (pHeel ? supportedHeelPoints(pHeel) : [])
+  const cRaw = signal === 'SOG' ? (cSog ? supportedSogPoints(cSog) : [])
+    : signal === 'COG' ? (cCog ? supportedCogPoints(cCog) : []) : (cHeel ? supportedHeelPoints(cHeel) : [])
   const pCogInsights = signal === 'COG' && pCog ? calculateCogManeuverInsights(pRaw) : null
   const cCogInsights = signal === 'COG' && cCog ? calculateCogManeuverInsights(cRaw) : null
-  const bounds = signal === 'SOG' ? sogManeuverAxisBounds(pRaw, cRaw) : relativeCogAxisBounds(pRaw, cRaw)
+  const bounds = signal === 'COG' ? relativeCogAxisBounds(pRaw, cRaw) : sogManeuverAxisBounds(pRaw, cRaw)
   const pInsights = signal === 'SOG' && pSog ? calculateSogManeuverInsights(pRaw) : null
   const cInsights = signal === 'SOG' && cSog ? calculateSogManeuverInsights(cRaw) : null
   const pRecovery = calculateSogProfileRecovery(pRaw, pInsights?.entrySog ?? null)
@@ -167,10 +184,10 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     { role: 'primary', raw: pRaw, color: ACTIVITY_COLORS.primary },
   ]
   return <section className="maneuver-profile" aria-label={`Typical ${signal} maneuver comparison`}>
-    <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median knots' : 'Median relative course change (°)'} · relative to event center</span></div>
+    <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median knots' : signal === 'COG' ? 'Median relative course change (°)' : 'Median |HEEL| (°), magnitude of signed inclination'} · relative to event center</span></div>
       <span>Raw thin · smoothed bold</span></div>
-    <div className="metric-options" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }} role="group" aria-label="Maneuver profile signal">
-      {(['SOG', 'COG'] as const).map((option) => <button type="button" key={option} className={signal === option ? 'is-active' : ''}
+    <div className="metric-options" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }} role="group" aria-label="Maneuver profile signal">
+      {(['SOG', 'COG', 'HEEL'] as const).map((option) => <button type="button" key={option} className={signal === option ? 'is-active' : ''}
         aria-pressed={signal === option} onClick={() => setSignal(option)}>{option}</button>)}
     </div>
     <ManeuverAngleRange range={range} onChange={setRange} />
@@ -182,7 +199,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     <div className="metric-chart__canvas metric-chart__canvas--sog">
       <div className="sog-signal-chart">
         <div className="sog-signal-chart__y-axis" aria-hidden="true"><span>{bounds.maximum} {signal === 'SOG' ? 'kt' : '°'}</span><span>{((bounds.minimum + bounds.maximum) / 2).toFixed(1)} {signal === 'SOG' ? 'kt' : '°'}</span><span>{bounds.minimum} {signal === 'SOG' ? 'kt' : '°'}</span></div>
-        <div className="sog-signal-chart__plot"><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label={`Median ${signal === 'SOG' ? 'SOG' : 'relative COG turn'} by seconds from maneuver center`}>
+        <div className="sog-signal-chart__plot"><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label={`Median ${signal === 'SOG' ? 'SOG' : signal === 'COG' ? 'relative COG turn' : 'absolute HEEL magnitude'} by seconds from maneuver center`}>
           <g className="sog-signal-chart__grid" aria-hidden="true"><line x1="0" x2="1000" y1="8" y2="8" /><line x1="0" x2="1000" y1="100" y2="100" /><line x1="0" x2="1000" y1="192" y2="192" /></g>
           <line data-maneuver-center="true" x1="500" x2="500" y1="8" y2="192" />
           {curves.map(({ role, raw, color }) => {

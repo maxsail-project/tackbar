@@ -70,7 +70,7 @@ describe('maneuver signal selection', () => {
     expect(html).not.toContain('Profile recovery')
     expect(html).not.toContain('Entry SOG')
     expect(html).toContain('class="metric-options"')
-    expect(html).toContain('grid-template-columns:repeat(2, minmax(0, 1fr))')
+    expect(html).toContain('grid-template-columns:repeat(3, minmax(0, 1fr))')
     expect(html).toMatch(/aria-pressed="true"[^>]*>COG<\/button>/)
   })
 

@@ -26,6 +26,8 @@ export interface PreparedSogManeuver {
   grid: (number | null)[]
   cogNominalCoverage?: number
   cogGrid?: (number | null)[] | null
+  heelNominalCoverage?: number
+  heelGrid?: (number | null)[]
 }
 
 export interface PreparedSogPopulation {
@@ -37,6 +39,10 @@ export interface PreparedSogPopulation {
 
 export interface TypicalCogProfile extends Omit<TypicalSogProfile, 'grid'> {
   grid: { offsetSeconds: number, medianCogDeg: number | null, contributorCount: number }[]
+}
+
+export interface TypicalHeelProfile extends Omit<TypicalSogProfile, 'grid'> {
+  grid: { offsetSeconds: number, medianHeelDeg: number | null, contributorCount: number }[]
 }
 
 function sogAtOffset(points: readonly ManeuverProfilePoint[], offsetSeconds: number): number | null {
@@ -86,12 +92,15 @@ export function prepareSogManeuverPopulation(
     const courseChangeDeg = references === null ? null : Math.abs(references.signedChangeDeg)
     if (courseChangeDeg === null) missingCourseCount += 1
     const relativeCog = relativeCogProfile(profile.cog.points, references)
+    const absoluteHeel = profile.heel.points.map((point) => ({ ...point, value: Math.abs(point.value) }))
     prepared.push({
       courseChangeDeg,
       nominalCoverage: profile.sog.nominalCoverage,
       grid: Array.from({ length: 51 }, (_, index) => sogAtOffset(profile.sog.points, index - 25)),
       cogNominalCoverage: profile.cog.nominalCoverage,
       cogGrid: relativeCog === null ? null : Array.from({ length: 51 }, (_, index) => sogAtOffset(relativeCog, index - 25)),
+      heelNominalCoverage: profile.heel.nominalCoverage,
+      heelGrid: Array.from({ length: 51 }, (_, index) => sogAtOffset(absoluteHeel, index - 25)),
     })
   }
   return { detectedCount: maneuvers.length, windowEligibleCount, missingCourseCount, maneuvers: prepared }
@@ -119,23 +128,37 @@ export function aggregatePreparedCogPopulation(
   })) }
 }
 
+export function aggregatePreparedHeelPopulation(
+  population: PreparedSogPopulation,
+  minimumDegrees: number,
+  maximumDegrees: number,
+): TypicalHeelProfile {
+  const aggregate = aggregatePreparedSignalPopulation(population, minimumDegrees, maximumDegrees, 'heel')
+  return { ...aggregate, grid: aggregate.grid.map((point) => ({
+    offsetSeconds: point.offsetSeconds, medianHeelDeg: point.median, contributorCount: point.contributorCount,
+  })) }
+}
+
 function aggregatePreparedSignalPopulation(
   population: PreparedSogPopulation,
   minimumDegrees: number,
   maximumDegrees: number,
-  signal: 'sog' | 'cog',
+  signal: 'sog' | 'cog' | 'heel',
 ) {
   const selected = population.maneuvers.filter((maneuver) => maneuver.courseChangeDeg !== null
     && maneuver.courseChangeDeg >= minimumDegrees - 1e-9
     && maneuver.courseChangeDeg <= maximumDegrees + 1e-9)
   const eligible = selected.filter((maneuver) => signal === 'sog'
     ? maneuver.nominalCoverage >= 0.65
-    : maneuver.cogGrid !== null && maneuver.cogGrid !== undefined && (maneuver.cogNominalCoverage ?? 0) >= 0.65)
+    : signal === 'cog'
+      ? maneuver.cogGrid !== null && maneuver.cogGrid !== undefined && (maneuver.cogNominalCoverage ?? 0) >= 0.65
+      : maneuver.heelGrid !== undefined && (maneuver.heelNominalCoverage ?? 0) >= 0.65)
   const status: TypicalSogProfile['status'] = eligible.length >= 3 ? 'ready'
     : eligible.length === 0 ? 'no_eligible_maneuvers' : 'insufficient_maneuvers'
   const grid = Array.from({ length: 51 }, (_, index) => {
     const values = eligible.flatMap((maneuver) => {
-      const value = signal === 'sog' ? maneuver.grid[index] : maneuver.cogGrid![index]
+      const value = signal === 'sog' ? maneuver.grid[index]
+        : signal === 'cog' ? maneuver.cogGrid![index] : maneuver.heelGrid![index]
       return value === null ? [] : [value]
     })
     return {
