@@ -70,23 +70,29 @@ function insightCard(label: string, metric: SogInsightMetric, p: SogManeuverInsi
   </div>
 }
 
-function recoveryMarker(role: 'P' | 'C', recovery: SogProfileRecovery, bounds: SogAxisBounds) {
+function recoveryMarker(role: 'P' | 'C', recovery: SogProfileRecovery, bounds: SogAxisBounds, coincident: boolean) {
   if (recovery.status !== 'recovered') return null
   const { x, y } = sogManeuverCoordinates(recovery.offsetSeconds, recovery.sogKnots, bounds)
   const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
+  let markerOffset = 0
+  if (coincident) markerOffset = role === 'P' ? (x > 990 ? -12 : -5) : (x > 990 ? -3 : 5)
+  const markerX = x + markerOffset
   return <g key={role} data-profile-recovery={role} aria-label={`${role} profile recovery at +${recovery.offsetSeconds} seconds`}>
     <title>{`${role} profile recovery at +${recovery.offsetSeconds} seconds, ${recovery.sogKnots.toFixed(1)} knots`}</title>
-    <circle cx={x} cy={y} r={role === 'P' ? 4 : 8} fill={role === 'P' ? color : 'none'} stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    <line data-profile-recovery-guide={role} x1={x} x2={x} y1={y} y2="192" stroke={color} strokeOpacity="0.22" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+    <circle cx={markerX} cy={y} r="5" fill={color} stroke="white" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
   </g>
 }
 
-function recoveryChartLabel(role: 'P' | 'C', recovery: SogProfileRecovery) {
+function recoveryChartLabel(role: 'P' | 'C', recovery: SogProfileRecovery, bounds: SogAxisBounds) {
   if (recovery.status !== 'recovered') return null
-  const span = MANEUVER_SOG_INSIGHTS.profileHalfSpanSeconds
-  const position = (recovery.offsetSeconds + span) / (2 * span) * 100
+  const { x, y } = sogManeuverCoordinates(recovery.offsetSeconds, recovery.sogKnots, bounds)
+  const position = x / 10
   const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
+  const horizontal = position > 95 ? '-100%' : '-50%'
+  const vertical = role === 'P' ? 'calc(-100% - 7px)' : '7px'
   return <span className={`maneuver-profile__recovery-label maneuver-profile__recovery-label--${role.toLowerCase()}`}
-    style={{ left: `${position}%`, color, transform: position > 95 ? 'translateX(-100%)' : 'translateX(-50%)' }}
+    style={{ left: `${position}%`, top: `${y / 2}%`, backgroundColor: `${color}33`, borderColor: `${color}80`, transform: `translate(${horizontal}, ${vertical})` }}
     aria-label={`${role} profile recovery at +${recovery.offsetSeconds} seconds`}>
     {role} +{recovery.offsetSeconds}s
   </span>
@@ -114,6 +120,8 @@ export default function ManeuverSogComparison({ primary, comparison }: {
   const cInsights = c ? calculateSogManeuverInsights(cRaw) : null
   const pRecovery = calculateSogProfileRecovery(pRaw, pInsights?.entrySog ?? null)
   const cRecovery = calculateSogProfileRecovery(cRaw, cInsights?.entrySog ?? null)
+  const coincidentRecovery = pRecovery.status === 'recovered' && cRecovery.status === 'recovered'
+    && pRecovery.offsetSeconds === cRecovery.offsetSeconds && Math.abs(pRecovery.sogKnots - cRecovery.sogKnots) < 1e-9
   const recoveryComparison = comparison === undefined ? '' : compareSogProfileRecovery(pRecovery, cRecovery)
   const curves = [
     { role: 'comparison', raw: cRaw, color: ACTIVITY_COLORS.comparison },
@@ -142,11 +150,11 @@ export default function ManeuverSogComparison({ primary, comparison }: {
               {smoothPath && <path data-profile-series={`${role}-smoothed`} d={smoothPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.smoothedStrokeWidth} strokeOpacity={SOG_SIGNAL_TUNING.smoothedOpacity} vectorEffect="non-scaling-stroke" />}
             </g>
           })}
-          {recoveryMarker('P', pRecovery, bounds)}
-          {recoveryMarker('C', cRecovery, bounds)}
+          {recoveryMarker('P', pRecovery, bounds, coincidentRecovery)}
+          {recoveryMarker('C', cRecovery, bounds, coincidentRecovery)}
         </svg>
-          {recoveryChartLabel('P', pRecovery)}
-          {recoveryChartLabel('C', cRecovery)}
+          {recoveryChartLabel('P', pRecovery, bounds)}
+          {recoveryChartLabel('C', cRecovery, bounds)}
         </div>
         <div className="sog-signal-chart__x-axis" aria-hidden="true"><span>−25 s</span><span>t=0</span><span>+25 s</span></div>
       </div>

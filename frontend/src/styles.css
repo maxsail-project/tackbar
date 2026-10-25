@@ -1268,20 +1268,20 @@ input:focus-visible {
 @media (min-width: 700px) {
   .maneuver-insights__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-.maneuver-profile .sog-signal-chart__plot { position: relative; }
+.maneuver-profile .sog-signal-chart__plot { position: relative; overflow: visible; }
 .maneuver-profile__recovery-label {
   position: absolute;
   z-index: 1;
   padding: 1px 3px;
+  border: 1px solid transparent;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 3px rgb(23 50 58 / 18%);
+  color: #17323a;
   font-size: 0.7rem;
   font-weight: 700;
   white-space: nowrap;
   pointer-events: none;
 }
-.maneuver-profile__recovery-label--p { top: 3px; }
-.maneuver-profile__recovery-label--c { bottom: 3px; }
 .maneuver-profile [data-maneuver-center] {
   stroke: #60777e;
   stroke-width: 1.5;
