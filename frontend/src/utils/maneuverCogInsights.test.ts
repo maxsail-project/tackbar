@@ -79,4 +79,44 @@ describe('COG maneuver insights from supported raw median', () => {
     expect(calculateCogManeuverInsights(incomplete).turnAngleDeg).toBeGreaterThan(0)
     expect(calculateCogManeuverInsights(incomplete).turnDurationSeconds).toBeNull()
   })
+
+  it('excludes a 10% crossing on the -16s to -15s segment', () => {
+    const result = calculateCogManeuverInsights(curve(-16, -12, -50, 50))
+    expect(result).toMatchObject({
+      turnAngleDeg: 100,
+      turnStartSeconds: null,
+      turnMidpointSeconds: null,
+      turnEndSeconds: null,
+      turnDurationSeconds: null,
+    })
+  })
+
+  it('accepts crossings in the first valid segment and at the +15s endpoint', () => {
+    const firstSegment = calculateCogManeuverInsights(curve(-15.2, -11.2, -50, 50))
+    expect(firstSegment.turnStartSeconds).toBeCloseTo(-14.8)
+    expect(firstSegment.turnMidpointSeconds).toBeCloseTo(-13.2)
+    expect(firstSegment.turnDurationSeconds).toBeCloseTo(3.3)
+
+    const firstEndpointCurve = curve(-15, -10, -50, 50)
+    firstEndpointCurve[-14 + 25].sog = -40
+    expect(calculateCogManeuverInsights(firstEndpointCurve).turnStartSeconds).toBe(-14)
+
+    const upperEndpointCurve = curve(11, 16, -50, 50)
+    upperEndpointCurve[15 + 25].sog = 40
+    const upperEndpoint = calculateCogManeuverInsights(upperEndpointCurve)
+    expect(upperEndpoint.turnEndSeconds).toBeCloseTo(15)
+    expect(upperEndpoint.turnDurationSeconds).not.toBeNull()
+    expect(calculateCogManeuverInsights(curve(11, 16, -50, 50)).turnDurationSeconds).toBeNull()
+  })
+
+  it('does not use a pre-window 0-degree crossing for an otherwise valid turn', () => {
+    const earlyZero = curve(-15, -10, -5, 95)
+    earlyZero[-15 + 25].sog = 1
+    earlyZero[-14 + 25].sog = 10
+    const result = calculateCogManeuverInsights(earlyZero)
+    expect(result.turnAngleDeg).toBe(100)
+    expect(result.turnStartSeconds).not.toBeNull()
+    expect(result.turnDurationSeconds).not.toBeNull()
+    expect(result.turnMidpointSeconds).toBeNull()
+  })
 })

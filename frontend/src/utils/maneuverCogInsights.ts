@@ -39,7 +39,7 @@ export function calculateCogManeuverInsights(points: readonly SogChartPoint[]): 
   type Crossing = { time: number, firstAboveOffset: number }
   const crossings = (threshold: number): Crossing[] => {
     const found: Crossing[] = []
-    for (let offset = MANEUVER_COG_INSIGHTS.centralStartSeconds;
+    for (let offset = MANEUVER_COG_INSIGHTS.centralStartSeconds + 1;
       offset <= MANEUVER_COG_INSIGHTS.centralEndSeconds; offset += 1) {
       const before = valueAt(offset - 1)
       const after = valueAt(offset)
