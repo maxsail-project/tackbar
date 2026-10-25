@@ -5,6 +5,7 @@ import { timestampToMilliseconds } from './replay'
 
 type CourseSample = { time: number, cog: number }
 export type PreparedCourseRun = { times: number[], smoothed: (number | null)[] }
+export type ManeuverCourseReferences = { entryDeg: number, exitDeg: number, signedChangeDeg: number }
 
 function firstTimeAtOrAfter(times: readonly number[], target: number, strict: boolean): number {
   let low = 0
@@ -72,6 +73,16 @@ export function maneuverCourseChangeFromEvidence(
   runs: readonly PreparedCourseRun[],
   window: AnalysisWindowRange,
 ): number | null {
+  const references = maneuverCourseReferencesFromEvidence(maneuver, runs, window)
+  return references === null ? null : Math.abs(references.signedChangeDeg)
+}
+
+/** Contextual circular references shared by the filter and relative COG profile. */
+export function maneuverCourseReferencesFromEvidence(
+  maneuver: Maneuver,
+  runs: readonly PreparedCourseRun[],
+  window: AnalysisWindowRange,
+): ManeuverCourseReferences | null {
   let start: number
   let end: number
   try {
@@ -94,7 +105,7 @@ export function maneuverCourseChangeFromEvidence(
     const before = circularMean(pre)
     const after = circularMean(post)
     if (before === null || after === null) continue
-    return Math.abs(((after - before + 540) % 360) - 180)
+    return { entryDeg: before, exitDeg: after, signedChangeDeg: ((after - before + 540) % 360) - 180 }
   }
   return null
 }

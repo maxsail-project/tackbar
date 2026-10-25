@@ -17,12 +17,21 @@ import {
   type SogProfileRecovery,
 } from '../utils/maneuverSogInsights'
 import { aggregatePreparedSogPopulation, type PreparedSogPopulation, type TypicalSogProfile } from '../utils/typicalSogProfile'
+import { aggregatePreparedCogPopulation, type TypicalCogProfile } from '../utils/typicalSogProfile'
+import { relativeCogAxisBounds } from '../utils/typicalCogProfile'
 import ManeuverAngleRange, { type AngleBand } from './ManeuverAngleRange'
 
 export function supportedSogPoints(profile: TypicalSogProfile): SogChartPoint[] {
   return profile.grid.map((point) => ({
     time: point.offsetSeconds * 1_000,
     sog: profile.status === 'ready' && point.contributorCount >= 3 ? point.medianSogKn : null,
+  }))
+}
+
+export function supportedCogPoints(profile: TypicalCogProfile): SogChartPoint[] {
+  return profile.grid.map((point) => ({
+    time: point.offsetSeconds * 1_000,
+    sog: profile.status === 'ready' && point.contributorCount >= 3 ? point.medianCogDeg : null,
   }))
 }
 
@@ -41,7 +50,7 @@ function smoothedAfterMedian(raw: SogChartPoint[]) {
   }))
 }
 
-function countSummary(role: 'P' | 'C', profile: TypicalSogProfile, missingCourseCount: number) {
+function countSummary(role: 'P' | 'C', profile: Pick<TypicalSogProfile, 'windowEligibleCount' | 'coverageEligibleCount'>, missingCourseCount: number) {
   const excluded = profile.windowEligibleCount - profile.coverageEligibleCount
   const warning = profile.coverageEligibleCount === 0 ? 'No usable profile'
     : profile.coverageEligibleCount < 3 ? 'At least 3 profiles needed' : null
@@ -106,17 +115,22 @@ export default function ManeuverSogComparison({ primary, comparison }: {
   primary: PreparedSogPopulation | null
   comparison?: PreparedSogPopulation | null
 }) {
+  const [signal, setSignal] = useState<'SOG' | 'COG'>('SOG')
   const [range, setRange] = useState<AngleBand>({
     minimum: MANEUVER_ANGLE_RANGE.initialMinimum,
     maximum: MANEUVER_ANGLE_RANGE.initialMaximum,
   })
-  const p = useMemo(() => primary && aggregatePreparedSogPopulation(primary, range.minimum, range.maximum), [primary, range])
-  const c = useMemo(() => comparison && aggregatePreparedSogPopulation(comparison, range.minimum, range.maximum), [comparison, range])
-  const pRaw = p ? supportedSogPoints(p) : []
-  const cRaw = c ? supportedSogPoints(c) : []
-  const bounds = sogManeuverAxisBounds(pRaw, cRaw)
-  const pInsights = p ? calculateSogManeuverInsights(pRaw) : null
-  const cInsights = c ? calculateSogManeuverInsights(cRaw) : null
+  const pSog = useMemo(() => primary && aggregatePreparedSogPopulation(primary, range.minimum, range.maximum), [primary, range])
+  const cSog = useMemo(() => comparison && aggregatePreparedSogPopulation(comparison, range.minimum, range.maximum), [comparison, range])
+  const pCog = useMemo(() => primary && aggregatePreparedCogPopulation(primary, range.minimum, range.maximum), [primary, range])
+  const cCog = useMemo(() => comparison && aggregatePreparedCogPopulation(comparison, range.minimum, range.maximum), [comparison, range])
+  const p = signal === 'SOG' ? pSog : pCog
+  const c = signal === 'SOG' ? cSog : cCog
+  const pRaw = signal === 'SOG' ? (pSog ? supportedSogPoints(pSog) : []) : (pCog ? supportedCogPoints(pCog) : [])
+  const cRaw = signal === 'SOG' ? (cSog ? supportedSogPoints(cSog) : []) : (cCog ? supportedCogPoints(cCog) : [])
+  const bounds = signal === 'SOG' ? sogManeuverAxisBounds(pRaw, cRaw) : relativeCogAxisBounds(pRaw, cRaw)
+  const pInsights = signal === 'SOG' && pSog ? calculateSogManeuverInsights(pRaw) : null
+  const cInsights = signal === 'SOG' && cSog ? calculateSogManeuverInsights(cRaw) : null
   const pRecovery = calculateSogProfileRecovery(pRaw, pInsights?.entrySog ?? null)
   const cRecovery = calculateSogProfileRecovery(cRaw, cInsights?.entrySog ?? null)
   const coincidentRecovery = pRecovery.status === 'recovered' && cRecovery.status === 'recovered'
@@ -126,9 +140,13 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     { role: 'comparison', raw: cRaw, color: ACTIVITY_COLORS.comparison },
     { role: 'primary', raw: pRaw, color: ACTIVITY_COLORS.primary },
   ]
-  return <section className="maneuver-profile" aria-label="Typical SOG maneuver comparison">
-    <div className="metric-chart__heading"><div><strong>Typical SOG through a maneuver</strong><span>Median knots · relative to event center</span></div>
+  return <section className="maneuver-profile" aria-label={`Typical ${signal} maneuver comparison`}>
+    <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median knots' : 'Median relative course change (°)'} · relative to event center</span></div>
       <span>Raw thin · smoothed bold</span></div>
+    <div className="metric-options maneuver-profile__signals" role="group" aria-label="Maneuver profile signal">
+      {(['SOG', 'COG'] as const).map((option) => <button type="button" key={option} className={signal === option ? 'is-active' : ''}
+        aria-pressed={signal === option} onClick={() => setSignal(option)}>{option}</button>)}
+    </div>
     <ManeuverAngleRange range={range} onChange={setRange} />
     <p className="maneuver-profile__basis">Common |ΔCOG| filter from canonical course context; event ΔHDG/ΔCOG and HIGH/LOW evidence remain in the table.</p>
     {p && countSummary('P', p, primary!.missingCourseCount)}
@@ -137,28 +155,28 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     {!c && comparison !== undefined && <p className="maneuver-profile__count">C profile data unavailable.</p>}
     <div className="metric-chart__canvas metric-chart__canvas--sog">
       <div className="sog-signal-chart">
-        <div className="sog-signal-chart__y-axis" aria-hidden="true"><span>{bounds.maximum} kt</span><span>{((bounds.minimum + bounds.maximum) / 2).toFixed(1)} kt</span><span>{bounds.minimum} kt</span></div>
-        <div className="sog-signal-chart__plot"><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="Median SOG by seconds from maneuver center">
+        <div className="sog-signal-chart__y-axis" aria-hidden="true"><span>{bounds.maximum} {signal === 'SOG' ? 'kt' : '°'}</span><span>{((bounds.minimum + bounds.maximum) / 2).toFixed(1)} {signal === 'SOG' ? 'kt' : '°'}</span><span>{bounds.minimum} {signal === 'SOG' ? 'kt' : '°'}</span></div>
+        <div className="sog-signal-chart__plot"><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label={`Median ${signal === 'SOG' ? 'SOG' : 'relative COG turn'} by seconds from maneuver center`}>
           <g className="sog-signal-chart__grid" aria-hidden="true"><line x1="0" x2="1000" y1="8" y2="8" /><line x1="0" x2="1000" y1="100" y2="100" /><line x1="0" x2="1000" y1="192" y2="192" /></g>
           <line data-maneuver-center="true" x1="500" x2="500" y1="8" y2="192" />
           {curves.map(({ role, raw, color }) => {
             const rawPath = buildSogManeuverPath(raw, bounds)
-            const smoothPath = buildSogManeuverPath(smoothedAfterMedian(raw), bounds)
+            const smoothPath = buildSogManeuverPath(signal === 'SOG' ? smoothedAfterMedian(raw) : buildSogTrendPoints(raw), bounds)
             return <g key={role}>
               {rawPath && <path data-profile-series={`${role}-raw`} d={rawPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.rawStrokeWidth} strokeOpacity={SOG_SIGNAL_TUNING.rawOpacity} vectorEffect="non-scaling-stroke" />}
               {smoothPath && <path data-profile-series={`${role}-smoothed`} d={smoothPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.smoothedStrokeWidth} strokeOpacity={SOG_SIGNAL_TUNING.smoothedOpacity} vectorEffect="non-scaling-stroke" />}
             </g>
           })}
-          {recoveryMarker('P', pRecovery, bounds, coincidentRecovery)}
-          {recoveryMarker('C', cRecovery, bounds, coincidentRecovery)}
+          {signal === 'SOG' && recoveryMarker('P', pRecovery, bounds, coincidentRecovery)}
+          {signal === 'SOG' && recoveryMarker('C', cRecovery, bounds, coincidentRecovery)}
         </svg>
-          {recoveryChartLabel('P', pRecovery, bounds)}
-          {recoveryChartLabel('C', cRecovery, bounds)}
+          {signal === 'SOG' && recoveryChartLabel('P', pRecovery, bounds)}
+          {signal === 'SOG' && recoveryChartLabel('C', cRecovery, bounds)}
         </div>
         <div className="sog-signal-chart__x-axis" aria-hidden="true"><span>−25 s</span><span>t=0</span><span>+25 s</span></div>
       </div>
     </div>
-    <section className="maneuver-insights" aria-label="Maneuver Insights">
+    {signal === 'SOG' && <section className="maneuver-insights" aria-label="Maneuver Insights">
       <h3>Maneuver Insights</h3>
       <p>Supported raw median SOG</p>
       <div className="maneuver-insights__grid">{[
@@ -171,7 +189,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
         {recoveryComparison && ` · ${recoveryComparison}`}
         <span> · from t=0; separate from table Recovery</span>
       </p>
-    </section>
-    <p className="maneuver-profile__basis">Curves require 3 SOG-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.</p>
+    </section>}
+    <p className="maneuver-profile__basis">Curves require 3 {signal}-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.{signal === 'COG' ? ' COG shows oriented relative turn degrees, not geographic course; t=0 remains the event center.' : ''}</p>
   </section>
 }
