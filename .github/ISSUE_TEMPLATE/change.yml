@@ -9,6 +9,13 @@ body:
       value: |
         Use this form to normalize a proposed increment for review. Completing it does not promote the Issue, approve product behavior, or make the work ready for implementation.
 
+        Issue conventions (apply after creation):
+        - Rename ordinary Issues to `[#ID] Short English title` once GitHub assigns the Issue number.
+        - Apply exactly one group label: `group:product`, `group:analytics`, or `group:operations`.
+        - Add `bug` and/or `research` only when applicable; preserve any existing transverse labels.
+        - Release preparation Issues retain their specialized `Prepare vX.Y.Z ...` title convention.
+        - Do not use labels to duplicate Issue state, priority, or release assignment.
+
   - type: dropdown
     id: status
     attributes:
