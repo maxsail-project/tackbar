@@ -46,7 +46,7 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('3 in window')
     expect(html).toContain('4 in window')
     expect(html).toContain('3 used')
-    expect(html).toContain('Maneuver Insights')
+    expect(html).toContain('SOG Maneuver Insights')
     expect(html).toContain('Entry SOG')
     expect(html).toContain('Minimum SOG')
     expect(html).toContain('Exit SOG')
@@ -80,7 +80,7 @@ describe('maneuver SOG comparison', () => {
   it('shows one-sided insights without a P/C claim', () => {
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population(3)} />)
     expect(html).toContain('4.0 kt')
-    expect(html).toContain('Maneuver Insights')
+    expect(html).toContain('SOG Maneuver Insights')
     expect(html).toContain('P unavailable')
     expect(html).not.toContain('C profile data unavailable')
     expect(html).toContain('6 kt')

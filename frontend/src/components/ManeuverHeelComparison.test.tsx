@@ -77,7 +77,7 @@ describe('typical HEEL chart selection', () => {
     weak.maneuvers[2].heelGrid![25] = null
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={weak} />)
     expect(html).toContain('3 used')
-    expect(html).toContain('P</strong> Unavailable')
+    expect(html).toContain('P</strong> —')
     expect(html).toContain('data-profile-series="primary-raw"')
     expect(html).toMatch(/data-profile-series="primary-raw" d="M[^"]* M/)
     expect(html).not.toContain('data-profile-series="comparison-raw"')
@@ -92,7 +92,7 @@ describe('typical HEEL chart selection', () => {
     selection.signal = 'HEEL'
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([4, 6, 8], 0)} />)
     expect(html).toContain('P</strong> 0.0°')
-    expect(html).toContain('C</strong> Unavailable')
+    expect(html).toContain('C</strong> —')
     expect(html).toContain('class="maneuver-insights__grid"')
   })
 })

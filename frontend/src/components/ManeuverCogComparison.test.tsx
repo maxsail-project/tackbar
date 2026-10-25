@@ -88,14 +88,14 @@ describe('maneuver signal selection', () => {
     const alone = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30, 40])} />)
     expect(alone.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
     expect(alone).toContain('P</strong> 9.6s')
-    expect(alone).toContain('C</strong> Unavailable')
+    expect(alone).toContain('C</strong> —')
   })
 
   it('shows unavailable COG insights when the supported population is insufficient', () => {
     selection.signal = 'COG'
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30])} />)
     expect(html).toContain('At least 3 profiles needed')
-    expect(html).toContain('P</strong> Unavailable')
+    expect(html).toContain('P</strong> —')
     expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
     expect(html).not.toContain('data-cog-turn-interval')
   })
