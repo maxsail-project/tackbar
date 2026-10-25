@@ -12,6 +12,41 @@ const sample = (second: number, cog: number | null, sog: number | null = 5): Tra
 })
 const trace = (pre: number, post: number) => Array.from({ length: 26 }, (_, index) => sample(index + 20, index + 20 < 32 ? pre : post))
 
+it('matches the original full-run contextual filters on long irregular and gapped evidence', () => {
+  const samples = Array.from({ length: 12_000 }, (_, index) => sample(index + (index % 7) * 0.05,
+    index % 211 === 0 ? null : index % 2 ? 359 : 1,
+    index % 307 === 0 ? null : 5))
+  const longWindow = { start: origin + 100_000, end: origin + 11_900_000 }
+  const runs = prepareCourseEvidence(samples, longWindow)
+  const circularMean = (values: number[]): number | null => {
+    if (values.length === 0) return null
+    const sine = values.reduce((sum, value) => sum + Math.sin(value * Math.PI / 180), 0)
+    const cosine = values.reduce((sum, value) => sum + Math.cos(value * Math.PI / 180), 0)
+    if (Math.hypot(sine, cosine) <= 1e-12 * values.length) return null
+    return ((Math.atan2(sine, cosine) * 180 / Math.PI) + 360) % 360
+  }
+  for (const second of [101, 210, 306, 5_000, 11_885]) {
+    const candidate = { ...event, start_time: utc(second), end_time: utc(second + 5) }
+    let expected: number | null = null
+    for (const run of runs) {
+      const start = Date.parse(candidate.start_time)
+      const end = Date.parse(candidate.end_time)
+      if (run.times[0] > start || run.times.at(-1)! < end) continue
+      const pre = run.smoothed.filter((value, index) => value !== null
+        && run.times[index] >= start - 10_000 && run.times[index] < start - 2_000) as number[]
+      const post = run.smoothed.filter((value, index) => value !== null
+        && run.times[index] > end + 2_000 && run.times[index] <= end + 10_000) as number[]
+      if (pre.length < 3 || post.length < 3) continue
+      const before = circularMean(pre)
+      const after = circularMean(post)
+      if (before === null || after === null) continue
+      expected = Math.abs(((after - before + 540) % 360) - 180)
+      break
+    }
+    expect(maneuverCourseChangeFromEvidence(candidate, runs, longWindow)).toEqual(expected)
+  }
+})
+
 describe('common maneuver ΔCOG', () => {
   it('uses the same circular course evidence for HIGH and LOW, across 359°/1°', () => {
     const samples = trace(359, 1)

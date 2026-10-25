@@ -6,6 +6,17 @@ import { timestampToMilliseconds } from './replay'
 type CourseSample = { time: number, cog: number }
 export type PreparedCourseRun = { times: number[], smoothed: (number | null)[] }
 
+function firstTimeAtOrAfter(times: readonly number[], target: number, strict: boolean): number {
+  let low = 0
+  let high = times.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (strict ? times[middle] <= target : times[middle] < target) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
 function circularMean(values: number[]): number | null {
   if (values.length === 0) return null
   const sine = values.reduce((sum, value) => sum + Math.sin(value * Math.PI / 180), 0)
@@ -71,10 +82,14 @@ export function maneuverCourseChangeFromEvidence(
 
   for (const run of runs) {
     if (run.times[0] > start || run.times.at(-1)! < end) continue
-    const pre = run.smoothed.filter((value, index) => value !== null
-      && run.times[index] >= start - 10_000 && run.times[index] < start - 2_000) as number[]
-    const post = run.smoothed.filter((value, index) => value !== null
-      && run.times[index] > end + 2_000 && run.times[index] <= end + 10_000) as number[]
+    const pre = run.smoothed.slice(
+      firstTimeAtOrAfter(run.times, start - 10_000, false),
+      firstTimeAtOrAfter(run.times, start - 2_000, false),
+    ).filter((value) => value !== null) as number[]
+    const post = run.smoothed.slice(
+      firstTimeAtOrAfter(run.times, end + 2_000, true),
+      firstTimeAtOrAfter(run.times, end + 10_000, true),
+    ).filter((value) => value !== null) as number[]
     if (pre.length < 3 || post.length < 3) continue
     const before = circularMean(pre)
     const after = circularMean(post)

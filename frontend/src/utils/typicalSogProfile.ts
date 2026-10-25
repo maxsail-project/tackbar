@@ -2,7 +2,7 @@ import type { Maneuver } from '../types/maneuver'
 import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from './analysisWindow'
 import { maneuverCourseChangeFromEvidence, prepareCourseEvidence } from './maneuverCourseChange'
-import { extractManeuverProfile, type ManeuverProfilePoint } from './maneuverProfiles'
+import { extractManeuverProfile, prepareManeuverSampleIndex, type ManeuverProfilePoint } from './maneuverProfiles'
 
 export interface TypicalSogGridPoint {
   offsetSeconds: number
@@ -68,10 +68,11 @@ export function prepareSogManeuverPopulation(
 ): PreparedSogPopulation {
   const prepared: PreparedSogManeuver[] = []
   const courseEvidence = maneuvers.length > 0 ? prepareCourseEvidence(samples, analysisWindow) : []
+  const sampleIndex = maneuvers.length > 0 ? prepareManeuverSampleIndex(samples) : undefined
   let windowEligibleCount = 0
   let missingCourseCount = 0
   for (const maneuver of maneuvers) {
-    const profile = extractManeuverProfile(maneuver, samples, analysisWindow)
+    const profile = extractManeuverProfile(maneuver, samples, analysisWindow, sampleIndex)
     if (profile === null) continue
     windowEligibleCount += 1
     const courseChangeDeg = maneuverCourseChangeFromEvidence(maneuver, courseEvidence, analysisWindow)
@@ -126,9 +127,10 @@ export function aggregateTypicalSogProfile(
   const contributors: number[][] = Array.from({ length: 51 }, () => [])
   let windowEligibleCount = 0
   let coverageEligibleCount = 0
+  const sampleIndex = maneuvers.length > 0 ? prepareManeuverSampleIndex(samples) : undefined
 
   for (const maneuver of maneuvers) {
-    const profile = extractManeuverProfile(maneuver, samples, analysisWindow)
+    const profile = extractManeuverProfile(maneuver, samples, analysisWindow, sampleIndex)
     if (profile === null) continue
     windowEligibleCount += 1
     if (profile.sog.nominalCoverage < 0.65) continue

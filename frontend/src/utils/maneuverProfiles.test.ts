@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Maneuver } from '../types/maneuver'
 import type { TrackSample } from '../types/track'
-import { extractManeuverProfile } from './maneuverProfiles'
+import { extractManeuverProfile, prepareManeuverSampleIndex } from './maneuverProfiles'
 
 const origin = Date.parse('2026-10-25T12:00:00.000Z')
 const utc = (seconds: number) => new Date(origin + seconds * 1_000).toISOString()
@@ -16,6 +16,37 @@ function sample(seconds: number, values: Partial<Pick<TrackSample, 'sog' | 'cog'
 }
 
 describe('extractManeuverProfile', () => {
+  it('matches the full traversal across long irregular tracks, missing signals, gaps and window edges', () => {
+    const samples = Array.from({ length: 12_000 }, (_, index) => sample(index + (index % 7) * 0.05, {
+      sog: index % 13 === 0 ? null : 3 + index % 5,
+      cog: index % 17 === 0 ? null : index % 2 ? 359 : 1,
+      heel: index % 19 === 0 ? null : index % 11,
+    }))
+    const analysisWindow = { start: origin + 2_017_250, end: origin + 9_503_750 }
+    const index = prepareManeuverSampleIndex(samples)
+    expect(index.ordered).toBe(true)
+    for (const second of [2_017.25, 2_018, 2_040, 5_500.5, 9_480, 9_503.75]) {
+      const event = { center_time: utc(second) } as Maneuver
+      expect(extractManeuverProfile(event, samples, analysisWindow, index))
+        .toEqual(extractManeuverProfile(event, samples, analysisWindow))
+    }
+  })
+
+  it.each(['invalid', 'duplicate', 'nonmonotonic'])('uses full traversal for %s UTC evidence', (kind) => {
+    const samples = Array.from({ length: 100 }, (_, index) => sample(index))
+    samples[50] = kind === 'invalid' ? { ...samples[50], utc: 'invalid' }
+      : kind === 'duplicate' ? sample(49) : sample(48)
+    const index = prepareManeuverSampleIndex(samples)
+    expect(index.ordered).toBe(false)
+    for (const analysisWindow of [window, { start: origin + 30_250, end: origin + 70_750 }]) {
+      for (const second of [30, 49, 50, 70]) {
+        const event = { center_time: utc(second) } as Maneuver
+        expect(extractManeuverProfile(event, samples, analysisWindow, index))
+          .toEqual(extractManeuverProfile(event, samples, analysisWindow))
+      }
+    }
+  })
+
   it('preserves a full 50-second raw profile and original circular COG values', () => {
     const samples = Array.from({ length: 51 }, (_, index) => sample(index + 5, {
       sog: index === 25 ? 2.25 : 5,
@@ -88,11 +119,15 @@ describe('extractManeuverProfile', () => {
   })
 
   it('clips represented intervals crossing a boundary without inventing profile points', () => {
-    const result = extractManeuverProfile(maneuver, [sample(29.5), sample(30.5)], {
+    const samples = [sample(29.5), sample(30.5)]
+    const analysisWindow = {
       start: origin + 30_000, end: origin + 30_250,
-    })!
+    }
+    const result = extractManeuverProfile(maneuver, samples, analysisWindow)!
     expect(result.sog.points).toEqual([])
     expect(result.sog).toMatchObject({ representedTimeSeconds: 0.25, clippedCoverage: 1, nominalCoverage: 0.005 })
+    expect(extractManeuverProfile(maneuver, samples, analysisWindow, prepareManeuverSampleIndex(samples)))
+      .toEqual(result)
   })
 
   it('returns zero coverage for unavailable signals and a zero-duration permitted interval', () => {

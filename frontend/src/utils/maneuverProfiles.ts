@@ -48,11 +48,37 @@ function sampleTime(sample: TrackSample): number | null {
   }
 }
 
+/** Parse UTC once for a population; unordered evidence retains the original full-scan path. */
+export interface ManeuverSampleIndex {
+  readonly samples: readonly TrackSample[]
+  readonly times: readonly (number | null)[]
+  readonly ordered: boolean
+}
+
+export function prepareManeuverSampleIndex(samples: readonly TrackSample[]): ManeuverSampleIndex {
+  const times = samples.map(sampleTime)
+  const ordered = times.every((time, index) => time !== null && Number.isFinite(time)
+    && (index === 0 || (times[index - 1] !== null && time > times[index - 1]!)))
+  return { samples, times, ordered }
+}
+
+function firstAtOrAfter(times: readonly (number | null)[], target: number, strict: boolean): number {
+  let low = 0
+  let high = times.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (strict ? times[middle]! <= target : times[middle]! < target) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
 /** Extract raw evidence for one event; null means its center is outside the window. */
 export function extractManeuverProfile(
   maneuver: Maneuver,
   samples: readonly TrackSample[],
   analysisWindow: AnalysisWindowRange,
+  sampleIndex?: ManeuverSampleIndex,
 ): ManeuverProfile | null {
   let center: number | null
   try {
@@ -78,8 +104,19 @@ export function extractManeuverProfile(
   let previous: TrackSample | null = null
   let previousTime: number | null = null
 
-  for (const sample of samples) {
-    const time = sampleTime(sample)
+  const indexed = sampleIndex?.samples === samples ? sampleIndex : undefined
+  const first = indexed?.ordered && samples.length > 0
+    ? Math.max(0, firstAtOrAfter(indexed.times, start, false) - 1) : 0
+  const last = indexed?.ordered && samples.length > 0
+    ? Math.min(samples.length - 1, firstAtOrAfter(indexed.times, end, true)) : samples.length - 1
+  if (first > 0) {
+    previous = samples[first - 1]
+    previousTime = indexed!.times[first - 1]
+  }
+
+  for (let index = first; index <= last; index += 1) {
+    const sample = samples[index]
+    const time = indexed ? indexed.times[index] : sampleTime(sample)
     const sourceIntervalMs = previousTime !== null && time !== null ? time - previousTime : 0
     const continuous = sourceIntervalMs > 0 && sourceIntervalMs <= MAX_CONTINUOUS_INTERVAL_MS
     const clippedIntervalMs = continuous
