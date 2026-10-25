@@ -186,8 +186,8 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. Latest published release: v0.7.14 Californian
-— GPX & Maneuver Analytics.**
+**Controlled real-sailing pilot. Latest published release: v0.7.15 Californian
+— Mail Feedback.**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
@@ -195,9 +195,11 @@ TackBar, capability-based shared Session access and neutral maneuver analytics
 integrated into the collaborative Viewer. It also includes richer native-SVG
 signal and distribution comparison plus per-Activity Individual Analysis.
 Accepted increments for v0.7.14 add plain GPX, protected Admin upload and
-HIGH/LOW maneuver evidence. The current delivered mail-feedback increment adds
-safe notices for actionable track-email failures and directs replies to the
-human support contact, `hello@tackbar.eu`. Publication is established by
+HIGH/LOW maneuver evidence. v0.7.15 adds safe notices for actionable
+track-email failures and directs replies to `hello@tackbar.eu`. The current
+delivered Viewer increment adds one chart comparing typical maneuver profiles
+for Primary and Comparison across SOG, relative COG and absolute-magnitude
+HEEL, with signal-specific Insights. Publication is established by
 immutable tags and GitHub Releases; production deployment is established by
 successful execution of the exact-release deployment workflow, as described
 in the [production runbook](docs/production-runbook.md).
@@ -446,7 +448,7 @@ El foco pasa a estar en:
 ## Estado del proyecto
 
 **Piloto controlado con navegaciones reales. Última release publicada:
-v0.7.14 Californian — GPX & Maneuver Analytics.**
+v0.7.15 Californian — Mail Feedback.**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
@@ -454,12 +456,13 @@ Personal TackBar, acceso compartido a Sessions mediante capability y analítica
 neutral de maniobras integrada en el Viewer colaborativo. También incluye una
 comparación más rica de señales y distribuciones en SVG nativo e Individual
 Analysis por Activity. Los incrementos aceptados para v0.7.14 añaden GPX sin
-comprimir, carga protegida en Admin y evidencia HIGH/LOW de maniobras. El
-incremento de feedback de correo entregado añade avisos seguros ante fallos
-accionables de tracks y dirige las respuestas al contacto humano,
-`hello@tackbar.eu`. Los tags inmutables y GitHub Releases establecen la
-publicación; la ejecución correcta del workflow para esa release establece el
-despliegue técnico, según el
+comprimir, carga protegida en Admin y evidencia HIGH/LOW de maniobras. v0.7.15
+añade avisos seguros ante fallos accionables de correo con tracks y dirige las
+respuestas a `hello@tackbar.eu`. El incremento actual del Viewer añade un único
+gráfico comparativo P/C de perfiles típicos de maniobras para SOG, COG relativo
+y magnitud absoluta de HEEL, con Insights específicos por señal. Los tags
+inmutables y GitHub Releases establecen la publicación; la ejecución correcta
+del workflow para esa release establece el despliegue técnico, según el
 [runbook de producción](docs/production-runbook.md).
 
 La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session

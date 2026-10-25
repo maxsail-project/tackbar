@@ -2,6 +2,118 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.16 Californian — Every Turn Tells a Story
+
+### English
+
+Adds one integrated chart comparing typical Primary/Comparison maneuver
+profiles to the Session Viewer. Sailors can compare supported SOG, relative
+course-turn COG and absolute-magnitude HEEL curves, with signal-specific
+maneuver insights. The
+profiles describe observed signals; they do not classify tack/gybe or rank
+performance.
+
+### Added
+
+* The reusable individual-profile foundation extracts SOG, circular COG and
+  signed HEEL from original canonical samples around each existing maneuver
+  center (`t=0`, ±25 seconds). Profiles are clipped to the shared Analysis
+  Window, preserve source cadence and values, and keep missing values and gaps
+  explicit. They do not add a standalone individual-profile chart or persist
+  duplicated profile curves.
+* One chart below the Maneuvers table compares independent Primary and
+  Comparison typical curves on the fixed −25s to +25s axis. Its SOG option keeps
+  knots, COG shows circular-safe oriented relative course change, and HEEL shows
+  absolute `|HEEL|` magnitude. A shared adjustable `|ΔCOG|` band filters both
+  roles. Raw median and smoothed curves retain supported gaps and incomplete
+  populations rather than filling unsupported evidence.
+* Signal-specific Insights summarize supported SOG entry, minimum, exit and
+  profile recovery; COG turn angle, midpoint and duration; and HEEL entry,
+  central typical-magnitude variation and exit. These remain descriptive
+  summaries and do not change maneuver detection or event-table metrics.
+
+### Issues
+
+- [#11](https://github.com/maxsail-project/tackbar/issues/11) — [#11] Add normalized individual maneuver profiles
+- [#12](https://github.com/maxsail-project/tackbar/issues/12) — [#12] Add aggregate P/C maneuver comparison and typical profiles
+
+### Validation
+
+Completed #12 records product-owner PASS OK, local evaluation with real sailing
+tracks, a focused SOG/COG/HEEL component suite with **26/26 passed**, and a
+production build including TypeScript checking. `git diff --check` also passed;
+the reported Vite chunk-size warning was non-blocking. #11 was reviewed as the
+raw-profile foundation integrated with #12; no separate exhaustive #11 test
+campaign is claimed. These are recorded implementation results, not tests
+rerun during release preparation. No full regression run or physical-tablet
+usability validation is claimed.
+
+COG profiles show relative course change and remain unavailable when entry and
+exit do not establish an unambiguous orientation, including zero or 180°
+change. HEEL insights use absolute inclination magnitude; HEEL variation is a
+central typical-magnitude change, not peak excursion or a side transition.
+Events remain neutral maneuver candidates: tack/gybe classification, P/C event
+pairing and performance ranking are out of scope. No production deployment is
+claimed.
+
+---
+
+### Español
+
+Añade un único gráfico integrado de perfiles típicos de maniobras para Primary
+y Comparison en el Session Viewer. Permite comparar curvas respaldadas de SOG,
+COG relativo de giro y magnitud absoluta de HEEL, junto con Insights por señal.
+Los perfiles describen señales observadas; no clasifican viradas/trasluchadas
+ni ordenan el rendimiento.
+
+### Añadido
+
+* La base reutilizable de perfiles individuales extrae SOG, COG circular y HEEL
+  con signo de muestras canónicas originales alrededor del centro existente de
+  cada maniobra (`t=0`, ±25 segundos). Los perfiles se limitan al Analysis
+  Window compartido, conservan cadencia y valores de origen, y mantienen
+  explícitos los datos ausentes y los gaps. No añade un gráfico individual
+  independiente ni persiste curvas duplicadas.
+* Un gráfico debajo de la tabla Maneuvers compara curvas típicas independientes
+  de Primary y Comparison en el eje fijo de −25s a +25s. SOG conserva los nudos,
+  COG muestra el cambio de rumbo relativo orientado con geometría circular y
+  HEEL muestra la magnitud absoluta `|HEEL|`. Una banda ajustable común de
+  `|ΔCOG|` filtra ambos roles. Las curvas de mediana bruta y suavizada conservan
+  gaps y poblaciones incompletas sin rellenar evidencia no respaldada.
+* Los Insights por señal resumen entrada, mínimo, salida y recuperación de
+  perfil de SOG; ángulo, punto medio y duración del giro COG; y entrada,
+  variación de magnitud típica central y salida de HEEL. Son resúmenes
+  descriptivos y no cambian la detección de maniobras ni las métricas de la
+  tabla de eventos.
+
+### Issues
+
+- [#11](https://github.com/maxsail-project/tackbar/issues/11) — [#11] Add normalized individual maneuver profiles
+- [#12](https://github.com/maxsail-project/tackbar/issues/12) — [#12] Add aggregate P/C maneuver comparison and typical profiles
+
+### Validación
+
+El #12 completado registra PASS OK del propietario, evaluación local con tracks
+reales, una suite focalizada de componentes SOG/COG/HEEL con **26/26 pruebas
+aprobadas** y build de producción con comprobación TypeScript. También pasó
+`git diff --check`; el aviso informado sobre el tamaño del chunk de Vite no
+bloqueaba. El #11 se revisó como la base de perfiles brutos integrada con el
+#12; no se afirma una campaña exhaustiva independiente de pruebas para #11.
+Son resultados registrados durante la implementación, no pruebas repetidas
+durante la preparación. No se afirma una regresión completa ni validación de
+usabilidad en tablet física.
+
+Los perfiles COG muestran el cambio de rumbo relativo y quedan indisponibles
+si la entrada y salida no establecen una orientación inequívoca, incluido un
+cambio de 0° o 180°. Los Insights HEEL usan magnitud absoluta de inclinación;
+la variación HEEL representa un cambio de magnitud típica central, no una
+excursión máxima ni transición de banda. Los eventos siguen siendo candidatos
+neutrales: clasificación de viradas/trasluchadas, emparejamiento de eventos P/C
+y ranking de rendimiento quedan fuera del alcance. No se afirma despliegue en
+producción.
+
+---
+
 ## v0.7.15 Californian — Mail Feedback
 
 ### English

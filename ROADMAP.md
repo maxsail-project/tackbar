@@ -37,6 +37,9 @@ with real sailors before adding complexity.
   increments also add plain GPX ingestion, protected Admin track upload and
   HIGH/LOW maneuver detection with explicit evidence in the Viewer, plus safe
   feedback for actionable track-email failures and a clear human support contact.
+  The accepted Viewer increments also add a unified typical maneuver profile
+  chart for Primary and Comparison across SOG, relative COG and
+  absolute-magnitude HEEL, with signal-specific Insights.
 
 See [CHANGELOG.md](CHANGELOG.md) and
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) for
@@ -104,7 +107,9 @@ completo posterior a la navegación antes de añadir complejidad.
   también añaden ingesta GPX sin comprimir, carga protegida de tracks en Admin y
   detección HIGH/LOW de maniobras con evidencia explícita en el Viewer. Además,
   se añaden avisos seguros para fallos accionables de correo con tracks y un
-  contacto humano claro.
+  contacto humano claro. Los incrementos aceptados del Viewer añaden también
+  un único gráfico comparativo P/C de perfiles típicos de maniobras para SOG,
+  COG relativo y magnitud absoluta de HEEL, con Insights específicos por señal.
 
 Consulta [CHANGELOG.md](CHANGELOG.md) y
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) para el
