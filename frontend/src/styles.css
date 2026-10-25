@@ -1215,6 +1215,44 @@ input:focus-visible {
 }
 
 .maneuver-profile__count strong { color: #17323a; }
+.maneuver-insights {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #d5e1e3;
+  border-radius: 10px;
+  background: #f7fafb;
+}
+.maneuver-insights h3 {
+  margin: 0;
+  color: #17323a;
+  font-size: 0.9rem;
+}
+.maneuver-insights p {
+  margin: 4px 0 8px;
+  color: #647b82;
+  font-size: 0.72rem;
+}
+.maneuver-insights__table-scroll { overflow-x: auto; }
+.maneuver-insights table {
+  width: 100%;
+  min-width: 350px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+.maneuver-insights th,
+.maneuver-insights td {
+  padding: 7px 5px;
+  border-top: 1px solid #e4ecee;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.maneuver-insights thead th { color: #526d74; font-size: 0.7rem; }
+.maneuver-insights th:first-child { width: 24%; }
+.maneuver-insights th:nth-child(2),
+.maneuver-insights th:nth-child(3) { width: 19%; }
+.maneuver-insights th:last-child { width: 38%; }
 .maneuver-profile [data-maneuver-center] {
   stroke: #60777e;
   stroke-width: 1.5;

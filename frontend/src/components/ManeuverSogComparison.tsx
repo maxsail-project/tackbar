@@ -2,11 +2,17 @@ import { useMemo, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { MANEUVER_ANGLE_RANGE } from '../config/maneuverProfile'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
-import { buildSogSignalPath, buildSogTrendPoints, type SogChartPoint } from '../utils/metricChartData'
+import { buildSogTrendPoints, type SogChartPoint } from '../utils/metricChartData'
+import {
+  buildSogManeuverPath,
+  calculateSogManeuverInsights,
+  compareSogManeuverInsight,
+  sogManeuverAxisBounds,
+  type SogInsightMetric,
+  type SogManeuverInsights,
+} from '../utils/maneuverSogInsights'
 import { aggregatePreparedSogPopulation, type PreparedSogPopulation, type TypicalSogProfile } from '../utils/typicalSogProfile'
 import ManeuverAngleRange, { type AngleBand } from './ManeuverAngleRange'
-
-const axis = { start: -25_000, end: 25_000 }
 
 export function supportedSogPoints(profile: TypicalSogProfile): SogChartPoint[] {
   return profile.grid.map((point) => ({
@@ -31,13 +37,27 @@ function smoothedAfterMedian(raw: SogChartPoint[]) {
 }
 
 function countSummary(role: 'P' | 'C', profile: TypicalSogProfile, missingCourseCount: number) {
+  const excluded = profile.windowEligibleCount - profile.coverageEligibleCount
   const warning = profile.coverageEligibleCount === 0 ? 'No usable profile'
     : profile.coverageEligibleCount < 3 ? 'At least 3 profiles needed' : null
   return <p className="maneuver-profile__count">
-    <strong style={{ color: role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison }}>{role}</strong> · {profile.detectedCount} detected · {profile.windowEligibleCount} in window · {profile.angularBandSelectedCount} in band · {profile.coverageEligibleCount} SOG eligible
-    {missingCourseCount > 0 && <span> · {missingCourseCount} without common ΔCOG</span>}
+    <strong style={{ color: role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison }}>{role}</strong> · {profile.windowEligibleCount} in window · {profile.coverageEligibleCount} used
+    {excluded > 0 && <span> · {excluded} excluded{missingCourseCount > 0 ? ` (${missingCourseCount} without common ΔCOG)` : ''}</span>}
     {warning && <span> · {warning}</span>}
   </p>
+}
+
+function insightValue(value: number | null, metric: SogInsightMetric) {
+  if (value === null) return '—'
+  const displayed = `${value.toFixed(1)} kt`
+  return metric === 'sogDrop' && value < 0 ? `${displayed} · no confirmed drop` : displayed
+}
+
+function insightRow(label: string, metric: SogInsightMetric, p: SogManeuverInsights | null, c: SogManeuverInsights | null) {
+  const primary = p?.[metric] ?? null
+  const comparison = c?.[metric] ?? null
+  return <tr key={metric}><th scope="row">{label}</th><td>{insightValue(primary, metric)}</td><td>{insightValue(comparison, metric)}</td>
+    <td>{compareSogManeuverInsight(metric, primary, comparison)}</td></tr>
 }
 
 export default function ManeuverSogComparison({ primary, comparison }: {
@@ -52,7 +72,9 @@ export default function ManeuverSogComparison({ primary, comparison }: {
   const c = useMemo(() => comparison && aggregatePreparedSogPopulation(comparison, range.minimum, range.maximum), [comparison, range])
   const pRaw = p ? supportedSogPoints(p) : []
   const cRaw = c ? supportedSogPoints(c) : []
-  const maxSog = Math.max(1, Math.ceil(Math.max(...[...pRaw, ...cRaw].map((point) => point.sog ?? 0))))
+  const bounds = sogManeuverAxisBounds(pRaw, cRaw)
+  const pInsights = p ? calculateSogManeuverInsights(pRaw) : null
+  const cInsights = c ? calculateSogManeuverInsights(cRaw) : null
   const curves = [
     { role: 'comparison', raw: cRaw, color: ACTIVITY_COLORS.comparison },
     { role: 'primary', raw: pRaw, color: ACTIVITY_COLORS.primary },
@@ -68,13 +90,13 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     {!c && comparison !== undefined && <p className="maneuver-profile__count">C profile data unavailable.</p>}
     <div className="metric-chart__canvas metric-chart__canvas--sog">
       <div className="sog-signal-chart">
-        <div className="sog-signal-chart__y-axis" aria-hidden="true"><span>{maxSog} kt</span><span>{maxSog / 2} kt</span><span>0 kt</span></div>
+        <div className="sog-signal-chart__y-axis" aria-hidden="true"><span>{bounds.maximum} kt</span><span>{((bounds.minimum + bounds.maximum) / 2).toFixed(1)} kt</span><span>{bounds.minimum} kt</span></div>
         <div className="sog-signal-chart__plot"><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="Median SOG by seconds from maneuver center">
           <g className="sog-signal-chart__grid" aria-hidden="true"><line x1="0" x2="1000" y1="8" y2="8" /><line x1="0" x2="1000" y1="100" y2="100" /><line x1="0" x2="1000" y1="192" y2="192" /></g>
           <line data-maneuver-center="true" x1="500" x2="500" y1="8" y2="192" />
           {curves.map(({ role, raw, color }) => {
-            const rawPath = buildSogSignalPath(raw, axis, maxSog)
-            const smoothPath = buildSogSignalPath(smoothedAfterMedian(raw), axis, maxSog)
+            const rawPath = buildSogManeuverPath(raw, bounds)
+            const smoothPath = buildSogManeuverPath(smoothedAfterMedian(raw), bounds)
             return <g key={role}>
               {rawPath && <path data-profile-series={`${role}-raw`} d={rawPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.rawStrokeWidth} strokeOpacity={SOG_SIGNAL_TUNING.rawOpacity} vectorEffect="non-scaling-stroke" />}
               {smoothPath && <path data-profile-series={`${role}-smoothed`} d={smoothPath} fill="none" stroke={color} strokeWidth={SOG_SIGNAL_TUNING.smoothedStrokeWidth} strokeOpacity={SOG_SIGNAL_TUNING.smoothedOpacity} vectorEffect="non-scaling-stroke" />}
@@ -84,6 +106,16 @@ export default function ManeuverSogComparison({ primary, comparison }: {
         <div className="sog-signal-chart__x-axis" aria-hidden="true"><span>−25 s</span><span>t=0</span><span>+25 s</span></div>
       </div>
     </div>
+    <section className="maneuver-insights" aria-label="Maneuver Insights">
+      <h3>Maneuver Insights</h3>
+      <p>Supported raw median SOG · P {p ? `${p.coverageEligibleCount} used` : 'unavailable'}{comparison !== undefined ? ` · C ${c ? `${c.coverageEligibleCount} used` : 'unavailable'}` : ''}</p>
+      <div className="maneuver-insights__table-scroll"><table><thead><tr><th scope="col">Indicator</th><th scope="col" style={{ color: ACTIVITY_COLORS.primary }}>P</th><th scope="col" style={{ color: ACTIVITY_COLORS.comparison }}>C</th><th scope="col">Reading</th></tr></thead>
+        <tbody>{[
+          insightRow('Entry SOG', 'entrySog', pInsights, cInsights),
+          insightRow('Minimum SOG', 'minimumSog', pInsights, cInsights),
+          insightRow('SOG drop', 'sogDrop', pInsights, cInsights),
+        ]}</tbody></table></div>
+    </section>
     <p className="maneuver-profile__basis">Curves require 3 SOG-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.</p>
   </section>
 }

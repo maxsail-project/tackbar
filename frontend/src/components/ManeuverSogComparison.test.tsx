@@ -40,8 +40,14 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('data-maneuver-center="true"')
     expect(html).toContain('data-profile-series="primary-raw"')
     expect(html).toContain('data-profile-series="comparison-smoothed"')
-    expect(html).toContain('3 detected')
-    expect(html).toContain('4 detected')
+    expect(html).toContain('3 in window')
+    expect(html).toContain('4 in window')
+    expect(html).toContain('3 used')
+    expect(html).toContain('Maneuver Insights')
+    expect(html).toContain('Entry SOG')
+    expect(html).toContain('Minimum SOG')
+    expect(html).toContain('SOG drop')
+    expect(html).not.toContain('detected')
     expect(html).toContain('t=0')
   })
 
@@ -50,6 +56,42 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('At least 3 profiles needed')
     expect(html).toContain('C profile data unavailable')
     expect(html).not.toContain('data-profile-series="primary-smoothed"')
+    expect(html).toContain('—')
+  })
+
+  it('shows one-sided insights without a P/C claim', () => {
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={population(3)} />)
+    expect(html).toContain('4.0 kt')
+    expect(html).toContain('Maneuver Insights')
+    expect(html).not.toContain('C profile data unavailable')
+    expect(html).toContain('6 kt')
+    expect(html).toContain('3 kt')
+  })
+
+  it('shows neutral P/C readings from supported raw curves', () => {
+    const primary = population(3)
+    const comparison = population(3)
+    for (const maneuver of primary.maneuvers) maneuver.grid.fill(4)
+    for (const maneuver of comparison.maneuvers) maneuver.grid.fill(4.4)
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />)
+    expect(html).toContain('4.0 kt')
+    expect(html).toContain('4.4 kt')
+    expect(html.match(/C higher/g)).toHaveLength(2)
+    expect(html).toContain('Similar')
+  })
+
+  it('updates counts and insight availability for a filtered population', () => {
+    const filtered = population(4)
+    filtered.maneuvers[0].courseChangeDeg = 120
+    filtered.maneuvers[1].nominalCoverage = 0.5
+    const result = aggregatePreparedSogPopulation(filtered, 40, 100)
+    expect(result).toMatchObject({ windowEligibleCount: 4, angularBandSelectedCount: 3, coverageEligibleCount: 2 })
+    expect(supportedSogPoints(result).every((point) => point.sog === null)).toBe(true)
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={filtered} />)
+    expect(html).toContain('4 in window')
+    expect(html).toContain('2 used')
+    expect(html).toContain('2 excluded')
+    expect(html).toContain('At least 3 profiles needed')
   })
 
   it('reuses prepared profiles when the angular band moves', () => {

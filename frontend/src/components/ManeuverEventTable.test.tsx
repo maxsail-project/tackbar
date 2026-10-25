@@ -49,7 +49,8 @@ function eventAt(
 }
 
 function cellTexts(markup: string, tag: 'th' | 'td') {
-  return [...markup.matchAll(new RegExp(`<${tag}[^>]*>(.*?)</${tag}>`, 'g'))]
+  const eventTable = markup.match(/<table class="maneuver-event-table"[^>]*>[\s\S]*?<\/table>/)?.[0] ?? ''
+  return [...eventTable.matchAll(new RegExp(`<${tag}[^>]*>(.*?)</${tag}>`, 'g'))]
     .map((match) => match[1].replace(/<[^>]+>/g, ''))
 }
 
@@ -379,7 +380,7 @@ describe('ManeuverEventTable', () => {
       />,
     )
 
-    expect(markup.match(/—/g)).toHaveLength(6)
+    expect(cellTexts(markup, 'td').join('').match(/—/g)).toHaveLength(6)
   })
 
   it('shows the empty Analysis Window state for available analytics', () => {
