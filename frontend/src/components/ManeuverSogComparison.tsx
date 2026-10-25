@@ -121,7 +121,7 @@ function recoveryText(role: 'P' | 'C', recovery: SogProfileRecovery) {
 }
 
 function cogValue(value: number | null, unit: '°' | 's', signed = false) {
-  if (value === null) return 'Unavailable'
+  if (value === null) return '—'
   return `${signed && value >= 0 ? '+' : ''}${value.toFixed(1)}${unit}`
 }
 
@@ -132,7 +132,7 @@ function cogInsightCard(label: string, metric: 'turnAngleDeg' | 'turnMidpointSec
   const unit = metric === 'turnAngleDeg' ? '°' : 's'
   const difference = p !== null && c !== null
     ? Math.abs(p - c).toFixed(1) === '0.0' ? `Same to 0.1${unit}` : `Difference ${Math.abs(p - c).toFixed(1)}${unit}`
-    : 'Unavailable'
+    : '—'
   return <div className="maneuver-insights__card">
     <h4>{label}</h4>
     <div className="maneuver-insights__values">
@@ -147,11 +147,11 @@ function heelInsightCard(label: string, metric: keyof HeelManeuverInsights,
   primary: HeelManeuverInsights | null, comparison: HeelManeuverInsights | null) {
   const p = primary?.[metric] ?? null
   const c = comparison?.[metric] ?? null
-  const value = (number: number | null) => number === null ? 'Unavailable'
+  const value = (number: number | null) => number === null ? '—'
     : `${metric === 'heelVariation' && number > 0 ? '+' : ''}${number.toFixed(1)}°`
   const difference = p !== null && c !== null
     ? Math.abs(p - c).toFixed(1) === '0.0' ? 'Same to 0.1°' : `Difference ${Math.abs(p - c).toFixed(1)}°`
-    : 'Unavailable'
+    : '—'
   return <div className="maneuver-insights__card">
     <h4>{label}</h4>
     <div className="maneuver-insights__values">
@@ -243,7 +243,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
       </div>
     </div>
     {signal === 'SOG' && <section className="maneuver-insights" aria-label="Maneuver Insights">
-      <h3>Maneuver Insights</h3>
+      <h3>SOG Maneuver Insights</h3>
       <p>Supported raw median SOG</p>
       <div className="maneuver-insights__grid">{[
         insightCard('Entry SOG', 'entrySog', pInsights, cInsights),
