@@ -1,4 +1,5 @@
 import imaplib
+import os
 from dataclasses import dataclass
 from datetime import timezone
 from email import policy
@@ -6,6 +7,7 @@ from email.header import decode_header, make_header
 from email.parser import BytesParser
 from email.utils import parseaddr, parsedate_to_datetime
 from enum import Enum
+import re
 
 from app.models import InboundEmail
 from app.parsers.track import is_supported_track_attachment
@@ -15,6 +17,7 @@ class OVHMessageOutcome(str, Enum):
     SUPPORTED = "supported"
     UNSUPPORTED = "unsupported"
     MALFORMED = "malformed"
+    MULTIPLE_SUPPORTED = "multiple_supported"
 
 
 @dataclass(frozen=True)
@@ -23,6 +26,7 @@ class OVHExaminedMessage:
     candidate: InboundEmail | None
     outcome: OVHMessageOutcome
     error_class: str | None = None
+    notice_recipient: str | None = None
 
 
 @dataclass(frozen=True)
@@ -34,6 +38,12 @@ class OVHAcquisitionBatch:
 
 class OVHUIDValidityMismatch(RuntimeError):
     pass
+
+
+class OVHMultipleSupportedAttachments(ValueError):
+    def __init__(self, notice_recipient: str | None) -> None:
+        super().__init__("OVH message contains multiple supported attachments")
+        self.notice_recipient = notice_recipient
 
 
 class OVHAdapter:
@@ -120,9 +130,15 @@ class OVHAdapter:
                         uidvalidity, tuple(examined), acquisition_failed=True
                     )
                 try:
-                    candidate = _extract_email(
-                        raw, f"{uidvalidity}:{uid}"
+                    candidate, notice_recipient = _extract_email(
+                        raw, f"{uidvalidity}:{uid}", self.username
                     )
+                except OVHMultipleSupportedAttachments as error:
+                    examined.append(OVHExaminedMessage(
+                        uid, None, OVHMessageOutcome.MULTIPLE_SUPPORTED,
+                        notice_recipient=error.notice_recipient,
+                    ))
+                    continue
                 except Exception as error:
                     examined.append(
                         OVHExaminedMessage(
@@ -139,7 +155,8 @@ class OVHAdapter:
                     else OVHMessageOutcome.UNSUPPORTED
                 )
                 examined.append(
-                    OVHExaminedMessage(uid, candidate, outcome)
+                    OVHExaminedMessage(uid, candidate, outcome,
+                                       notice_recipient=notice_recipient)
                 )
             return OVHAcquisitionBatch(uidvalidity, tuple(examined))
         finally:
@@ -157,8 +174,44 @@ def _header_text(value: str) -> str:
         return value
 
 
-def _extract_email(raw: bytes, provider_message_id: str) -> InboundEmail | None:
+def _notice_recipient(message, mailbox_address: str) -> str | None:
+    headers = message.get_all("From", [])
+    if len(headers) != 1 or getattr(headers[0], "defects", ()):
+        return None
+    try:
+        addresses = getattr(headers[0], "addresses", ())
+        if len(addresses) != 1:
+            return None
+        address = addresses[0].addr_spec
+    except (AttributeError, IndexError, TypeError, ValueError):
+        return None
+    if not isinstance(address, str) or not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+", address):
+        return None
+    local, domain = address.rsplit("@", 1)
+    if not local or "." not in domain or any(not label or label.startswith("-") or label.endswith("-") for label in domain.split(".")):
+        return None
+    owned = {"share@tackbar.eu", "hello@tackbar.eu", mailbox_address.lower()}
+    configured_from = os.environ.get("TACKBAR_OVH_SMTP_FROM")
+    if configured_from:
+        owned.add(configured_from.strip().lower())
+    if address.lower() in owned:
+        return None
+    if any(str(value).strip() == "<>" for value in message.get_all("Return-Path", [])):
+        return None
+    if any(name.lower().startswith("list-") for name in message.keys()):
+        return None
+    if any(message.get_all(name, []) for name in ("X-Auto-Response-Suppress", "X-Loop", "X-BeenThere")):
+        return None
+    if any(str(value).strip().lower() not in ("", "no") for value in message.get_all("Auto-Submitted", [])):
+        return None
+    if any(str(value).strip().lower() in {"bulk", "list", "junk"} for value in message.get_all("Precedence", [])):
+        return None
+    return address
+
+
+def _extract_email(raw: bytes, provider_message_id: str, mailbox_address: str) -> tuple[InboundEmail | None, str | None]:
     message = BytesParser(policy=policy.default).parsebytes(raw)
+    notice_recipient = _notice_recipient(message, mailbox_address)
     subject = _header_text(str(message.get("Subject", "")))
 
     sender_header = _header_text(str(message.get("From", "")))
@@ -182,10 +235,10 @@ def _extract_email(raw: bytes, provider_message_id: str) -> InboundEmail | None:
         if is_supported_track_attachment(filename):
             attachments.append((filename, part.get_payload(decode=True)))
     if len(attachments) > 1:
-        raise ValueError("OVH message contains multiple supported attachments")
+        raise OVHMultipleSupportedAttachments(notice_recipient)
     if not attachments:
-        return None
+        return None, None
     if attachments[0][1] is None:
         raise ValueError("OVH supported attachment body is unavailable")
     filename, content = attachments[0]
-    return InboundEmail(sender_email, subject, filename, content, provider_message_id, received_at)
+    return InboundEmail(sender_email, subject, filename, content, provider_message_id, received_at), notice_recipient

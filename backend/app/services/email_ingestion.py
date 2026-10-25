@@ -5,10 +5,15 @@ from app.parsers.track import (
 )
 from app.parsers.gpx import GPXParseError
 from app.parsers.vakaros_vkx import VKXParseError
+from app.parsers.vakaros_csv import VakarosCSVParseError
 
 
 class InboundEmailRejected(ValueError):
     """Raised when an inbound email is not eligible for processing."""
+
+
+class ActionableTrackRejected(InboundEmailRejected):
+    """A supported attachment failed a known input parsing/validation rule."""
 
 
 def process_inbound_email(email: InboundEmail) -> IngestionResult:
@@ -26,10 +31,14 @@ def process_inbound_email(email: InboundEmail) -> IngestionResult:
             original_filename=email.attachment_filename,
         )
     except GPXParseError as error:
-        raise InboundEmailRejected(str(error)) from error
+        raise ActionableTrackRejected(str(error)) from error
     except VKXParseError as error:
-        raise InboundEmailRejected(
+        raise ActionableTrackRejected(
             "Inbound email attachment is not a valid Vakaros VKX file"
+        ) from error
+    except VakarosCSVParseError as error:
+        raise ActionableTrackRejected(
+            "Inbound email attachment is not a valid Vakaros CSV file"
         ) from error
     except (OSError, EOFError) as error:
         raise InboundEmailRejected(

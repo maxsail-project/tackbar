@@ -1,5 +1,6 @@
 import pytest
 
+from app.services.outbound_mail import CONTACT_FOOTER
 from app.services.welcome_email import (
     ENGLISH_VAKAROS_GUIDE_URL,
     SPANISH_VAKAROS_GUIDE_URL,
@@ -86,7 +87,7 @@ Maxi
 
 TackBar
 Sail. Debrief. Learn.
-"""
+""" + "\n" + CONTACT_FOOTER + "\n"
     for unsupported_format in ("GPX", "VKX", "FIT"):
         assert unsupported_format not in message.body
 

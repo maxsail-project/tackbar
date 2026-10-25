@@ -124,6 +124,8 @@ def test_smtp_success_appends_same_message_to_tackbar_sent(monkeypatch, message)
     assert submitted["From"] == "share@example.test"
     assert submitted["To"] == "sailor@example.test"
     assert submitted["Subject"] == message.subject
+    assert submitted["Reply-To"] == "hello@tackbar.eu"
+    assert submitted["Auto-Submitted"] == "auto-generated"
     assert submitted.get_content() == message.body.rstrip("\n") + "\n"
     assert appended_messages[0] == submitted.as_bytes(policy=policy.SMTP)
 

@@ -3,7 +3,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from app.config import configured_public_base_url
 from app.repositories.consent_requests import is_consent_request_token
-from app.services.outbound_mail import OutboundMailMessage
+from app.services.outbound_mail import OutboundMailMessage, compose_automated_mail
 
 
 CONSENT_REQUEST_EMAIL_SUBJECT = (
@@ -73,7 +73,7 @@ Gracias,
 TackBar
 Sail. Debrief. Learn.
 """
-    return OutboundMailMessage(recipient, CONSENT_REQUEST_EMAIL_SUBJECT, body)
+    return compose_automated_mail(recipient, CONSENT_REQUEST_EMAIL_SUBJECT, body)
 
 
 def compose_consent_request_email_from_environment(

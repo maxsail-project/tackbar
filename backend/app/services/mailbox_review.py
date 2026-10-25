@@ -24,6 +24,7 @@ from app.runtime_paths import require_private_data_root
 from app.services.ingestion_history import IngestionHistory
 from app.services.ingestion_lock import ingestion_lock
 from app.services.ingestion_processing import process_provider_email
+from app.services.technical_failure_notice import TechnicalNoticeStore
 from app.services.mailbox_review_observability import (
     CycleFailureState,
     CycleFailureStateStore,
@@ -268,8 +269,10 @@ def _process_acquired_messages(
     sailors, boats = SailorRepository(), BoatRepository()
     activities, sessions = ActivityRepository(), SessionRepository()
     track_storage = TrackStorage()
+    notice_store = TechnicalNoticeStore(history.path.parent)
     processed = skipped = known_failed = failed = 0
     unsupported = malformed = 0
+    notice_recipients = {}
     if ovh_batch is not None:
         for examined in ovh_batch.examined_messages:
             provider_message_id = (
@@ -279,6 +282,15 @@ def _process_acquired_messages(
                 unsupported += 1
             elif examined.outcome == OVHMessageOutcome.MALFORMED:
                 malformed += 1
+            elif examined.outcome == OVHMessageOutcome.MULTIPLE_SUPPORTED:
+                malformed += 1
+                if examined.notice_recipient is not None:
+                    notice_store.attempt_once(
+                        provider_message_id, examined.notice_recipient,
+                        "multiple_supported",
+                    )
+            if examined.candidate is not None:
+                notice_recipients[provider_message_id] = examined.notice_recipient
             logger.info(
                 "ovh_message_examined provider=ovh uid=%d "
                 "provider_message_id=%s outcome=%s error_class=%s",
@@ -306,6 +318,14 @@ def _process_acquired_messages(
             else:
                 known_failed += 1
                 outcome = "skipped_known_failed"
+                if (
+                    provider_key == "ovh"
+                    and existing["technical_notice_reason"] == "invalid_track"
+                    and notice_recipients.get(message_id) is not None
+                ):
+                    notice_store.attempt_once(
+                        message_id, notice_recipients[message_id], "invalid_track"
+                    )
             if provider_key == "ovh":
                 logger.info(
                     "mailbox_message_processing_finished provider=ovh "
@@ -318,6 +338,16 @@ def _process_acquired_messages(
             result = process_provider_email(provider_key, email, sailors, boats, activities, sessions, history, track_storage)
         except Exception as error:
             failed += 1
+            if provider_key == "ovh" and notice_recipients.get(message_id) is not None:
+                failed_record = history.find_provider_message(provider_key, message_id)
+                if (
+                    failed_record is not None
+                    and failed_record["status"] == "failed"
+                    and failed_record["technical_notice_reason"] == "invalid_track"
+                ):
+                    notice_store.attempt_once(
+                        message_id, notice_recipients[message_id], "invalid_track"
+                    )
             if provider_key == "ovh":
                 logger.error(
                     "mailbox_message_processing_failed provider=ovh "

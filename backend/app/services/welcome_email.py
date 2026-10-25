@@ -2,7 +2,7 @@ from typing import Mapping
 from urllib.parse import urlsplit, urlunsplit
 
 from app.config import configured_public_base_url
-from app.services.outbound_mail import OutboundMailMessage
+from app.services.outbound_mail import OutboundMailMessage, compose_automated_mail
 
 
 WELCOME_EMAIL_SUBJECT = "Welcome to TackBar / Bienvenido a TackBar"
@@ -119,7 +119,7 @@ Maxi
 TackBar
 Sail. Debrief. Learn.
 """
-    return OutboundMailMessage(recipient, WELCOME_EMAIL_SUBJECT, body)
+    return compose_automated_mail(recipient, WELCOME_EMAIL_SUBJECT, body)
 
 
 def compose_welcome_email_from_environment(

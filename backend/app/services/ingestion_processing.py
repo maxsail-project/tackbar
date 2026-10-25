@@ -16,7 +16,7 @@ from app.repositories.sessions import SessionRepository
 from app.services.activity_tracks import persist_activity_track
 from app.services.automatic_consent_requests import AutomaticConsentRequestService
 from app.services.consent_requests import ConsentRequestService
-from app.services.email_ingestion import process_inbound_email
+from app.services.email_ingestion import ActionableTrackRejected, process_inbound_email
 from app.services.ingestion_history import ADMIN_UPLOAD, IngestionHistory
 from app.services.ingestion_lock import ingestion_lock
 from app.services.maneuver_analytics import get_or_generate_maneuver_analytics
@@ -282,6 +282,10 @@ def _attempt_record(
         record.update(status="processed", last_error=None, activity_id=result.activity.id, session_id=result.session_match.session.id)
         history.replace(record)
     except Exception as error:
+        if (record["provider"] == "ovh" and not attempt_started
+                and record["attempts"] == 1
+                and isinstance(error, ActionableTrackRejected)):
+            record["technical_notice_reason"] = "invalid_track"
         record.update(
             status="failed",
             last_error="Manual track processing failed" if manual else _safe_error(error),
