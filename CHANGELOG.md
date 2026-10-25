@@ -2,6 +2,102 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.15 Californian — Mail Feedback
+
+### English
+
+Adds safe, actionable feedback for selected track-email failures and makes the
+human support contact clear in every automated TackBar email. The established
+single-supported-track intake and consent/access behavior remain in force.
+
+### Added
+
+* Eligible senders receive a generic bilingual notice when OVH rejects a mail
+  containing multiple supported tracks or when one supported track has a
+  confidently classified parser/validation failure. Notices contain no account
+  details or access links, do not create a Sailor or change consent, and are
+  reserved at most once per provider message before SMTP. Uncertain or failed
+  sends are not retried automatically.
+* All automated consent request, welcome, Session-result and technical failure
+  emails include the same bilingual contact footer and direct replies to
+  `hello@tackbar.eu`; `share@tackbar.eu` remains the track submission mailbox.
+
+### Issues
+
+- [#136](https://github.com/maxsail-project/tackbar/issues/136) — [#136] Notify senders of unprocessable track emails and clarify support contact
+
+### Validation
+
+The completed #136 is contained in the release range. Its recorded selective
+validation reports 324 passed, a further regression run with 124 passed and 1
+skipped, and a final technical-notice suite with 35 passed. These are reported
+implementation results, not tests rerun during release preparation. Live OVH
+delivery and operator smoke validation remain deferred; this entry does not
+claim production delivery or deployment.
+
+The release review confirmed the current ingestion and consent specifications
+describe the accepted behavior. It also reconciled the README's published
+release identity. No dependencies changed. The release preparation ran
+documentation consistency and whitespace checks; it did not run a product test
+suite.
+
+Technical notices apply only to confidently classified actionable failures;
+generic malformed mail and infrastructure failures do not qualify. A usable
+outer `From` address is not authenticated, and the pilot accepts residual
+forged-sender backscatter risk. Multiple supported attachments continue to be
+rejected; multi-attachment processing is not included.
+
+---
+
+### Español
+
+Añade feedback seguro y accionable para ciertos fallos de correo con tracks y
+aclara el contacto humano en todos los emails automáticos de TackBar. Se
+mantienen la ingesta establecida de un único track soportado y las reglas de
+consentimiento/acceso.
+
+### Añadido
+
+* Los remitentes elegibles reciben un aviso genérico bilingüe cuando OVH
+  rechaza un correo con varios tracks soportados o cuando un track soportado
+  tiene un fallo de análisis/validación clasificado con certeza. Los avisos no
+  incluyen datos de cuenta ni enlaces de acceso, no crean un Sailor ni cambian
+  el consentimiento, y reservan como máximo un intento por mensaje del
+  proveedor antes de SMTP. Los envíos fallidos o inciertos no se reintentan
+  automáticamente.
+* Todos los emails automáticos de solicitud de consentimiento, bienvenida,
+  resultado de Session y fallo técnico incluyen el mismo pie bilingüe y dirigen
+  las respuestas a `hello@tackbar.eu`; `share@tackbar.eu` sigue siendo el buzón
+  para enviar tracks.
+
+### Issues
+
+- [#136](https://github.com/maxsail-project/tackbar/issues/136) — [#136] Notify senders of unprocessable track emails and clarify support contact
+
+### Validación
+
+El #136 completado está incluido en el rango de la release. Su validación
+selectiva registrada informa de 324 pruebas aprobadas, otra ejecución de
+regresión con 124 aprobadas y 1 omitida, y una suite final de avisos técnicos
+con 35 aprobadas. Son resultados comunicados durante la implementación; no se
+repitieron durante la preparación. La entrega real por OVH y la comprobación
+operativa siguen aplazadas; esta entrada no afirma entrega ni despliegue en
+producción.
+
+La revisión confirmó que las especificaciones actuales de ingesta y
+consentimiento describen el comportamiento aceptado. También actualizó en el
+README la identidad de la última release publicada. No cambiaron dependencias.
+La preparación ejecutó comprobaciones de coherencia documental y whitespace;
+no ejecutó una suite de pruebas del producto.
+
+Los avisos técnicos se limitan a fallos accionables clasificados con certeza;
+el correo malformado genérico y los fallos de infraestructura no califican. Una
+dirección `From` utilizable no está autenticada y el piloto acepta un riesgo
+residual de mensajes falsificados. Los correos con varios tracks soportados
+siguen rechazándose; no se incluye el procesamiento de múltiples tracks.
+
+---
+
 ## v0.7.14 Californian — GPX & Maneuver Analytics
 
 ### English

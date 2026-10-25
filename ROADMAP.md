@@ -35,7 +35,8 @@ with real sailors before adding complexity.
   maneuver-oriented collaborative debrief analytics, richer signal and
   distribution comparison, and per-Activity Individual Analysis. Accepted
   increments also add plain GPX ingestion, protected Admin track upload and
-  HIGH/LOW maneuver detection with explicit evidence in the Viewer.
+  HIGH/LOW maneuver detection with explicit evidence in the Viewer, plus safe
+  feedback for actionable track-email failures and a clear human support contact.
 
 See [CHANGELOG.md](CHANGELOG.md) and
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) for
@@ -101,7 +102,9 @@ completo posterior a la navegación antes de añadir complejidad.
   colaborativo orientado a maniobras, comparación más rica de señales y
   distribuciones, e Individual Analysis por Activity. Los incrementos aceptados
   también añaden ingesta GPX sin comprimir, carga protegida de tracks en Admin y
-  detección HIGH/LOW de maniobras con evidencia explícita en el Viewer.
+  detección HIGH/LOW de maniobras con evidencia explícita en el Viewer. Además,
+  se añaden avisos seguros para fallos accionables de correo con tracks y un
+  contacto humano claro.
 
 Consulta [CHANGELOG.md](CHANGELOG.md) y
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) para el
