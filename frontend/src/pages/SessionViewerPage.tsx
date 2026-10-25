@@ -80,6 +80,7 @@ import {
   retainDisplayedManeuverSelection,
   type DisplayManeuver,
 } from '../utils/maneuverEvents'
+import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
 
 type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
 
@@ -634,6 +635,18 @@ export function SessionViewer({
         ),
     [availableRange, comparisonManeuverAnalytics, primaryManeuverAnalytics],
   )
+  const primaryProfilePopulation = useMemo(
+    () => analysisWindow && primaryTrack && primaryManeuverAnalytics?.status === 'available'
+      ? prepareSogManeuverPopulation(primaryManeuverAnalytics.maneuvers, primaryTrack.samples, analysisWindow)
+      : null,
+    [analysisWindow, primaryTrack, primaryManeuverAnalytics],
+  )
+  const comparisonProfilePopulation = useMemo(
+    () => analysisWindow && comparisonTrack && comparisonManeuverAnalytics?.status === 'available'
+      ? prepareSogManeuverPopulation(comparisonManeuverAnalytics.maneuvers, comparisonTrack.samples, analysisWindow)
+      : null,
+    [analysisWindow, comparisonTrack, comparisonManeuverAnalytics],
+  )
   const selectedManeuver = resolveSelectedDisplayManeuver(
     selectedManeuverKey,
     displayManeuvers,
@@ -992,6 +1005,8 @@ export function SessionViewer({
               )}
           selectedManeuverKey={selectedManeuverKey}
           onSelect={selectTableManeuver}
+          primaryProfilePopulation={primaryProfilePopulation}
+          comparisonProfilePopulation={comparisonActivityId === null ? undefined : comparisonProfilePopulation}
         />
       )}
       <ComparisonTable

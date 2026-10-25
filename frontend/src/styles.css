@@ -1199,6 +1199,79 @@ input:focus-visible {
   padding-bottom: 18px;
 }
 
+.maneuver-profile {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #d5e1e3;
+}
+.maneuver-profile .metric-chart__heading { flex-wrap: wrap; }
+
+.maneuver-profile__count,
+.maneuver-profile__basis {
+  margin: 8px 0 0;
+  color: #526d74;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.maneuver-profile__count strong { color: #17323a; }
+.maneuver-profile [data-maneuver-center] {
+  stroke: #60777e;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.maneuver-angle-range { margin-top: 16px; }
+.maneuver-angle-range__labels,
+.maneuver-angle-range__bounds {
+  display: flex;
+  justify-content: space-between;
+  color: #31515a;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.maneuver-angle-range__bounds { color: #647b82; font-size: 0.7rem; }
+.maneuver-angle-range__bar {
+  position: relative;
+  height: 48px;
+  margin: 4px 22px 0;
+  touch-action: none;
+  user-select: none;
+}
+.maneuver-angle-range__track,
+.maneuver-angle-range__band {
+  position: absolute;
+  border-radius: 99px;
+}
+.maneuver-angle-range__track { top: 20px; height: 8px; left: 0; right: 0; background: #d5e1e3; }
+.maneuver-angle-range__band { top: 2px; height: 44px; cursor: grab; }
+.maneuver-angle-range__band::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  border-radius: 99px;
+  background: #89b9c3;
+}
+.maneuver-angle-range__handle {
+  position: absolute;
+  top: 2px;
+  width: 44px;
+  height: 44px;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 9px, #168097 10px 13px, transparent 14px);
+  cursor: ew-resize;
+}
+.maneuver-angle-range [role="slider"]:focus-visible {
+  outline: 2px solid #28788a;
+  outline-offset: 2px;
+}
+
 .maneuver-section__header {
   display: flex;
   align-items: center;
