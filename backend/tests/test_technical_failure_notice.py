@@ -170,6 +170,39 @@ def test_attempt_claim_precedes_smtp_and_uncertain_delivery_is_terminal(tmp_path
     assert store.records()["456:2"]["status"] == "failed"
 
 
+def test_failed_reservation_write_prevents_smtp_and_allows_one_safe_later_attempt(
+    monkeypatch, tmp_path,
+):
+    store = TechnicalNoticeStore(tmp_path)
+    sent = []
+    original_write = store._write
+
+    def fail_reservation(_records):
+        raise OSError("reservation unavailable")
+
+    monkeypatch.setattr(store, "_write", fail_reservation)
+    with pytest.raises(OSError, match="reservation unavailable"):
+        store.attempt_once(
+            "456:1", "sailor@example.test", "multiple_supported",
+            lambda recipient, reason: sent.append((recipient, reason)),
+        )
+    assert sent == []
+    assert store.records() == {}
+    assert not store.path.exists()
+
+    monkeypatch.setattr(store, "_write", original_write)
+    assert store.attempt_once(
+        "456:1", "sailor@example.test", "multiple_supported",
+        lambda recipient, reason: sent.append((recipient, reason)),
+    )
+    assert store.records()["456:1"]["status"] == "sent"
+    assert not store.attempt_once(
+        "456:1", "sailor@example.test", "multiple_supported",
+        lambda *_: pytest.fail("SMTP retried after durable attempt"),
+    )
+    assert sent == [("sailor@example.test", "multiple_supported")]
+
+
 def test_failed_ingestion_recovers_notice_after_interruption(monkeypatch, tmp_path):
     adapter = _runtime(monkeypatch, tmp_path, {1: _mail([("bad.gpx", b"<gpx/>")])})
     original = TechnicalNoticeStore.attempt_once
