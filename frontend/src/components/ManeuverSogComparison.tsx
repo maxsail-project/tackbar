@@ -79,20 +79,19 @@ function recoveryMarker(role: 'P' | 'C', recovery: SogProfileRecovery, bounds: S
   const markerX = x + markerOffset
   return <g key={role} data-profile-recovery={role} aria-label={`${role} profile recovery at +${recovery.offsetSeconds} seconds`}>
     <title>{`${role} profile recovery at +${recovery.offsetSeconds} seconds, ${recovery.sogKnots.toFixed(1)} knots`}</title>
-    <line data-profile-recovery-guide={role} x1={x} x2={x} y1={y} y2="192" stroke={color} strokeOpacity="0.22" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+    <line data-profile-recovery-guide={role} x1={x} x2={x} y1="8" y2="192" stroke={color} strokeOpacity="0.22" strokeWidth="1" vectorEffect="non-scaling-stroke" />
     <circle cx={markerX} cy={y} r="5" fill={color} stroke="white" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
   </g>
 }
 
 function recoveryChartLabel(role: 'P' | 'C', recovery: SogProfileRecovery, bounds: SogAxisBounds) {
   if (recovery.status !== 'recovered') return null
-  const { x, y } = sogManeuverCoordinates(recovery.offsetSeconds, recovery.sogKnots, bounds)
+  const { x } = sogManeuverCoordinates(recovery.offsetSeconds, recovery.sogKnots, bounds)
   const position = x / 10
   const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
   const horizontal = position > 95 ? '-100%' : '-50%'
-  const vertical = role === 'P' ? 'calc(-100% - 7px)' : '7px'
   return <span className={`maneuver-profile__recovery-label maneuver-profile__recovery-label--${role.toLowerCase()}`}
-    style={{ left: `${position}%`, top: `${y / 2}%`, backgroundColor: `${color}33`, borderColor: `${color}80`, transform: `translate(${horizontal}, ${vertical})` }}
+    style={{ left: `${position}%`, backgroundColor: `${color}33`, borderColor: `${color}80`, transform: `translateX(${horizontal})` }}
     aria-label={`${role} profile recovery at +${recovery.offsetSeconds} seconds`}>
     {role} +{recovery.offsetSeconds}s
   </span>

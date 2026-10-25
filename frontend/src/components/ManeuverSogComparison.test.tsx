@@ -118,27 +118,27 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('C profile recovery at +3 seconds')
     const pMarker = html.match(/<g data-profile-recovery="P"[\s\S]*?<\/g>/)?.[0]
     const cMarker = html.match(/<g data-profile-recovery="C"[\s\S]*?<\/g>/)?.[0]
-    expect(pMarker).toContain('data-profile-recovery-guide="P" x1="560" x2="560"')
-    expect(cMarker).toContain('data-profile-recovery-guide="C" x1="560" x2="560"')
+    expect(pMarker).toContain('data-profile-recovery-guide="P" x1="560" x2="560" y1="8" y2="192"')
+    expect(cMarker).toContain('data-profile-recovery-guide="C" x1="560" x2="560" y1="8" y2="192"')
     expect(pMarker).toContain(`stroke="${ACTIVITY_COLORS.primary}" stroke-opacity="0.22"`)
     expect(cMarker).toContain(`stroke="${ACTIVITY_COLORS.comparison}" stroke-opacity="0.22"`)
     expect(pMarker).toContain(`<circle cx="555" cy="69.33333333333334" r="5" fill="${ACTIVITY_COLORS.primary}" stroke="white"`)
     expect(cMarker).toContain(`<circle cx="565" cy="69.33333333333334" r="5" fill="${ACTIVITY_COLORS.comparison}" stroke="white"`)
-    expect(pMarker).toContain('y2="192"')
-    expect(cMarker).toContain('y2="192"')
     const pLabel = html.match(/<span class="maneuver-profile__recovery-label maneuver-profile__recovery-label--p"[^>]*>/)?.[0]
     const cLabel = html.match(/<span class="maneuver-profile__recovery-label maneuver-profile__recovery-label--c"[^>]*>/)?.[0]
     expect(pLabel).toContain(`background-color:${ACTIVITY_COLORS.primary}33`)
     expect(cLabel).toContain(`background-color:${ACTIVITY_COLORS.comparison}33`)
     expect(pLabel).toContain(`border-color:${ACTIVITY_COLORS.primary}80`)
     expect(cLabel).toContain(`border-color:${ACTIVITY_COLORS.comparison}80`)
-    expect(pLabel).toContain('calc(-100% - 7px)')
-    expect(cLabel).toContain('translate(-50%, 7px)')
+    expect(pLabel).toContain('translateX(-50%)')
+    expect(cLabel).toContain('translateX(-50%)')
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
     expect(css).toMatch(/\.maneuver-profile__recovery-label\s*\{[\s\S]*?color: #17323a;/)
+    expect(css).toMatch(/\.maneuver-profile__recovery-label--p\s*\{\s*top: 3px;/)
+    expect(css).toMatch(/\.maneuver-profile__recovery-label--c\s*\{\s*bottom: 3px;/)
   })
 
-  it('keeps nearby recovery labels on opposite sides of their markers', () => {
+  it('keeps nearby recovery labels on separate top and bottom rows', () => {
     const primary = population(3)
     const comparison = population(3)
     for (const maneuver of primary.maneuvers) { maneuver.grid.fill(5); maneuver.grid[27] = 4 }
@@ -148,8 +148,10 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('C +4s')
     expect(html).toContain('left:56%')
     expect(html).toContain('left:58%')
-    expect(html).toContain('calc(-100% - 7px)')
-    expect(html).toContain('translate(-50%, 7px)')
+    expect(html).toContain('maneuver-profile__recovery-label--p')
+    expect(html).toContain('maneuver-profile__recovery-label--c')
+    expect(html).toContain(`background-color:${ACTIVITY_COLORS.primary}33`)
+    expect(html).toContain(`background-color:${ACTIVITY_COLORS.comparison}33`)
     expect(html).toContain('P earlier')
   })
 
@@ -165,8 +167,7 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('data-profile-recovery-guide="C" x1="1000" x2="1000"')
     expect(html).toContain('<circle cx="988"')
     expect(html).toContain('<circle cx="997"')
-    expect(html).toContain('translate(-100%, calc(-100% - 7px))')
-    expect(html).toContain('translate(-100%, 7px)')
+    expect(html.match(/translateX\(-100%\)/g)).toHaveLength(2)
   })
 
   it('keeps a one-sided recovered marker without a C recovery claim', () => {

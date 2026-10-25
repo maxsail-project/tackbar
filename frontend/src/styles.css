@@ -1282,6 +1282,8 @@ input:focus-visible {
   white-space: nowrap;
   pointer-events: none;
 }
+.maneuver-profile__recovery-label--p { top: 3px; }
+.maneuver-profile__recovery-label--c { bottom: 3px; }
 .maneuver-profile [data-maneuver-center] {
   stroke: #60777e;
   stroke-width: 1.5;
