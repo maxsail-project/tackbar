@@ -1205,12 +1205,6 @@ input:focus-visible {
   border-top: 1px solid #d5e1e3;
 }
 .maneuver-profile .metric-chart__heading { flex-wrap: wrap; }
-.maneuver-profile__signals {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: min(100%, 220px);
-  margin-top: 10px;
-}
-.maneuver-profile__signals button { min-height: 44px; }
 
 .maneuver-profile__count,
 .maneuver-profile__basis {
@@ -1273,6 +1267,7 @@ input:focus-visible {
 .maneuver-insights__recovery strong { color: #31515a; }
 @media (min-width: 700px) {
   .maneuver-insights__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .maneuver-insights__grid--cog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .maneuver-profile .sog-signal-chart__plot { position: relative; overflow: visible; }
 .maneuver-profile__recovery-label {

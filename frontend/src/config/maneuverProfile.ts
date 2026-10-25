@@ -14,3 +14,13 @@ export const MANEUVER_SOG_INSIGHTS = {
   similarityKnots: 0.2,
   recoveryFractionOfEntry: 0.95,
 } as const
+
+export const MANEUVER_COG_INSIGHTS = {
+  entry: MANEUVER_SOG_INSIGHTS.entry,
+  exit: MANEUVER_SOG_INSIGHTS.exit,
+  centralStartSeconds: MANEUVER_SOG_INSIGHTS.entry.lastOffsetSeconds,
+  centralEndSeconds: MANEUVER_SOG_INSIGHTS.exit.firstOffsetSeconds,
+  startFraction: 0.1,
+  endFraction: 0.9,
+  confirmationSeconds: 2,
+} as const
