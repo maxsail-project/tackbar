@@ -1,4 +1,5 @@
 from io import BytesIO
+import gzip
 from math import isfinite
 from pathlib import Path
 from typing import BinaryIO
@@ -30,6 +31,10 @@ QUATERNION_COLUMNS = {
 }
 
 
+class VakarosCSVParseError(ValueError):
+    """A Vakaros CSV rejected for known input-format or validation reasons."""
+
+
 def has_vakaros_csv_suffix(value: str) -> bool:
     return value.lower().endswith(VAKAROS_CSV_SUFFIXES)
 
@@ -49,14 +54,17 @@ def parse_vakaros_csv(
         csv_source = BytesIO(source) if isinstance(source, bytes) else source
         filename = original_filename
 
-    frame = pd.read_csv(
-        csv_source,
-        compression=_compression_for_filename(filename),
-    )
+    try:
+        frame = pd.read_csv(
+            csv_source,
+            compression=_compression_for_filename(filename),
+        )
+    except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeError, gzip.BadGzipFile, EOFError) as error:
+        raise VakarosCSVParseError("Vakaros CSV could not be parsed") from error
 
     missing_columns = sorted(REQUIRED_COLUMNS - set(frame.columns))
     if missing_columns:
-        raise ValueError(
+        raise VakarosCSVParseError(
             "Vakaros CSV is missing required columns: "
             + ", ".join(missing_columns)
         )
@@ -68,13 +76,13 @@ def parse_vakaros_csv(
         missing_quaternion_columns = sorted(
             set(QUATERNION_COLUMNS) - present_quaternion_columns
         )
-        raise ValueError(
+        raise VakarosCSVParseError(
             "Vakaros CSV has an incomplete quaternion column group; missing: "
             + ", ".join(missing_quaternion_columns)
         )
 
     if frame.empty:
-        raise ValueError("Vakaros CSV contains no samples")
+        raise VakarosCSVParseError("Vakaros CSV contains no samples")
 
     if present_quaternion_columns:
         quaternion_columns = list(QUATERNION_COLUMNS)
@@ -86,10 +94,13 @@ def parse_vakaros_csv(
             lambda values: values.map(isfinite)
         )
         if quaternion_values.isna().any().any() or not finite_values.all().all():
-            raise ValueError("Vakaros CSV contains invalid quaternion values")
+            raise VakarosCSVParseError("Vakaros CSV contains invalid quaternion values")
         frame[quaternion_columns] = quaternion_values
 
-    frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
+    try:
+        frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
+    except (ValueError, TypeError, OverflowError) as error:
+        raise VakarosCSVParseError("Vakaros CSV contains invalid timestamps") from error
     frame = frame.sort_values("timestamp").reset_index(drop=True)
 
     gps_samples = frame[["latitude", "longitude"]].apply(
@@ -101,7 +112,7 @@ def parse_vakaros_csv(
         & gps_samples["longitude"].between(-180, 180)
     ]
     if gps_samples.empty:
-        raise ValueError("Vakaros CSV contains no valid GPS samples")
+        raise VakarosCSVParseError("Vakaros CSV contains no valid GPS samples")
 
     first_sample = frame.iloc[0]
     last_sample = frame.iloc[-1]

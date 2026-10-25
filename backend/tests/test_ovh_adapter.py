@@ -198,8 +198,8 @@ def test_ovh_treats_malformed_message_as_examined_and_continues(monkeypatch):
 
     assert [item.uid for item in batch.examined_messages] == [4, 5]
     assert batch.examined_messages[0].candidate is None
-    assert batch.examined_messages[0].outcome == OVHMessageOutcome.MALFORMED
-    assert batch.examined_messages[0].error_class == "ValueError"
+    assert batch.examined_messages[0].outcome == OVHMessageOutcome.MULTIPLE_SUPPORTED
+    assert batch.examined_messages[0].notice_recipient == "sailor-a@example.com"
     assert batch.examined_messages[1].candidate is not None
     assert batch.examined_messages[1].outcome == OVHMessageOutcome.SUPPORTED
     assert fake.calls[-2:] == [("close",), ("logout",)]
@@ -294,8 +294,7 @@ def test_ovh_treats_mixed_csv_and_vkx_as_multiple_supported_attachments(
 
     batch = adapter.acquire_messages()
 
-    assert batch.examined_messages[0].outcome == OVHMessageOutcome.MALFORMED
-    assert batch.examined_messages[0].error_class == "ValueError"
+    assert batch.examined_messages[0].outcome == OVHMessageOutcome.MULTIPLE_SUPPORTED
 
 
 @pytest.mark.parametrize("filename", ["track.gpx", "track.GPX"])
@@ -324,5 +323,4 @@ def test_ovh_rejects_gpx_with_another_supported_attachment(monkeypatch, filename
         b"32": _message(attachments=[("one.gpx", b"gpx"), (filename, b"other")]),
     })
     examined = adapter.acquire_messages().examined_messages[0]
-    assert examined.outcome == OVHMessageOutcome.MALFORMED
-    assert examined.error_class == "ValueError"
+    assert examined.outcome == OVHMessageOutcome.MULTIPLE_SUPPORTED

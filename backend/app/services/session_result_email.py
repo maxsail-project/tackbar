@@ -1,5 +1,5 @@
 from app.config import configured_public_base_url
-from app.services.outbound_mail import OutboundMailError, OutboundMailMessage, OvhSmtpTransport
+from app.services.outbound_mail import OutboundMailError, OutboundMailMessage, OvhSmtpTransport, compose_automated_mail
 from app.services.welcome_email import public_capability_url
 
 
@@ -54,7 +54,7 @@ Mi TackBar:
 Maxi
 TackBar — Sail. Debrief. Learn.
 """
-    return OutboundMailMessage(recipient, SESSION_RESULT_SUBJECT, body)
+    return compose_automated_mail(recipient, SESSION_RESULT_SUBJECT, body)
 
 
 def send_session_result_email(
