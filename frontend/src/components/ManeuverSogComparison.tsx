@@ -53,11 +53,17 @@ function insightValue(value: number | null, metric: SogInsightMetric) {
   return metric === 'sogDrop' && value < 0 ? `${displayed} · no confirmed drop` : displayed
 }
 
-function insightRow(label: string, metric: SogInsightMetric, p: SogManeuverInsights | null, c: SogManeuverInsights | null) {
+function insightCard(label: string, metric: SogInsightMetric, p: SogManeuverInsights | null, c: SogManeuverInsights | null) {
   const primary = p?.[metric] ?? null
   const comparison = c?.[metric] ?? null
-  return <tr key={metric}><th scope="row">{label}</th><td>{insightValue(primary, metric)}</td><td>{insightValue(comparison, metric)}</td>
-    <td>{compareSogManeuverInsight(metric, primary, comparison)}</td></tr>
+  return <div className="maneuver-insights__card" key={metric}>
+    <h4>{label}</h4>
+    <div className="maneuver-insights__values">
+      <span><strong style={{ color: ACTIVITY_COLORS.primary }}>P</strong> {insightValue(primary, metric)}</span>
+      <span><strong style={{ color: ACTIVITY_COLORS.comparison }}>C</strong> {insightValue(comparison, metric)}</span>
+    </div>
+    <p>{compareSogManeuverInsight(metric, primary, comparison)}</p>
+  </div>
 }
 
 export default function ManeuverSogComparison({ primary, comparison }: {
@@ -108,13 +114,12 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     </div>
     <section className="maneuver-insights" aria-label="Maneuver Insights">
       <h3>Maneuver Insights</h3>
-      <p>Supported raw median SOG · P {p ? `${p.coverageEligibleCount} used` : 'unavailable'}{comparison !== undefined ? ` · C ${c ? `${c.coverageEligibleCount} used` : 'unavailable'}` : ''}</p>
-      <div className="maneuver-insights__table-scroll"><table><thead><tr><th scope="col">Indicator</th><th scope="col" style={{ color: ACTIVITY_COLORS.primary }}>P</th><th scope="col" style={{ color: ACTIVITY_COLORS.comparison }}>C</th><th scope="col">Reading</th></tr></thead>
-        <tbody>{[
-          insightRow('Entry SOG', 'entrySog', pInsights, cInsights),
-          insightRow('Minimum SOG', 'minimumSog', pInsights, cInsights),
-          insightRow('SOG drop', 'sogDrop', pInsights, cInsights),
-        ]}</tbody></table></div>
+      <p>Supported raw median SOG</p>
+      <div className="maneuver-insights__grid">{[
+        insightCard('Entry SOG', 'entrySog', pInsights, cInsights),
+        insightCard('Minimum SOG', 'minimumSog', pInsights, cInsights),
+        insightCard('SOG drop', 'sogDrop', pInsights, cInsights),
+      ]}</div>
     </section>
     <p className="maneuver-profile__basis">Curves require 3 SOG-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.</p>
   </section>

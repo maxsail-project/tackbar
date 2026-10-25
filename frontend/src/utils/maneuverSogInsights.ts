@@ -1,3 +1,4 @@
+import { MANEUVER_SOG_INSIGHTS } from '../config/maneuverProfile'
 import type { SogChartPoint } from './metricChartData'
 
 export interface SogManeuverInsights {
@@ -6,23 +7,25 @@ export interface SogManeuverInsights {
   sogDrop: number | null
 }
 
-const SIMILAR_KNOTS = 0.2
-
-function supportedValues(points: readonly SogChartPoint[], firstOffset: number, lastOffset: number): number[] | null {
+function supportedValues(points: readonly SogChartPoint[], window: {
+  firstOffsetSeconds: number
+  lastOffsetSeconds: number
+  minimumSupportedPositions: number
+}): number[] | null {
   const values: number[] = []
-  for (let offset = firstOffset; offset <= lastOffset; offset += 1) {
+  for (let offset = window.firstOffsetSeconds; offset <= window.lastOffsetSeconds; offset += 1) {
     const value = points[offset + 25]?.sog
-    if (value === null || value === undefined || !Number.isFinite(value)) return null
-    values.push(value)
+    if (value !== null && value !== undefined && Number.isFinite(value)) values.push(value)
   }
-  return values
+  return values.length >= window.minimumSupportedPositions ? values : null
 }
 
 /** Input is the chart's supported raw median, with unsupported offsets already null. */
 export function calculateSogManeuverInsights(points: readonly SogChartPoint[]): SogManeuverInsights {
-  const entryValues = supportedValues(points, -25, -15)
-  const minimumValues = supportedValues(points, -10, 10)
-  const entrySog = entryValues === null ? null : [...entryValues].sort((a, b) => a - b)[5]
+  const entryValues = supportedValues(points, MANEUVER_SOG_INSIGHTS.entry)
+  const minimumValues = supportedValues(points, MANEUVER_SOG_INSIGHTS.minimum)
+  const orderedEntry = entryValues === null ? null : [...entryValues].sort((a, b) => a - b)
+  const entrySog = orderedEntry === null ? null : (orderedEntry[Math.floor((orderedEntry.length - 1) / 2)] + orderedEntry[Math.floor(orderedEntry.length / 2)]) / 2
   const minimumSog = minimumValues === null ? null : Math.min(...minimumValues)
   return {
     entrySog,
@@ -40,7 +43,7 @@ export function compareSogManeuverInsight(
 ): string {
   if (primary === null || comparison === null) return '—'
   if (metric === 'sogDrop' && (primary < 0 || comparison < 0)) return 'No confirmed drop'
-  if (Math.abs(primary - comparison) <= SIMILAR_KNOTS + 1e-9) return 'Similar'
+  if (Math.abs(primary - comparison) <= MANEUVER_SOG_INSIGHTS.similarityKnots + 1e-9) return 'Similar'
   if (metric === 'sogDrop') return primary < comparison ? 'P smaller drop' : 'C smaller drop'
   return primary > comparison ? 'P higher' : 'C higher'
 }

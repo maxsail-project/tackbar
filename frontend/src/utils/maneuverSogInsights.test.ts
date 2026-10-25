@@ -16,10 +16,22 @@ describe('SOG maneuver insights', () => {
     expect(calculateSogManeuverInsights(curve)).toEqual({ entrySog: 5, minimumSog: 1.5, sogDrop: 3.5 })
   })
 
-  it('returns unavailable values for any gap in the required windows', () => {
+  it('requires 8 of 11 Entry offsets and takes the median of supported values only', () => {
+    const curve = points(5)
+    for (let index = 0; index < 11; index += 1) curve[index].sog = index + 1
+    expect(calculateSogManeuverInsights(curve)).toEqual({ entrySog: 6, minimumSog: 5, sogDrop: 1 })
+
+    for (let index = 0; index < 3; index += 1) curve[index].sog = null
+    expect(calculateSogManeuverInsights(curve)).toEqual({ entrySog: 7.5, minimumSog: 5, sogDrop: 2.5 })
+
+    curve[3].sog = null
+    expect(calculateSogManeuverInsights(curve)).toEqual({ entrySog: null, minimumSog: 5, sogDrop: null })
+  })
+
+  it('preserves unsupported gaps and still requires every Minimum offset', () => {
     const entryGap = points(5)
-    entryGap[10].sog = null
-    expect(calculateSogManeuverInsights(entryGap)).toEqual({ entrySog: null, minimumSog: 5, sogDrop: null })
+    entryGap[5].sog = null
+    expect(calculateSogManeuverInsights(entryGap)).toEqual({ entrySog: 5, minimumSog: 5, sogDrop: 0 })
     const minimumGap = points(5)
     minimumGap[35].sog = null
     expect(calculateSogManeuverInsights(minimumGap)).toEqual({ entrySog: 5, minimumSog: null, sogDrop: null })

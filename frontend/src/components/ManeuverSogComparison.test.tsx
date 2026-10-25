@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { angleRangeKeyboard, moveAngleBand, pointerAngleDegrees, updateAngleGesture } from './ManeuverAngleRange'
@@ -49,6 +51,19 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('SOG drop')
     expect(html).not.toContain('detected')
     expect(html).toContain('t=0')
+  })
+
+  it('renders three compact indicators with mobile stacking and no repeated counts', () => {
+    const html = renderToStaticMarkup(<ManeuverSogComparison primary={population(3)} comparison={population(4)} />)
+    const insights = html.match(/<section class="maneuver-insights"[\s\S]*?<\/section>/)?.[0]
+    expect(insights).toBeDefined()
+    expect(insights?.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(insights).toContain('class="maneuver-insights__grid"')
+    expect(insights).not.toContain('<table')
+    expect(insights).not.toContain('used')
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(css).toMatch(/\.maneuver-insights__grid\s*\{\s*display:\s*grid;/)
+    expect(css).toMatch(/@media \(min-width: 700px\)\s*\{\s*\.maneuver-insights__grid\s*\{\s*grid-template-columns:\s*repeat\(3,/)
   })
 
   it('leaves the other role functional with insufficient or missing Comparison', () => {

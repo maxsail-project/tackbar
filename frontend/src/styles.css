@@ -1227,32 +1227,42 @@ input:focus-visible {
   color: #17323a;
   font-size: 0.9rem;
 }
-.maneuver-insights p {
+.maneuver-insights > p {
   margin: 4px 0 8px;
   color: #647b82;
   font-size: 0.72rem;
 }
-.maneuver-insights__table-scroll { overflow-x: auto; }
-.maneuver-insights table {
-  width: 100%;
-  min-width: 350px;
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-size: 0.76rem;
+.maneuver-insights__grid {
+  display: grid;
+  gap: 8px;
+}
+.maneuver-insights__card {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #e4ecee;
+  border-radius: 7px;
+  background: #fff;
   font-variant-numeric: tabular-nums;
 }
-.maneuver-insights th,
-.maneuver-insights td {
-  padding: 7px 5px;
-  border-top: 1px solid #e4ecee;
-  text-align: left;
-  overflow-wrap: anywhere;
+.maneuver-insights__card h4 {
+  margin: 0 0 5px;
+  color: #31515a;
+  font-size: 0.76rem;
 }
-.maneuver-insights thead th { color: #526d74; font-size: 0.7rem; }
-.maneuver-insights th:first-child { width: 24%; }
-.maneuver-insights th:nth-child(2),
-.maneuver-insights th:nth-child(3) { width: 19%; }
-.maneuver-insights th:last-child { width: 38%; }
+.maneuver-insights__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 14px;
+  font-size: 0.8rem;
+}
+.maneuver-insights__card p {
+  margin: 5px 0 0;
+  color: #526d74;
+  font-size: 0.72rem;
+}
+@media (min-width: 700px) {
+  .maneuver-insights__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 .maneuver-profile [data-maneuver-center] {
   stroke: #60777e;
   stroke-width: 1.5;
