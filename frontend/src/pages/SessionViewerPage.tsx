@@ -82,6 +82,7 @@ import {
   type DisplayManeuver,
 } from '../utils/maneuverEvents'
 import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
+import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeometry'
 
 type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
 
@@ -465,7 +466,7 @@ export function SessionViewer({
     DEFAULT_VIEWER_METRIC_VIEW,
   )
   const [isPlaying, setIsPlaying] = useState(false)
-  const [speed, setSpeed] = useState<PlaybackSpeed>(1)
+  const [speed, setSpeed] = useState<PlaybackSpeed>(5)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
   const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
@@ -680,6 +681,13 @@ export function SessionViewer({
   const previousManeuver = resolveSelectedDisplayManeuver(
     maneuverSelectionHistory[1],
     displayManeuvers,
+  )
+  const selectedManeuverHighlights = createSelectedManeuverHighlights(
+    selectedManeuver,
+    previousManeuver,
+    primaryTrack,
+    comparisonTrack,
+    analysisWindow,
   )
   const historicalConditionsSample = useMemo(
     () => selectHistoricalConditionsSample(
@@ -967,6 +975,7 @@ export function SessionViewer({
             windowEnd,
           )}
           focusRequest={mapFocusRequest}
+          selectedManeuverHighlights={selectedManeuverHighlights}
           primaryActivityIdentity={formatActivityIdentity(primaryActivity)}
           comparisonActivityIdentity={comparisonActivity
             ? formatActivityIdentity(comparisonActivity)

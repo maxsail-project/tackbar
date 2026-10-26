@@ -14,9 +14,28 @@ import {
   mapWeatherDetailDismissHandlers,
   openContextualActivityPopup,
   resolveMapFocusPosition,
+  selectedManeuverHighlightPaint,
   shouldRefitForContextChange,
   trackFitOptions,
 } from './TrackMap'
+
+describe('selected maneuver trajectory styling', () => {
+  it('uses a subtle white halo under the same P/C-colored trajectory style', () => {
+    const primaryHalo = selectedManeuverHighlightPaint('primary', 'halo')
+    const comparisonHalo = selectedManeuverHighlightPaint('comparison', 'halo')
+    const primaryLine = selectedManeuverHighlightPaint('primary', 'trajectory')
+    const comparisonLine = selectedManeuverHighlightPaint('comparison', 'trajectory')
+
+    expect(primaryHalo).toEqual(comparisonHalo)
+    expect(primaryHalo['line-color']).toBe('#fff')
+    expect(primaryHalo['line-width']).toBeGreaterThan(primaryLine['line-width'])
+    expect(primaryHalo['line-opacity']).toBeLessThan(primaryLine['line-opacity'])
+    expect(primaryLine['line-color']).toBe(ACTIVITY_COLORS.primary)
+    expect(comparisonLine['line-color']).toBe(ACTIVITY_COLORS.comparison)
+    expect(primaryLine['line-width']).toBe(comparisonLine['line-width'])
+    expect(primaryLine['line-opacity']).toBe(comparisonLine['line-opacity'])
+  })
+})
 
 describe('weather detail map dismissal', () => {
   it.each([

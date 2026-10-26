@@ -7,6 +7,8 @@ import type { ActivityManeuverAnalytics, Maneuver } from '../types/maneuver'
 import type { SharedSessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
+import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
+import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../utils/replay'
 import { SessionViewer } from './SessionViewerPage'
 
 vi.mock('../api/tackbarApi', () => ({
@@ -22,7 +24,10 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessUnavailableError: class extends Error {},
 }))
 vi.mock('../components/TrackMap', () => ({
-  default: () => null,
+  default: ({ selectedManeuverHighlights, playbackTime }: { selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number }) =>
+    <div data-map-playback-time={playbackTime}>{selectedManeuverHighlights.map((highlight) =>
+      <span key={highlight.selectionIndex} data-map-highlight={highlight.selectionIndex} data-role={highlight.activityRole} data-geometry={JSON.stringify(highlight.geoJson.geometry.coordinates)} />
+    )}</div>,
   createMapFitContextKey: () => 'test-map',
 }))
 vi.mock('../components/SessionShare', () => ({
@@ -44,11 +49,14 @@ vi.mock('../components/AnalysisWindow', () => ({
     maneuvers: DisplayManeuver[]
     onManeuverSelect: (event: DisplayManeuver) => void
     onRangeChange: (range: { start: number, end: number }) => void
-    replay: { playbackTime: number, onTogglePlayback: () => void } | null
+    replay: { playbackTime: number, speed: PlaybackSpeed, onSpeedChange: (speed: PlaybackSpeed) => void, onTogglePlayback: () => void } | null
   }) => <section aria-label="Analysis Window test controls">
     {maneuvers.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-marker={event.centerTimeMs} onClick={() => onManeuverSelect(event)}>Timeline event</button>)}
     <button type="button" data-change-window onClick={() => onRangeChange({ start: start + 1_000, end: start + 9_000 })}>Change window</button>
     <button type="button" data-play-replay onClick={replay?.onTogglePlayback}>Play replay</button>
+    <select aria-label="Playback speed test" value={replay?.speed} onChange={(event) => replay?.onSpeedChange(Number(event.target.value) as PlaybackSpeed)}>
+      {PLAYBACK_SPEEDS.map((speed) => <option key={speed} value={speed}>x{speed}</option>)}
+    </select>
     <output data-playback-time={replay?.playbackTime} />
   </section>,
 }))
@@ -68,7 +76,7 @@ const session: SharedSessionDetail = {
     original_filename: `${id}.csv`,
     start_time: new Date(start).toISOString(),
     end_time: new Date(start + 10_000).toISOString(),
-    sample_count: 2,
+    sample_count: 11,
     sailor: { id, name: id.toUpperCase(), email: `${id}@example.test` },
     boat: null,
   })),
@@ -77,10 +85,10 @@ const session: SharedSessionDetail = {
 function track(activityId: string): ActivityTrack {
   return {
     activity_id: activityId,
-    samples: [0, 10].map((seconds) => ({
+    samples: Array.from({ length: 11 }, (_, seconds) => ({
       utc: new Date(start + seconds * 1_000).toISOString(),
       lat: 0,
-      lon: 0,
+      lon: seconds / 1_000,
       dist: 0,
       sog: 5,
       cog: 90,
@@ -166,23 +174,71 @@ async function choose(label: string, activityId: string) {
   })
 }
 
+async function chooseSpeed(speed: PlaybackSpeed) {
+  const selector = container.querySelector<HTMLSelectElement>('select[aria-label="Playback speed test"]')
+  expect(selector).not.toBeNull()
+  await act(async () => {
+    selector!.value = String(speed)
+    selector!.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
+
 function selectedTimes() {
   return Array.from(container.querySelectorAll('.selected-maneuvers__table tbody tr'))
     .map((row) => row.querySelector('td')?.textContent)
 }
 
+function mapHighlightData() {
+  return Array.from(container.querySelectorAll<HTMLElement>('[data-map-highlight]'))
+    .map((highlight) => ({
+      index: highlight.dataset.mapHighlight,
+      role: highlight.dataset.role,
+      geometry: highlight.dataset.geometry,
+    }))
+}
+
+function mapHighlights() {
+  return mapHighlightData().map(({ index, role }) => ({ index, role }))
+}
+
 const marker = (seconds: number) => `[data-marker="${start + seconds * 1_000}"]`
 
 describe('Viewer selected maneuver interactions', () => {
+  it('starts replay at x5 and retains the chosen alternative through selections and context changes', async () => {
+    await mountViewer()
+    const speedSelect = () => container.querySelector<HTMLSelectElement>('select[aria-label="Playback speed test"]')
+    expect(speedSelect()?.value).toBe('5')
+    expect(Array.from(speedSelect()!.options).map((option) => option.value)).toEqual(['1', '2', '5', '10'])
+
+    await chooseSpeed(2)
+    await click(marker(2))
+    expect(speedSelect()?.value).toBe('2')
+    await click('[data-change-window]')
+    expect(speedSelect()?.value).toBe('2')
+    await choose('My track', 'c')
+    expect(speedSelect()?.value).toBe('2')
+    await choose('Compare', 'b')
+    expect(speedSelect()?.value).toBe('2')
+    await chooseSpeed(10)
+    expect(speedSelect()?.value).toBe('10')
+    await chooseSpeed(1)
+    expect(speedSelect()?.value).toBe('1')
+  })
+
   it('keeps two distinct events and leaves history unchanged on repeated selection', async () => {
     await mountViewer()
+    expect(mapHighlights()).toEqual([])
     await click(marker(2))
+    expect(mapHighlights()).toEqual([{ index: '1', role: 'primary' }])
     await click(marker(4))
     expect(selectedTimes()).toEqual(['10:00:04', '10:00:02'])
+    expect(mapHighlights()).toEqual([{ index: '1', role: 'primary' }, { index: '2', role: 'primary' }])
     await click(marker(4))
     expect(selectedTimes()).toEqual(['10:00:04', '10:00:02'])
+    expect(mapHighlights()).toEqual([{ index: '1', role: 'primary' }, { index: '2', role: 'primary' }])
     await click('[data-table-event="' + (start + 2_000) + '"]')
     expect(selectedTimes()).toEqual(['10:00:02', '10:00:04'])
+    expect(mapHighlights()).toEqual([{ index: '1', role: 'primary' }, { index: '2', role: 'primary' }])
   })
 
   it('clears both records when the Analysis Window changes while both events stay eligible', async () => {
@@ -191,6 +247,7 @@ describe('Viewer selected maneuver interactions', () => {
     await click(marker(4))
     await click('[data-change-window]')
     expect(selectedTimes()).toEqual(['No latest selection', 'No previous selection'])
+    expect(mapHighlights()).toEqual([])
   })
 
   it('clears both records when Primary changes', async () => {
@@ -199,8 +256,10 @@ describe('Viewer selected maneuver interactions', () => {
     await click(marker(2))
     await click(marker(6))
     expect(selectedTimes()).toEqual(['10:00:06', '10:00:02'])
+    expect(mapHighlights()).toEqual([{ index: '1', role: 'comparison' }, { index: '2', role: 'primary' }])
     await choose('My track', 'c')
     expect(selectedTimes()).toEqual(['No latest selection', 'No previous selection'])
+    expect(mapHighlights()).toEqual([])
   })
 
   it('clears both records when Comparison changes', async () => {
@@ -211,12 +270,14 @@ describe('Viewer selected maneuver interactions', () => {
     expect(selectedTimes()).toEqual(['10:00:06', '10:00:02'])
     await choose('Compare', 'c')
     expect(selectedTimes()).toEqual(['No latest selection', 'No previous selection'])
+    expect(mapHighlights()).toEqual([])
   })
 
   it('keeps both records during ordinary replay movement', async () => {
     await mountViewer()
     await click(marker(2))
     await click(marker(4))
+    const highlightsBeforeReplay = mapHighlightData()
     const before = Number(container.querySelector('output')?.getAttribute('data-playback-time'))
     await click('[data-play-replay]')
     expect(nextFrame).not.toBeNull()
@@ -224,5 +285,6 @@ describe('Viewer selected maneuver interactions', () => {
     const after = Number(container.querySelector('output')?.getAttribute('data-playback-time'))
     expect(after).toBeGreaterThan(before)
     expect(selectedTimes()).toEqual(['10:00:04', '10:00:02'])
+    expect(mapHighlightData()).toEqual(highlightsBeforeReplay)
   })
 })

@@ -18,6 +18,7 @@ import {
 } from '../utils/metricPresentation'
 import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import type { ManeuverActivityRole } from '../utils/maneuverEvents'
+import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import {
   buildTrackGeometry,
   combineTrackBounds,
@@ -43,6 +44,7 @@ interface TrackMapProps {
   contextualActivities?: ContextualMapActivity[]
   fitContextKey: string
   focusRequest?: MapFocusRequest | null
+  selectedManeuverHighlights?: SelectedManeuverHighlight[]
   primaryActivityIdentity: string
   comparisonActivityIdentity?: string | null
   primaryBoatPosition: TrackPosition | null
@@ -88,6 +90,15 @@ const COMPARISON_TRACK_PAINT = {
   'line-color': ACTIVITY_COLORS.comparison,
   'line-opacity': 0.88,
   'line-width': 4,
+}
+
+export function selectedManeuverHighlightPaint(
+  activityRole: ManeuverActivityRole,
+  layer: 'halo' | 'trajectory',
+) {
+  return layer === 'halo'
+    ? { 'line-color': '#fff', 'line-opacity': 0.72, 'line-width': 8 }
+    : { 'line-color': ACTIVITY_COLORS[activityRole], 'line-opacity': 0.96, 'line-width': 4.5 }
 }
 
 const CONTEXTUAL_TRACK_PAINT = {
@@ -356,6 +367,7 @@ export default function TrackMap({
   contextualActivities = [],
   fitContextKey,
   focusRequest = null,
+  selectedManeuverHighlights = [],
   primaryActivityIdentity,
   comparisonActivityIdentity = null,
   primaryBoatPosition,
@@ -558,6 +570,36 @@ export default function TrackMap({
             />
           </Source>
         )}
+        {selectedManeuverHighlights.map((highlight) => (
+          <Source
+            key={`halo-${highlight.selectionIndex}`}
+            id={`selected-maneuver-halo-${highlight.selectionIndex}`}
+            type="geojson"
+            data={highlight.geoJson}
+          >
+            <Layer
+              id={`selected-maneuver-highlight-halo-${highlight.selectionIndex}`}
+              type="line"
+              paint={selectedManeuverHighlightPaint(highlight.activityRole, 'halo')}
+              layout={TRACK_LAYOUT}
+            />
+          </Source>
+        ))}
+        {selectedManeuverHighlights.map((highlight) => (
+          <Source
+            key={`trajectory-${highlight.selectionIndex}`}
+            id={`selected-maneuver-trajectory-${highlight.selectionIndex}`}
+            type="geojson"
+            data={highlight.geoJson}
+          >
+            <Layer
+              id={`selected-maneuver-highlight-line-${highlight.selectionIndex}`}
+              type="line"
+              paint={selectedManeuverHighlightPaint(highlight.activityRole, 'trajectory')}
+              layout={TRACK_LAYOUT}
+            />
+          </Source>
+        ))}
         {primaryBoatPosition && (
           <Marker
             longitude={primaryBoatPosition.lon}
