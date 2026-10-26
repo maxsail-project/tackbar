@@ -28,6 +28,7 @@ import VsDistributionView from '../components/VsDistributionView'
 import ManeuverEventTable, {
   type ManeuverPresentationStatus,
 } from '../components/ManeuverEventTable'
+import ManeuverProfiles from '../components/ManeuverProfiles'
 import SelectedManeuvers from '../components/SelectedManeuvers'
 import TrackMap, {
   type ContextualMapActivity,
@@ -1056,8 +1057,6 @@ export function SessionViewer({
               )}
           selectedManeuverKey={maneuverSelectionHistory[0]}
           onSelect={selectTableManeuver}
-          primaryProfilePopulation={primaryProfilePopulation}
-          comparisonProfilePopulation={comparisonActivityId === null ? undefined : comparisonProfilePopulation}
         />
       )}
       <ComparisonTable
@@ -1096,6 +1095,12 @@ export function SessionViewer({
               }
             />
           )}
+      {analysisWindow !== null && (
+        <ManeuverProfiles
+          primary={primaryProfilePopulation}
+          comparison={comparisonActivityId === null ? undefined : comparisonProfilePopulation}
+        />
+      )}
       <IndividualAnalysis
         primaryActivity={{
           id: primaryActivity.id,

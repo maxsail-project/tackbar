@@ -10,8 +10,6 @@ import {
   maneuverSelectionKey,
 } from '../utils/maneuverEvents'
 import { formatGpsTime } from '../utils/replay'
-import type { PreparedSogPopulation } from '../utils/typicalSogProfile'
-import ManeuverSogComparison from './ManeuverSogComparison'
 
 export type ManeuverPresentationStatus =
   | 'loading'
@@ -27,8 +25,6 @@ interface ManeuverEventTableProps {
   comparisonDetectorMode?: ActivityManeuverAnalytics['detector_mode']
   selectedManeuverKey?: string | null
   onSelect: (event: DisplayManeuver) => void
-  primaryProfilePopulation?: PreparedSogPopulation | null
-  comparisonProfilePopulation?: PreparedSogPopulation | null
 }
 
 export type ManeuverSortDirection = 'asc' | 'desc'
@@ -123,8 +119,6 @@ export default function ManeuverEventTable({
   comparisonDetectorMode,
   selectedManeuverKey = null,
   onSelect,
-  primaryProfilePopulation = null,
-  comparisonProfilePopulation,
 }: ManeuverEventTableProps) {
   const [expanded, setExpanded] = useState(false)
   const [helpExpanded, setHelpExpanded] = useState(false)
@@ -150,7 +144,7 @@ export default function ManeuverEventTable({
   return (
     <section className="content-section maneuver-section" aria-labelledby="maneuver-title">
       <div className="maneuver-section__header">
-        <p className="section-kicker" id="maneuver-title">Maneuvers</p>
+        <p className="section-kicker" id="maneuver-title">Maneuver Analysis</p>
         <button
           type="button"
           className="maneuver-section__collapse"
@@ -260,7 +254,6 @@ export default function ManeuverEventTable({
           ) : allSelectedAnalyticsAvailable ? (
             <p className="maneuver-empty">No maneuvers detected in this Analysis Window.</p>
           ) : null}
-          <ManeuverSogComparison primary={primaryProfilePopulation} comparison={comparisonProfilePopulation} />
       </div>
     </section>
   )

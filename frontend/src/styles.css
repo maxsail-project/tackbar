@@ -1267,6 +1267,11 @@ input:focus-visible {
   padding-top: 16px;
   border-top: 1px solid #d5e1e3;
 }
+.maneuver-profiles-section .maneuver-profile {
+  margin-top: 16px;
+  padding-top: 0;
+  border-top: 0;
+}
 .maneuver-profile .metric-chart__heading { flex-wrap: wrap; }
 
 .maneuver-profile__count,

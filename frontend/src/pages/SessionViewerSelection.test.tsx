@@ -31,18 +31,18 @@ vi.mock('../components/TrackMap', () => ({
   createMapFitContextKey: () => 'test-map',
 }))
 vi.mock('../components/SessionShare', () => ({
-  SessionViewerHeader: () => null,
+  SessionViewerHeader: () => <header data-viewer-section="header" />,
   SessionSummaryHeading: () => null,
   SessionSharePanel: () => null,
 }))
-vi.mock('../components/VsDistributionView', () => ({ default: () => null }))
+vi.mock('../components/VsDistributionView', () => ({ default: () => <section data-viewer-section="vs" /> }))
 vi.mock('../components/MetricChart', () => ({ default: () => null }))
-vi.mock('../components/IndividualAnalysis', () => ({ default: () => null }))
-vi.mock('../components/ComparisonTable', () => ({ default: () => null }))
-vi.mock('../components/MetricSelector', () => ({ default: () => null, DEFAULT_VIEWER_METRIC_VIEW: 'VS' }))
+vi.mock('../components/IndividualAnalysis', () => ({ default: () => <section data-viewer-section="individual-analysis" /> }))
+vi.mock('../components/ComparisonTable', () => ({ default: () => <section data-viewer-section="summary" /> }))
+vi.mock('../components/MetricSelector', () => ({ default: () => <section data-viewer-section="track-analysis" />, DEFAULT_VIEWER_METRIC_VIEW: 'VS' }))
 vi.mock('../components/ManeuverEventTable', () => ({
   default: ({ events, onSelect }: { events: DisplayManeuver[], onSelect: (event: DisplayManeuver) => void }) =>
-    <div>{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</div>,
+    <section data-viewer-section="maneuver-analysis">{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</section>,
 }))
 vi.mock('../components/AnalysisWindow', () => ({
   default: ({ maneuvers, onManeuverSelect, onRangeChange, replay }: {
@@ -152,9 +152,12 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function mountViewer() {
+async function mountViewer(accessKind: 'original' | 'temporary' = 'original') {
   await act(async () => {
-    root.render(<SessionViewer access={{ kind: 'original', token: 'test' }} session={session} />)
+    const access = accessKind === 'original'
+      ? { kind: 'original' as const, token: 'test' }
+      : { kind: 'temporary' as const, token: 'test', expiresAt: new Date(Date.now() + 60_000).toISOString() }
+    root.render(<SessionViewer access={access} session={session} />)
   })
   expect(container.querySelector('[data-marker]')).not.toBeNull()
 }
@@ -204,6 +207,29 @@ function mapHighlights() {
 const marker = (seconds: number) => `[data-marker="${start + seconds * 1_000}"]`
 
 describe('Viewer selected maneuver interactions', () => {
+  it.each(['original', 'temporary'] as const)('places the independent profile section after Track Analysis and before Individual Analysis with %s access', async (accessKind) => {
+    await mountViewer(accessKind)
+    const selectors = [
+      '[data-viewer-section="header"]',
+      '[aria-label="Activity selection"]',
+      '[data-map-playback-time]',
+      '.selected-maneuvers',
+      '[aria-label="Analysis Window test controls"]',
+      '[data-viewer-section="maneuver-analysis"]',
+      '[data-viewer-section="summary"]',
+      '[data-viewer-section="track-analysis"]',
+      '[data-viewer-section="vs"]',
+      '.maneuver-profiles-section',
+      '[data-viewer-section="individual-analysis"]',
+    ]
+    const sections = selectors.map((selector) => container.querySelector(selector))
+    expect(sections.every((section) => section !== null)).toBe(true)
+    for (let index = 1; index < sections.length; index += 1) {
+      expect(sections[index - 1]!.compareDocumentPosition(sections[index]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    }
+    expect(container.querySelector('.maneuver-profiles-section .maneuver-section__collapse')?.getAttribute('aria-expanded')).toBe('true')
+  })
+
   it('starts replay at x5 and retains the chosen alternative through selections and context changes', async () => {
     await mountViewer()
     const speedSelect = () => container.querySelector<HTMLSelectElement>('select[aria-label="Playback speed test"]')

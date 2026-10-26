@@ -16,6 +16,8 @@ describe('Viewer metric/view selector', () => {
       <MetricSelector selectedMetric="VS" onChange={vi.fn()} />,
     )
 
+    expect(markup).toContain('>Track Analysis</p>')
+    expect(markup).not.toContain('>View</p>')
     expect(markup.match(/<button/g)).toHaveLength(5)
     expect(markup.indexOf('>VS<')).toBeLessThan(markup.indexOf('>SOG<'))
     expect(markup).toContain('>COG<')
