@@ -13,7 +13,7 @@ vi.mock('react', async (importOriginal) => {
   }
 })
 
-import ManeuverSogComparison from './ManeuverSogComparison'
+import ManeuverSogComparison, { roundedInsightComparison } from './ManeuverSogComparison'
 
 function population(values: number[], start = -6, end = 6): PreparedSogPopulation {
   return { detectedCount: 3, windowEligibleCount: 3, missingCourseCount: 0,
@@ -63,7 +63,8 @@ describe('maneuver signal selection', () => {
     expect(html).toContain('<table class="maneuver-insights__table">')
     expect(html.match(/scope="col"/g)).toHaveLength(4)
     expect(html).toContain('<td>9.6s</td>')
-    expect(html).toContain('Same to 0.1s')
+    expect(html).toContain('<td>Similar</td>')
+    expect(html).toMatch(/<th scope="row" aria-label="Comparison"><\/th><td>C \+10\.0°<\/td><td>Similar<\/td><td>Similar<\/td>/)
     expect(html).not.toContain('data-cog-turn-interval')
     expect(html).not.toContain('data-cog-turn-label')
     expect(html).not.toContain('<circle')
@@ -79,8 +80,8 @@ describe('maneuver signal selection', () => {
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30, 40])}
       comparison={population([25, 35, 45], -5.5, 7)} />)
     expect(html).toContain('class="maneuver-insights__table"')
-    expect(html).toContain('>Compare</th>')
-    expect(html).toContain('Difference 0.4s')
+    expect(html).toContain('<th scope="row" aria-label="Comparison"></th>')
+    expect(html).toContain('C +0.4s')
     expect(html).not.toContain('data-cog-turn-interval')
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
     expect(css).toMatch(/\.maneuver-insights__table\s*\{[\s\S]*?table-layout: fixed;/)
@@ -98,6 +99,15 @@ describe('maneuver signal selection', () => {
     expect(html).toContain('<td>—</td>')
     expect(html).toContain('class="maneuver-insights__table"')
     expect(html).not.toContain('data-cog-turn-interval')
+  })
+
+  it('uses underlying COG angle and timing values at the one-decimal boundary', () => {
+    expect(roundedInsightComparison(10, 10.04, '°')).toBe('Similar')
+    expect(roundedInsightComparison(10, 10.06, '°')).toBe('C +0.1°')
+    expect(roundedInsightComparison(10.06, 10, '°')).toBe('P +0.1°')
+    expect(roundedInsightComparison(-2.06, -2, 's')).toBe('C +0.1s')
+    expect(roundedInsightComparison(9.99, 10.03, 's')).toBe('Similar')
+    expect(roundedInsightComparison(10, null, 's')).toBe('—')
   })
 
   it('returns to existing SOG display with its insights and recovery', () => {

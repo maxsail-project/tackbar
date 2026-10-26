@@ -88,7 +88,7 @@ function insightTable(columns: InsightColumn[]) {
     <tbody>
       <tr><th scope="row" style={{ color: ACTIVITY_COLORS.primary }}>P</th>{columns.map(({ label, primary }) => <td key={label}>{primary}</td>)}</tr>
       <tr><th scope="row" style={{ color: ACTIVITY_COLORS.comparison }}>C</th>{columns.map(({ label, comparison }) => <td key={label}>{comparison}</td>)}</tr>
-      <tr className="maneuver-insights__compare"><th scope="row">Compare</th>{columns.map(({ label, reading }) => <td key={label}>{reading}</td>)}</tr>
+      <tr className="maneuver-insights__compare"><th scope="row" aria-label="Comparison" />{columns.map(({ label, reading }) => <td key={label}>{reading}</td>)}</tr>
     </tbody>
   </table>
 }
@@ -136,15 +136,18 @@ function cogValue(value: number | null, unit: '°' | 's', signed = false) {
   return `${signed && value >= 0 ? '+' : ''}${value.toFixed(1)}${unit}`
 }
 
+export function roundedInsightComparison(primary: number | null, comparison: number | null, unit: '°' | 's') {
+  if (primary === null || comparison === null) return '—'
+  const difference = Math.abs(primary - comparison).toFixed(1)
+  return difference === '0.0' ? 'Similar' : `${primary > comparison ? 'P' : 'C'} +${difference}${unit}`
+}
+
 function cogInsight(label: string, metric: 'turnAngleDeg' | 'turnMidpointSeconds' | 'turnDurationSeconds',
   primary: CogManeuverInsights | null, comparison: CogManeuverInsights | null): InsightColumn {
   const p = primary?.[metric] ?? null
   const c = comparison?.[metric] ?? null
   const unit = metric === 'turnAngleDeg' ? '°' : 's'
-  const difference = p !== null && c !== null
-    ? Math.abs(p - c).toFixed(1) === '0.0' ? `Same to 0.1${unit}` : `Difference ${Math.abs(p - c).toFixed(1)}${unit}`
-    : '—'
-  return { label, primary: cogValue(p, unit, metric === 'turnMidpointSeconds'), comparison: cogValue(c, unit, metric === 'turnMidpointSeconds'), reading: difference }
+  return { label, primary: cogValue(p, unit, metric === 'turnMidpointSeconds'), comparison: cogValue(c, unit, metric === 'turnMidpointSeconds'), reading: roundedInsightComparison(p, c, unit) }
 }
 
 function heelInsight(label: string, metric: keyof HeelManeuverInsights,
@@ -153,10 +156,7 @@ function heelInsight(label: string, metric: keyof HeelManeuverInsights,
   const c = comparison?.[metric] ?? null
   const value = (number: number | null) => number === null ? '—'
     : `${metric === 'heelVariation' && number > 0 ? '+' : ''}${number.toFixed(1)}°`
-  const difference = p !== null && c !== null
-    ? Math.abs(p - c).toFixed(1) === '0.0' ? 'Same to 0.1°' : `Difference ${Math.abs(p - c).toFixed(1)}°`
-    : '—'
-  return { label, primary: value(p), comparison: value(c), reading: difference }
+  return { label, primary: value(p), comparison: value(c), reading: roundedInsightComparison(p, c, '°') }
 }
 
 export default function ManeuverSogComparison({ primary, comparison }: {

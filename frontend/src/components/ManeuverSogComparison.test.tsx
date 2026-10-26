@@ -64,7 +64,8 @@ describe('maneuver SOG comparison', () => {
     expect(insights?.match(/scope="col"/g)).toHaveLength(4)
     expect(insights?.match(/scope="row"/g)).toHaveLength(3)
     expect(insights).toMatch(/<th scope="row"[^>]*>P<\/th>.*<td>4\.0 kt<\/td>/)
-    expect(insights).toContain('>Compare</th>')
+    expect(insights).toContain('<th scope="row" aria-label="Comparison"></th>')
+    expect(insights).not.toContain('>Compare</th>')
     expect(insights).not.toContain('class="maneuver-insights__card"')
     expect(insights).not.toContain('used')
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
@@ -91,7 +92,7 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('3 kt')
   })
 
-  it('shows neutral P/C readings from supported raw curves', () => {
+  it('shows directional P/C differences from supported raw curves', () => {
     const primary = population(3)
     const comparison = population(3)
     for (const maneuver of primary.maneuvers) maneuver.grid.fill(4)
@@ -99,23 +100,23 @@ describe('maneuver SOG comparison', () => {
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />)
     expect(html).toContain('4.0 kt')
     expect(html).toContain('4.4 kt')
-    expect(html.match(/C higher/g)).toHaveLength(3)
+    expect(html.match(/C \+0\.4kt/g)).toHaveLength(3)
     expect(html).toMatch(new RegExp(`<th scope="row" style="color:${ACTIVITY_COLORS.primary}">P</th>(<td>4\\.0 kt</td>){3}`))
     expect(html).toMatch(new RegExp(`<th scope="row" style="color:${ACTIVITY_COLORS.comparison}">C</th>(<td>4\\.4 kt</td>){3}`))
-    expect(html).toMatch(/<th scope="row">Compare<\/th>(<td>C higher<\/td>){3}/)
+    expect(html).toMatch(/<th scope="row" aria-label="Comparison"><\/th>(<td>C \+0\.4kt<\/td>){3}/)
     expect(html).toContain('separate from table Recovery')
   })
 
-  it('retains P higher, Similar, and unavailable comparative readings', () => {
+  it('renders P direction, Similar, and unavailable comparative readings', () => {
     const primary = population(3)
     const comparison = population(3)
     for (const maneuver of primary.maneuvers) maneuver.grid.fill(5)
     for (const maneuver of comparison.maneuvers) maneuver.grid.fill(4)
-    expect(renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />).match(/P higher/g)).toHaveLength(3)
+    expect(renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />).match(/<td>P \+1\.0kt<\/td>/g)).toHaveLength(3)
     for (const maneuver of comparison.maneuvers) maneuver.grid.fill(5)
     expect(renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />).match(/<td>Similar<\/td>/g)).toHaveLength(3)
     const unavailable = renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={null} />)
-    expect(unavailable).toMatch(/<th scope="row">Compare<\/th>(<td>—<\/td>){3}/)
+    expect(unavailable).toMatch(/<th scope="row" aria-label="Comparison"><\/th>(<td>—<\/td>){3}/)
   })
 
   it('shows coincident P/C recovery markers and separated accessible labels', () => {
