@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server'
+import { readFileSync } from 'node:fs'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TrackSample } from '../types/track'
@@ -78,6 +79,8 @@ function render({
   hasComparison,
   primaryMetrics = null,
   comparisonMetrics = null,
+  primaryManeuverCount = null,
+  comparisonManeuverCount = null,
 }: {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
@@ -88,6 +91,8 @@ function render({
   hasComparison?: boolean
   primaryMetrics?: SummaryMetrics | null
   comparisonMetrics?: SummaryMetrics | null
+  primaryManeuverCount?: number | null
+  comparisonManeuverCount?: number | null
 }) {
   return renderToStaticMarkup(
     <AnalysisWindow
@@ -99,6 +104,8 @@ function render({
       hasComparison={hasComparison}
       primaryMetrics={primaryMetrics}
       comparisonMetrics={comparisonMetrics}
+      primaryManeuverCount={primaryManeuverCount}
+      comparisonManeuverCount={comparisonManeuverCount}
       replay={replay}
       onRangeChange={() => undefined}
     />,
@@ -181,18 +188,20 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).not.toContain('duration-pill')
   })
 
-  it('renders Primary Avg SOG, rounded distance, and degree-only Dominant COG', () => {
+  it('renders shared headings and Primary window metrics in one row', () => {
     const markup = render({
       primarySamples: [sample(2, 3), sample(8, 5)],
       primaryMetrics: summaryMetrics,
     })
 
-    expect(markup).toContain('analysis-window__compact-summary--primary')
+    expect(markup).toContain('analysis-window__summary-table')
+    expect(markup).toMatch(/P\/C<\/th>.*Avg SOG<\/th>.*Max SOG<\/th>.*Distance<\/th>.*Dom COG<\/th>.*Maneuvers<\/th>/)
     expect(markup).toContain('color:#168097')
     expect(markup).toContain('5.20 kt')
+    expect(markup).toContain('6.00 kt')
     expect(markup).toContain('210 m')
     expect(markup).toContain('90°')
-    expect(markup).not.toContain('COG')
+    expect(markup).toContain('<td>—</td>')
   })
 
   it('renders Comparison metrics and identity only when Comparison is selected', () => {
@@ -212,14 +221,14 @@ describe('Analysis Window SOG timeline', () => {
       },
     })
 
-    expect(primaryOnly).not.toContain('analysis-window__compact-summary--comparison')
-    expect(compared).toContain('analysis-window__compact-summary--comparison')
+    expect(primaryOnly.match(/<tr><th scope="row"/g)).toHaveLength(1)
+    expect(compared.match(/<tr><th scope="row"/g)).toHaveLength(2)
     expect(compared).toContain('color:#9a5aaf')
     expect(compared).toContain('4.95 kt')
     expect(compared).toContain('198 m')
     expect(compared).toContain('90°')
     expect(compared).toContain('270°')
-    expect(compared).not.toContain('COG')
+    expect(compared).toContain('Dom COG')
   })
 
   it('renders unavailable Avg SOG and Dominant COG without inventing values', () => {
@@ -228,13 +237,14 @@ describe('Analysis Window SOG timeline', () => {
       primaryMetrics: {
         ...summaryMetrics,
         avgSogKnots: null,
+        maxSogKnots: null,
         dominantCogDegrees: null,
       },
     })
 
-    expect(markup).toContain('<span>—</span>')
+    expect(markup).toContain('<td>—</td>')
     expect(markup).toContain('210 m')
-    expect(markup).not.toContain('COG')
+    expect(markup).not.toContain('6.00 kt')
   })
 
   it('uses the Summary Dominant COG whole-degree rounding', () => {
@@ -244,7 +254,27 @@ describe('Analysis Window SOG timeline', () => {
     })
 
     expect(markup).toContain('95°')
-    expect(markup).not.toContain('COG')
+    expect(markup).toContain('Dom COG')
+  })
+
+  it('distinguishes available zero maneuvers from unavailable analytics', () => {
+    const zero = render({ primarySamples: [], primaryManeuverCount: 0 })
+    const missing = render({ primarySamples: [], primaryManeuverCount: null })
+    expect(zero).toContain('<td>0</td>')
+    expect(missing).toContain('<td>—</td>')
+    expect(missing).not.toContain('<td>0</td>')
+  })
+
+  it('keeps the compact table below the timeline without horizontal scrolling', () => {
+    const markup = render({ primarySamples: [] })
+    expect(markup.indexOf('analysis-window__summary-table')).toBeGreaterThan(markup.indexOf('analysis-window__timeline'))
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    const section = css.slice(css.indexOf('.analysis-window__summary-table {'), css.indexOf('.track-unavailable {'))
+    expect(section).toContain('width: 100%')
+    expect(section).toContain('table-layout: fixed')
+    expect(section).toContain('white-space: nowrap')
+    expect(section).toContain('overflow-wrap: anywhere')
+    expect(section).not.toMatch(/overflow-x|width: max-content|display: none/)
   })
 
   it('keeps only window metrics in compact summaries as replay moves', () => {

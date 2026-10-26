@@ -322,6 +322,21 @@ export function createAnalysisWindowSummaryMetrics(
   }
 }
 
+export function createAnalysisWindowManeuverCounts(
+  primaryAnalytics: ActivityManeuverAnalytics | null,
+  comparisonAnalytics: ActivityManeuverAnalytics | null,
+  windowEvents: DisplayManeuver[],
+) {
+  return {
+    primaryManeuverCount: primaryAnalytics?.status === 'available'
+      ? windowEvents.filter((event) => event.activityRole === 'primary').length
+      : null,
+    comparisonManeuverCount: comparisonAnalytics?.status === 'available'
+      ? windowEvents.filter((event) => event.activityRole === 'comparison').length
+      : null,
+  }
+}
+
 export function createTimelineManeuverNavigation(
   event: DisplayManeuver,
   requestId: number,
@@ -998,6 +1013,11 @@ export function SessionViewer({
           primarySummaryMetrics,
           comparisonActivityId !== null,
           comparisonSummaryMetrics,
+        )}
+        {...createAnalysisWindowManeuverCounts(
+          primaryManeuverAnalytics,
+          comparisonManeuverAnalytics,
+          displayManeuvers,
         )}
         replay={createAnalysisWindowReplay(
           canReplay,

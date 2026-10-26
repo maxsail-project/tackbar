@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import {
   advanceManeuverSelection,
+  createAnalysisWindowManeuverCounts,
   createAnalysisWindowReplay,
   createAnalysisWindowSummaryMetrics,
   createContextualMapActivities,
@@ -306,6 +307,30 @@ describe('integrated Analysis Window replay', () => {
     )).toEqual({
       primaryMetrics,
       comparisonMetrics: null,
+    })
+  })
+
+  it('counts all in-window events per available Activity, independently of selection and profiles', () => {
+    const events = [
+      { activityRole: 'primary' },
+      { activityRole: 'comparison' },
+      { activityRole: 'primary' },
+    ] as DisplayManeuver[]
+    expect(createAnalysisWindowManeuverCounts(analytics, analytics, events)).toEqual({
+      primaryManeuverCount: 2,
+      comparisonManeuverCount: 1,
+    })
+    expect(createAnalysisWindowManeuverCounts(analytics, null, [])).toEqual({
+      primaryManeuverCount: 0,
+      comparisonManeuverCount: null,
+    })
+    expect(createAnalysisWindowManeuverCounts(
+      { ...analytics, status: 'unavailable' },
+      null,
+      events,
+    )).toEqual({
+      primaryManeuverCount: null,
+      comparisonManeuverCount: null,
     })
   })
 

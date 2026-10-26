@@ -53,6 +53,8 @@ interface AnalysisWindowProps {
   hasComparison?: boolean
   primaryMetrics?: SummaryMetrics | null
   comparisonMetrics?: SummaryMetrics | null
+  primaryManeuverCount?: number | null
+  comparisonManeuverCount?: number | null
   replay?: AnalysisWindowReplay | null
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
   onManeuverSelect?: (event: DisplayManeuver) => void
@@ -76,31 +78,29 @@ export function formatAnalysisWindowDuration(durationMilliseconds: number) {
 export function AnalysisWindowCompactSummary({
   activityRole,
   metrics,
+  maneuverCount,
 }: {
   activityRole: 'primary' | 'comparison'
   metrics: SummaryMetrics | null
+  maneuverCount: number | null
 }) {
   const roleLabel = activityRole === 'primary' ? 'P' : 'C'
   const averageSog = metrics === null ? '—' : formatAverageSog(metrics.avgSogKnots)
+  const maximumSog = metrics?.maxSogKnots == null ? '—' : `${metrics.maxSogKnots.toFixed(2)} kt`
   const distance = metrics === null ? '—' : `${Math.round(metrics.distanceMeters)} m`
   const dominantCog = metrics?.dominantCogDegrees === null
     || metrics?.dominantCogDegrees === undefined
     ? '—'
     : `${metrics.dominantCogDegrees.toFixed(0)}°`
   return (
-    <span className={`analysis-window__compact-summary analysis-window__compact-summary--${activityRole}`}>
-      <strong style={{ color: ACTIVITY_COLORS[activityRole] }}>{roleLabel}</strong>
-      <span>{averageSog}</span>
-      <span aria-hidden="true">·</span>
-      <span>{distance}</span>
-      <span
-        className="analysis-window__compact-summary-cog-separator"
-        aria-hidden="true"
-      >·</span>
-      <span className="analysis-window__compact-summary-cog">
-        {dominantCog}
-      </span>
-    </span>
+    <tr>
+      <th scope="row" style={{ color: ACTIVITY_COLORS[activityRole] }} aria-label={activityRole === 'primary' ? 'Primary Activity' : 'Comparison Activity'}>{roleLabel}</th>
+      <td>{averageSog}</td>
+      <td>{maximumSog}</td>
+      <td>{distance}</td>
+      <td>{dominantCog}</td>
+      <td>{maneuverCount ?? '—'}</td>
+    </tr>
   )
 }
 
@@ -244,6 +244,8 @@ export default function AnalysisWindow({
   hasComparison,
   primaryMetrics = null,
   comparisonMetrics = null,
+  primaryManeuverCount = null,
+  comparisonManeuverCount = null,
   replay = null,
   onRangeChange,
   onManeuverSelect = () => undefined,
@@ -500,26 +502,27 @@ export default function AnalysisWindow({
         </div>
       </div>
 
-      <div
-        className={`analysis-window__summary-row${showsComparisonLane ? ' analysis-window__summary-row--comparison' : ''}`}
-        aria-live="polite"
-      >
+      <div className="analysis-window__summary-row" aria-live="polite">
         <span className="analysis-window__start-time">{formatGpsTime(selectedRange.start)}</span>
-        <AnalysisWindowCompactSummary
-          activityRole="primary"
-          metrics={primaryMetrics}
-        />
         <span className="analysis-window__duration">
           {formatAnalysisWindowDuration(selectedRange.end - selectedRange.start)}
         </span>
-        {showsComparisonLane && (
-          <AnalysisWindowCompactSummary
-            activityRole="comparison"
-            metrics={comparisonMetrics}
-          />
-        )}
         <span className="analysis-window__end-time">{formatGpsTime(selectedRange.end)}</span>
       </div>
+      <table className="analysis-window__summary-table" aria-label="Analysis Window Activity comparison" aria-live="polite">
+        <thead><tr>
+          <th scope="col" aria-label="Activity">P/C</th>
+          <th scope="col">Avg SOG</th>
+          <th scope="col">Max SOG</th>
+          <th scope="col">Distance</th>
+          <th scope="col">Dom COG</th>
+          <th scope="col">Maneuvers</th>
+        </tr></thead>
+        <tbody>
+          <AnalysisWindowCompactSummary activityRole="primary" metrics={primaryMetrics} maneuverCount={primaryManeuverCount} />
+          {showsComparisonLane && <AnalysisWindowCompactSummary activityRole="comparison" metrics={comparisonMetrics} maneuverCount={comparisonManeuverCount} />}
+        </tbody>
+      </table>
     </section>
   )
 }
