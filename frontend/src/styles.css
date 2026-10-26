@@ -801,73 +801,86 @@ input:focus-visible {
   background: #f8fbfb;
 }
 
-.selected-maneuvers h2 {
-  margin: 0 0 5px;
+.selected-maneuvers__table {
+  width: 100%;
+  border-spacing: 0;
+  table-layout: fixed;
+  color: #263f46;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.selected-maneuvers__table th,
+.selected-maneuvers__table td {
+  padding: 1px 2px;
+  font-weight: 400;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.selected-maneuvers__table thead th {
+  height: 14px;
+  color: #71858b;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.selected-maneuvers__table thead .selected-maneuvers__time {
   color: #42616a;
-  font-size: 0.7rem;
+  font-size: 0.58rem;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.selected-maneuvers__time strong {
   font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
-.selected-maneuvers__body {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 5px;
-  min-width: 0;
-}
-
-.selected-maneuvers__roles,
-.selected-maneuvers__scroll {
-  display: grid;
-  grid-template-rows: repeat(2, 25px);
-  row-gap: 3px;
-  height: 65px;
-  align-content: start;
-}
-
-.selected-maneuvers__roles span {
-  display: grid;
-  place-items: center;
-  border: 1px solid #d3e0e2;
-  border-radius: 5px;
+.selected-maneuvers__table tbody tr {
+  height: 22px;
   background: #fff;
+}
+
+.selected-maneuvers__table tbody th,
+.selected-maneuvers__table tbody td {
+  border-top: 1px solid #d3e0e2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.selected-maneuvers__table .selected-maneuvers__role {
+  font-family: inherit;
   font-size: 0.72rem;
   font-weight: 800;
 }
 
-.selected-maneuvers__scroll {
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  overscroll-behavior-x: contain;
-}
+.selected-maneuvers__role-header { width: 26px; }
+.selected-maneuvers__time { width: 80px; }
+.selected-maneuvers__loss { width: 110px; }
+.selected-maneuvers__recovery { width: 70px; }
+.selected-maneuvers__sog { width: 170px; }
 
-.selected-maneuvers__scroll:focus-visible {
-  outline: 2px solid #28788a;
-  outline-offset: 2px;
-}
-
-.selected-maneuvers__record {
-  display: grid;
-  grid-template-columns: 108px 120px 70px 156px 88px 62px;
-  align-items: center;
-  gap: 8px;
-  width: max-content;
-  height: 25px;
-  padding: 0 8px;
-  border: 1px solid #d3e0e2;
-  border-radius: 5px;
-  background: #fff;
-  color: #263f46;
-  font-size: 0.68rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.selected-maneuvers__record--empty {
+.selected-maneuvers__table .selected-maneuvers__empty {
   color: #71858b;
+  text-align: left;
+}
+
+@media (max-width: 759px) {
+  .selected-maneuvers__role-header { width: 20px; }
+  .selected-maneuvers__time { width: 65px; }
+  .selected-maneuvers__loss { width: 60px; }
+  .selected-maneuvers__recovery { width: 38px; }
+  .selected-maneuvers__sog { width: 118px; }
+}
+
+@media (max-width: 374px) {
+  .selected-maneuvers { padding-right: 8px; padding-left: 8px; }
+  .selected-maneuvers__role-header { width: 18px; }
+  .selected-maneuvers__time { width: 58px; }
+  .selected-maneuvers__loss { width: 51px; }
+  .selected-maneuvers__recovery { width: 30px; }
+  .selected-maneuvers__sog { width: 115px; }
 }
 
 .selected-maneuvers__sr-only {
