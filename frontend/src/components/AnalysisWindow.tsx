@@ -410,9 +410,9 @@ export default function AnalysisWindow({
   return (
     <section className="content-section analysis-window" aria-labelledby="analysis-window-title">
       <div className="section-heading">
-        <div>
+        <div className="analysis-window__heading-copy">
           <p className="section-kicker" id="analysis-window-title">Analysis window</p>
-          <p className="section-description">Drag over SOG to select the shared interval</p>
+          <span className="section-description">Drag SOG to select interval</span>
         </div>
         <div className="analysis-window__header-actions">
           {replay && (

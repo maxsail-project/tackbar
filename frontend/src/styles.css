@@ -1118,7 +1118,12 @@ input:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
 }
+
+.analysis-window__heading-copy { min-width: 0; line-height: 1.35; }
+.analysis-window__heading-copy .section-kicker { display: inline; white-space: nowrap; }
+.analysis-window__heading-copy .section-description { display: inline; margin: 0 0 0 8px; }
 
 .analysis-window__speed {
   width: 58px;
