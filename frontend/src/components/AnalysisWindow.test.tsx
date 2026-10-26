@@ -78,7 +78,6 @@ function render({
   hasComparison,
   primaryMetrics = null,
   comparisonMetrics = null,
-  selectedManeuver = null,
 }: {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
@@ -89,7 +88,6 @@ function render({
   hasComparison?: boolean
   primaryMetrics?: SummaryMetrics | null
   comparisonMetrics?: SummaryMetrics | null
-  selectedManeuver?: DisplayManeuver | null
 }) {
   return renderToStaticMarkup(
     <AnalysisWindow
@@ -101,7 +99,6 @@ function render({
       hasComparison={hasComparison}
       primaryMetrics={primaryMetrics}
       comparisonMetrics={comparisonMetrics}
-      selectedManeuver={selectedManeuver}
       replay={replay}
       onRangeChange={() => undefined}
     />,
@@ -250,93 +247,25 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).not.toContain('COG')
   })
 
-  it('shows selected Primary Loss and Recovery only under the P summary', () => {
-    const selectedManeuver = maneuver(5, 'primary', {
-      speed_loss_distance_m: 8.4,
-      speed_loss_time_s: 3.2,
-      recovery_time_s: 11.7,
-    })
-    const markup = render({
-      primarySamples: [sample(2, 3), sample(8, 5)],
-      hasComparison: true,
-      primaryMetrics: summaryMetrics,
-      comparisonMetrics: summaryMetrics,
-      selectedManeuver,
-    })
-
-    expect(markup).toContain('analysis-window__selected-maneuver--primary')
-    expect(markup).not.toContain('analysis-window__selected-maneuver--comparison')
-    expect(markup).toContain('<span>Loss 8 m</span>')
-    expect(markup).toContain('<span>3 s</span>')
-    expect(markup).toContain('<span>Rec 12 s</span>')
-  })
-
-  it('shows selected Comparison Loss and Recovery only under the C summary', () => {
-    const selectedManeuver = maneuver(5, 'comparison', {
-      speed_loss_distance_m: 7.6,
-      speed_loss_time_s: 2.6,
-      recovery_time_s: 12.4,
-    })
-    const markup = render({
-      primarySamples: [sample(2, 3), sample(8, 5)],
-      hasComparison: true,
-      primaryMetrics: summaryMetrics,
-      comparisonMetrics: summaryMetrics,
-      selectedManeuver,
-    })
-
-    expect(markup).toContain('analysis-window__selected-maneuver--comparison')
-    expect(markup).not.toContain('analysis-window__selected-maneuver--primary')
-    expect(markup).toContain('<span>Loss 8 m</span>')
-    expect(markup).toContain('<span>3 s</span>')
-    expect(markup).toContain('<span>Rec 12 s</span>')
-  })
-
-  it('uses table-compatible unavailable values and removes detail when selection clears', () => {
-    const selectedManeuver = maneuver(5, 'primary', {
-      speed_loss_distance_m: null,
-      speed_loss_time_s: null,
-      recovery_time_s: null,
-    })
-    const selected = render({
-      primarySamples: [sample(2, 3), sample(8, 5)],
-      primaryMetrics: summaryMetrics,
-      selectedManeuver,
-    })
-    const cleared = render({
-      primarySamples: [sample(2, 3), sample(8, 5)],
-      primaryMetrics: summaryMetrics,
-    })
-
-    expect(selected).toContain('<span>Loss —</span>')
-    expect(selected).toContain('<span>—</span>')
-    expect(selected).toContain('<span>Rec —</span>')
-    expect(selected).not.toContain('— m')
-    expect(selected).not.toContain('— s')
-    expect(cleared).not.toContain('analysis-window__selected-maneuver')
-  })
-
-  it('keeps selected maneuver detail independent from replay movement', () => {
-    const selectedManeuver = maneuver(5, 'primary', {
-      speed_loss_distance_m: 8,
-      speed_loss_time_s: 3,
-      recovery_time_s: 12,
-    })
+  it('keeps only window metrics in compact summaries as replay moves', () => {
     const before = render({
       primarySamples: [sample(2, 3), sample(8, 5)],
       primaryMetrics: summaryMetrics,
-      selectedManeuver,
       replay: replay({ playbackTime: selectedRange.start }),
     })
     const after = render({
       primarySamples: [sample(2, 3), sample(8, 5)],
       primaryMetrics: summaryMetrics,
-      selectedManeuver,
       replay: replay({ playbackTime: selectedRange.end }),
     })
 
-    expect(before).toContain('<span>Loss 8 m</span>')
-    expect(after).toContain('<span>Loss 8 m</span>')
+    for (const markup of [before, after]) {
+      expect(markup).toContain('5.20 kt')
+      expect(markup).toContain('210 m')
+      expect(markup).toContain('90°')
+      expect(markup).not.toContain('Loss')
+      expect(markup).not.toContain('Rec 12 s')
+    }
   })
 
   it('prepares the displayed range before applying the fixed visual point budget', () => {

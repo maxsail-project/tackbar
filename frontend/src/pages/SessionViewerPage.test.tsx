@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  advanceManeuverSelection,
   createAnalysisWindowReplay,
   createAnalysisWindowSummaryMetrics,
   createContextualMapActivities,
@@ -426,5 +427,27 @@ describe('selected maneuver analytics alignment', () => {
     )).toBe(comparisonEvent)
     expect(resolveSelectedDisplayManeuver(selectedKey, [primaryEvent])).toBeNull()
     expect(resolveSelectedDisplayManeuver(null, [comparisonEvent])).toBeNull()
+  })
+
+  it('keeps the two most recently selected distinct events for either role', () => {
+    const anotherPrimary = {
+      ...primaryEvent,
+      centerTimeMs: 789,
+      maneuver: { ...primaryEvent.maneuver, center_time: '2031-01-01T10:00:08Z' },
+    }
+    const first = advanceManeuverSelection([null, null], primaryEvent)
+    expect(first).toEqual([maneuverSelectionKey(primaryEvent), null])
+    const second = advanceManeuverSelection(first, comparisonEvent)
+    const third = advanceManeuverSelection(second, anotherPrimary)
+    expect(third).toEqual([
+      maneuverSelectionKey(anotherPrimary), maneuverSelectionKey(comparisonEvent),
+    ])
+    expect(advanceManeuverSelection(third, anotherPrimary)).toBe(third)
+    expect(advanceManeuverSelection(third, primaryEvent)).toEqual([
+      maneuverSelectionKey(primaryEvent), maneuverSelectionKey(anotherPrimary),
+    ])
+    expect(advanceManeuverSelection(first, anotherPrimary)).toEqual([
+      maneuverSelectionKey(anotherPrimary), maneuverSelectionKey(primaryEvent),
+    ])
   })
 })

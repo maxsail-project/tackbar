@@ -794,6 +794,91 @@ input:focus-visible {
   background: #fff;
 }
 
+.selected-maneuvers {
+  min-width: 0;
+  padding: 8px 16px 10px;
+  border-bottom: 1px solid #d3e0e2;
+  background: #f8fbfb;
+}
+
+.selected-maneuvers h2 {
+  margin: 0 0 5px;
+  color: #42616a;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.selected-maneuvers__body {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 5px;
+  min-width: 0;
+}
+
+.selected-maneuvers__roles,
+.selected-maneuvers__scroll {
+  display: grid;
+  grid-template-rows: repeat(2, 25px);
+  row-gap: 3px;
+  height: 65px;
+  align-content: start;
+}
+
+.selected-maneuvers__roles span {
+  display: grid;
+  place-items: center;
+  border: 1px solid #d3e0e2;
+  border-radius: 5px;
+  background: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.selected-maneuvers__scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+
+.selected-maneuvers__scroll:focus-visible {
+  outline: 2px solid #28788a;
+  outline-offset: 2px;
+}
+
+.selected-maneuvers__record {
+  display: grid;
+  grid-template-columns: 108px 120px 70px 156px 88px 62px;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  height: 25px;
+  padding: 0 8px;
+  border: 1px solid #d3e0e2;
+  border-radius: 5px;
+  background: #fff;
+  color: #263f46;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.selected-maneuvers__record--empty {
+  color: #71858b;
+}
+
+.selected-maneuvers__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .section-heading {
   display: flex;
   align-items: flex-start;
@@ -1124,24 +1209,6 @@ input:focus-visible {
   justify-self: end;
   border-color: rgb(154 90 175 / 24%);
   background: rgb(154 90 175 / 7%);
-}
-
-.analysis-window__selected-maneuver {
-  display: inline-flex;
-  flex-basis: 100%;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 3px;
-  max-width: 100%;
-  padding-top: 2px;
-  border-top: 1px solid currentcolor;
-  font-size: 0.62rem;
-  line-height: 1.25;
-  white-space: normal;
-}
-
-.analysis-window__compact-summary--comparison .analysis-window__selected-maneuver {
-  justify-content: flex-end;
 }
 
 @media (min-width: 560px) {

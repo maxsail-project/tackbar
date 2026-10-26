@@ -28,6 +28,7 @@ import VsDistributionView from '../components/VsDistributionView'
 import ManeuverEventTable, {
   type ManeuverPresentationStatus,
 } from '../components/ManeuverEventTable'
+import SelectedManeuvers from '../components/SelectedManeuvers'
 import TrackMap, {
   type ContextualMapActivity,
   createMapFitContextKey,
@@ -344,6 +345,16 @@ export function resolveSelectedDisplayManeuver(
   ) ?? null
 }
 
+export type ManeuverSelectionHistory = [string | null, string | null]
+
+export function advanceManeuverSelection(
+  history: ManeuverSelectionHistory,
+  event: DisplayManeuver,
+): ManeuverSelectionHistory {
+  const key = maneuverSelectionKey(event)
+  return key === history[0] ? history : [key, history[0]]
+}
+
 function useActivityManeuvers(
   access: SessionAccess,
   activityId: string | null,
@@ -561,7 +572,7 @@ export function SessionViewer({
     [analysisWindow, comparisonTrack, comparisonWindowSamples],
   )
   const [playbackTime, setPlaybackTime] = useState(windowStart ?? 0)
-  const [selectedManeuverKey, setSelectedManeuverKey] = useState<string | null>(null)
+  const [maneuverSelectionHistory, setManeuverSelectionHistory] = useState<ManeuverSelectionHistory>([null, null])
   const playbackTimeRef = useRef(playbackTime)
   const mapFocusRequestIdRef = useRef(0)
   const [mapFocusRequest, setMapFocusRequest] = useState<MapFocusRequest | null>(null)
@@ -648,7 +659,11 @@ export function SessionViewer({
     [analysisWindow, comparisonTrack, comparisonManeuverAnalytics],
   )
   const selectedManeuver = resolveSelectedDisplayManeuver(
-    selectedManeuverKey,
+    maneuverSelectionHistory[0],
+    displayManeuvers,
+  )
+  const previousManeuver = resolveSelectedDisplayManeuver(
+    maneuverSelectionHistory[1],
     displayManeuvers,
   )
   const historicalConditionsSample = useMemo(
@@ -663,9 +678,14 @@ export function SessionViewer({
   }, [speed])
 
   useEffect(() => {
-    setSelectedManeuverKey((current) => (
-      retainDisplayedManeuverSelection(current, displayManeuvers)
-    ))
+    setManeuverSelectionHistory(([current, previous]) => {
+      const retainedCurrent = retainDisplayedManeuverSelection(current, displayManeuvers)
+      if (retainedCurrent === null) return [null, null]
+      return [
+        retainedCurrent,
+        retainDisplayedManeuverSelection(previous, displayManeuvers),
+      ]
+    })
   }, [displayManeuvers])
 
   useEffect(() => {
@@ -687,6 +707,7 @@ export function SessionViewer({
         )
     setIsPlaying(false)
     setMapFocusRequest(null)
+    setManeuverSelectionHistory([null, null])
     setAnalysisWindow(nextWindow)
     analysisWindowRef.current = nextWindow
     setPlaybackTime(nextPlaybackTime)
@@ -725,7 +746,7 @@ export function SessionViewer({
     if (!activityId) return
     setIsPlaying(false)
     setMapFocusRequest(null)
-    setSelectedManeuverKey(null)
+    setManeuverSelectionHistory([null, null])
     setPrimaryActivityId(activityId)
     if (activityId === comparisonActivityId) {
       setComparisonActivityId(null)
@@ -735,7 +756,7 @@ export function SessionViewer({
   function changeComparison(activityId: string | null) {
     setIsPlaying(false)
     setMapFocusRequest(null)
-    setSelectedManeuverKey(null)
+    setManeuverSelectionHistory([null, null])
     setComparisonActivityId(
       activityId === primaryActivityId ? null : activityId,
     )
@@ -775,7 +796,7 @@ export function SessionViewer({
   }
 
   function selectManeuver(event: DisplayManeuver, focusMap: boolean) {
-    setSelectedManeuverKey(maneuverSelectionKey(event))
+    setManeuverSelectionHistory((current) => advanceManeuverSelection(current, event))
     scrubTo(event.centerTimeMs)
     if (!focusMap) return
 
@@ -806,6 +827,7 @@ export function SessionViewer({
 
     setIsPlaying(nextTimeline.isPlaying)
     setMapFocusRequest(null)
+    setManeuverSelectionHistory([null, null])
     setAnalysisWindow(nextTimeline.analysisWindow)
     analysisWindowRef.current = nextTimeline.analysisWindow
     playbackTimeRef.current = nextTimeline.playbackTime
@@ -964,13 +986,13 @@ export function SessionViewer({
         </section>
       )}
 
+      <SelectedManeuvers current={selectedManeuver} previous={previousManeuver} />
       <AnalysisWindow
         availableRange={availableRange}
         analysisWindow={analysisWindow}
         primarySamples={primaryAvailableSamples}
         comparisonSamples={comparisonAvailableSamples}
         maneuvers={timelineManeuvers}
-        selectedManeuver={selectedManeuver}
         hasComparison={comparisonActivityId !== null}
         {...createAnalysisWindowSummaryMetrics(
           primarySummaryMetrics,
@@ -1003,7 +1025,7 @@ export function SessionViewer({
                 comparisonManeuverState,
                 comparisonActivityId,
               )}
-          selectedManeuverKey={selectedManeuverKey}
+          selectedManeuverKey={maneuverSelectionHistory[0]}
           onSelect={selectTableManeuver}
           primaryProfilePopulation={primaryProfilePopulation}
           comparisonProfilePopulation={comparisonActivityId === null ? undefined : comparisonProfilePopulation}
