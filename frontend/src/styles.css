@@ -1300,42 +1300,37 @@ input:focus-visible {
   color: #647b82;
   font-size: 0.72rem;
 }
-.maneuver-insights__grid {
-  display: grid;
-  gap: 8px;
-}
-.maneuver-insights__card {
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid #e4ecee;
-  border-radius: 7px;
-  background: #fff;
+.maneuver-insights__table {
+  width: 100%;
+  border-spacing: 0;
+  table-layout: fixed;
+  color: #263f46;
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
+  line-height: 1.25;
 }
-.maneuver-insights__card h4 {
-  margin: 0 0 5px;
-  color: #31515a;
-  font-size: 0.76rem;
+.maneuver-insights__table th,
+.maneuver-insights__table td {
+  padding: 4px 2px;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
-.maneuver-insights__values {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px 14px;
-  font-size: 0.8rem;
-}
-.maneuver-insights__card p {
-  margin: 5px 0 0;
+.maneuver-insights__table thead th {
   color: #526d74;
   font-size: 0.72rem;
+  font-weight: 700;
 }
+.maneuver-insights__table th:first-child { width: 49px; }
+.maneuver-insights__table tbody th,
+.maneuver-insights__table tbody td { border-top: 1px solid #d5e1e3; }
+.maneuver-insights__table tbody th { font-weight: 800; }
+.maneuver-insights__compare { color: #526d74; font-size: 0.72rem; }
+.maneuver-insights__compare th { font-size: 0.65rem; }
 .maneuver-insights > .maneuver-insights__recovery {
   margin-top: 8px;
   line-height: 1.4;
 }
 .maneuver-insights__recovery strong { color: #31515a; }
-@media (min-width: 700px) {
-  .maneuver-insights__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 .maneuver-profile .sog-signal-chart__plot { position: relative; overflow: visible; }
 .maneuver-profile__recovery-label {
   position: absolute;

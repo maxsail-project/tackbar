@@ -56,17 +56,21 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('t=0')
   })
 
-  it('renders three compact indicators with mobile stacking and no repeated counts', () => {
+  it('renders one compact three-column comparison table at every width', () => {
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population(3)} comparison={population(4)} />)
     const insights = html.match(/<section class="maneuver-insights"[\s\S]*?<\/section>/)?.[0]
     expect(insights).toBeDefined()
-    expect(insights?.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
-    expect(insights).toContain('class="maneuver-insights__grid"')
-    expect(insights).not.toContain('<table')
+    expect(insights).toContain('<table class="maneuver-insights__table">')
+    expect(insights?.match(/scope="col"/g)).toHaveLength(4)
+    expect(insights?.match(/scope="row"/g)).toHaveLength(3)
+    expect(insights).toMatch(/<th scope="row"[^>]*>P<\/th>.*<td>4\.0 kt<\/td>/)
+    expect(insights).toContain('>Compare</th>')
+    expect(insights).not.toContain('class="maneuver-insights__card"')
     expect(insights).not.toContain('used')
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
-    expect(css).toMatch(/\.maneuver-insights__grid\s*\{\s*display:\s*grid;/)
-    expect(css).toMatch(/@media \(min-width: 700px\)\s*\{\s*\.maneuver-insights__grid\s*\{\s*grid-template-columns:\s*repeat\(3,/)
+    expect(css).toMatch(/\.maneuver-insights__table\s*\{[\s\S]*?width: 100%;[\s\S]*?table-layout: fixed;/)
+    expect(css).toMatch(/\.maneuver-insights__table th,\s*\.maneuver-insights__table td\s*\{[\s\S]*?overflow-wrap: anywhere;/)
+    expect(css).not.toContain('.maneuver-insights__grid')
   })
 
   it('leaves the other role functional with insufficient or missing Comparison', () => {
@@ -96,7 +100,22 @@ describe('maneuver SOG comparison', () => {
     expect(html).toContain('4.0 kt')
     expect(html).toContain('4.4 kt')
     expect(html.match(/C higher/g)).toHaveLength(3)
+    expect(html).toMatch(new RegExp(`<th scope="row" style="color:${ACTIVITY_COLORS.primary}">P</th>(<td>4\\.0 kt</td>){3}`))
+    expect(html).toMatch(new RegExp(`<th scope="row" style="color:${ACTIVITY_COLORS.comparison}">C</th>(<td>4\\.4 kt</td>){3}`))
+    expect(html).toMatch(/<th scope="row">Compare<\/th>(<td>C higher<\/td>){3}/)
     expect(html).toContain('separate from table Recovery')
+  })
+
+  it('retains P higher, Similar, and unavailable comparative readings', () => {
+    const primary = population(3)
+    const comparison = population(3)
+    for (const maneuver of primary.maneuvers) maneuver.grid.fill(5)
+    for (const maneuver of comparison.maneuvers) maneuver.grid.fill(4)
+    expect(renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />).match(/P higher/g)).toHaveLength(3)
+    for (const maneuver of comparison.maneuvers) maneuver.grid.fill(5)
+    expect(renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={comparison} />).match(/<td>Similar<\/td>/g)).toHaveLength(3)
+    const unavailable = renderToStaticMarkup(<ManeuverSogComparison primary={primary} comparison={null} />)
+    expect(unavailable).toMatch(/<th scope="row">Compare<\/th>(<td>—<\/td>){3}/)
   })
 
   it('shows coincident P/C recovery markers and separated accessible labels', () => {

@@ -75,17 +75,28 @@ function insightValue(value: number | null) {
   return `${value.toFixed(1)} kt`
 }
 
-function insightCard(label: string, metric: SogInsightMetric, p: SogManeuverInsights | null, c: SogManeuverInsights | null) {
+interface InsightColumn {
+  label: string
+  primary: string
+  comparison: string
+  reading: string
+}
+
+function insightTable(columns: InsightColumn[]) {
+  return <table className="maneuver-insights__table">
+    <thead><tr><th scope="col" aria-label="Activity" />{columns.map(({ label }) => <th scope="col" key={label}>{label}</th>)}</tr></thead>
+    <tbody>
+      <tr><th scope="row" style={{ color: ACTIVITY_COLORS.primary }}>P</th>{columns.map(({ label, primary }) => <td key={label}>{primary}</td>)}</tr>
+      <tr><th scope="row" style={{ color: ACTIVITY_COLORS.comparison }}>C</th>{columns.map(({ label, comparison }) => <td key={label}>{comparison}</td>)}</tr>
+      <tr className="maneuver-insights__compare"><th scope="row">Compare</th>{columns.map(({ label, reading }) => <td key={label}>{reading}</td>)}</tr>
+    </tbody>
+  </table>
+}
+
+function sogInsight(label: string, metric: SogInsightMetric, p: SogManeuverInsights | null, c: SogManeuverInsights | null): InsightColumn {
   const primary = p?.[metric] ?? null
   const comparison = c?.[metric] ?? null
-  return <div className="maneuver-insights__card" key={metric}>
-    <h4>{label}</h4>
-    <div className="maneuver-insights__values">
-      <span><strong style={{ color: ACTIVITY_COLORS.primary }}>P</strong> {insightValue(primary)}</span>
-      <span><strong style={{ color: ACTIVITY_COLORS.comparison }}>C</strong> {insightValue(comparison)}</span>
-    </div>
-    <p>{compareSogManeuverInsight(primary, comparison)}</p>
-  </div>
+  return { label, primary: insightValue(primary), comparison: insightValue(comparison), reading: compareSogManeuverInsight(primary, comparison) }
 }
 
 function recoveryMarker(role: 'P' | 'C', recovery: SogProfileRecovery, bounds: SogAxisBounds, coincident: boolean) {
@@ -125,26 +136,19 @@ function cogValue(value: number | null, unit: '°' | 's', signed = false) {
   return `${signed && value >= 0 ? '+' : ''}${value.toFixed(1)}${unit}`
 }
 
-function cogInsightCard(label: string, metric: 'turnAngleDeg' | 'turnMidpointSeconds' | 'turnDurationSeconds',
-  primary: CogManeuverInsights | null, comparison: CogManeuverInsights | null) {
+function cogInsight(label: string, metric: 'turnAngleDeg' | 'turnMidpointSeconds' | 'turnDurationSeconds',
+  primary: CogManeuverInsights | null, comparison: CogManeuverInsights | null): InsightColumn {
   const p = primary?.[metric] ?? null
   const c = comparison?.[metric] ?? null
   const unit = metric === 'turnAngleDeg' ? '°' : 's'
   const difference = p !== null && c !== null
     ? Math.abs(p - c).toFixed(1) === '0.0' ? `Same to 0.1${unit}` : `Difference ${Math.abs(p - c).toFixed(1)}${unit}`
     : '—'
-  return <div className="maneuver-insights__card">
-    <h4>{label}</h4>
-    <div className="maneuver-insights__values">
-      <span><strong style={{ color: ACTIVITY_COLORS.primary }}>P</strong> {cogValue(p, unit, metric === 'turnMidpointSeconds')}</span>
-      <span><strong style={{ color: ACTIVITY_COLORS.comparison }}>C</strong> {cogValue(c, unit, metric === 'turnMidpointSeconds')}</span>
-    </div>
-    <p>{difference}</p>
-  </div>
+  return { label, primary: cogValue(p, unit, metric === 'turnMidpointSeconds'), comparison: cogValue(c, unit, metric === 'turnMidpointSeconds'), reading: difference }
 }
 
-function heelInsightCard(label: string, metric: keyof HeelManeuverInsights,
-  primary: HeelManeuverInsights | null, comparison: HeelManeuverInsights | null) {
+function heelInsight(label: string, metric: keyof HeelManeuverInsights,
+  primary: HeelManeuverInsights | null, comparison: HeelManeuverInsights | null): InsightColumn {
   const p = primary?.[metric] ?? null
   const c = comparison?.[metric] ?? null
   const value = (number: number | null) => number === null ? '—'
@@ -152,14 +156,7 @@ function heelInsightCard(label: string, metric: keyof HeelManeuverInsights,
   const difference = p !== null && c !== null
     ? Math.abs(p - c).toFixed(1) === '0.0' ? 'Same to 0.1°' : `Difference ${Math.abs(p - c).toFixed(1)}°`
     : '—'
-  return <div className="maneuver-insights__card">
-    <h4>{label}</h4>
-    <div className="maneuver-insights__values">
-      <span><strong style={{ color: ACTIVITY_COLORS.primary }}>P</strong> {value(p)}</span>
-      <span><strong style={{ color: ACTIVITY_COLORS.comparison }}>C</strong> {value(c)}</span>
-    </div>
-    <p>{difference}</p>
-  </div>
+  return { label, primary: value(p), comparison: value(c), reading: difference }
 }
 
 export default function ManeuverSogComparison({ primary, comparison }: {
@@ -245,11 +242,11 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     {signal === 'SOG' && <section className="maneuver-insights" aria-label="Maneuver Insights">
       <h3>SOG Maneuver Insights</h3>
       <p>Supported raw median SOG</p>
-      <div className="maneuver-insights__grid">{[
-        insightCard('Entry SOG', 'entrySog', pInsights, cInsights),
-        insightCard('Minimum SOG', 'minimumSog', pInsights, cInsights),
-        insightCard('Exit SOG', 'exitSog', pInsights, cInsights),
-      ]}</div>
+      {insightTable([
+        sogInsight('Entry SOG', 'entrySog', pInsights, cInsights),
+        sogInsight('Minimum SOG', 'minimumSog', pInsights, cInsights),
+        sogInsight('Exit SOG', 'exitSog', pInsights, cInsights),
+      ])}
       <p className="maneuver-insights__recovery"><strong>Profile recovery</strong> · <span style={{ color: ACTIVITY_COLORS.primary }}>{recoveryText('P', pRecovery)}</span>
         {comparison !== undefined && <> · <span style={{ color: ACTIVITY_COLORS.comparison }}>{recoveryText('C', cRecovery)}</span></>}
         {recoveryComparison && ` · ${recoveryComparison}`}
@@ -259,20 +256,20 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     {signal === 'COG' && <section className="maneuver-insights" aria-label="COG Maneuver Insights">
       <h3>COG Maneuver Insights</h3>
       <p>Supported raw median relative COG</p>
-      <div className="maneuver-insights__grid">
-        {cogInsightCard('Turn angle', 'turnAngleDeg', pCogInsights, cCogInsights)}
-        {cogInsightCard('Turn midpoint', 'turnMidpointSeconds', pCogInsights, cCogInsights)}
-        {cogInsightCard('Turn duration (10–90%)', 'turnDurationSeconds', pCogInsights, cCogInsights)}
-      </div>
+      {insightTable([
+        cogInsight('Turn angle', 'turnAngleDeg', pCogInsights, cCogInsights),
+        cogInsight('Turn midpoint', 'turnMidpointSeconds', pCogInsights, cCogInsights),
+        cogInsight('Turn duration (10–90%)', 'turnDurationSeconds', pCogInsights, cCogInsights),
+      ])}
     </section>}
     {signal === 'HEEL' && <section className="maneuver-insights" aria-label="HEEL Maneuver Insights">
       <h3>HEEL Maneuver Insights</h3>
       <p>Change in typical absolute inclination magnitude; not signed side or peak excursion</p>
-      <div className="maneuver-insights__grid">
-        {heelInsightCard('Entry HEEL', 'entryHeel', pHeelInsights, cHeelInsights)}
-        {heelInsightCard('HEEL variation', 'heelVariation', pHeelInsights, cHeelInsights)}
-        {heelInsightCard('Exit HEEL', 'exitHeel', pHeelInsights, cHeelInsights)}
-      </div>
+      {insightTable([
+        heelInsight('Entry HEEL', 'entryHeel', pHeelInsights, cHeelInsights),
+        heelInsight('HEEL variation', 'heelVariation', pHeelInsights, cHeelInsights),
+        heelInsight('Exit HEEL', 'exitHeel', pHeelInsights, cHeelInsights),
+      ])}
     </section>}
     <p className="maneuver-profile__basis">Curves require 3 {signal}-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.{signal === 'COG' ? ' COG shows oriented relative turn degrees, not geographic course; t=0 remains the event center.' : ''}</p>
   </section>

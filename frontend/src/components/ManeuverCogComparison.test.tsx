@@ -60,9 +60,9 @@ describe('maneuver signal selection', () => {
     expect(html).toContain('Turn angle')
     expect(html).toContain('Turn midpoint')
     expect(html).toContain('Turn duration (10–90%)')
-    expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
-    expect(html).toContain('P</strong> 9.6s')
-    expect(html).toContain('C</strong> 9.6s')
+    expect(html).toContain('<table class="maneuver-insights__table">')
+    expect(html.match(/scope="col"/g)).toHaveLength(4)
+    expect(html).toContain('<td>9.6s</td>')
     expect(html).toContain('Same to 0.1s')
     expect(html).not.toContain('data-cog-turn-interval')
     expect(html).not.toContain('data-cog-turn-label')
@@ -74,29 +74,29 @@ describe('maneuver signal selection', () => {
     expect(html).toMatch(/aria-pressed="true"[^>]*>COG<\/button>/)
   })
 
-  it('uses the responsive three-card layout and supports one Activity', () => {
+  it('uses the same compact table at all widths and supports one Activity', () => {
     selection.signal = 'COG'
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30, 40])}
       comparison={population([25, 35, 45], -5.5, 7)} />)
-    expect(html).toContain('class="maneuver-insights__grid"')
-    expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(html).toContain('class="maneuver-insights__table"')
+    expect(html).toContain('>Compare</th>')
     expect(html).toContain('Difference 0.4s')
     expect(html).not.toContain('data-cog-turn-interval')
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
-    expect(css).toMatch(/\.maneuver-insights__grid\s*\{\s*display: grid;\s*gap: 8px;\s*\}/)
-    expect(css).toMatch(/@media \(min-width: 700px\)\s*\{\s*\.maneuver-insights__grid\s*\{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/)
+    expect(css).toMatch(/\.maneuver-insights__table\s*\{[\s\S]*?table-layout: fixed;/)
+    expect(css).not.toContain('.maneuver-insights__grid')
     const alone = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30, 40])} />)
-    expect(alone.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
-    expect(alone).toContain('P</strong> 9.6s')
-    expect(alone).toContain('C</strong> —')
+    expect(alone).toContain('class="maneuver-insights__table"')
+    expect(alone).toContain('<td>9.6s</td>')
+    expect(alone).toContain('<td>—</td>')
   })
 
   it('shows unavailable COG insights when the supported population is insufficient', () => {
     selection.signal = 'COG'
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([20, 30])} />)
     expect(html).toContain('At least 3 profiles needed')
-    expect(html).toContain('P</strong> —')
-    expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(html).toContain('<td>—</td>')
+    expect(html).toContain('class="maneuver-insights__table"')
     expect(html).not.toContain('data-cog-turn-interval')
   })
 
