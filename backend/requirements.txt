@@ -2,3 +2,4 @@ fastapi
 uvicorn
 pandas
 pytest
+certifi>=2026.10.19
