@@ -69,6 +69,7 @@ describe('Admin single-track intake', () => {
     expect(callbacks.onSailorChange).toHaveBeenCalledWith('ACTIVE')
     expect(callbacks.onFileChange).toHaveBeenCalledWith(file)
     expect(view.props.onSubmit).toBe(callbacks.onSubmit)
+    expect(children.find((element) => element.type === 'button')!.props.type).toBe('submit')
   })
 
   it('shows Uploading without percentages and disables only the intake fields', () => {

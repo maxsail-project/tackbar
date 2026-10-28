@@ -69,7 +69,7 @@ export function UploadTrackForm({ sailors, sailorId, file, uploading, error, inp
     </div>
     {eligible.length === 0 && <p>No ACTIVE Sailors are available. Confirm consent in Sailors before uploading.</p>}
     {error && <p className="admin-error" role="alert">{error}</p>}
-    <div className="admin-actions"><button className="admin-primary" disabled={uploading || !file || !eligible.some((sailor) => sailor.id === sailorId)}>{uploading ? 'Uploading' : 'Upload track'}</button></div>
+    <div className="admin-actions"><button type="submit" className="admin-primary" disabled={uploading || !file || !eligible.some((sailor) => sailor.id === sailorId)}>{uploading ? 'Uploading' : 'Upload track'}</button></div>
     {uploading && <p role="status">Uploading — waiting for server acceptance. Keep this page open until acceptance is confirmed.</p>}
   </form>
 }

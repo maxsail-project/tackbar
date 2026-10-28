@@ -238,7 +238,7 @@ export function AdminAccessForm({ onEnter, error, busy }: { onEnter: (key: strin
     <label htmlFor="admin-key">Admin key</label>
     <input id="admin-key" type="password" autoComplete="off" value={value} onChange={(event) => setValue(event.target.value)} />
     {error && <p className="admin-error" role="alert">{error}</p>}
-    <button className="admin-primary" disabled={busy || !value.trim()}>{busy ? 'Checking…' : 'Enter Admin'}</button>
+    <button type="submit" className="admin-primary" disabled={busy || !value.trim()}>{busy ? 'Checking…' : 'Enter Admin'}</button>
   </form></main>
 }
 
@@ -764,7 +764,7 @@ export function SessionOperationalDetail({ session, activities = [], busy, onAct
     </section>
     <section className="admin-session-section" aria-label="Maintenance"><h3>Maintenance</h3>
       <div className="admin-actions"><button disabled={busy} onClick={onEnrich}>Enrich Session</button></div>
-      <form className="renew-form" onSubmit={(event) => { event.preventDefault(); if (days >= 1 && days <= 365) onRenew(days) }}><label>Renew Session <span>Sets expiry to days from now</span><input type="number" min="1" max="365" value={days} onChange={(event) => setDays(Number(event.target.value))} /></label><button disabled={busy || days < 1 || days > 365}>Renew</button></form>
+      <form className="renew-form" onSubmit={(event) => { event.preventDefault(); if (days >= 1 && days <= 365) onRenew(days) }}><label>Renew Session <span>Sets expiry to days from now</span><input type="number" min="1" max="365" value={days} onChange={(event) => setDays(Number(event.target.value))} /></label><button type="submit" disabled={busy || days < 1 || days > 365}>Renew</button></form>
       <div className="admin-actions"><button disabled={busy} onClick={onRegenerate}>Regenerate capability</button><button disabled={busy} className="danger" onClick={onRevoke}>Revoke capability</button></div>
     </section>
     <details className="admin-advanced"><summary>Advanced</summary><h4>Technical traceability</h4><dl><div><dt>Session ID</dt><dd>{session.id}</dd></div><div><dt>Activity IDs</dt><dd>{session.activities.map((activity) => activity.id).join(' · ') || '—'}</dd></div><div><dt>Sailor IDs</dt><dd>{[...new Set(session.activities.map((activity) => activity.sailor_id))].join(' · ') || '—'}</dd></div></dl>{session.location && <><h4>Geographic context</h4><dl><div><dt>Region</dt><dd>{session.location.region || '—'}</dd></div><div><dt>Country</dt><dd>{session.location.country || '—'}</dd></div><div><dt>Country code</dt><dd>{session.location.country_code || '—'}</dd></div></dl></>}<h4>Technical state</h4><dl><div><dt>Technical Activities</dt><dd>{session.total_activity_count}</dd></div><div><dt>Shareable now</dt><dd>{session.visible_activity_count}</dd></div><div><dt>Consent coverage</dt><dd>ACTIVE {session.consent_active_count} · PENDING {session.consent_pending_count} · REVOKED {session.consent_revoked_count}</dd></div></dl></details>

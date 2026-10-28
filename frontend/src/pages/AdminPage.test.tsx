@@ -184,6 +184,7 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('Admin key')
     expect(markup).toContain('type="password"')
     expect(markup).toContain('Enter Admin')
+    expect(markup).toContain('<button type="submit" class="admin-primary"')
   })
 
   it('uses one Search control pattern without making diagnostic IDs the primary prompt', () => {
@@ -566,6 +567,7 @@ describe('minimal Admin UI', () => {
     expect(expired).toContain('Expired')
     expect(expired).toContain('Original capability:</strong> Active')
     expect(expired).toContain('Renew')
+    expect(expired).toContain('<button type="submit">Renew</button>')
   })
 
   it('marks a cross-navigation Session selection and exposes related Sailors without nesting Sailor detail', () => {
