@@ -204,6 +204,7 @@ cython_debug/
 tempCodeRunnerFile.py
 
 # TackBar local inspection output
+/tmp/
 backend/tmp/
 backend/pytest-cache-files-*/
 
