@@ -12,7 +12,7 @@ vi.mock('react', async (importOriginal) => {
   }
 })
 
-import ManeuverSogComparison from './ManeuverSogComparison'
+import ManeuverSogComparison, { roundedInsightComparison } from './ManeuverSogComparison'
 
 function population(values: number[], centralAdjustment = 0): PreparedSogPopulation {
   return { detectedCount: values.length, windowEligibleCount: values.length, missingCourseCount: 0,
@@ -59,13 +59,15 @@ describe('typical HEEL chart selection', () => {
     expect(html).toMatch(/sog-signal-chart__y-axis[^>]*><span>13 °<\/span><span>6\.5 °<\/span><span>0 °<\/span>/)
     expect(html).toContain('data-maneuver-center="true"')
     expect(html).toContain('HEEL Maneuver Insights')
-    expect(html.match(/class="maneuver-insights__card"/g)).toHaveLength(3)
+    expect(html).toContain('<table class="maneuver-insights__table">')
+    expect(html.match(/scope="col"/g)).toHaveLength(4)
     expect(html).toContain('Entry HEEL')
     expect(html).toContain('HEEL variation')
     expect(html).toContain('Exit HEEL')
-    expect(html).toContain('P</strong> +2.0°')
-    expect(html).toContain('C</strong> -2.0°')
-    expect(html).toContain('Difference 4.0°')
+    expect(html).toContain('<td>+2.0°</td>')
+    expect(html).toContain('<td>-2.0°</td>')
+    expect(html).toContain('P +4.0°')
+    expect(html).toMatch(/<th scope="row" aria-label="Comparison"><\/th><td>C \+6\.0°<\/td><td>P \+4\.0°<\/td><td>C \+6\.0°<\/td>/)
     expect(html).toContain('not signed side or peak excursion')
     expect(html).toMatch(/data-profile-series="primary-raw"[^>]*stroke-opacity="0.3"/)
     expect(html).not.toContain('Profile recovery')
@@ -77,7 +79,7 @@ describe('typical HEEL chart selection', () => {
     weak.maneuvers[2].heelGrid![25] = null
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={weak} />)
     expect(html).toContain('3 used')
-    expect(html).toContain('P</strong> —')
+    expect(html).toContain('<td>—</td>')
     expect(html).toContain('data-profile-series="primary-raw"')
     expect(html).toMatch(/data-profile-series="primary-raw" d="M[^"]* M/)
     expect(html).not.toContain('data-profile-series="comparison-raw"')
@@ -91,8 +93,16 @@ describe('typical HEEL chart selection', () => {
   it('keeps one-sided HEEL insights and unavailable comparison explicit', () => {
     selection.signal = 'HEEL'
     const html = renderToStaticMarkup(<ManeuverSogComparison primary={population([4, 6, 8], 0)} />)
-    expect(html).toContain('P</strong> 0.0°')
-    expect(html).toContain('C</strong> —')
-    expect(html).toContain('class="maneuver-insights__grid"')
+    expect(html).toContain('<td>0.0°</td>')
+    expect(html).toContain('<td>—</td>')
+    expect(html).toContain('class="maneuver-insights__table"')
+  })
+
+  it('uses underlying HEEL values for both directions and the one-decimal boundary', () => {
+    expect(roundedInsightComparison(2, 2.04, '°')).toBe('Similar')
+    expect(roundedInsightComparison(2, 2.06, '°')).toBe('C +0.1°')
+    expect(roundedInsightComparison(2.06, 2, '°')).toBe('P +0.1°')
+    expect(roundedInsightComparison(-0.06, 0, '°')).toBe('C +0.1°')
+    expect(roundedInsightComparison(null, 2, '°')).toBe('—')
   })
 })

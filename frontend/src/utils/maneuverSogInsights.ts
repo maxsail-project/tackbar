@@ -68,7 +68,7 @@ export function compareSogManeuverInsight(
 ): string {
   if (primary === null || comparison === null) return '—'
   if (Math.abs(primary - comparison) <= MANEUVER_SOG_INSIGHTS.similarityKnots + 1e-9) return 'Similar'
-  return primary > comparison ? 'P higher' : 'C higher'
+  return `${primary > comparison ? 'P' : 'C'} +${Math.abs(primary - comparison).toFixed(1)}kt`
 }
 
 export function compareSogProfileRecovery(primary: SogProfileRecovery, comparison: SogProfileRecovery): string {

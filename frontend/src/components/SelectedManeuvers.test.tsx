@@ -45,6 +45,7 @@ describe('Selected Maneuvers strip', () => {
     expect(markup).toContain('>Δ (°)</th>')
     expect(markup).toContain('No latest selection')
     expect(markup).toContain('No previous selection')
+    expect(markup).not.toContain('selected-maneuvers__number')
     expect(markup.match(/colSpan="5"/g) ?? markup.match(/colspan="5"/g)).toHaveLength(2)
   })
 
@@ -57,6 +58,7 @@ describe('Selected Maneuvers strip', () => {
     expect(markup).toContain('color:#168097')
     expect(markup).toContain('Latest selected maneuver, C')
     expect(markup).toContain('Previous selected maneuver, P')
+    expect(markup).not.toContain('selected-maneuvers__number')
     const row = markup.match(/<tbody><tr>(.*?)<\/tr>/)?.[1] ?? ''
     expect(row).toMatch(/10:00:05.*8 m\/3 s.*12 s.*5\.1\/3\.2\/5\.4 kt.*−91°/)
     expect(markup).toContain('+90°')
@@ -92,6 +94,7 @@ describe('Selected Maneuvers strip', () => {
     expect(markup).not.toContain('— knots')
     expect(markup).not.toContain('—/—/— kt')
     expect(markup).toContain('No previous selection')
+    expect(markup).not.toContain('selected-maneuvers__number')
   })
 
   it('uses one unit for a partly unavailable SOG triplet', () => {
@@ -114,6 +117,8 @@ describe('Selected Maneuvers strip', () => {
     expect(section).not.toMatch(/overflow-x|scrollbar-width|width: max-content/)
     expect(section).toContain('.selected-maneuvers__sog { width: 118px; }')
     expect(section).toContain('.selected-maneuvers__sog { width: 115px; }')
+    expect(section).toContain('.selected-maneuvers__role-header { width: 20px; }')
+    expect(section).toContain('.selected-maneuvers__role-header { width: 18px; }')
     expect(section).not.toContain('display: none')
   })
 })

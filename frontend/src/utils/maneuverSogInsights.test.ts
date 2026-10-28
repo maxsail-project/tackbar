@@ -52,9 +52,11 @@ describe('SOG maneuver insights', () => {
     for (let index = 0; index <= 10; index += 1) curve[index].sog = 4
     expect(calculateSogManeuverInsights(curve).exitSog).toBe(5)
     expect(compareSogManeuverInsight(5, 5.2)).toBe('Similar')
-    expect(compareSogManeuverInsight(5, 5.201)).toBe('C higher')
+    expect(compareSogManeuverInsight(5, 5.201)).toBe('C +0.2kt')
     expect(compareSogManeuverInsight(5.2, 5)).toBe('Similar')
-    expect(compareSogManeuverInsight(5.3, 5)).toBe('P higher')
+    expect(compareSogManeuverInsight(5.3, 5)).toBe('P +0.3kt')
+    expect(compareSogManeuverInsight(5, 5.24)).toBe('C +0.2kt')
+    expect(compareSogManeuverInsight(5, 5.26)).toBe('C +0.3kt')
     expect(compareSogManeuverInsight(5, null)).toBe('—')
   })
 })

@@ -403,6 +403,24 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup.indexOf('>Reset</button>')).toBeLessThan(timelineIndex)
   })
 
+  it('keeps the title and concise instruction inline while only the instruction may wrap', () => {
+    const markup = render({
+      primarySamples: [sample(2, 3), sample(8, 5)],
+      replay: replay({ speed: 5 }),
+    })
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+
+    expect(markup).toMatch(/class="analysis-window__heading-copy"><p class="section-kicker" id="analysis-window-title">Analysis window<\/p><span class="section-description">Drag SOG to select interval<\/span><\/div><div class="analysis-window__header-actions">/)
+    expect(markup).toContain('<option value="5" selected="">x5</option>')
+    expect(markup).toContain('>Reset</button>')
+    expect(css).toMatch(/\.analysis-window__heading-copy\s*\{ min-width: 0; line-height: 1\.35; \}/)
+    expect(css).toMatch(/\.analysis-window__heading-copy \.section-kicker\s*\{ display: inline; white-space: nowrap; \}/)
+    expect(css).toMatch(/\.analysis-window__heading-copy \.section-description\s*\{ display: inline; margin: 0 0 0 8px; \}/)
+    expect(css).toMatch(/\.analysis-window__header-actions\s*\{[^}]*flex: 0 0 auto;/)
+    expect(css).not.toMatch(/\.analysis-window__heading-copy \.section-description\s*\{[^}]*white-space: nowrap;/)
+    expect(css).toMatch(/button,\s*select\s*\{\s*min-height: 44px;/)
+  })
+
   it('Reset requests the complete available range', () => {
     const onRangeChange = vi.fn()
 

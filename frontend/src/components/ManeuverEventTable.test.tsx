@@ -166,7 +166,8 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('−91')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
-    expect(markup).toContain('Maneuvers')
+    expect(markup).toContain('Maneuver Analysis')
+    expect(markup).not.toContain('Typical SOG maneuver comparison')
     expect(markup).toContain('aria-expanded="false"')
     expect(markup).toContain('Expand')
     expect(markup).toContain('hidden=""')
@@ -431,7 +432,7 @@ describe('ManeuverEventTable', () => {
     )
 
     expect(markup).toContain('Maneuver analytics unavailable for P.')
-    expect(markup).toContain('Maneuvers')
+    expect(markup).toContain('Maneuver Analysis')
   })
 
   it('keeps Primary events visible when C analytics is unavailable', () => {

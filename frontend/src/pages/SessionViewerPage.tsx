@@ -28,6 +28,7 @@ import VsDistributionView from '../components/VsDistributionView'
 import ManeuverEventTable, {
   type ManeuverPresentationStatus,
 } from '../components/ManeuverEventTable'
+import ManeuverProfiles from '../components/ManeuverProfiles'
 import SelectedManeuvers from '../components/SelectedManeuvers'
 import TrackMap, {
   type ContextualMapActivity,
@@ -82,6 +83,7 @@ import {
   type DisplayManeuver,
 } from '../utils/maneuverEvents'
 import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
+import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeometry'
 
 type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
 
@@ -465,7 +467,7 @@ export function SessionViewer({
     DEFAULT_VIEWER_METRIC_VIEW,
   )
   const [isPlaying, setIsPlaying] = useState(false)
-  const [speed, setSpeed] = useState<PlaybackSpeed>(1)
+  const [speed, setSpeed] = useState<PlaybackSpeed>(5)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
   const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
@@ -680,6 +682,13 @@ export function SessionViewer({
   const previousManeuver = resolveSelectedDisplayManeuver(
     maneuverSelectionHistory[1],
     displayManeuvers,
+  )
+  const selectedManeuverHighlights = createSelectedManeuverHighlights(
+    selectedManeuver,
+    previousManeuver,
+    primaryTrack,
+    comparisonTrack,
+    analysisWindow,
   )
   const historicalConditionsSample = useMemo(
     () => selectHistoricalConditionsSample(
@@ -967,6 +976,7 @@ export function SessionViewer({
             windowEnd,
           )}
           focusRequest={mapFocusRequest}
+          selectedManeuverHighlights={selectedManeuverHighlights}
           primaryActivityIdentity={formatActivityIdentity(primaryActivity)}
           comparisonActivityIdentity={comparisonActivity
             ? formatActivityIdentity(comparisonActivity)
@@ -1047,8 +1057,6 @@ export function SessionViewer({
               )}
           selectedManeuverKey={maneuverSelectionHistory[0]}
           onSelect={selectTableManeuver}
-          primaryProfilePopulation={primaryProfilePopulation}
-          comparisonProfilePopulation={comparisonActivityId === null ? undefined : comparisonProfilePopulation}
         />
       )}
       <ComparisonTable
@@ -1087,6 +1095,12 @@ export function SessionViewer({
               }
             />
           )}
+      {analysisWindow !== null && (
+        <ManeuverProfiles
+          primary={primaryProfilePopulation}
+          comparison={comparisonActivityId === null ? undefined : comparisonProfilePopulation}
+        />
+      )}
       <IndividualAnalysis
         primaryActivity={{
           id: primaryActivity.id,

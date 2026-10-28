@@ -19,7 +19,7 @@ export default function MetricSelector({
     <section className="content-section" aria-labelledby="metric-title">
       <div className="section-heading">
         <div>
-          <p className="section-kicker" id="metric-title">View</p>
+          <p className="section-kicker" id="metric-title">Track Analysis</p>
           <p className="section-description">Shared Analysis Window</p>
         </div>
       </div>
