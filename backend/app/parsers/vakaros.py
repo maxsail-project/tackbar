@@ -47,4 +47,7 @@ def extract_vakaros_device_name(filename: str) -> str:
         if name.lower().endswith(suffix):
             name = name[: -len(suffix)]
             break
-    return re.sub(r"\s+\d{1,2}-\d{1,2}-\d{4}$", "", name)
+    date_suffix = re.search(r"\s\d{1,2}-\d{1,2}-\d{4}$", name)
+    if date_suffix is None:
+        return name
+    return name[: date_suffix.start()].rstrip() + name[date_suffix.end() :]
