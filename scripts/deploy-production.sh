@@ -18,7 +18,12 @@ fi
 
 cd "$checkout_dir"
 
-if [ -n "$(git status --porcelain)" ]; then
+if ! worktree_status="$(git status --porcelain)"; then
+  echo "Production worktree could not be inspected; refusing to switch releases." >&2
+  exit 1
+fi
+
+if [ -n "$worktree_status" ]; then
   echo "Production worktree is not clean; refusing to switch releases." >&2
   exit 1
 fi
