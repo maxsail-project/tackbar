@@ -186,8 +186,8 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. Latest published release: v0.7.15 Californian
-— Mail Feedback.**
+**Controlled real-sailing pilot. Latest published release: v0.7.16 Californian
+— Every Turn Tells a Story.**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
@@ -199,7 +199,9 @@ HIGH/LOW maneuver evidence. v0.7.15 adds safe notices for actionable
 track-email failures and directs replies to `hello@tackbar.eu`. The current
 delivered Viewer increment adds one chart comparing typical maneuver profiles
 for Primary and Comparison across SOG, relative COG and absolute-magnitude
-HEEL, with signal-specific Insights. Publication is established by
+HEEL, with signal-specific Insights. Accepted follow-up Viewer work separates
+individual Maneuver Analysis from typical Maneuver Profiles and adds compact
+Selected Maneuvers near the map. Publication is established by
 immutable tags and GitHub Releases; production deployment is established by
 successful execution of the exact-release deployment workflow, as described
 in the [production runbook](docs/production-runbook.md).
@@ -219,11 +221,11 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ## Published release and next direction
 
-### v0.7.13 Californian — Finding Our Bearings
+### v0.7.16 Californian — Every Turn Tells a Story
 
-v0.7.13 adds optional Session location and historical conditions, passive fleet
-map context, improved Personal Session recognition and public About/release
-identity. Analytical comparison remains limited to two Activities.
+v0.7.16 adds one typical maneuver-profile chart for Primary and Comparison,
+covering SOG, relative COG and absolute-magnitude HEEL with signal-specific
+Insights. Analytical comparison remains limited to two Activities.
 
 The accepted scope for **v0.7.14 Californian — GPX & Maneuver Analytics** is
 recorded in the [CHANGELOG](CHANGELOG.md). The
@@ -448,7 +450,7 @@ El foco pasa a estar en:
 ## Estado del proyecto
 
 **Piloto controlado con navegaciones reales. Última release publicada:
-v0.7.15 Californian — Mail Feedback.**
+v0.7.16 Californian — Every Turn Tells a Story.**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
@@ -460,7 +462,9 @@ comprimir, carga protegida en Admin y evidencia HIGH/LOW de maniobras. v0.7.15
 añade avisos seguros ante fallos accionables de correo con tracks y dirige las
 respuestas a `hello@tackbar.eu`. El incremento actual del Viewer añade un único
 gráfico comparativo P/C de perfiles típicos de maniobras para SOG, COG relativo
-y magnitud absoluta de HEEL, con Insights específicos por señal. Los tags
+y magnitud absoluta de HEEL, con Insights específicos por señal. El trabajo
+posterior aceptado del Viewer separa Maneuver Analysis individual de Maneuver
+Profiles típicos y añade Selected Maneuvers junto al mapa. Los tags
 inmutables y GitHub Releases establecen la publicación; la ejecución correcta
 del workflow para esa release establece el despliegue técnico, según el
 [runbook de producción](docs/production-runbook.md).
@@ -480,12 +484,11 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ## Release publicada y próxima dirección
 
-### v0.7.13 Californian — Finding Our Bearings
+### v0.7.16 Californian — Every Turn Tells a Story
 
-v0.7.13 añade ubicación y condiciones históricas opcionales de Session,
-contexto pasivo de flota en el mapa, mejor reconocimiento de Sessions en
-Personal y About/identidad de release públicos. La comparación analítica sigue
-limitada a dos Activities.
+v0.7.16 añade un gráfico de perfiles típicos de maniobras para Primary y
+Comparison, con SOG, COG relativo y magnitud absoluta de HEEL e Insights por
+señal. La comparación analítica sigue limitada a dos Activities.
 
 El alcance aceptado de **v0.7.14 Californian — GPX & Maneuver Analytics** queda
 recogido en [CHANGELOG](CHANGELOG.md). El

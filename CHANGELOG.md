@@ -2,6 +2,133 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.17 Californian — The Shape of a Turn
+
+### English
+
+Makes individual maneuver inspection clearer in the Session Viewer while
+keeping typical Primary/Comparison profiles separate. It also includes focused
+dependency and reliability fixes.
+
+### Added
+
+* A compact Selected Maneuvers strip between the map and Analysis Window keeps
+  the latest and previous distinct selections. Both can highlight supported
+  track geometry around their event centers on the map. Selection still uses
+  one shared replay clock; the replay speed now starts at x5.
+* The Analysis Window uses a compact P/C table for whole-window Avg SOG, Max
+  SOG, Distance, Dominant COG and maneuver counts. Missing analytics remain
+  unavailable rather than being counted as zero.
+
+### Changed
+
+* Maneuver Analysis is a separate, initially collapsed event/evidence section.
+  Maneuver Profiles is an initially expanded section after Track Analysis,
+  retaining the SOG/COG/HEEL typical curves, angular filter and signal Insights.
+  The Insights use aligned comparison tables with descriptive numerical
+  differences. The compact mobile Analysis Window header retains its drag
+  instruction.
+* Frontend dependency remediation updates Vite to 8.2.4 and source-map-js to
+  1.2.2. Viewer tests also declare jsdom 30.1.3 as a development dependency.
+  The backend manifest requires `certifi>=2026.10.19` for future installations
+  and deployments that include this release.
+* Focused fixes bound COG turn crossings to the central window, avoid
+  quadratic Vakaros filename matching, make production deployment reject a
+  failed worktree inspection, and declare explicit Admin button types.
+
+### Issues
+
+- [#140](https://github.com/maxsail-project/tackbar/issues/140) — [#140] Review MANEUVERS table and chart disclosure hierarchy
+- [#129](https://github.com/maxsail-project/tackbar/issues/129) — [#129] Remediate confirmed frontend dependency vulnerabilities from October 2026 security audit
+- [#145](https://github.com/maxsail-project/tackbar/issues/145) — [#145] Remediate vulnerable certifi CA bundle in production
+
+### Validation
+
+Completed #140 records product-owner manual PASS for the Viewer presentation
+and focused automated passes reported during development. Completed #129
+records zero High findings in its reported `npm audit`, frontend tests with
+773 passed and 2 skipped, typecheck/build passes, a clean product-owner
+`npm ci`/build, and manual frontend smoke PASS. Two Moderate Vitest findings
+remained outside #129. Completed #145 records human-operated production
+mitigation with `certifi==2026.10.23`, dependency and HTTPS checks, backend
+health after restart, and GPX email processing PASS. Its repository manifest
+floor was separately accepted after dependency-resolution checks; backend
+tests and `pip-audit` were not run for that manifest change. These are
+recorded implementation/operational results, not checks rerun during release
+preparation. No full regression is claimed.
+
+Maneuver events remain neutral candidates; no tack/gybe classification,
+automatic P/C pairing or performance ranking is introduced. The certifi floor
+does not change historical release tags or establish that this release has
+been deployed. On rollback or restore, verify the installed CA bundle version.
+
+---
+
+### Español
+
+Aclara la inspección de maniobras individuales en el Session Viewer y mantiene
+separados los perfiles típicos de Primary/Comparison. Incluye además
+correcciones puntuales de dependencias y fiabilidad.
+
+### Añadido
+
+* Una franja compacta Selected Maneuvers entre el mapa y Analysis Window
+  conserva la última selección y la anterior distinta. Ambas pueden resaltar
+  en el mapa la geometría respaldada del track alrededor del centro del evento.
+  La selección conserva un único reloj de replay, cuya velocidad inicial pasa
+  a x5.
+* Analysis Window usa una tabla compacta P/C con Avg SOG, Max SOG, Distance,
+  Dominant COG y número de maniobras de toda la ventana. La analítica ausente
+  sigue mostrándose como no disponible, no como cero.
+
+### Cambiado
+
+* Maneuver Analysis es una sección separada de eventos y evidencia, cerrada al
+  inicio. Maneuver Profiles se abre al inicio después de Track Analysis y
+  conserva las curvas típicas SOG/COG/HEEL, el filtro angular y los Insights
+  por señal. Los Insights usan tablas comparativas alineadas con diferencias
+  numéricas descriptivas. La cabecera móvil compacta de Analysis Window
+  conserva la instrucción de arrastre.
+* La corrección de dependencias frontend actualiza Vite a 8.2.4 y
+  source-map-js a 1.2.2. Las pruebas del Viewer declaran además jsdom 30.1.3
+  como dependencia de desarrollo. El manifiesto backend exige
+  `certifi>=2026.10.19` para futuras instalaciones y despliegues que incluyan
+  esta release.
+* Correcciones puntuales limitan los cruces COG a la ventana central, evitan
+  coste cuadrático al reconocer nombres de archivo Vakaros, hacen que el
+  despliegue rechace un fallo al inspeccionar el worktree y declaran tipos
+  explícitos en botones de Admin.
+
+### Issues
+
+- [#140](https://github.com/maxsail-project/tackbar/issues/140) — [#140] Review MANEUVERS table and chart disclosure hierarchy
+- [#129](https://github.com/maxsail-project/tackbar/issues/129) — [#129] Remediate confirmed frontend dependency vulnerabilities from October 2026 security audit
+- [#145](https://github.com/maxsail-project/tackbar/issues/145) — [#145] Remediate vulnerable certifi CA bundle in production
+
+### Validación
+
+El #140 completado registra PASS manual del propietario para la presentación
+del Viewer y pruebas automatizadas focalizadas aprobadas durante el desarrollo.
+El #129 completado registra cero hallazgos High en el `npm audit` informado,
+773 pruebas frontend aprobadas y 2 omitidas, typecheck/build aprobados, un
+`npm ci` y build limpios del propietario y PASS manual de la interfaz. Dos
+hallazgos Moderate de Vitest quedaron fuera del #129. El #145 completado
+registra mitigación manual en producción con `certifi==2026.10.23`,
+comprobaciones de dependencias y HTTPS, salud del backend tras reinicio y
+PASS del procesamiento de GPX por correo. Su límite de versión en el
+manifiesto fue aceptado por separado tras comprobaciones de resolución de
+dependencias; no se ejecutaron pruebas backend ni `pip-audit` para ese cambio.
+Son resultados registrados de implementación y operación, no pruebas repetidas
+durante la preparación. No se afirma una regresión completa.
+
+Los eventos siguen siendo candidatos neutrales: no se añade clasificación de
+viradas/trasluchadas, emparejamiento automático P/C ni ranking de rendimiento.
+El límite de certifi no modifica tags históricos ni demuestra que esta release
+se haya desplegado. Al volver a una versión anterior o restaurar el sistema,
+hay que verificar la versión instalada del paquete de certificados.
+
+---
+
 ## v0.7.16 Californian — Every Turn Tells a Story
 
 ### English
