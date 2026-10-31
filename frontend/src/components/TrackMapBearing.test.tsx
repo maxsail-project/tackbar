@@ -106,6 +106,20 @@ function expectBearing(value: string, markerRotation: number) {
 }
 
 describe('map bearing controls', () => {
+  it('keeps one accessible direction display between the two buttons', async () => {
+    await renderMap()
+    const control = container.querySelector('.map-bearing')!
+    const value = control.querySelector('.map-bearing__value')!
+
+    expect(control.children).toHaveLength(3)
+    expect(control.children[1]).toBe(value)
+    expect(value.querySelectorAll('.map-bearing__value')).toHaveLength(0)
+    expect(value.getAttribute('role')).toBe('status')
+    expect(value.getAttribute('aria-label')).toBe('Map direction 000°')
+    expect(value.children[0].textContent).toBe('DIR')
+    expect(value.children[1].textContent).toBe('000°')
+  })
+
   it('rotates the map in 5-degree steps, wraps both ways, and updates both markers', async () => {
     await renderMap()
     expectBearing('000°', 90)
