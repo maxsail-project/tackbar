@@ -139,6 +139,10 @@ export function formatMapBearing(mapBearing: number) {
   return `${String(normalizedBearing).padStart(3, '0')}°`
 }
 
+export function steppedMapBearing(mapBearing: number, step: number) {
+  return ((mapBearing + step) % 360 + 360) % 360
+}
+
 export function createMapFitContextKey(
   primaryActivityId: string,
   comparisonActivityId: string | null,
@@ -453,6 +457,11 @@ export default function TrackMap({
       zoom: 14,
     })
   }, [combinedBounds, windowFocus])
+  const rotateMap = (step: number) => {
+    const map = mapRef.current
+    if (!map) return
+    map.jumpTo({ bearing: steppedMapBearing(map.getBearing(), step) })
+  }
 
   useEffect(() => {
     if (!shouldRefitForContextChange(
@@ -674,12 +683,13 @@ export default function TrackMap({
           </Popup>
         )}
       </Map>
-      <div
-        className="map-bearing"
-        aria-label={`Map direction ${formatMapBearing(mapBearing)}`}
-      >
-        <span>DIR</span>
-        <strong>{formatMapBearing(mapBearing)}</strong>
+      <div className="map-bearing">
+        <button type="button" aria-label="Rotate map 5 degrees counterclockwise" onClick={() => rotateMap(-5)}>−</button>
+        <span className="map-bearing__value" role="status" aria-label={`Map direction ${formatMapBearing(mapBearing)}`}>
+          <span>DIR</span>
+          <strong>{formatMapBearing(mapBearing)}</strong>
+        </span>
+        <button type="button" aria-label="Rotate map 5 degrees clockwise" onClick={() => rotateMap(5)}>+</button>
       </div>
       <HistoricalConditionsControl
         sample={historicalConditionsSample}

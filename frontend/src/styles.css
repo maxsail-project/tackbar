@@ -498,9 +498,9 @@ input:focus-visible {
   left: 50%;
   z-index: 3;
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 4px;
-  padding: 4px 7px;
+  padding: 2px;
   border: 1px solid rgb(31 44 49 / 18%);
   border-radius: 8px;
   color: #273b41;
@@ -509,8 +509,35 @@ input:focus-visible {
   font-size: 0.58rem;
   font-weight: 600;
   letter-spacing: 0.025em;
-  pointer-events: none;
   transform: translateX(-50%);
+}
+
+.map-bearing__value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0 3px;
+  white-space: nowrap;
+}
+
+.map-bearing button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  background: rgb(255 255 255 / 62%);
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.map-bearing button:focus-visible {
+  outline: 2px solid #174e68;
+  outline-offset: 2px;
 }
 
 .map-bearing strong {
