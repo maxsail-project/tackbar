@@ -186,3 +186,31 @@ def test_existing_activity_is_enriched_with_spatial_metadata(
     assert persisted["max_lat"] == parsed.max_lat
     assert persisted["min_lon"] == parsed.min_lon
     assert persisted["max_lon"] == parsed.max_lon
+
+
+def test_personal_context_survives_duplicate_and_track_refresh(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    path = temporary_json_file("activities", [])
+    repository = ActivityRepository(path)
+    content = FIXTURE_PATH.read_bytes()
+    parsed = parse_vakaros_csv(FIXTURE_PATH)
+    original, _ = repository.find_or_create(SAILOR_A, BOAT_A, parsed, content)
+    record = json.loads(path.read_text(encoding="utf-8"))[0]
+    record.pop("device_label")
+    path.write_text(json.dumps([record]), encoding="utf-8")
+    assert repository.get_by_id(original.id).device_label is None
+
+    changed = repository.update_context_for_sailor(
+        SAILOR_A, original.id, boat_id=BOAT_B, device_label="My watch",
+    )
+    assert changed is not None and changed.device_label == "My watch"
+    assert repository.update_context_for_sailor(
+        SAILOR_B, original.id, boat_id=None, device_label=None,
+    ) is None
+    reused, created = repository.find_or_create(SAILOR_A, None, parsed, content)
+    assert created is False and (reused.boat_id, reused.device_label) == (BOAT_B, "My watch")
+    refreshed = repository.refresh_track_metadata(original.id, parsed, "tracks/refreshed.csv.gz")
+    assert (refreshed.boat_id, refreshed.device_label) == (BOAT_B, "My watch")
+    assert refreshed.device_name == parsed.device_name
+    assert refreshed.attachment_sha256 == original.attachment_sha256

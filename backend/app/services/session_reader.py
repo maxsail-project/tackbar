@@ -114,6 +114,7 @@ class SessionReader:
                     id=activity.id,
                     source=activity.source,
                     device_name=activity.device_name,
+                    device_label=activity.device_label,
                     original_filename=activity.original_filename,
                     start_time=activity.start_time,
                     end_time=activity.end_time,

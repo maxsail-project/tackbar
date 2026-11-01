@@ -6,6 +6,7 @@ or persisted busy state is needed. This is exclusion, not crash rollback.
 """
 
 from contextlib import contextmanager
+from functools import wraps
 import errno
 import os
 from pathlib import Path
@@ -16,6 +17,15 @@ from typing import Iterator
 
 _local_lock = RLock()
 _held: dict[Path, int] = {}
+
+
+def locked_sailor_write(method):
+    """Serialize a Sailor service's read-modify-write with ingestion."""
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        with ingestion_lock(self.sailors.path.parent):
+            return method(self, *args, **kwargs)
+    return guarded
 
 
 def _after_fork() -> None:

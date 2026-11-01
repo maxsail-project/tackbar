@@ -1,6 +1,6 @@
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -74,6 +74,19 @@ class ActivityRepository:
             ),
             None,
         )
+
+    def update_context_for_sailor(
+        self, sailor_id: str, activity_id: str, *,
+        boat_id: str | None, device_label: str | None,
+    ) -> StoredActivity | None:
+        activities = self._load()
+        for index, activity in enumerate(activities):
+            if activity.id == activity_id and activity.sailor_id == sailor_id:
+                updated = replace(activity, boat_id=boat_id, device_label=device_label)
+                activities[index] = updated
+                self._save(activities)
+                return updated
+        return None
 
     def set_track_file(
         self,

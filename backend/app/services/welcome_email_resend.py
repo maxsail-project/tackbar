@@ -5,6 +5,7 @@ from typing import Callable
 from app.models import ConsentStatus, Sailor
 from app.repositories.sailors import SailorRepository
 from app.services.onboarding_session import onboarding_session_path
+from app.services.ingestion_lock import locked_sailor_write
 from app.services.welcome_email_delivery import (
     WELCOME_EMAIL_DELIVERY_FAILURE,
     WelcomeEmailDeliveryError,
@@ -28,6 +29,7 @@ class WelcomeEmailResendService:
         self.sender = sender or send_welcome_email
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
+    @locked_sailor_write
     def resend(self, sailor_id: str) -> Sailor:
         sailor = self._eligible_sailor(sailor_id)
         capability_path = f"/me/{sailor.personal_capability_token}"

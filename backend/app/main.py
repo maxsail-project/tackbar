@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from starlette.concurrency import run_in_threadpool
 
 from app.admin_routes import router as admin_router
+from app.personal_context_routes import router as personal_context_router
 from app.consent_api_models import PublicConsentResponse
 from app.api_models import (
     ActivityManeuverAnalyticsResponse,
@@ -69,6 +70,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="TackBar API", version="0.1.0", lifespan=lifespan)
 app.include_router(admin_router)
+app.include_router(personal_context_router)
+
+
+@app.middleware("http")
+async def prevent_personal_response_caching(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/me/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/health")

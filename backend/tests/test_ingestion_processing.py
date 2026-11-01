@@ -987,6 +987,11 @@ def test_historical_gmail_record_reprocesses_from_preserved_original(
     record = history.records()[0]
     assert record["provider"] == "gmail"
 
+    corrected = activities.update_context_for_sailor(
+        first.sailor.id, first.activity.id, boat_id=None, device_label="Watch",
+    )
+    assert corrected is not None
+
     updated = reprocess_ingestion(record["id"], sailors, boats, activities, sessions, history)
 
     assert updated["status"] == "processed"
@@ -995,6 +1000,8 @@ def test_historical_gmail_record_reprocesses_from_preserved_original(
     assert updated["session_id"] == first.session_match.session.id
     assert len(activities.all()) == 1
     assert len(sessions.all()) == 1
+    persisted = activities.get_by_id(first.activity.id)
+    assert persisted.boat_id is None and persisted.device_label == "Watch"
 
 
 def test_historical_gmail_failed_record_reprocesses_without_provider_access(

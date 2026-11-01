@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from app.api_models import BoatContextResponse
 
 
 class PersonalWeatherResponse(BaseModel):
@@ -25,3 +27,37 @@ class PersonalTackBarResponse(BaseModel):
     session_count: int
     last_sailing_end: datetime | None
     sessions: list[PersonalSessionResponse]
+
+
+class PersonalActivityResponse(BaseModel):
+    id: str
+    boat_id: str | None
+    boat: BoatContextResponse | None
+    device_name: str
+    device_label: str | None
+    source: str
+    original_filename: str
+    start_time: datetime
+    end_time: datetime
+
+
+class PersonalActivityContextPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    boat_id: str | None = None
+    device_label: str | None = None
+
+
+class PersonalBoatResponse(BaseModel):
+    id: str
+    name: str | None
+    sailing_class: str | None
+    sail_number: str | None
+
+
+class PersonalDefaultBoatResponse(BaseModel):
+    default_boat_id: str | None
+
+
+class PersonalDefaultBoatPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    default_boat_id: str | None = None

@@ -5,6 +5,7 @@ from typing import Callable
 from app.models import ConsentStatus, Sailor
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
+from app.services.ingestion_lock import locked_sailor_write
 
 
 class PersonalCapabilityService:
@@ -18,15 +19,18 @@ class PersonalCapabilityService:
         self.sessions = sessions
         self.token_generator = token_generator or (lambda: token_urlsafe(32))
 
+    @locked_sailor_write
     def ensure_for_sailor(self, sailor_id: str) -> Sailor:
         sailor = self._require_sailor(sailor_id)
         if sailor.personal_capability_token is not None or sailor.personal_capability_revoked:
             return sailor
         return self._replace_token(sailor)
 
+    @locked_sailor_write
     def regenerate_capability(self, sailor_id: str) -> Sailor:
         return self._replace_token(self._require_sailor(sailor_id))
 
+    @locked_sailor_write
     def revoke_capability(self, sailor_id: str) -> Sailor:
         sailor = self._require_sailor(sailor_id)
         # Keep the token so revocation and consent remain independent, and a

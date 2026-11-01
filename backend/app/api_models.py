@@ -21,6 +21,7 @@ class ActivityContextResponse(BaseModel):
     id: str
     source: str
     device_name: str
+    device_label: str | None = None
     original_filename: str
     start_time: datetime
     end_time: datetime

@@ -168,6 +168,7 @@ class StoredActivity:
     sample_count: int
     attachment_sha256: str
     track_file: str | None = None
+    device_label: str | None = None
 
 
 @dataclass(frozen=True)

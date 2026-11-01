@@ -36,7 +36,7 @@ flowchart TB
     ANALYTICS["Maneuver analytics / artifacts"]
     CONTEXT["Session context enrichment"]
     ACCESS["Consent and purpose-specific capabilities"]
-    API["FastAPI: authorized read / Admin APIs"]
+    API["FastAPI: authorized read, personal context write / Admin APIs"]
     STORE[("Private persistence: JSON metadata, CSV.GZ tracks, originals, artifacts")]
 
     SAILOR -->|"owns"| ACT
@@ -89,6 +89,9 @@ flowchart TB
   Opening a Session still requires a currently usable shared capability.
   Original Session, Personal, consent-request and temporary-QR credentials
   serve different purposes.
+- **Personal context writes use the current personal capability.** The backend
+  authorizes Activity Boat and Device-label edits and optional default-Boat
+  updates; the current My Sessions UI remains read-only.
 - **The Viewer uses one ephemeral shared GPS/UTC Analysis Window,**
   analytically compares at most two selected Activities, and supports replay.
   It does not persist the selected analysis window as a domain entity.

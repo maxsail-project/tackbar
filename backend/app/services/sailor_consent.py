@@ -10,6 +10,7 @@ from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.session_capabilities import SessionCapabilityService
 from app.services.personal_capabilities import PersonalCapabilityService
+from app.services.ingestion_lock import locked_sailor_write
 from app.services.onboarding_session import onboarding_session_path
 from app.services.welcome_email_delivery import (
     WELCOME_EMAIL_DELIVERY_FAILURE,
@@ -48,6 +49,7 @@ class SailorConsentService:
         self.welcome_email_sender = welcome_email_sender or send_welcome_email
         self.delivery_clock = delivery_clock or (lambda: datetime.now(timezone.utc))
 
+    @locked_sailor_write
     def mark_consent_requested(
         self,
         sailor_id: str,
@@ -67,6 +69,7 @@ class SailorConsentService:
             ),
         )
 
+    @locked_sailor_write
     def confirm_consent(
         self,
         sailor_id: str,
@@ -93,6 +96,7 @@ class SailorConsentService:
         )
         return self._complete_activation(sailor_id, attempt_welcome=True)
 
+    @locked_sailor_write
     def complete_activation(
         self,
         sailor_id: str,
@@ -163,6 +167,7 @@ class SailorConsentService:
             )
         )
 
+    @locked_sailor_write
     def revoke_consent(
         self,
         sailor_id: str,
@@ -194,6 +199,7 @@ class SailorConsentService:
             ),
         )
 
+    @locked_sailor_write
     def start_new_consent_cycle(
         self,
         sailor_id: str,
