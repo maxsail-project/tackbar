@@ -38,7 +38,6 @@ vi.mock('../components/SessionShare', () => ({
 vi.mock('../components/VsDistributionView', () => ({ default: () => <section data-viewer-section="vs" /> }))
 vi.mock('../components/MetricChart', () => ({ default: () => null }))
 vi.mock('../components/IndividualAnalysis', () => ({ default: () => <section data-viewer-section="individual-analysis" /> }))
-vi.mock('../components/ComparisonTable', () => ({ default: () => <section data-viewer-section="summary" /> }))
 vi.mock('../components/MetricSelector', () => ({ default: () => <section data-viewer-section="track-analysis" />, DEFAULT_VIEWER_METRIC_VIEW: 'VS' }))
 vi.mock('../components/ManeuverEventTable', () => ({
   default: ({ events, onSelect }: { events: DisplayManeuver[], onSelect: (event: DisplayManeuver) => void }) =>
@@ -217,6 +216,8 @@ describe('Viewer selected maneuver interactions', () => {
     const options = (label: string) => [...container.querySelectorAll<HTMLOptionElement>(`select[aria-label="${label}"] option`)]
       .filter((option) => option.value)
       .map((option) => [option.value, option.textContent])
+    const summaryLabels = () => [...container.querySelectorAll('.comparison-table thead th')]
+      .slice(1).map((header) => header.textContent?.trim())
     const expected = [
       ['c', '123 · 10:00–10:00 #3'],
       ['b', '123 · 10:00–10:00 #2'],
@@ -224,14 +225,51 @@ describe('Viewer selected maneuver interactions', () => {
     ]
     expect(options('My track')).toEqual(expected)
     expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'c'))
+    expect(summaryLabels()).toEqual(['123 #3'])
     await choose('Compare', 'a')
     expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'c'))
+    expect(summaryLabels()).toEqual(['123 #3', '123 #1'])
     await choose('My track', 'a')
     expect(options('My track')).toEqual(expected)
     expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'a'))
+    expect(summaryLabels()).toEqual(['123 #1'])
     await choose('Compare', 'c')
     expect(options('Compare').find(([id]) => id === 'c')?.[1]).toBe('123 · 10:00–10:00 #3')
     expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('c')
+    expect(summaryLabels()).toEqual(['123 #1', '123 #3'])
+  })
+
+  it('shows Boat, Device and Sailor identities without hours in Summary', async () => {
+    const visibleSession = { ...session, activities: session.activities.map((activity) => {
+      if (activity.id === 'a') return { ...activity, boat: { id: 'boat', name: null, sailing_class: 'ILCA 7', sail_number: null } }
+      if (activity.id === 'b') return { ...activity, boat: null, device_label: 'Bow watch' }
+      return { ...activity, boat: null, device_name: ' ', device_label: ' ' }
+    }) }
+    await mountViewer('original', visibleSession)
+    const summaryLabels = () => [...container.querySelectorAll('.comparison-table thead th')]
+      .slice(1).map((header) => header.textContent?.trim())
+    expect(summaryLabels()).toEqual(['ILCA 7'])
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.selectedOptions[0].textContent).toBe('ILCA 7 · 10:00–10:00')
+    await choose('Compare', 'b')
+    expect(summaryLabels()).toEqual(['ILCA 7', 'Bow watch'])
+    await choose('My track', 'c')
+    expect(summaryLabels()).toEqual(['C', 'Bow watch'])
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.selectedOptions[0].textContent).toBe('C · 10:00–10:00')
+  })
+
+  it('does not number Summary identities when TRACK labels differ by time', async () => {
+    const commonBoat = { id: 'boat', name: null, sailing_class: null, sail_number: '123' }
+    const visibleSession = { ...session, activities: session.activities.slice(0, 2).map((activity, index) => ({
+      ...activity, boat: commonBoat,
+      start_time: new Date(start + index * 60_000).toISOString(),
+      end_time: new Date(start + index * 60_000 + 10_000).toISOString(),
+    })) }
+    await mountViewer('original', visibleSession)
+    await choose('Compare', 'b')
+    expect([...container.querySelectorAll('.comparison-table thead th')].slice(1).map((header) => header.textContent?.trim())).toEqual(['123', '123'])
+    expect([...container.querySelectorAll<HTMLOptionElement>('select[aria-label="My track"] option')].map((option) => option.textContent)).toEqual([
+      '123 · 10:00–10:00', '123 · 10:01–10:01',
+    ])
   })
 
   it.each(['original', 'temporary'] as const)('places the independent profile section after Track Analysis and before Individual Analysis with %s access', async (accessKind) => {
@@ -243,7 +281,7 @@ describe('Viewer selected maneuver interactions', () => {
       '.selected-maneuvers',
       '[aria-label="Analysis Window test controls"]',
       '[data-viewer-section="maneuver-analysis"]',
-      '[data-viewer-section="summary"]',
+      '[aria-labelledby="comparison-title"]',
       '[data-viewer-section="track-analysis"]',
       '[data-viewer-section="vs"]',
       '.maneuver-profiles-section',

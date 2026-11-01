@@ -50,7 +50,7 @@ export function formatActivitySelectorLabel(activity: SessionActivity) {
   return `${identity} · ${utcHourMinute(activity.start_time)}–${utcHourMinute(activity.end_time)}`
 }
 
-export function buildActivitySelectorLabels(activities: SessionActivity[]): Map<string, string> {
+export function buildActivityDisplayLabels(activities: SessionActivity[]) {
   const groups = new Map<string, SessionActivity[]>()
   for (const activity of activities) {
     const label = formatActivitySelectorLabel(activity)
@@ -59,10 +59,12 @@ export function buildActivitySelectorLabels(activities: SessionActivity[]): Map<
     groups.set(label, group)
   }
 
-  const labels = new Map<string, string>()
+  const selectorLabels = new Map<string, string>()
+  const summaryLabels = new Map<string, string>()
   for (const [label, group] of groups) {
     if (group.length === 1) {
-      labels.set(group[0].id, label)
+      selectorLabels.set(group[0].id, label)
+      summaryLabels.set(group[0].id, formatActivitySelectorIdentity(group[0]))
       continue
     }
     const ordered = [...group].sort((left, right) => {
@@ -75,7 +77,15 @@ export function buildActivitySelectorLabels(activities: SessionActivity[]): Map<
       }
       return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
     })
-    ordered.forEach((activity, index) => labels.set(activity.id, `${label} #${index + 1}`))
+    ordered.forEach((activity, index) => {
+      const suffix = ` #${index + 1}`
+      selectorLabels.set(activity.id, `${label}${suffix}`)
+      summaryLabels.set(activity.id, `${formatActivitySelectorIdentity(activity)}${suffix}`)
+    })
   }
-  return labels
+  return { selectorLabels, summaryLabels }
+}
+
+export function buildActivitySelectorLabels(activities: SessionActivity[]): Map<string, string> {
+  return buildActivityDisplayLabels(activities).selectorLabels
 }
