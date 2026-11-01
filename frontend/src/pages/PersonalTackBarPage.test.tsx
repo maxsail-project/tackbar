@@ -36,12 +36,13 @@ describe('Personal TackBar / My Sessions', () => {
     const markup = render(loaded)
     expect(fetchMock).toHaveBeenCalledWith('/api/me/personal-token', expect.objectContaining({ method: 'GET' }))
     expect(markup).toContain('<h1 id="my-sessions-heading">My Sessions</h1>')
+    expect(markup.match(/<h1\b/g)).toHaveLength(1)
     expect(markup.match(/My Sessions/g)).toHaveLength(1)
     expect(markup).not.toContain('My TackBar')
     expect(markup).toMatch(/<header[^>]*><div class="public-header-brand"><img[^>]*alt="TackBar"/)
     expect(markup).toContain('>About</button>')
     expect(markup).not.toContain('public-header-release')
-    expect(markup).toContain('sailor@example.com - Test Sailor</p><p>2 Sessions</p>')
+    expect(markup).toMatch(/sailor@example\.com - Test Sailor<\/p><h1 id="my-sessions-heading">My Sessions<\/h1><p>2 Sessions<\/p>/)
     expect(markup).toContain('2 Sessions')
     expect(markup).not.toContain('Last sailing')
     expect(markup.indexOf('2026-09-05T13:49:00Z')).toBeLessThan(markup.indexOf('2026-09-04T17:24:00Z'))
@@ -63,6 +64,17 @@ describe('Personal TackBar / My Sessions', () => {
     expect(markup).toContain('2026-09-04T17:24:00Z')
     expect(markup).not.toContain('null ·')
     expect(markup).not.toContain('undefined ·')
+  })
+
+  it('keeps the Session location/date and time-range rows across a local day', () => {
+    vi.stubEnv('TZ', 'Europe/Madrid')
+    const start = '2026-09-05T21:30:00Z'
+    const end = '2026-09-05T23:15:00Z'
+    const markup = render({ ...data, sessions: [{ ...data.sessions[0], sailing_start: start, sailing_end: end }] })
+    const firstDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Europe/Madrid' }).format(new Date(start))
+    const nextDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Europe/Madrid' }).format(new Date(end))
+    expect(markup).toContain(`<h2>${data.sessions[0].location_label} · <time dateTime="${start}">${firstDay}</time></h2>`)
+    expect(markup).toContain(`<p class="personal-session__summary"><time dateTime="${start}">23:30</time>–<time dateTime="${end}">${nextDay} · 01:15</time> · 2 sailors</p>`)
   })
 
   it('uses country when city is empty and searches the displayed location', () => {
@@ -138,7 +150,7 @@ describe('Personal TackBar / My Sessions', () => {
 
   it('keeps the identity and count with an empty history', () => {
     const markup = render({ email: data.email, name: null, session_count: 0, last_sailing_end: null, sessions: [] })
-    expect(markup).toContain('sailor@example.com</p><p>0 Sessions</p>')
+    expect(markup).toContain('sailor@example.com</p><h1 id="my-sessions-heading">My Sessions</h1><p>0 Sessions</p>')
     expect(markup).toContain('No Sessions recorded yet.')
     expect(markup).not.toContain('Last sailing:')
     expect(markup).not.toContain('Open Session')
@@ -146,7 +158,7 @@ describe('Personal TackBar / My Sessions', () => {
 
   it.each([null, '', '   ', '\t\n'])('shows only email when name is %j', (name) => {
     const markup = render({ ...data, name })
-    expect(markup).toContain('<p class="personal-name">sailor@example.com</p><p>2 Sessions</p>')
+    expect(markup).toContain('<p class="personal-name">sailor@example.com</p><h1 id="my-sessions-heading">My Sessions</h1><p>2 Sessions</p>')
     expect(markup).not.toContain('sailor@example.com -')
     expect(markup).not.toContain('Last sailing')
   })

@@ -51,6 +51,7 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   vi.clearAllMocks()
+  vi.unstubAllEnvs()
 })
 
 async function mount() {
@@ -88,6 +89,9 @@ describe('My Activities', () => {
     expect(container.querySelector('main.personal-page > section > h2#my-activities-heading')).not.toBeNull()
     expect(container.querySelector('main.personal-page > section > h2#my-boats-heading')).not.toBeNull()
     expect(container.querySelector('.personal-activity h3')).not.toBeNull()
+    expect(container.querySelector('.personal-activity h3 time')?.getAttribute('dateTime')).toBe(activity.start_time)
+    expect(container.querySelectorAll('.personal-activity h3 time')).toHaveLength(1)
+    expect([...container.querySelectorAll('.personal-activity__summary time')].map((item) => item.getAttribute('dateTime'))).toEqual([activity.start_time, activity.end_time])
     expect(container.textContent).toContain('Old boat')
     expect(container.textContent).toContain('Device: Not available')
     expect(container.textContent).toContain('Source: gpx · Original file: watch.gpx · Extracted Device: Not available')
@@ -103,6 +107,21 @@ describe('My Activities', () => {
     expect(container.querySelector<HTMLSelectElement>('select')?.value).toBe('__keep__')
     expect(options.some(([value]) => value === 'legacy-1')).toBe(false)
     expect(container.querySelector<HTMLInputElement>('.personal-activity input')?.value).toBe('')
+  })
+
+  it('separates the Activity date and full interval, including a local overnight crossing', async () => {
+    vi.stubEnv('TZ', 'Europe/Madrid')
+    const start = '2026-09-05T21:30:00Z'
+    const end = '2026-09-05T23:15:00Z'
+    vi.mocked(api.getPersonalActivities).mockResolvedValue([{ ...activity, start_time: start, end_time: end }])
+    await mount()
+    const card = container.querySelector('.personal-activity')!
+    const firstDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Europe/Madrid' }).format(new Date(start))
+    const nextDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Europe/Madrid' }).format(new Date(end))
+    expect(card.querySelector('h3')?.textContent).toBe(firstDay)
+    expect(card.querySelector('h3 time')?.getAttribute('dateTime')).toBe(start)
+    expect(card.querySelector('.personal-activity__summary')?.textContent).toBe(`23:30–${nextDay} · 01:15`)
+    expect([...card.querySelectorAll('.personal-activity__summary time')].map((item) => item.getAttribute('dateTime'))).toEqual([start, end])
   })
 
   it('prefills an extracted Device and only writes an edited custom label', async () => {

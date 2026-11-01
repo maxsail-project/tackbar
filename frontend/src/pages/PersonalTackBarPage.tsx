@@ -15,6 +15,9 @@ const day = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: '
 const time = (value: string) => new Intl.DateTimeFormat(undefined, {
   hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 }).format(new Date(value))
+const sailingInterval = (start: string, end: string) => <>
+  <time dateTime={start}>{time(start)}</time>–<time dateTime={end}>{day(start) !== day(end) && `${day(end)} · `}{time(end)}</time>
+</>
 
 const normalized = (value: string) => value.normalize('NFKD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase()
 
@@ -69,13 +72,14 @@ export function PersonalTackBarContent({ state, token, onUnavailable, onProfileS
   return <>
     <header className="app-header personal-header"><PublicHeaderBrand /><AboutControl /></header>
     <main className="personal-page">
+    {state.status === 'ready' && (token
+      ? <MyProfile token={token} name={state.data.name} email={state.data.email} onSaved={onProfileSaved} onUnavailable={onUnavailable} />
+      : <p className="personal-name">{state.data.email}{state.data.name?.trim() ? ` - ${state.data.name.trim()}` : ''}</p>)}
     <h1 id="my-sessions-heading">My Sessions</h1>
     {state.status === 'loading' && <p className="personal-feedback" role="status">Loading My Sessions…</p>}
     {state.status === 'unavailable' && <p className="personal-feedback" role="alert">This personal link is unavailable.</p>}
     {state.status === 'error' && <p className="personal-feedback" role="alert">Cannot load My TackBar. Please try again.</p>}
     {state.status === 'ready' && <>
-      {!token && <p className="personal-name">{state.data.email}{state.data.name?.trim() ? ` - ${state.data.name.trim()}` : ''}</p>}
-      {token && <MyProfile token={token} name={state.data.name} email={state.data.email} onSaved={onProfileSaved} onUnavailable={onUnavailable} />}
       <p>{state.data.session_count} {state.data.session_count === 1 ? 'Session' : 'Sessions'}</p>
       <section aria-labelledby="my-sessions-heading">
         {state.data.sessions.length === 0 ? <p>No Sessions recorded yet.</p> : <>
@@ -89,7 +93,7 @@ export function PersonalTackBarContent({ state, token, onUnavailable, onProfileS
               const location = sessionDisplayLocation(session.location_label, session.location_country)
               const content = <>
                 <h2>{location && `${location} · `}<time dateTime={session.sailing_start}>{day(session.sailing_start)}</time></h2>
-                <p className="personal-session__summary"><time dateTime={session.sailing_start}>{time(session.sailing_start)}</time>–<time dateTime={session.sailing_end}>{day(session.sailing_start) !== day(session.sailing_end) && `${day(session.sailing_end)} · `}{time(session.sailing_end)}</time> · {session.sailor_count} {session.sailor_count === 1 ? 'sailor' : 'sailors'}</p>
+                <p className="personal-session__summary">{sailingInterval(session.sailing_start, session.sailing_end)} · {session.sailor_count} {session.sailor_count === 1 ? 'sailor' : 'sailors'}</p>
                 {weather && <p className="personal-session__weather">{weather}</p>}
               </>
               return <li className={`personal-session${session.session_path ? '' : ' personal-session--unavailable'}`} key={index}>
@@ -290,19 +294,8 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
         const currentBoat = activity.boat ? boatName(activity.boat) : activity.boat_id ? 'Unavailable Boat association' : 'No Boat'
         const editing = editingId === activity.id
         return <li className="personal-activity" key={activity.id}>
-          <h3>
-            <time dateTime={activity.start_time}>
-              {day(activity.start_time)}
-            </time>
-            {' · '}
-            <time dateTime={activity.start_time}>
-              {time(activity.start_time)}
-            </time>
-            {'–'}
-            <time dateTime={activity.end_time}>
-              {time(activity.end_time)}
-            </time>
-          </h3>
+          <h3><time dateTime={activity.start_time}>{day(activity.start_time)}</time></h3>
+          <p className="personal-activity__summary">{sailingInterval(activity.start_time, activity.end_time)}</p>
           <p className="personal-activity__context"><strong>Boat:</strong> {currentBoat}</p>
           <p className="personal-activity__context"><strong>Device:</strong> {effectiveDevice(activity) || 'Not available'}</p>
           <p className="personal-activity__origin">Source: {activity.source} · Original file: {activity.original_filename} · Extracted Device: {activity.device_name.trim() ? activity.device_name : 'Not available'}</p>
