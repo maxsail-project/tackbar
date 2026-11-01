@@ -83,6 +83,8 @@ describe('My Profile', () => {
     expect(profile.querySelector('h2')).toBeNull()
     expect(container.querySelector('a[href="/s/shared"]')).not.toBeNull()
     expect(container.textContent).toContain('My Activities')
+    const heading = container.querySelector('.personal-activity h3')
+    expect(heading?.textContent).toContain('13:49–17:21')    
     expect(container.textContent).toContain('My Boats')
     await click('Edit Name')
     expect(container.querySelector<HTMLInputElement>('#personal-profile-name')?.value).toBe('Old Name')

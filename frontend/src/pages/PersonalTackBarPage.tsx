@@ -290,7 +290,19 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
         const currentBoat = activity.boat ? boatName(activity.boat) : activity.boat_id ? 'Unavailable Boat association' : 'No Boat'
         const editing = editingId === activity.id
         return <li className="personal-activity" key={activity.id}>
-          <h3><time dateTime={activity.start_time}>{day(activity.start_time)} · {time(activity.start_time)}</time></h3>
+          <h3>
+            <time dateTime={activity.start_time}>
+              {day(activity.start_time)}
+            </time>
+            {' · '}
+            <time dateTime={activity.start_time}>
+              {time(activity.start_time)}
+            </time>
+            {'–'}
+            <time dateTime={activity.end_time}>
+              {time(activity.end_time)}
+            </time>
+          </h3>
           <p className="personal-activity__context"><strong>Boat:</strong> {currentBoat}</p>
           <p className="personal-activity__context"><strong>Device:</strong> {effectiveDevice(activity) || 'Not available'}</p>
           <p className="personal-activity__origin">Source: {activity.source} · Original file: {activity.original_filename} · Extracted Device: {activity.device_name.trim() ? activity.device_name : 'Not available'}</p>
