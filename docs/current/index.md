@@ -12,7 +12,7 @@ Living Documentation describes TackBar's accepted current behavior by product do
 | [Access and Consent](access-and-consent.md) | Consent, shared visibility, purpose-specific capabilities and temporary access |
 | [Session Viewer](session-viewer.md) | Activity selection, Analysis Window, map, charts and replay |
 | [Analytics](analytics.md) | Maneuver detection, analytical measures and artifacts |
-| [Personal TackBar](personal-tackbar.md) | Personal Session history, search, presentation and opening |
+| [Personal TackBar](personal-tackbar.md) | My Sessions history and opening; My Activities Boat/Device editing; My Boats and Default Boat management; optional Sailor name editing |
 | [Admin](admin.md) | Operational navigation, inspection, maintenance and administrative presentation |
 | [Session Context](session-context.md) | Session-owned geographic and historical weather/marine acquisition, persistence and availability |
 

@@ -36,7 +36,7 @@ flowchart TB
     ANALYTICS["Maneuver analytics / artifacts"]
     CONTEXT["Session context enrichment"]
     ACCESS["Consent and purpose-specific capabilities"]
-    API["FastAPI: authorized read, personal context write / Admin APIs"]
+    API["FastAPI: authorized read, personal writes / Admin APIs"]
     STORE[("Private persistence: JSON metadata, CSV.GZ tracks, originals, artifacts")]
 
     SAILOR -->|"owns"| ACT
@@ -58,7 +58,7 @@ flowchart TB
   subgraph WEB["React / TypeScript web experience"]
     direction LR
     CONSENT["Web consent"]
-    PERSONAL["Personal TackBar / My Sessions, Activities and Boats"]
+    PERSONAL["Personal TackBar / Sessions, Activities, Boats and Profile"]
     VIEWER["Session Viewer: map, UTC window, compare, replay"]
     ADMIN["Protected Admin"]
   end
@@ -85,13 +85,13 @@ flowchart TB
   A Sailor may own a Boat catalogue; legacy Boats remain unowned. An Activity
   belongs to one Sailor, may reference a Boat, and is associated with at most
   one Session.
-- **Personal TackBar includes participation history and Sailor-owned context, not a bypass into a Session.**
+- **Personal TackBar includes participation history, Activity Boat/Device editing, Boat and Default Boat management, and optional Sailor name editing.**
   Opening a Session still requires a currently usable shared capability.
   Original Session, Personal, consent-request and temporary-QR credentials
   serve different purposes.
-- **Personal context writes use the current personal capability.** The backend
-  authorizes Activity Boat and Device-label edits, owned Boat management and
-  optional default-Boat updates through My TackBar.
+- **Personal writes use the current personal capability.** The backend
+  authorizes Activity Boat and Device-label edits, owned Boat management,
+  optional default-Boat updates and the Sailor's own optional name edit.
 - **The Viewer uses one ephemeral shared GPS/UTC Analysis Window,**
   analytically compares at most two selected Activities, and supports replay.
   It does not persist the selected analysis window as a domain entity.
@@ -112,7 +112,7 @@ flowchart TB
 | Consent, visibility and capabilities | [Access and Consent](access-and-consent.md) |
 | Shared Viewer, selection, UTC analysis and replay | [Session Viewer](session-viewer.md) |
 | Maneuver detection, measures and artifacts | [Analytics](analytics.md) |
-| Personal history and opening Sessions | [Personal TackBar](personal-tackbar.md) |
+| Personal history, own context and profile | [Personal TackBar](personal-tackbar.md) |
 | Protected operations and manual upload | [Admin](admin.md) |
 | Geography and historical weather/marine context | [Session Context](session-context.md) |
 
