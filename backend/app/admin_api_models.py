@@ -271,6 +271,24 @@ class AdminActivityTechnicalTrackResponse(BaseModel):
     ]
 
 
+class AdminVkxRecordRowResponse(BaseModel):
+    code: str
+    name: str
+    source_count: int
+    handling: Literal["framing", "normalized", "activity_observations", "partially_used", "ignored"]
+
+
+class AdminVkxRecordSummaryResponse(BaseModel):
+    source_state: Literal["available", "missing", "unreadable"]
+    rows: list[AdminVkxRecordRowResponse] | None
+    source_navigation_rows: int | None
+    source_race_timer_rows: int | None
+    source_line_position_rows: int | None
+    normalized_navigation_samples: int | None
+    persisted_race_timer_events: int
+    persisted_line_positions: int
+
+
 class AdminActivityResponse(AdminActivitySummaryResponse):
     source: str
     device_name: str
@@ -283,6 +301,7 @@ class AdminActivityResponse(AdminActivitySummaryResponse):
     ]
     related_ingestions: list[AdminActivityRelatedIngestionResponse]
     technical_track: AdminActivityTechnicalTrackResponse | None
+    vkx_record_summary: AdminVkxRecordSummaryResponse | None
     maneuvers: AdminManeuverStateResponse
     diagnostic: dict[str, object]
 

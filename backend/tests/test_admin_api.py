@@ -1,4 +1,5 @@
 import asyncio
+import gzip
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -1905,6 +1906,130 @@ def test_admin_activity_detail_reports_canonical_technical_track_evidence(
         "effective_sample_frequency_hz",
         "available_channels",
     }
+
+
+@pytest.mark.parametrize("filename", ["Atlas.vkx", "Atlas.VKX.GZ"])
+def test_admin_vkx_detail_separates_source_normalized_and_persisted_counts(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    vakaros_vkx_observations_bytes: bytes,
+    filename: str,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    records = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    records[0]["original_filename"] = filename
+    records[0]["race_timer_events"] = [{
+        "timestamp": "2031-06-10T10:00:00.789000+00:00",
+        "event_type": 3,
+        "timer_value_seconds": -2,
+    }]
+    records[0]["line_positions"] = []
+    _write_json(root / "activities.json", records)
+    storage = TrackStorage(root)
+    original = gzip.compress(vakaros_vkx_observations_bytes) if filename.lower().endswith(".gz") else vakaros_vkx_observations_bytes
+    storage.archive_original(ACTIVITY_ACTIVE, filename, original)
+    storage.write_normalized_track(ACTIVITY_ACTIVE, normalize_track(ACTIVITY_ACTIVE, [
+        {"utc": "2031-06-10T10:00:00Z", "lat": 38.1, "lon": -0.2},
+        {"utc": "2031-06-10T10:00:01Z", "lat": 38.2, "lon": -0.2},
+    ]))
+    before = (root / "activities.json").read_bytes()
+
+    unauthorized = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}", admin_key=None)
+    listing = _request("GET", "/api/admin/activities")
+    detail = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    summary = detail.json["vkx_record_summary"]
+
+    assert unauthorized.status_code == 401
+    assert listing.status_code == detail.status_code == 200
+    assert "vkx_record_summary" not in listing.json[0]
+    assert summary["source_state"] == "available"
+    assert (summary["source_navigation_rows"], summary["normalized_navigation_samples"]) == (1, 2)
+    assert (summary["source_race_timer_rows"], summary["persisted_race_timer_events"]) == (2, 1)
+    assert (summary["source_line_position_rows"], summary["persisted_line_positions"]) == (2, 0)
+    assert {row["code"]: (row["name"], row["handling"], row["source_count"])
+            for row in summary["rows"]} == {
+        "0xFF": ("Page Header", "framing", 1),
+        "0x02": ("Position, Velocity, and Orientation", "normalized", 1),
+        "0x04": ("Race Timer Event", "activity_observations", 2),
+        "0x05": ("Line Position", "activity_observations", 2),
+    }
+    assert '"race_timer_events":' not in json.dumps(detail.json)
+    assert '"line_positions":' not in json.dumps(detail.json)
+    assert str(root) not in json.dumps(detail.json)
+    assert (root / "activities.json").read_bytes() == before
+
+
+@pytest.mark.parametrize("original", [None, b"bad gzip"])
+def test_admin_vkx_detail_keeps_persisted_counts_when_source_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    original: bytes | None,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    records = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    records[0]["original_filename"] = "Atlas.vkx.gz"
+    _write_json(root / "activities.json", records)
+    if original is not None:
+        TrackStorage(root).archive_original(ACTIVITY_ACTIVE, "Atlas.vkx.gz", original)
+
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    summary = response.json["vkx_record_summary"]
+    assert response.status_code == 200
+    assert summary["source_state"] == ("missing" if original is None else "unreadable")
+    assert summary["rows"] is None
+    assert summary["source_race_timer_rows"] is None
+    assert summary["persisted_race_timer_events"] == 0
+    assert summary["persisted_line_positions"] == 0
+
+
+def test_admin_vkx_detail_shows_zero_found_and_neutral_ignored_rows(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    vakaros_vkx_bytes: bytes,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    records = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    records[0]["original_filename"] = "Atlas.vkx"
+    _write_json(root / "activities.json", records)
+    raw = (
+        vakaros_vkx_bytes
+        + bytes([0x06]) + bytes(18)
+        + bytes([0x08]) + bytes(13)
+        + bytes([0x0A]) + bytes(16)
+        + bytes([0x21]) + bytes(52)
+        + bytes([0xFE]) + bytes(2)
+    )
+    TrackStorage(root).archive_original(ACTIVITY_ACTIVE, "Atlas.vkx", raw)
+
+    response = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    summary = response.json["vkx_record_summary"]
+    rows = {row["code"]: row for row in summary["rows"]}
+    assert summary["source_state"] == "available"
+    assert summary["source_race_timer_rows"] == summary["source_line_position_rows"] == 0
+    assert summary["persisted_race_timer_events"] == summary["persisted_line_positions"] == 0
+    assert rows["0x06"]["name"] == "Shift Angle"
+    assert rows["0x06"]["handling"] == "ignored"
+    assert rows["0x08"]["handling"] == "partially_used"
+    assert rows["0x0A"]["name"] == "Wind"
+    assert rows["0x21"]["name"] == "Internal row"
+    assert rows["0xFE"]["name"] == "Page Terminator"
+
+
+def test_admin_activity_list_does_not_scan_vkx_originals(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    records = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    records[0]["original_filename"] = "Atlas.vkx"
+    _write_json(root / "activities.json", records)
+    monkeypatch.setattr(
+        "app.services.admin_activities.count_vkx_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("list scanned original")),
+    )
+
+    response = _request("GET", "/api/admin/activities")
+    assert response.status_code == 200
+    assert "vkx_record_summary" not in response.json[0]
 
 
 @pytest.mark.parametrize(

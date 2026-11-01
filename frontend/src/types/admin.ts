@@ -215,6 +215,8 @@ export interface AdminManeuverState {
   current_algorithm_version: number
 }
 
+export type AdminVkxRecordHandling = 'framing' | 'normalized' | 'activity_observations' | 'partially_used' | 'ignored'
+
 export interface AdminActivity extends AdminActivitySummary {
   source: string
   device_name: string
@@ -233,6 +235,21 @@ export interface AdminActivity extends AdminActivitySummary {
     duration_seconds: number
     effective_sample_frequency_hz: number | null
     available_channels: Array<'SOG' | 'COG' | 'HDG' | 'HEEL' | 'TRIM' | 'QUATERNION'>
+  } | null
+  vkx_record_summary: {
+    source_state: 'available' | 'missing' | 'unreadable'
+    rows: Array<{
+      code: string
+      name: string
+      source_count: number
+      handling: AdminVkxRecordHandling
+    }> | null
+    source_navigation_rows: number | null
+    source_race_timer_rows: number | null
+    source_line_position_rows: number | null
+    normalized_navigation_samples: number | null
+    persisted_race_timer_events: number
+    persisted_line_positions: number
   } | null
   maneuvers: AdminManeuverState
   diagnostic: Record<string, unknown>

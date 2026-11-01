@@ -27,7 +27,7 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   location: null, historical_conditions: null,
   diagnostic: { session: { id: 'session-123' }, temporary_shares: [{ id: 'share-1', state: 'VALID' }] },
 })
-const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat_id: 'boat-1', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', device_label: null, original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', detector_mode: 'HIGH', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 7, current_algorithm_version: 7 }, diagnostic: { id: 'activity-123456789' } }
+const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat_id: 'boat-1', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', device_label: null, original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, vkx_record_summary: null, maneuvers: { artifact_currency: 'current', detector_status: 'available', detector_mode: 'HIGH', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 7, current_algorithm_version: 7 }, diagnostic: { id: 'activity-123456789' } }
 const sourceIngestion: AdminIngestion = { id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'pilot@example.test', received_at: '2026-09-05T17:25:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: '2026-09-05T17:26:00Z', last_error: null, activity_id: activity.id, session_id: activity.session_id, activity_created_by_ingestion: true, sailor_id: activity.sailor_id, sailor_label: activity.sailor_label, sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: activity.start_time, activity_end_time: activity.end_time, activity_sample_count: activity.sample_count }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
@@ -770,6 +770,68 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('<dt>Available telemetry channels</dt><dd>SOG · COG · HDG · HEEL · TRIM · QUATERNION</dd>')
     for (const id of [activity.id, activity.sailor_id, activity.session_id, activity.source_ingestion_id]) expect(markup).toContain(`<dd>${id}</dd>`)
     expect(markup).not.toContain('Map'); expect(markup).not.toContain('Metrics')
+  })
+
+  it('keeps non-VKX Activity detail free of a VKX summary', () => {
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={activity} onFollow={() => undefined} />)
+    expect(markup).not.toContain('VKX Record Summary')
+  })
+
+  it('shows source, normalized and persisted VKX counts separately in Advanced', () => {
+    const vkx: AdminActivity = {
+      ...activity,
+      original_filename: 'Atlas.vkx',
+      vkx_record_summary: {
+        source_state: 'available',
+        source_navigation_rows: 16360,
+        source_race_timer_rows: 8,
+        source_line_position_rows: 3,
+        normalized_navigation_samples: 16359,
+        persisted_race_timer_events: 7,
+        persisted_line_positions: 0,
+        rows: [
+          { code: '0xFF', name: 'Page Header', source_count: 4, handling: 'framing' },
+          { code: '0x02', name: 'Position, Velocity, and Orientation', source_count: 16360, handling: 'normalized' },
+          { code: '0x04', name: 'Race Timer Event', source_count: 8, handling: 'activity_observations' },
+          { code: '0x05', name: 'Line Position', source_count: 3, handling: 'activity_observations' },
+          { code: '0x06', name: 'Shift Angle', source_count: 2, handling: 'ignored' },
+          { code: '0x08', name: 'Device Configuration', source_count: 1, handling: 'partially_used' },
+          { code: '0x0A', name: 'Wind', source_count: 5, handling: 'ignored' },
+        ],
+      },
+    }
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={vkx} onFollow={() => undefined} />)
+    const advanced = markup.slice(markup.indexOf('<summary>Advanced</summary>'), markup.indexOf('<summary>Diagnostic JSON</summary>'))
+
+    expect(advanced).toContain('<h4>VKX Record Summary</h4>')
+    expect(advanced).toMatch(/<dt>Source navigation rows \(0x02\)<\/dt><dd>16[,.]360<\/dd>/)
+    expect(advanced).toMatch(/<dt>Normalized navigation samples<\/dt><dd>16[,.]359<\/dd>/)
+    expect(advanced).toContain('<dt>Source timer rows (0x04)</dt><dd>8</dd>')
+    expect(advanced).toContain('<dt>Persisted timer events</dt><dd>7</dd>')
+    expect(advanced).toContain('<dt>Source line rows (0x05)</dt><dd>3</dd>')
+    expect(advanced).toContain('<dt>Persisted line positions</dt><dd>0</dd>')
+    for (const label of ['Format framing', 'Selected navigation fields normalized', 'Parsed if valid; see persisted count', 'Recognized; not yet retained', 'Used to qualify orientation; row not retained', 'Recognized; payload not retained']) expect(advanced).toContain(label)
+    expect(advanced).toContain('class="admin-vkx-record-list"')
+    expect(advanced).not.toContain('latitude')
+    expect(markup.indexOf('<h4>Technical track</h4>')).toBeLessThan(markup.indexOf('<h4>VKX Record Summary</h4>'))
+  })
+
+  it.each(['missing', 'unreadable'] as const)('keeps persisted zeros visible when the VKX original is %s', (source_state) => {
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{
+      ...activity,
+      original_filename: 'Atlas.vkx.gz',
+      vkx_record_summary: {
+        source_state, rows: null, source_navigation_rows: null,
+        source_race_timer_rows: null, source_line_position_rows: null,
+        normalized_navigation_samples: null, persisted_race_timer_events: 0,
+        persisted_line_positions: 0,
+      },
+    }} onFollow={() => undefined} />)
+    expect(markup).toContain(source_state === 'missing' ? 'Unavailable · original missing' : 'Unreadable · inventory unavailable')
+    expect(markup).toContain('<dt>Source timer rows (0x04)</dt><dd>Unavailable</dd>')
+    expect(markup).toContain('<dt>Persisted timer events</dt><dd>0</dd>')
+    expect(markup).toContain('<dt>Persisted line positions</dt><dd>0</dd>')
+    expect(markup).not.toContain('admin-vkx-record-list')
   })
 
   it.each(['HIGH', 'LOW'] as const)('shows persisted %s in Maneuvers detail', (mode) => {

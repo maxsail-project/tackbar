@@ -10,6 +10,8 @@ from app.admin_api_models import (
     AdminActivityResponse,
     AdminActivitySummaryResponse,
     AdminActivityTechnicalTrackResponse,
+    AdminVkxRecordRowResponse,
+    AdminVkxRecordSummaryResponse,
     AdminManeuverStateResponse,
 )
 from app.models import Boat, StoredActivity
@@ -25,6 +27,17 @@ from app.services.maneuver_analytics import (
 )
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
+from app.services.vkx_record_inventory import VKXInventoryError, count_vkx_rows
+
+
+VKX_ROW_NAMES = {
+    0xFF: "Page Header", 0xFE: "Page Terminator",
+    0x02: "Position, Velocity, and Orientation", 0x03: "Declination",
+    0x04: "Race Timer Event", 0x05: "Line Position", 0x06: "Shift Angle",
+    0x08: "Device Configuration", 0x0A: "Wind",
+    0x0B: "Speed Through Water", 0x0C: "Depth",
+    0x0F: "Load", 0x10: "Temperature",
+}
 
 
 class AdminActivityReader:
@@ -95,6 +108,7 @@ class AdminActivityReader:
         technical_track = (
             self._technical_track(activity.id) if track_available else None
         )
+        vkx_record_summary = self._vkx_record_summary(activity, technical_track)
         diagnostic = {
             "id": activity.id,
             "sailor_id": activity.sailor_id,
@@ -125,6 +139,7 @@ class AdminActivityReader:
             source_ingestion_resolution=source_ingestion_resolution,
             related_ingestions=ambiguous_related_ingestions,
             technical_track=technical_track,
+            vkx_record_summary=vkx_record_summary,
             maneuvers=self._maneuver_state(activity.id),
             diagnostic=diagnostic,
         )
@@ -207,4 +222,52 @@ class AdminActivityReader:
             duration_seconds=duration_seconds,
             effective_sample_frequency_hz=frequency,
             available_channels=available_channels,
+        )
+
+    def _vkx_record_summary(
+        self,
+        activity: StoredActivity,
+        technical_track: AdminActivityTechnicalTrackResponse | None,
+    ) -> AdminVkxRecordSummaryResponse | None:
+        filename = activity.original_filename.lower()
+        if activity.source != "vakaros" or not filename.endswith((".vkx", ".vkx.gz")):
+            return None
+
+        counts = None
+        source_state = "unreadable"
+        try:
+            path = self.tracks.original_path(activity.id, activity.original_filename)
+            if not path.exists():
+                source_state = "missing"
+            elif path.is_file():
+                counts = count_vkx_rows(path, compressed=filename.endswith(".gz"))
+                source_state = "available"
+        except (OSError, EOFError, ValueError, VKXInventoryError):
+            pass
+
+        rows = None
+        if counts is not None:
+            rows = [
+                AdminVkxRecordRowResponse(
+                    code=f"0x{code:02X}",
+                    name=VKX_ROW_NAMES.get(code, "Internal row"),
+                    source_count=counts[code],
+                    handling=(
+                        "framing" if code in (0xFF, 0xFE) else
+                        "normalized" if code == 0x02 else
+                        "activity_observations" if code in (0x04, 0x05) else
+                        "partially_used" if code == 0x08 else "ignored"
+                    ),
+                )
+                for code in sorted(counts, key=lambda key: -1 if key == 0xFF else key)
+            ]
+        return AdminVkxRecordSummaryResponse(
+            source_state=source_state,
+            rows=rows,
+            source_navigation_rows=counts.get(0x02, 0) if counts is not None else None,
+            source_race_timer_rows=counts.get(0x04, 0) if counts is not None else None,
+            source_line_position_rows=counts.get(0x05, 0) if counts is not None else None,
+            normalized_navigation_samples=technical_track.sample_count if technical_track else None,
+            persisted_race_timer_events=len(activity.race_timer_events),
+            persisted_line_positions=len(activity.line_positions),
         )
