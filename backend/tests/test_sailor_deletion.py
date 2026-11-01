@@ -426,6 +426,22 @@ def test_apply_deletes_only_target_owned_runtime_data(
     assert MAILBOX_WARNING in report
 
 
+def test_deletion_retains_boat_owned_by_deleted_sailor(
+    temporary_directory: Path,
+) -> None:
+    root = _runtime_root(temporary_directory)
+    boats_path = root / "boats.json"
+    boats = json.loads(boats_path.read_text(encoding="utf-8"))
+    boats[0]["sailor_id"] = TARGET_SAILOR_ID
+    _write_json(boats_path, boats)
+    before = boats_path.read_bytes()
+
+    apply_sailor_deletion(plan_sailor_deletion(root, "target@example.com"))
+
+    assert boats_path.read_bytes() == before
+    assert SailorRepository(root / "sailors.json").get_by_id(TARGET_SAILOR_ID) is None
+
+
 def test_apply_accepts_a_compatible_runtime_owner(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,

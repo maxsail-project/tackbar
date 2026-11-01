@@ -2,12 +2,16 @@ from fastapi import APIRouter, HTTPException
 
 from app.personal_api_models import (
     PersonalActivityContextPatch, PersonalActivityResponse,
-    PersonalBoatResponse, PersonalDefaultBoatPatch, PersonalDefaultBoatResponse,
+    PersonalBoatCreate, PersonalBoatPatch, PersonalBoatResponse,
+    PersonalDefaultBoatPatch, PersonalDefaultBoatResponse,
 )
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.sailors import SailorRepository
-from app.services.personal_context import PersonalContextService, PersonalContextUnavailable
+from app.services.personal_context import (
+    ClassConfirmationRequired, PersonalBoatValidationError,
+    PersonalContextService, PersonalContextUnavailable,
+)
 
 
 router = APIRouter(prefix="/api/me/{token}")
@@ -52,6 +56,53 @@ def list_personal_boats(token: str) -> list[PersonalBoatResponse]:
         return _service().list_boats(token)
     except PersonalContextUnavailable as error:
         raise _unavailable() from error
+    except ValueError as error:
+        raise _integrity_error() from error
+
+
+@router.get("/boat-classes", response_model=list[str])
+def list_personal_boat_classes(token: str) -> list[str]:
+    try:
+        return _service().list_class_names(token)
+    except PersonalContextUnavailable as error:
+        raise _unavailable() from error
+    except ValueError as error:
+        raise _integrity_error() from error
+
+
+@router.post("/boats", response_model=PersonalBoatResponse, status_code=201)
+def create_personal_boat(token: str, request: PersonalBoatCreate) -> PersonalBoatResponse:
+    try:
+        return _service().create_boat(token, request)
+    except PersonalContextUnavailable as error:
+        raise _unavailable() from error
+    except PersonalBoatValidationError as error:
+        raise HTTPException(status_code=422, detail="Boat needs at least one nonblank metadata field") from error
+    except ClassConfirmationRequired as error:
+        raise HTTPException(status_code=409, detail={
+            "code": "class_confirmation_required",
+            "submitted_class": error.submitted_class,
+            "suggested_class": error.suggested_class,
+        }) from error
+    except ValueError as error:
+        raise _integrity_error() from error
+
+
+@router.patch("/boats/{boat_id}", response_model=PersonalBoatResponse)
+def update_personal_boat(token: str, boat_id: str,
+                         request: PersonalBoatPatch) -> PersonalBoatResponse:
+    try:
+        return _service().update_boat(token, boat_id, request)
+    except PersonalContextUnavailable as error:
+        raise _unavailable() from error
+    except PersonalBoatValidationError as error:
+        raise HTTPException(status_code=422, detail="Boat needs at least one nonblank metadata field") from error
+    except ClassConfirmationRequired as error:
+        raise HTTPException(status_code=409, detail={
+            "code": "class_confirmation_required",
+            "submitted_class": error.submitted_class,
+            "suggested_class": error.suggested_class,
+        }) from error
     except ValueError as error:
         raise _integrity_error() from error
 

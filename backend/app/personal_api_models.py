@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StrictBool
 
 from app.api_models import BoatContextResponse
 
@@ -52,6 +52,18 @@ class PersonalBoatResponse(BaseModel):
     name: str | None
     sailing_class: str | None
     sail_number: str | None
+
+
+class PersonalBoatCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = None
+    sailing_class: str | None = None
+    sail_number: str | None = None
+    confirm_new_class: StrictBool = False
+
+
+class PersonalBoatPatch(PersonalBoatCreate):
+    pass
 
 
 class PersonalDefaultBoatResponse(BaseModel):

@@ -1,11 +1,14 @@
 """Sailor-scoped context reads and edits using the current personal capability."""
 
 from dataclasses import replace
+from uuid import uuid4
 
 from app.api_models import BoatContextResponse
+from app.models import Boat
 from app.personal_api_models import (
     PersonalActivityContextPatch, PersonalActivityResponse,
-    PersonalBoatResponse, PersonalDefaultBoatPatch, PersonalDefaultBoatResponse,
+    PersonalBoatCreate, PersonalBoatPatch, PersonalBoatResponse,
+    PersonalDefaultBoatPatch, PersonalDefaultBoatResponse,
 )
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
@@ -13,10 +16,23 @@ from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.ingestion_lock import ingestion_lock, locked_sailor_write
 from app.services.personal_capabilities import PersonalCapabilityService
+from app.services.boat_classes import (
+    known_class_names, normalized_class_name, suggested_class_name,
+)
 
 
 class PersonalContextUnavailable(Exception):
     """The capability or scoped resource cannot be used."""
+
+
+class PersonalBoatValidationError(Exception):
+    """Submitted Boat metadata is invalid."""
+
+
+class ClassConfirmationRequired(Exception):
+    def __init__(self, submitted_class: str, suggested_class: str) -> None:
+        self.submitted_class = submitted_class
+        self.suggested_class = suggested_class
 
 
 class PersonalContextService:
@@ -74,6 +90,65 @@ class PersonalContextService:
             id=boat.id, name=boat.name, sailing_class=boat.sailing_class,
             sail_number=boat.sail_number,
         ) for boat in self.boats.list_for_sailor(sailor.id)]
+
+    @locked_sailor_write
+    def list_class_names(self, token: str) -> list[str]:
+        self._sailor(token)
+        return sorted(known_class_names(self.boats.all()).values(), key=lambda name: (name.casefold(), name))
+
+    @locked_sailor_write
+    def create_boat(self, token: str, request: PersonalBoatCreate) -> PersonalBoatResponse:
+        sailor = self._sailor(token)
+        sailing_class = self._resolve_class(request.sailing_class, request.confirm_new_class)
+        boat = Boat(str(uuid4()), request.name, sailing_class, request.sail_number, sailor.id)
+        self._validate_metadata(boat)
+        return self._boat_response(self.boats.add_for_sailor(sailor.id, boat))
+
+    @locked_sailor_write
+    def update_boat(self, token: str, boat_id: str, request: PersonalBoatPatch) -> PersonalBoatResponse:
+        sailor = self._sailor(token)
+        existing = self.boats.get_for_sailor(sailor.id, boat_id)
+        if existing is None:
+            raise PersonalContextUnavailable
+        changed = request.model_fields_set & {"name", "sailing_class", "sail_number"}
+        if not changed:
+            return self._boat_response(existing)
+        values = {key: getattr(request, key) for key in changed}
+        if "sailing_class" in values:
+            values["sailing_class"] = self._resolve_class(
+                request.sailing_class, request.confirm_new_class,
+            )
+        boat = replace(existing, **values)
+        self._validate_metadata(boat)
+        return self._boat_response(self.boats.replace_for_sailor(sailor.id, boat))
+
+    def _resolve_class(self, value: str | None, confirm_new: bool) -> str | None:
+        if value is None:
+            return None
+        submitted = normalized_class_name(value)
+        if not submitted:
+            return submitted
+        known = known_class_names(self.boats.all())
+        canonical = known.get(submitted.casefold())
+        if canonical is not None:
+            return canonical
+        suggestion = suggested_class_name(submitted, known)
+        if suggestion is not None and not confirm_new:
+            raise ClassConfirmationRequired(submitted, suggestion)
+        return submitted
+
+    @staticmethod
+    def _validate_metadata(boat: Boat) -> None:
+        if not any(value is not None and value.strip()
+                   for value in (boat.name, boat.sailing_class, boat.sail_number)):
+            raise PersonalBoatValidationError
+
+    @staticmethod
+    def _boat_response(boat: Boat) -> PersonalBoatResponse:
+        return PersonalBoatResponse(
+            id=boat.id, name=boat.name, sailing_class=boat.sailing_class,
+            sail_number=boat.sail_number,
+        )
 
     @locked_sailor_write
     def get_default_boat(self, token: str) -> PersonalDefaultBoatResponse:

@@ -3,6 +3,7 @@ import json
 from threading import Event, Thread
 from dataclasses import replace
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 
@@ -11,7 +12,7 @@ from app.models import ConsentStatus, InboundEmail
 from app.repositories.activities import ActivityRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
-from app.personal_api_models import PersonalDefaultBoatPatch
+from app.personal_api_models import PersonalBoatPatch, PersonalDefaultBoatPatch
 from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
 from app.services.personal_context import PersonalContextService
 from app.services.personal_capabilities import PersonalCapabilityService
@@ -247,3 +248,171 @@ def test_default_write_serializes_with_ingestion(monkeypatch, temporary_director
     assert not writer.is_alive() and not ingester.is_alive()
     assert result[0].activity.boat_id == OWN_BOAT
     assert ActivityRepository(root / "activities.json").get_by_id(ACTIVITY).boat_id == LEGACY_BOAT
+
+
+def test_personal_boat_create_and_partial_edit(monkeypatch, temporary_directory):
+    root = _root(monkeypatch, temporary_directory)
+    base = f"/api/me/{TOKEN}"
+    activities_before = (root / "activities.json").read_bytes()
+    default_before = SailorRepository(root / "sailors.json").get_by_id(SAILOR).default_boat_id
+
+    status, created, headers = _request("POST", base + "/boats", {"name": "New Boat"})
+    assert status == 201 and headers["cache-control"] == "no-store"
+    assert str(UUID(created["id"])) == created["id"]
+    assert created == {"id": created["id"], "name": "New Boat", "sailing_class": None, "sail_number": None}
+    stored = BoatRepository(root / "boats.json").get_by_id(created["id"])
+    assert stored.sailor_id == SAILOR
+
+    status, edited, _ = _request("PATCH", base + f"/boats/{created['id']}", {"sail_number": "GBR 1"})
+    assert status == 200 and (edited["name"], edited["sail_number"]) == ("New Boat", "GBR 1")
+    status, edited, _ = _request("PATCH", base + f"/boats/{created['id']}", {"name": None})
+    assert status == 200 and edited["name"] is None and edited["sail_number"] == "GBR 1"
+    before = (root / "boats.json").read_bytes()
+    status, _, _ = _request("PATCH", base + f"/boats/{created['id']}", {"sail_number": None})
+    assert status == 422 and (root / "boats.json").read_bytes() == before
+    assert _request("PATCH", base + f"/boats/{created['id']}", {})[1] == edited
+    assert (root / "activities.json").read_bytes() == activities_before
+    assert SailorRepository(root / "sailors.json").get_by_id(SAILOR).default_boat_id == default_before
+
+
+def test_personal_boat_rejects_unapproved_fields_and_scoped_edits(monkeypatch, temporary_directory):
+    root = _root(monkeypatch, temporary_directory)
+    base = f"/api/me/{TOKEN}"
+    before = (root / "boats.json").read_bytes()
+    for field in ("id", "sailor_id", "device_label", "boat_id"):
+        assert _request("POST", base + "/boats", {"name": "New", field: "changed"})[0] == 422
+        assert _request("PATCH", base + f"/boats/{OWN_BOAT}", {field: "changed"})[0] == 422
+    for body in ({}, {"name": " "}, {"name": None, "sailing_class": "", "sail_number": None}):
+        assert _request("POST", base + "/boats", body)[0] == 422
+    denied = []
+    for boat_id in (OTHER_BOAT, LEGACY_BOAT, "40000000-0000-4000-8000-000000000099"):
+        status, body, headers = _request("PATCH", base + f"/boats/{boat_id}", {"name": "Claimed"})
+        assert status == 404 and headers["cache-control"] == "no-store"
+        denied.append(body)
+    assert denied[0] == denied[1] == denied[2]
+    assert (root / "boats.json").read_bytes() == before
+
+
+def test_class_names_canonicalize_and_typo_requires_explicit_choice(monkeypatch, temporary_directory):
+    root = _root(monkeypatch, temporary_directory)
+    boats_path = root / "boats.json"
+    boats = json.loads(boats_path.read_text())
+    boats[0]["sailing_class"] = "49er"
+    boats[1]["sailing_class"] = "Snipe"
+    boats[2]["sailing_class"] = "ILCA 7"
+    _write(boats_path, boats)
+    base = f"/api/me/{TOKEN}"
+    status, names, _ = _request("GET", base + "/boat-classes")
+    assert status == 200 and names == ["49er", "ILCA 7", "Snipe"]
+    assert all(isinstance(name, str) for name in names)
+    assert "Private" not in json.dumps(names) and OTHER not in json.dumps(names)
+    assert _request("GET", base + "/boats")[1][0]["sailing_class"] == "49er"
+    for submitted, canonical in ((" sNiPe ", "Snipe"), (" ilca  7 ", "ILCA 7"), (" 49ER ", "49er")):
+        status, created, _ = _request("POST", base + "/boats", {"sailing_class": submitted})
+        assert status == 201 and created["sailing_class"] == canonical
+    before = boats_path.read_bytes()
+    status, prompted, _ = _request("POST", base + "/boats", {"sailing_class": "Sinpe"})
+    assert status == 409 and prompted["detail"] == {
+        "code": "class_confirmation_required", "submitted_class": "Sinpe", "suggested_class": "Snipe"}
+    assert boats_path.read_bytes() == before
+    status, prompted, _ = _request("PATCH", base + f"/boats/{OWN_BOAT}", {"sailing_class": "Sinpe"})
+    assert status == 409 and prompted["detail"]["suggested_class"] == "Snipe"
+    assert boats_path.read_bytes() == before
+    status, edited, _ = _request("PATCH", base + f"/boats/{OWN_BOAT}", {"sailing_class": "Snipe"})
+    assert status == 200 and edited["sailing_class"] == "Snipe"
+    assert _request("PATCH", base + f"/boats/{OWN_BOAT}", {"name": "After"})[1]["sailing_class"] == "Snipe"
+    assert _request("PATCH", base + f"/boats/{OWN_BOAT}", {"sailing_class": None})[1]["sailing_class"] is None
+    status, corrected, _ = _request("POST", base + "/boats", {"sailing_class": "Snipe"})
+    assert status == 201 and corrected["sailing_class"] == "Snipe"
+    status, retained, _ = _request("POST", base + "/boats", {
+        "sailing_class": "Sinpe", "confirm_new_class": True})
+    assert status == 201 and retained["sailing_class"] == "Sinpe"
+    status, new, _ = _request("POST", base + "/boats", {"sailing_class": "Waszp"})
+    assert status == 201 and new["sailing_class"] == "Waszp"
+    names = _request("GET", f"/api/me/{OTHER_TOKEN}/boat-classes")[1]
+    assert "Sinpe" in names and "Waszp" in names
+    assert _request("POST", f"/api/me/{OTHER_TOKEN}/boats", {"sailing_class": " waszp "})[1]["sailing_class"] == "Waszp"
+    assert all("id" not in name and "sailor" not in name for name in names)
+
+
+def test_boat_edit_updates_activity_and_session_presentation(monkeypatch, temporary_directory):
+    root = _root(monkeypatch, temporary_directory)
+    base = f"/api/me/{TOKEN}"
+    assert _request("PATCH", base + f"/activities/{ACTIVITY}", {"boat_id": OWN_BOAT})[0] == 200
+    activities_before = (root / "activities.json").read_bytes()
+    sessions_before = (root / "sessions.json").read_bytes()
+    sailors_before = (root / "sailors.json").read_bytes()
+    other_before = BoatRepository(root / "boats.json").get_by_id(OTHER_BOAT)
+
+    status, edited, _ = _request("PATCH", base + f"/boats/{OWN_BOAT}", {
+        "name": "Renamed", "sailing_class": "ILCA 7"})
+    assert status == 200 and edited["name"] == "Renamed"
+    assert _request("GET", base + "/activities")[1][0]["boat"]["name"] == "Renamed"
+    shared = _request("GET", f"/api/shared/sessions/{SHARED_TOKEN}")[1]
+    own = next(item for item in shared["activities"] if item["id"] == ACTIVITY)
+    assert own["boat"]["name"] == "Renamed" and own["boat"]["sailing_class"] == "ILCA 7"
+    assert (root / "activities.json").read_bytes() == activities_before
+    assert (root / "sessions.json").read_bytes() == sessions_before
+    assert (root / "sailors.json").read_bytes() == sailors_before
+    assert BoatRepository(root / "boats.json").get_by_id(OTHER_BOAT) == other_before
+
+
+def test_personal_boat_routes_recheck_current_capability(monkeypatch, temporary_directory):
+    root = _root(monkeypatch, temporary_directory)
+    def denied(token: str):
+        base = f"/api/me/{token}"
+        for method, path, body in (
+            ("GET", "/boat-classes", None),
+            ("POST", "/boats", {"name": "No"}),
+            ("PATCH", f"/boats/{OWN_BOAT}", {"name": "No"}),
+        ):
+            status, _, headers = _request(method, base + path, body)
+            assert status == 404 and headers["cache-control"] == "no-store"
+    denied("invalid")
+    denied(SHARED_TOKEN)
+    denied(SAILOR)
+    assert _request("PATCH", f"/api/me/{OTHER_TOKEN}/boats/{OWN_BOAT}", {"name": "No"})[0] == 404
+    capabilities = PersonalCapabilityService(
+        SailorRepository(root / "sailors.json"), SessionRepository(root / "sessions.json"),
+        token_generator=lambda: "rotated-boat-management-token-0000000000001",
+    )
+    capabilities.regenerate_capability(SAILOR)
+    denied(TOKEN)
+    capabilities.revoke_capability(SAILOR)
+    denied("rotated-boat-management-token-0000000000001")
+    sailors = SailorRepository(root / "sailors.json")
+    current = sailors.get_by_id(SAILOR)
+    for status in (ConsentStatus.PENDING, ConsentStatus.REVOKED):
+        sailors.replace(replace(current, consent_status=status, personal_capability_revoked=False))
+        denied("rotated-boat-management-token-0000000000001")
+
+
+def test_concurrent_partial_boat_edits_preserve_both_changes(monkeypatch, temporary_directory):
+    root = _root(monkeypatch, temporary_directory)
+    first_boats = BoatRepository(root / "boats.json")
+    first = PersonalContextService(SailorRepository(root / "sailors.json"), first_boats,
+                                   ActivityRepository(root / "activities.json"))
+    second = PersonalContextService(SailorRepository(root / "sailors.json"),
+                                    BoatRepository(root / "boats.json"), ActivityRepository(root / "activities.json"))
+    entered, release = Event(), Event()
+    original_save = first_boats._save
+    def paused_save(boats):
+        entered.set()
+        assert release.wait(5)
+        original_save(boats)
+    first_boats._save = paused_save
+    results = []
+    writer_one = Thread(target=lambda: results.append(first.update_boat(
+        TOKEN, OWN_BOAT, PersonalBoatPatch(name="First"))))
+    writer_one.start()
+    assert entered.wait(5)
+    writer_two = Thread(target=lambda: results.append(second.update_boat(
+        TOKEN, OWN_BOAT, PersonalBoatPatch(sail_number="77"))))
+    writer_two.start()
+    assert writer_two.is_alive()
+    release.set()
+    writer_one.join(5)
+    writer_two.join(5)
+    assert not writer_one.is_alive() and not writer_two.is_alive()
+    stored = BoatRepository(root / "boats.json").get_by_id(OWN_BOAT)
+    assert (stored.name, stored.sail_number, stored.sailor_id) == ("First", "77", SAILOR)
