@@ -152,12 +152,12 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function mountViewer(accessKind: 'original' | 'temporary' = 'original') {
+async function mountViewer(accessKind: 'original' | 'temporary' = 'original', visibleSession: SharedSessionDetail = session) {
   await act(async () => {
     const access = accessKind === 'original'
       ? { kind: 'original' as const, token: 'test' }
       : { kind: 'temporary' as const, token: 'test', expiresAt: new Date(Date.now() + 60_000).toISOString() }
-    root.render(<SessionViewer access={access} session={session} />)
+    root.render(<SessionViewer access={access} session={visibleSession} />)
   })
   expect(container.querySelector('[data-marker]')).not.toBeNull()
 }
@@ -207,6 +207,33 @@ function mapHighlights() {
 const marker = (seconds: number) => `[data-marker="${start + seconds * 1_000}"]`
 
 describe('Viewer selected maneuver interactions', () => {
+  it.each(['original', 'temporary'] as const)('keeps duplicate selector labels tied to Activity IDs across roles with %s access', async (accessKind) => {
+    const commonBoat = { id: 'boat-1', name: 'Shared boat', sailing_class: null, sail_number: '123' }
+    const visibleSession = {
+      ...session,
+      activities: [...session.activities].reverse().map((activity) => ({ ...activity, boat: commonBoat })),
+    }
+    await mountViewer(accessKind, visibleSession)
+    const options = (label: string) => [...container.querySelectorAll<HTMLOptionElement>(`select[aria-label="${label}"] option`)]
+      .filter((option) => option.value)
+      .map((option) => [option.value, option.textContent])
+    const expected = [
+      ['c', '123 · 10:00–10:00 #3'],
+      ['b', '123 · 10:00–10:00 #2'],
+      ['a', '123 · 10:00–10:00 #1'],
+    ]
+    expect(options('My track')).toEqual(expected)
+    expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'c'))
+    await choose('Compare', 'a')
+    expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'c'))
+    await choose('My track', 'a')
+    expect(options('My track')).toEqual(expected)
+    expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'a'))
+    await choose('Compare', 'c')
+    expect(options('Compare').find(([id]) => id === 'c')?.[1]).toBe('123 · 10:00–10:00 #3')
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('c')
+  })
+
   it.each(['original', 'temporary'] as const)('places the independent profile section after Track Analysis and before Individual Analysis with %s access', async (accessKind) => {
     await mountViewer(accessKind)
     const selectors = [

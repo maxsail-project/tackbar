@@ -21,6 +21,7 @@ export interface SessionActivity {
   id: string
   source: string
   device_name: string
+  device_label?: string | null
   original_filename: string
   start_time: string
   end_time: string

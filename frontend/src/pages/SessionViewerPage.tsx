@@ -69,7 +69,7 @@ import {
   resolveReplayPresentation,
 } from '../utils/metricPresentation'
 import { calculateSummaryMetrics, type SummaryMetrics } from '../utils/summaryMetrics'
-import { formatActivityIdentity, formatActivityLabel } from '../utils/activityLabel'
+import { buildActivitySelectorLabels, formatActivityIdentity, formatActivityLabel } from '../utils/activityLabel'
 import {
   formatSessionDuration,
   formatSessionIdentity,
@@ -496,6 +496,10 @@ export function SessionViewer({
   )
   const comparisonOptions = session.activities.filter(
     (activity) => activity.id !== primaryActivityId,
+  )
+  const selectorLabels = useMemo(
+    () => buildActivitySelectorLabels(session.activities),
+    [session.activities],
   )
   const primaryTrackState = useActivityTrack(access, primaryActivityId || null, trackCache)
   const comparisonTrackState = useActivityTrack(access, comparisonActivityId, trackCache)
@@ -937,12 +941,14 @@ export function SessionViewer({
         <ActivitySelector
           label="My track"
           activities={session.activities}
+          labels={selectorLabels}
           selectedId={primaryActivityId}
           onChange={changePrimary}
         />
         <ActivitySelector
           label="Compare"
           activities={comparisonOptions}
+          labels={selectorLabels}
           selectedId={comparisonActivityId}
           onChange={changeComparison}
           optional

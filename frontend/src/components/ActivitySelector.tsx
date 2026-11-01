@@ -8,6 +8,7 @@ interface ActivitySelectorProps {
   onChange: (activityId: string | null) => void
   disabled?: boolean
   optional?: boolean
+  labels?: ReadonlyMap<string, string>
 }
 
 export default function ActivitySelector({
@@ -17,6 +18,7 @@ export default function ActivitySelector({
   onChange,
   disabled = false,
   optional = false,
+  labels,
 }: ActivitySelectorProps) {
   return (
     <label className="activity-selector">
@@ -35,7 +37,7 @@ export default function ActivitySelector({
           )}
           {activities.map((activity) => (
             <option key={activity.id} value={activity.id}>
-              {formatActivitySelectorLabel(activity)}
+              {labels?.get(activity.id) ?? formatActivitySelectorLabel(activity)}
             </option>
           ))}
         </select>

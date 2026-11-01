@@ -6,7 +6,7 @@ import ActivitySelector from './ActivitySelector'
 const emailActivity: SessionActivity = {
   id: 'activity-full-id',
   source: 'vakaros',
-  device_name: 'device',
+  device_name: '',
   original_filename: 'track.csv.gz',
   start_time: '2031-06-15T08:03:00Z',
   end_time: '2031-06-15T10:42:00Z',
@@ -28,5 +28,16 @@ describe('ActivitySelector', () => {
 
     expect(markup).toContain('value="activity-full-id"')
     expect(markup).toContain('maxi+vakaros@ · 08:03–10:42</option>')
+  })
+
+  it('uses supplied full-Session labels while retaining native Activity-ID option values', () => {
+    const markup = renderToStaticMarkup(<ActivitySelector
+      label="Compare" activities={[emailActivity]} selectedId={null} optional
+      labels={new Map([[emailActivity.id, 'maxi+vakaros@ · 08:03–10:42 #2']])}
+      onChange={() => undefined}
+    />)
+    expect(markup).toContain('<select')
+    expect(markup).toContain('value="activity-full-id"')
+    expect(markup).toContain('maxi+vakaros@ · 08:03–10:42 #2</option>')
   })
 })
