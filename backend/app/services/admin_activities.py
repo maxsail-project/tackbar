@@ -255,7 +255,7 @@ class AdminActivityReader:
                     handling=(
                         "framing" if code in (0xFF, 0xFE) else
                         "normalized" if code == 0x02 else
-                        "activity_observations" if code in (0x04, 0x05) else
+                        "activity_observations" if code in (0x04, 0x05, 0x06) else
                         "partially_used" if code == 0x08 else "ignored"
                     ),
                 )
@@ -267,7 +267,9 @@ class AdminActivityReader:
             source_navigation_rows=counts.get(0x02, 0) if counts is not None else None,
             source_race_timer_rows=counts.get(0x04, 0) if counts is not None else None,
             source_line_position_rows=counts.get(0x05, 0) if counts is not None else None,
+            source_shift_angle_rows=counts.get(0x06, 0) if counts is not None else None,
             normalized_navigation_samples=technical_track.sample_count if technical_track else None,
             persisted_race_timer_events=len(activity.race_timer_events),
             persisted_line_positions=len(activity.line_positions),
+            persisted_shift_angle_observations=len(activity.shift_angle_observations),
         )

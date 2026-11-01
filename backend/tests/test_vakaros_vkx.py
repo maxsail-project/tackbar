@@ -67,6 +67,26 @@ def _line(timestamp_ms: int, endpoint_type: int, latitude: float, longitude: flo
     return _row(0x05, struct.pack("<QBff", timestamp_ms, endpoint_type, latitude, longitude))
 
 
+def _shift_angle(
+    timestamp_ms: int,
+    tack_code: int,
+    setting_origin_code: int,
+    true_heading_degrees: float,
+    average_sog_knots: float,
+) -> bytes:
+    return _row(
+        0x06,
+        struct.pack(
+            "<QBBff",
+            timestamp_ms,
+            tack_code,
+            setting_origin_code,
+            true_heading_degrees,
+            average_sog_knots,
+        ),
+    )
+
+
 def _quaternion_from_euler(
     *,
     roll: float = 0.0,
@@ -103,6 +123,7 @@ def test_valid_vkx_parses_canonical_activity_and_ignores_altitude() -> None:
     assert activity.source == "vakaros"
     assert activity.race_timer_events == []
     assert activity.line_positions == []
+    assert activity.shift_angle_observations == []
     assert activity.original_filename == "Atlas 10-10-2026.vkx"
     assert activity.device_name == "Atlas"
     assert activity.start_time == datetime(
@@ -391,6 +412,76 @@ def test_auxiliary_rows_preserve_codes_signed_values_precision_and_source_order(
     assert len(activity.samples) == 1
 
 
+def test_shift_angle_rows_preserve_codes_units_precision_repeats_and_source_order() -> None:
+    base = 1_938_854_096_789
+    activity = parse_vakaros_vkx(
+        _vkx(
+            _shift_angle(base + 5, 0, 0, 359.5, 7.25),
+            _position(),
+            _shift_angle(base + 3, 1, 1, 1.25, 8.5),
+            _shift_angle(base + 3, 1, 1, 1.25, 8.5),
+            _shift_angle(base, 255, 254, 360.0, 0.0),
+        ),
+        original_filename="Atlas.vkx",
+    )
+    observations = activity.shift_angle_observations
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+    assert [observation.timestamp for observation in observations] == [
+        epoch + timedelta(milliseconds=ms) for ms in (base + 5, base + 3, base + 3, base)
+    ]
+    assert [observation.tack_code for observation in observations] == [0, 1, 1, 255]
+    assert [observation.setting_origin_code for observation in observations] == [0, 1, 1, 254]
+    assert [observation.true_heading_degrees for observation in observations] == [
+        359.5, 1.25, 1.25, 360.0,
+    ]
+    assert [observation.average_sog_knots for observation in observations] == [
+        7.25, 8.5, 8.5, 0.0,
+    ]
+    assert observations[1] == observations[2]
+    assert len(activity.samples) == 1
+
+
+@pytest.mark.parametrize(
+    ("row", "error"),
+    [
+        (_shift_angle(2**64 - 1, 0, 0, 10.0, 5.0), "Shift Angle timestamp"),
+        (_shift_angle(1_938_854_096_789, 0, 0, float("nan"), 5.0), "Shift Angle true heading"),
+        (_shift_angle(1_938_854_096_789, 0, 0, float("inf"), 5.0), "Shift Angle true heading"),
+        (_shift_angle(1_938_854_096_789, 0, 0, -0.1, 5.0), "Shift Angle true heading"),
+        (_shift_angle(1_938_854_096_789, 0, 0, 360.1, 5.0), "Shift Angle true heading"),
+        (_shift_angle(1_938_854_096_789, 0, 0, 10.0, float("nan")), "Shift Angle average SOG"),
+        (_shift_angle(1_938_854_096_789, 0, 0, 10.0, float("-inf")), "Shift Angle average SOG"),
+        (_shift_angle(1_938_854_096_789, 0, 0, 10.0, -0.1), "Shift Angle average SOG"),
+    ],
+)
+def test_invalid_shift_angle_row_rejects_whole_file(row: bytes, error: str) -> None:
+    with pytest.raises(VKXParseError, match=error):
+        parse_vakaros_vkx(
+            _vkx(
+                _shift_angle(1_938_854_096_789, 1, 250, 10.0, 5.0),
+                _position(),
+                row,
+            ),
+            original_filename="Atlas.vkx",
+        )
+
+
+def test_file_without_shift_angle_rows_has_empty_observations() -> None:
+    activity = parse_vakaros_vkx(
+        _vkx(
+            _timer(1_938_854_096_789, 0, -10),
+            _line(1_938_854_096_789, 0, 38.25, -0.5),
+            _position(),
+        ),
+        original_filename="Atlas.vkx",
+    )
+
+    assert activity.shift_angle_observations == []
+    assert len(activity.race_timer_events) == 1
+    assert len(activity.line_positions) == 1
+
+
 @pytest.mark.parametrize("invalid_line", [
     _line(1_938_854_096_789, 0, float("nan"), 0),
     _line(1_938_854_096_789, 1, 0, float("inf")),
@@ -416,6 +507,7 @@ def test_invalid_complete_auxiliary_rows_are_skipped_with_aggregate_diagnostics(
 @pytest.mark.parametrize("row", [
     bytes([0x04]) + bytes(12),
     bytes([0x05]) + bytes(16),
+    bytes([0x06]) + bytes(17),
 ])
 def test_truncated_auxiliary_rows_reject_entire_file(row: bytes) -> None:
     with pytest.raises(VKXParseError, match="truncated"):
@@ -486,7 +578,12 @@ def test_invalid_navigation_telemetry_is_rejected(
     ["Atlas.vkx", "Atlas.VKX", "Atlas.vkx.gz", "Atlas.VKX.GZ"],
 )
 def test_vkx_and_gzip_suffixes_parse_equivalently(filename: str) -> None:
-    raw = _vkx(_timer(1_938_854_096_789, 3, 0), _line(1_938_854_096_789, 0, 38.25, -0.5), _position())
+    raw = _vkx(
+        _timer(1_938_854_096_789, 3, 0),
+        _line(1_938_854_096_789, 0, 38.25, -0.5),
+        _shift_angle(1_938_854_096_789, 255, 254, 359.5, 7.25),
+        _position(),
+    )
     source = gzip.compress(raw) if filename.lower().endswith(".gz") else raw
 
     activity = parse_vakaros_vkx(source, original_filename=filename)
@@ -498,6 +595,7 @@ def test_vkx_and_gzip_suffixes_parse_equivalently(filename: str) -> None:
     assert activity.samples == plain.samples
     assert activity.race_timer_events == plain.race_timer_events
     assert activity.line_positions == plain.line_positions
+    assert activity.shift_angle_observations == plain.shift_angle_observations
 
 
 def test_corrupt_gzip_is_rejected_cleanly() -> None:

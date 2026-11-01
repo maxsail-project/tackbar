@@ -548,11 +548,11 @@ def test_vkx_uses_existing_activity_track_session_and_raw_dedup_pipeline(
 
 def test_vkx_email_reprocess_replaces_legacy_observations_without_changing_context(
     temporary_json_file: Callable[[str, object], Path],
-    vakaros_vkx_observations_bytes: bytes,
+    vakaros_vkx_shift_angle_bytes: bytes,
 ) -> None:
     sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
     first = process_provider_email(
-        "ovh", _email(vakaros_vkx_observations_bytes, provider_message_id="vkx-1", filename="Atlas.vkx"),
+        "ovh", _email(vakaros_vkx_shift_angle_bytes, provider_message_id="vkx-1", filename="Atlas.vkx"),
         sailors, boats, activities, sessions, history,
     )
     assert first is not None
@@ -560,19 +560,22 @@ def test_vkx_email_reprocess_replaces_legacy_observations_without_changing_conte
     session_id = first.session_match.session.id
     assert len(first.activity.race_timer_events) == 2
     assert len(first.activity.line_positions) == 2
+    assert len(first.activity.shift_angle_observations) == 3
     activities.update_context_for_sailor(first.sailor.id, activity_id, boat_id=None, device_label="Race watch")
 
     historical = json.loads(activities.path.read_text(encoding="utf-8"))
     historical[0].pop("race_timer_events")
     historical[0].pop("line_positions")
+    historical[0].pop("shift_angle_observations")
     activities.path.write_text(json.dumps(historical), encoding="utf-8")
     duplicate = process_provider_email(
-        "ovh", _email(vakaros_vkx_observations_bytes, provider_message_id="vkx-2", filename="Atlas.vkx"),
+        "ovh", _email(vakaros_vkx_shift_angle_bytes, provider_message_id="vkx-2", filename="Atlas.vkx"),
         sailors, boats, activities, sessions, history,
     )
     assert duplicate is not None and not duplicate.activity_created
     assert duplicate.activity.id == activity_id
     assert duplicate.activity.race_timer_events == duplicate.activity.line_positions == []
+    assert duplicate.activity.shift_angle_observations == []
 
     ingestion_id = history.find_provider_message("ovh", "vkx-1")["id"]
     for expected_attempts in (2, 3):
@@ -585,7 +588,36 @@ def test_vkx_email_reprocess_replaces_legacy_observations_without_changing_conte
         assert persisted.boat_id is None and persisted.device_label == "Race watch"
         assert len(persisted.race_timer_events) == 2
         assert len(persisted.line_positions) == 2
+        assert len(persisted.shift_angle_observations) == 3
+        assert persisted.shift_angle_observations[0] == persisted.shift_angle_observations[2]
         assert persisted.race_timer_events[0].timestamp.microsecond == 789000
+    assert len(activities.all()) == len(sessions.all()) == 1
+
+
+def test_vkx_ingestion_reprocess_clears_shift_observations_when_source_has_none(
+    temporary_json_file: Callable[[str, object], Path],
+    vakaros_vkx_observations_bytes: bytes,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
+    first = process_provider_email(
+        "ovh", _email(vakaros_vkx_observations_bytes, provider_message_id="vkx-empty", filename="Atlas.vkx"),
+        sailors, boats, activities, sessions, history,
+    )
+    assert first is not None
+    records = json.loads(activities.path.read_text(encoding="utf-8"))
+    records[0]["shift_angle_observations"] = [{
+        "timestamp": "2026-10-10T00:00:00.001000+00:00",
+        "tack_code": 1, "setting_origin_code": 255,
+        "true_heading_degrees": 90.0, "average_sog_knots": 5.0,
+    }]
+    activities.path.write_text(json.dumps(records), encoding="utf-8")
+
+    ingestion_id = history.find_provider_message("ovh", "vkx-empty")["id"]
+    updated = reprocess_ingestion(ingestion_id, sailors, boats, activities, sessions, history)
+    persisted = activities.get_by_id(first.activity.id)
+    assert updated["status"] == "processed"
+    assert persisted is not None and persisted.shift_angle_observations == []
+    assert len(persisted.race_timer_events) == len(persisted.line_positions) == 2
     assert len(activities.all()) == len(sessions.all()) == 1
 
 

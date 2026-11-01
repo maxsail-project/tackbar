@@ -219,20 +219,23 @@ def test_personal_context_survives_duplicate_and_track_refresh(
 
 def test_vkx_observations_round_trip_and_legacy_missing_collections(
     temporary_json_file: Callable[[str, object], Path],
-    vakaros_vkx_observations_bytes: bytes,
+    vakaros_vkx_shift_angle_bytes: bytes,
     vakaros_vkx_bytes: bytes,
 ) -> None:
     path = temporary_json_file("activities", [])
     repository = ActivityRepository(path)
-    parsed = parse_vakaros_vkx(vakaros_vkx_observations_bytes, "Atlas.vkx")
+    parsed = parse_vakaros_vkx(vakaros_vkx_shift_angle_bytes, "Atlas.vkx")
     created, is_new = repository.find_or_create(
-        SAILOR_A, BOAT_A, parsed, vakaros_vkx_observations_bytes,
+        SAILOR_A, BOAT_A, parsed, vakaros_vkx_shift_angle_bytes,
     )
     assert is_new
     loaded = repository.get_by_id(created.id)
     assert loaded is not None
     assert loaded.race_timer_events == parsed.race_timer_events
     assert loaded.line_positions == parsed.line_positions
+    assert loaded.shift_angle_observations == parsed.shift_angle_observations
+    assert loaded.shift_angle_observations[0].timestamp.microsecond == 792000
+    assert len(loaded.shift_angle_observations) == 3
     assert loaded.race_timer_events[0].timestamp.microsecond == 789000
     assert loaded.line_positions[0].timestamp.microsecond == 790000
     assert len(loaded.race_timer_events) == 2
@@ -240,20 +243,24 @@ def test_vkx_observations_round_trip_and_legacy_missing_collections(
     legacy = json.loads(path.read_text(encoding="utf-8"))
     del legacy[0]["race_timer_events"]
     del legacy[0]["line_positions"]
+    del legacy[0]["shift_angle_observations"]
     path.write_text(json.dumps(legacy), encoding="utf-8")
     reused, is_new = repository.find_or_create(
-        SAILOR_A, BOAT_B, parsed, vakaros_vkx_observations_bytes,
+        SAILOR_A, BOAT_B, parsed, vakaros_vkx_shift_angle_bytes,
     )
     assert not is_new
     assert reused.id == created.id
     assert reused.race_timer_events == []
     assert reused.line_positions == []
+    assert reused.shift_angle_observations == []
 
     refreshed = repository.replace_auxiliary_observations(created.id, parsed)
     assert refreshed.race_timer_events == parsed.race_timer_events
     assert refreshed.line_positions == parsed.line_positions
+    assert refreshed.shift_angle_observations == parsed.shift_angle_observations
 
     empty = parse_vakaros_vkx(vakaros_vkx_bytes, "Atlas.vkx")
     cleared = repository.replace_auxiliary_observations(created.id, empty)
     assert cleared.race_timer_events == []
     assert cleared.line_positions == []
+    assert cleared.shift_angle_observations == []

@@ -247,9 +247,11 @@ export interface AdminActivity extends AdminActivitySummary {
     source_navigation_rows: number | null
     source_race_timer_rows: number | null
     source_line_position_rows: number | null
+    source_shift_angle_rows: number | null
     normalized_navigation_samples: number | null
     persisted_race_timer_events: number
     persisted_line_positions: number
+    persisted_shift_angle_observations: number
   } | null
   maneuvers: AdminManeuverState
   diagnostic: Record<string, unknown>

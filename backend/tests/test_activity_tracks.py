@@ -346,14 +346,20 @@ def test_reprocessing_reports_missing_archived_original(
         reprocess_activity(activity_id, repository, storage)
 
 
+@pytest.mark.parametrize("fixture_name, expected_shift_count", [
+    ("vakaros_vkx_shift_angle_bytes", 3),
+    ("vakaros_vkx_observations_bytes", 0),
+])
 def test_reprocessing_restores_vkx_track_and_preserves_identity_and_session(
     temporary_directory: Path,
-    vakaros_vkx_observations_bytes: bytes,
+    request: pytest.FixtureRequest,
+    fixture_name: str,
+    expected_shift_count: int,
 ) -> None:
     repository = ActivityRepository(temporary_directory / "activities.json")
     storage = TrackStorage(temporary_directory)
     original_filename = "Atlas 10-10-2026.vkx.gz"
-    original_bytes = gzip.compress(vakaros_vkx_observations_bytes)
+    original_bytes = gzip.compress(request.getfixturevalue(fixture_name))
     parsed = parse_vakaros_attachment(
         original_bytes,
         original_filename=original_filename,
@@ -388,6 +394,14 @@ def test_reprocessing_restores_vkx_track_and_preserves_identity_and_session(
     historical = json.loads(repository.path.read_text(encoding="utf-8"))
     historical[0].pop("race_timer_events")
     historical[0].pop("line_positions")
+    if expected_shift_count:
+        historical[0].pop("shift_angle_observations")
+    else:
+        historical[0]["shift_angle_observations"] = [{
+            "timestamp": "2026-10-10T00:00:00.001000+00:00",
+            "tack_code": 1, "setting_origin_code": 255,
+            "true_heading_degrees": 90.0, "average_sog_knots": 5.0,
+        }]
     repository.path.write_text(json.dumps(historical), encoding="utf-8")
 
     storage.track_path(persisted.id).unlink()
@@ -405,10 +419,12 @@ def test_reprocessing_restores_vkx_track_and_preserves_identity_and_session(
     assert reprocessed.source == "vakaros"
     assert reprocessed.device_label == "My Atlas"
     assert len(reprocessed.race_timer_events) == len(reprocessed.line_positions) == 2
+    assert len(reprocessed.shift_angle_observations) == expected_shift_count
     assert reprocessed.race_timer_events[0].timestamp.microsecond == 789000
     repeated = reprocess_activity(persisted.id, repository, storage)
     assert repeated.race_timer_events == reprocessed.race_timer_events
     assert repeated.line_positions == reprocessed.line_positions
+    assert repeated.shift_angle_observations == reprocessed.shift_angle_observations
     assert list(restored.columns) == CANONICAL_TRACK_COLUMNS
     quaternions = restored.loc[
         0,

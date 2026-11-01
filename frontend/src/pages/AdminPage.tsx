@@ -617,8 +617,7 @@ export function ActivityCard({ activity, detail, session, sourceIngestion, busy,
 
 export function VkxRecordSummary({ summary }: { summary: NonNullable<AdminActivity['vkx_record_summary']> }) {
   const sourceValue = (count: number | null) => count === null ? 'Unavailable' : count.toLocaleString()
-  const handlingLabel = (code: string, handling: AdminVkxRecordHandling) => {
-    if (code === '0x06') return 'Recognized; not yet retained'
+  const handlingLabel = (handling: AdminVkxRecordHandling) => {
     return ({
       framing: 'Format framing',
       normalized: 'Selected navigation fields normalized',
@@ -637,13 +636,15 @@ export function VkxRecordSummary({ summary }: { summary: NonNullable<AdminActivi
       <div><dt>Persisted timer events</dt><dd>{summary.persisted_race_timer_events.toLocaleString()}</dd></div>
       <div><dt>Source line rows (0x05)</dt><dd>{sourceValue(summary.source_line_position_rows)}</dd></div>
       <div><dt>Persisted line positions</dt><dd>{summary.persisted_line_positions.toLocaleString()}</dd></div>
+      <div><dt>Source Shift Angle rows (0x06)</dt><dd>{sourceValue(summary.source_shift_angle_rows)}</dd></div>
+      <div><dt>Persisted Shift Angle observations</dt><dd>{summary.persisted_shift_angle_observations.toLocaleString()}</dd></div>
     </dl>
     {summary.rows && <ul className="admin-vkx-record-list" aria-label="VKX source row types">
       {summary.rows.map((row) => <li key={row.code}>
         <span className="admin-vkx-record-list__code">{row.code}</span>
         <strong>{row.name}</strong>
         <span>{row.source_count.toLocaleString()} source {row.source_count === 1 ? 'row' : 'rows'}</span>
-        <span>{handlingLabel(row.code, row.handling)}</span>
+        <span>{handlingLabel(row.handling)}</span>
       </li>)}
     </ul>}
   </div>

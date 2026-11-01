@@ -7,7 +7,7 @@ from pathlib import Path
 from statistics import median
 from typing import BinaryIO
 
-from app.models import Activity, LinePosition, RaceTimerEvent
+from app.models import Activity, LinePosition, RaceTimerEvent, ShiftAngleObservation
 from app.parsers.vakaros import (
     VAKAROS_VKX_SUFFIXES,
     extract_vakaros_device_name,
@@ -19,6 +19,7 @@ METRES_PER_SECOND_TO_KNOTS = 1.9438444924406
 POSITION_ROW = struct.Struct("<Qii7f")
 RACE_TIMER_ROW = struct.Struct("<QBi")
 LINE_POSITION_ROW = struct.Struct("<QBff")
+SHIFT_ANGLE_ROW = struct.Struct("<QBBff")
 DEVICE_CONFIGURATION_ROW = struct.Struct("<QIB")
 DEVICE_FIXED_TO_BODY_FRAME = 1 << 0
 QUATERNION_NORM_EPSILON = 1e-12
@@ -30,7 +31,7 @@ ROW_PAYLOAD_SIZES = {
     0x03: 20,
     0x04: RACE_TIMER_ROW.size,
     0x05: LINE_POSITION_ROW.size,
-    0x06: 18,
+    0x06: SHIFT_ANGLE_ROW.size,
     0x07: 12,
     0x08: 13,
     0x0A: 16,
@@ -64,7 +65,7 @@ def parse_vakaros_vkx(
             "Vakaros VKX input filename must end with .vkx or .vkx.gz"
         )
 
-    samples, race_timer_events, line_positions = _parse_rows(data)
+    samples, race_timer_events, line_positions, shift_angle_observations = _parse_rows(data)
     samples.sort(key=lambda sample: sample["utc"])
     latitudes = [float(sample["lat"]) for sample in samples]
     longitudes = [float(sample["lon"]) for sample in samples]
@@ -89,6 +90,7 @@ def parse_vakaros_vkx(
         samples=samples,
         race_timer_events=race_timer_events,
         line_positions=line_positions,
+        shift_angle_observations=shift_angle_observations,
     )
 
 
@@ -119,13 +121,19 @@ def _read_source(
 
 def _parse_rows(
     data: bytes,
-) -> tuple[list[dict[str, object]], list[RaceTimerEvent], list[LinePosition]]:
+) -> tuple[
+    list[dict[str, object]],
+    list[RaceTimerEvent],
+    list[LinePosition],
+    list[ShiftAngleObservation],
+]:
     if not data or data[0] != 0xFF:
         raise VKXParseError("Vakaros VKX must start with a page header")
 
     samples: list[dict[str, object]] = []
     race_timer_events: list[RaceTimerEvent] = []
     line_positions: list[LinePosition] = []
+    shift_angle_observations: list[ShiftAngleObservation] = []
     skipped_timer_rows = 0
     skipped_line_rows = 0
     body_frame_configurations: list[bool] = []
@@ -166,6 +174,8 @@ def _parse_rows(
                 skipped_line_rows += 1
             else:
                 line_positions.append(position)
+        elif row_key == 0x06:
+            shift_angle_observations.append(_parse_shift_angle_row(payload))
         elif row_key == 0x08:
             body_frame_configurations.append(
                 _device_is_fixed_to_body_frame(payload)
@@ -182,7 +192,7 @@ def _parse_rows(
             skipped_timer_rows,
             skipped_line_rows,
         )
-    return samples, race_timer_events, line_positions
+    return samples, race_timer_events, line_positions, shift_angle_observations
 
 
 def _timestamp_from_ms(timestamp_ms: int) -> datetime | None:
@@ -214,6 +224,22 @@ def _parse_line_position_row(payload: bytes) -> LinePosition | None:
     ):
         return None
     return LinePosition(timestamp, endpoint_type, latitude, longitude)
+
+
+def _parse_shift_angle_row(payload: bytes) -> ShiftAngleObservation:
+    timestamp_ms, tack_code, setting_origin_code, true_heading_degrees, average_sog_knots = (
+        SHIFT_ANGLE_ROW.unpack(payload)
+    )
+    timestamp = _timestamp_from_ms(timestamp_ms)
+    if timestamp is None:
+        raise VKXParseError("Vakaros VKX contains invalid Shift Angle timestamp")
+    if not math.isfinite(true_heading_degrees) or not 0.0 <= true_heading_degrees <= 360.0:
+        raise VKXParseError("Vakaros VKX contains invalid Shift Angle true heading")
+    if not math.isfinite(average_sog_knots) or average_sog_knots < 0.0:
+        raise VKXParseError("Vakaros VKX contains invalid Shift Angle average SOG")
+    return ShiftAngleObservation(
+        timestamp, tack_code, setting_origin_code, true_heading_degrees, average_sog_knots
+    )
 
 
 def _device_is_fixed_to_body_frame(payload: bytes) -> bool:

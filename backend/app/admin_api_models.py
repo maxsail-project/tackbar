@@ -284,9 +284,11 @@ class AdminVkxRecordSummaryResponse(BaseModel):
     source_navigation_rows: int | None
     source_race_timer_rows: int | None
     source_line_position_rows: int | None
+    source_shift_angle_rows: int | None
     normalized_navigation_samples: int | None
     persisted_race_timer_events: int
     persisted_line_positions: int
+    persisted_shift_angle_observations: int
 
 
 class AdminActivityResponse(AdminActivitySummaryResponse):

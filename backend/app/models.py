@@ -53,6 +53,7 @@ class Activity:
     samples: list[dict[str, Any]]
     race_timer_events: list["RaceTimerEvent"] = field(default_factory=list)
     line_positions: list["LinePosition"] = field(default_factory=list)
+    shift_angle_observations: list["ShiftAngleObservation"] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,15 @@ class LinePosition:
     endpoint_type: int
     latitude: float
     longitude: float
+
+
+@dataclass(frozen=True)
+class ShiftAngleObservation:
+    timestamp: datetime
+    tack_code: int
+    setting_origin_code: int
+    true_heading_degrees: float
+    average_sog_knots: float
 
 
 @dataclass
@@ -188,6 +198,7 @@ class StoredActivity:
     device_label: str | None = None
     race_timer_events: list[RaceTimerEvent] = field(default_factory=list)
     line_positions: list[LinePosition] = field(default_factory=list)
+    shift_angle_observations: list[ShiftAngleObservation] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

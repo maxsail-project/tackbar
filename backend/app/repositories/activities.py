@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from app.models import Activity, LinePosition, RaceTimerEvent, StoredActivity
+from app.models import Activity, LinePosition, RaceTimerEvent, ShiftAngleObservation, StoredActivity
 from app.runtime_paths import runtime_paths
 
 
@@ -59,6 +59,7 @@ class ActivityRepository:
             attachment_sha256=attachment_sha256,
             race_timer_events=list(activity.race_timer_events),
             line_positions=list(activity.line_positions),
+            shift_angle_observations=list(activity.shift_angle_observations),
         )
         activities.append(stored_activity)
         self._save(activities)
@@ -111,6 +112,7 @@ class ActivityRepository:
             if activity.id == activity_id:
                 activity.race_timer_events = list(parsed_activity.race_timer_events)
                 activity.line_positions = list(parsed_activity.line_positions)
+                activity.shift_angle_observations = list(parsed_activity.shift_angle_observations)
                 self._save(activities)
                 return activity
         raise ValueError(f"Activity not found: {activity_id}")
@@ -143,6 +145,7 @@ class ActivityRepository:
             activity.track_file = track_file
             activity.race_timer_events = list(parsed_activity.race_timer_events)
             activity.line_positions = list(parsed_activity.line_positions)
+            activity.shift_angle_observations = list(parsed_activity.shift_angle_observations)
             self._save(activities)
             return activity
         raise ValueError(f"Activity not found: {activity_id}")
@@ -184,6 +187,16 @@ class ActivityRepository:
                         )
                         for position in item.get("line_positions", [])
                     ],
+                    "shift_angle_observations": [
+                        ShiftAngleObservation(
+                            timestamp=_parse_datetime(observation["timestamp"]),
+                            tack_code=observation["tack_code"],
+                            setting_origin_code=observation["setting_origin_code"],
+                            true_heading_degrees=observation["true_heading_degrees"],
+                            average_sog_knots=observation["average_sog_knots"],
+                        )
+                        for observation in item.get("shift_angle_observations", [])
+                    ],
                 }
             )
             for item in data
@@ -205,8 +218,10 @@ class ActivityRepository:
                 event["timestamp"] = event["timestamp"].isoformat()
             for position in record["line_positions"]:
                 position["timestamp"] = position["timestamp"].isoformat()
+            for observation in record["shift_angle_observations"]:
+                observation["timestamp"] = observation["timestamp"].isoformat()
             previous = existing_by_id.get(activity.id, {})
-            for collection in ("race_timer_events", "line_positions"):
+            for collection in ("race_timer_events", "line_positions", "shift_angle_observations"):
                 if previous and collection not in previous and not record[collection]:
                     del record[collection]
             records.append(record)

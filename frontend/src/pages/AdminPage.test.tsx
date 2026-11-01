@@ -786,15 +786,17 @@ describe('minimal Admin UI', () => {
         source_navigation_rows: 16360,
         source_race_timer_rows: 8,
         source_line_position_rows: 3,
+        source_shift_angle_rows: 2,
         normalized_navigation_samples: 16359,
         persisted_race_timer_events: 7,
         persisted_line_positions: 0,
+        persisted_shift_angle_observations: 1,
         rows: [
           { code: '0xFF', name: 'Page Header', source_count: 4, handling: 'framing' },
           { code: '0x02', name: 'Position, Velocity, and Orientation', source_count: 16360, handling: 'normalized' },
           { code: '0x04', name: 'Race Timer Event', source_count: 8, handling: 'activity_observations' },
           { code: '0x05', name: 'Line Position', source_count: 3, handling: 'activity_observations' },
-          { code: '0x06', name: 'Shift Angle', source_count: 2, handling: 'ignored' },
+          { code: '0x06', name: 'Shift Angle', source_count: 2, handling: 'activity_observations' },
           { code: '0x08', name: 'Device Configuration', source_count: 1, handling: 'partially_used' },
           { code: '0x0A', name: 'Wind', source_count: 5, handling: 'ignored' },
         ],
@@ -810,7 +812,10 @@ describe('minimal Admin UI', () => {
     expect(advanced).toContain('<dt>Persisted timer events</dt><dd>7</dd>')
     expect(advanced).toContain('<dt>Source line rows (0x05)</dt><dd>3</dd>')
     expect(advanced).toContain('<dt>Persisted line positions</dt><dd>0</dd>')
-    for (const label of ['Format framing', 'Selected navigation fields normalized', 'Parsed if valid; see persisted count', 'Recognized; not yet retained', 'Used to qualify orientation; row not retained', 'Recognized; payload not retained']) expect(advanced).toContain(label)
+    expect(advanced).toContain('<dt>Source Shift Angle rows (0x06)</dt><dd>2</dd>')
+    expect(advanced).toContain('<dt>Persisted Shift Angle observations</dt><dd>1</dd>')
+    for (const label of ['Format framing', 'Selected navigation fields normalized', 'Parsed if valid; see persisted count', 'Used to qualify orientation; row not retained', 'Recognized; payload not retained']) expect(advanced).toContain(label)
+    expect(advanced).not.toContain('Recognized; not yet retained')
     expect(advanced).toContain('class="admin-vkx-record-list"')
     expect(advanced).not.toContain('latitude')
     expect(markup.indexOf('<h4>Technical track</h4>')).toBeLessThan(markup.indexOf('<h4>VKX Record Summary</h4>'))
@@ -823,12 +828,15 @@ describe('minimal Admin UI', () => {
       vkx_record_summary: {
         source_state, rows: null, source_navigation_rows: null,
         source_race_timer_rows: null, source_line_position_rows: null,
+        source_shift_angle_rows: null,
         normalized_navigation_samples: null, persisted_race_timer_events: 0,
-        persisted_line_positions: 0,
+        persisted_line_positions: 0, persisted_shift_angle_observations: 0,
       },
     }} onFollow={() => undefined} />)
     expect(markup).toContain(source_state === 'missing' ? 'Unavailable · original missing' : 'Unreadable · inventory unavailable')
     expect(markup).toContain('<dt>Source timer rows (0x04)</dt><dd>Unavailable</dd>')
+    expect(markup).toContain('<dt>Source Shift Angle rows (0x06)</dt><dd>Unavailable</dd>')
+    expect(markup).toContain('<dt>Persisted Shift Angle observations</dt><dd>0</dd>')
     expect(markup).toContain('<dt>Persisted timer events</dt><dd>0</dd>')
     expect(markup).toContain('<dt>Persisted line positions</dt><dd>0</dd>')
     expect(markup).not.toContain('admin-vkx-record-list')
