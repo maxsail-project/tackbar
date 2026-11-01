@@ -622,6 +622,7 @@ export default function TrackMap({
             longitude={primaryBoatPosition.lon}
             latitude={primaryBoatPosition.lat}
             anchor="center"
+            style={{ zIndex: 3 }}
           >
             <BoatMarker
               color={ACTIVITY_COLORS.primary}
@@ -636,6 +637,7 @@ export default function TrackMap({
             longitude={comparisonBoatPosition.lon}
             latitude={comparisonBoatPosition.lat}
             anchor="center"
+            style={{ zIndex: 2 }}
           >
             <BoatMarker
               color={ACTIVITY_COLORS.comparison}
@@ -651,6 +653,7 @@ export default function TrackMap({
             longitude={activity.boatPosition.lon}
             latitude={activity.boatPosition.lat}
             anchor="center"
+            style={{ zIndex: 1 }}
           >
             <button
               type="button"
@@ -680,6 +683,7 @@ export default function TrackMap({
             closeOnClick
             onClose={() => setInspectedContextualActivityId(null)}
             className="contextual-activity-popup"
+            style={{ zIndex: 4 }}
           >
             <ContextualActivityAffordance
               identity={inspectedContextualActivity.identity}

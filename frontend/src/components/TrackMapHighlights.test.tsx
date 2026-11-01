@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createRoot } from 'react-dom/client'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackSample } from '../types/track'
@@ -47,9 +47,11 @@ vi.mock('react-map-gl/maplibre', async () => {
     }, [id, beforeId])
     return <div data-layer={id} data-color={paint['line-color']} data-width={paint['line-width']} />
   },
-  Marker: ({ children }: { children: ReactNode }) => <div data-boat-marker>{children}</div>,
+  Marker: ({ children, style, longitude, latitude }: { children: ReactNode, style?: CSSProperties, longitude: number, latitude: number }) =>
+    <div className="maplibregl-marker" data-boat-marker data-longitude={longitude} data-latitude={latitude} style={style}>{children}</div>,
   NavigationControl: () => null,
-  Popup: () => null,
+  Popup: ({ children, style }: { children: ReactNode, style?: CSSProperties }) =>
+    <div className="maplibregl-popup" style={style}>{children}</div>,
   }
 })
 vi.mock('./HistoricalConditionsControl', () => ({ default: () => null }))
@@ -78,21 +80,30 @@ function mapElement(
   comparisonSamples: TrackSample[] = samples,
   showFleet = true,
   fitContextKey = 'test',
+  markerOptions: {
+    primaryIdentity?: string
+    comparisonIdentity?: string
+    primaryPosition?: { lat: number, lon: number } | null
+    comparisonPosition?: { lat: number, lon: number } | null
+    contextualPosition?: { lat: number, lon: number } | null
+    onCompare?: (activityId: string) => void
+  } = {},
 ) {
+  const overlap = { lat: 0.25, lon: -30.72 }
   return <TrackMap
     primaryVisibleSamples={primarySamples}
     comparisonVisibleSamples={comparisonSamples}
     contextualActivities={showFleet ? [{
       id: 'fleet', identity: 'Fleet', visibleSamples: samples,
-      boatPosition: null, cog: null,
+      boatPosition: markerOptions.contextualPosition ?? null, cog: null,
     }] : []}
     fitContextKey={fitContextKey}
     selectedManeuverHighlights={selectedManeuverHighlights}
-    primaryActivityIdentity="Primary"
-    comparisonActivityIdentity="Comparison"
-    primaryBoatPosition={{ lat: 0.25, lon: -30.72 }}
-    comparisonBoatPosition={{ lat: 0.25, lon: -30.71 }}
-    hasComparison
+    primaryActivityIdentity={markerOptions.primaryIdentity ?? 'Primary'}
+    comparisonActivityIdentity={markerOptions.comparisonIdentity ?? 'Comparison'}
+    primaryBoatPosition={markerOptions.primaryPosition === undefined ? overlap : markerOptions.primaryPosition}
+    comparisonBoatPosition={markerOptions.comparisonPosition === undefined ? { lat: 0.25, lon: -30.71 } : markerOptions.comparisonPosition}
+    hasComparison={markerOptions.comparisonPosition !== null}
     playbackTime={Date.parse(samples[0].utc)}
     primarySog={5}
     primaryCog={90}
@@ -102,6 +113,7 @@ function mapElement(
     comparisonCog={90}
     comparisonHeel={null}
     comparisonTrim={null}
+    onCompareContextualActivity={markerOptions.onCompare}
   />
 }
 
@@ -191,5 +203,86 @@ describe('selected maneuver map layer order', () => {
 
   it('renders no highlight layers without selections', () => {
     expect(renderMap([])).not.toContain('selected-maneuver-highlight-')
+  })
+})
+
+describe('replay boat marker stack', () => {
+  function marker(container: HTMLElement, label: string) {
+    const boat = container.querySelector(`[aria-label="${label}"]`)
+    expect(boat).not.toBeNull()
+    const outer = boat!.closest('.maplibregl-marker') as HTMLElement | null
+    expect(outer).not.toBeNull()
+    return outer!
+  }
+
+  function expectRoleStack(container: HTMLElement) {
+    const contextual = marker(container, 'Fleet contextual boat position')
+    const comparison = marker(container, 'Comparison boat position')
+    const primary = marker(container, 'Primary boat position')
+    expect([contextual, comparison, primary].map((element) => getComputedStyle(element).zIndex)).toEqual(['1', '2', '3'])
+    expect([contextual, comparison, primary].map((element) => [element.dataset.longitude, element.dataset.latitude]))
+      .toEqual(Array(3).fill(['-30.72', '0.25']))
+  }
+
+  it('keeps contextual below Comparison below Primary after role swaps and replay movement', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    const overlap = { lat: 0.25, lon: -30.72 }
+    try {
+      await act(async () => root.render(mapElement([], samples, samples, true, 'initial', {
+        primaryIdentity: 'A', comparisonIdentity: 'B', primaryPosition: overlap,
+        comparisonPosition: overlap, contextualPosition: overlap,
+      })))
+      expectRoleStack(container)
+
+      await act(async () => root.render(mapElement([], otherSamples, samples, true, 'role-swap', {
+        primaryIdentity: 'B', comparisonIdentity: 'A', primaryPosition: overlap,
+        comparisonPosition: overlap, contextualPosition: overlap,
+      })))
+      expectRoleStack(container)
+
+      const moved = { lat: 0.26, lon: -30.7 }
+      await act(async () => root.render(mapElement([], otherSamples, samples, true, 'new-window', {
+        primaryIdentity: 'B', comparisonIdentity: 'A', primaryPosition: moved,
+        comparisonPosition: moved, contextualPosition: moved,
+      })))
+      expect([marker(container, 'Fleet contextual boat position'), marker(container, 'Comparison boat position'), marker(container, 'Primary boat position')]
+        .map((element) => [getComputedStyle(element).zIndex, element.dataset.longitude, element.dataset.latitude]))
+        .toEqual([['1', '-30.7', '0.26'], ['2', '-30.7', '0.26'], ['3', '-30.7', '0.26']])
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+    }
+  })
+
+  it('preserves precedence when Comparison and contextual markers mount after Primary, and keeps the popup above them', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    const overlap = { lat: 0.25, lon: -30.72 }
+    const onCompare = vi.fn()
+    try {
+      await act(async () => root.render(mapElement([], samples, samples, true, 'primary-only', {
+        primaryPosition: overlap, comparisonPosition: null, contextualPosition: null,
+      })))
+      expect(container.querySelectorAll('.maplibregl-marker')).toHaveLength(1)
+      expect(getComputedStyle(marker(container, 'Primary boat position')).zIndex).toBe('3')
+
+      await act(async () => root.render(mapElement([], samples, samples, true, 'later-markers', {
+        primaryPosition: overlap, comparisonPosition: overlap, contextualPosition: overlap, onCompare,
+      })))
+      expectRoleStack(container)
+      await act(async () => (container.querySelector('.contextual-boat-marker') as HTMLButtonElement).click())
+      const popup = container.querySelector('.maplibregl-popup') as HTMLElement
+      expect(getComputedStyle(popup).zIndex).toBe('4')
+      await act(async () => (popup.querySelector('button') as HTMLButtonElement).click())
+      expect(onCompare).toHaveBeenCalledExactlyOnceWith('fleet')
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+    }
   })
 })
