@@ -92,6 +92,9 @@ describe('My Activities', () => {
     expect(container.textContent).toContain('Device: Not available')
     expect(container.textContent).toContain('Source: gpx · Original file: watch.gpx · Extracted Device: Not available')
     await click('Edit Activity')
+    expect(container.querySelector('.personal-activity__edit')).toBeNull()
+    expect(container.querySelector<HTMLButtonElement>('.personal-activity button[type="submit"]')?.classList.contains('personal-action--primary')).toBe(true)
+    expect([...container.querySelectorAll<HTMLButtonElement>('.personal-activity__actions button')].find((button) => button.textContent === 'Cancel')?.classList.contains('personal-action--secondary')).toBe(true)
     const options = [...container.querySelectorAll<HTMLOptionElement>('.personal-activity option')].map((item) => [item.value, item.textContent])
     expect(options).toEqual([
       ['__keep__', 'Keep current Boat association'], ['', 'No Boat'],
@@ -229,6 +232,7 @@ describe('My Activities', () => {
     await click('Save')
     expect(container.textContent).toContain('Saving Activity…')
     expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
+    expect([...container.querySelectorAll<HTMLButtonElement>('.personal-activity__actions button')].find((button) => button.textContent === 'Cancel')?.disabled).toBe(true)
     await click('Save')
     expect(api.updatePersonalActivity).toHaveBeenCalledTimes(1)
     await act(async () => rejectWrite(new Error('secret server detail')))

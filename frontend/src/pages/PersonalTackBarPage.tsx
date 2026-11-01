@@ -67,9 +67,9 @@ export function PersonalTackBarContent({ state, token, onUnavailable }: { state:
     <header className="app-header personal-header"><PublicHeaderBrand /><AboutControl /></header>
     <main className="personal-page">
     <h1 id="my-sessions-heading">My Sessions</h1>
-    {state.status === 'loading' && <p role="status">Loading My Sessions…</p>}
-    {state.status === 'unavailable' && <p role="alert">This personal link is unavailable.</p>}
-    {state.status === 'error' && <p role="alert">Cannot load My TackBar. Please try again.</p>}
+    {state.status === 'loading' && <p className="personal-feedback" role="status">Loading My Sessions…</p>}
+    {state.status === 'unavailable' && <p className="personal-feedback" role="alert">This personal link is unavailable.</p>}
+    {state.status === 'error' && <p className="personal-feedback" role="alert">Cannot load My TackBar. Please try again.</p>}
     {state.status === 'ready' && <>
       <p className="personal-name">{state.data.email}{state.data.name?.trim() ? ` - ${state.data.name.trim()}` : ''}</p>
       <p>{state.data.session_count} {state.data.session_count === 1 ? 'Session' : 'Sessions'}</p>
@@ -210,8 +210,8 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
 
   return <section aria-labelledby="my-activities-heading">
     <h2 id="my-activities-heading">My Activities</h2>
-    {state.status === 'loading' && <p role="status">Loading My Activities…</p>}
-    {state.status === 'error' && <div role="alert">Could not load My Activities. <button type="button" onClick={() => { setState({ status: 'loading' }); setRetry((value) => value + 1) }}>Retry</button></div>}
+    {state.status === 'loading' && <p className="personal-feedback" role="status">Loading My Activities…</p>}
+    {state.status === 'error' && <div className="personal-feedback" role="alert">Could not load My Activities. <button className="personal-action personal-action--secondary" type="button" onClick={() => { setState({ status: 'loading' }); setRetry((value) => value + 1) }}>Retry</button></div>}
     {state.status === 'ready' && (state.activities.length === 0
       ? <p>No Activities recorded yet.</p>
       : <ol className="personal-activities">{state.activities.map((activity) => {
@@ -220,8 +220,8 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
         const editing = editingId === activity.id
         return <li className="personal-activity" key={activity.id}>
           <h3><time dateTime={activity.start_time}>{day(activity.start_time)} · {time(activity.start_time)}</time></h3>
-          <p>Boat: {currentBoat}</p>
-          <p>Device: {effectiveDevice(activity) || 'Not available'}</p>
+          <p className="personal-activity__context"><strong>Boat:</strong> {currentBoat}</p>
+          <p className="personal-activity__context"><strong>Device:</strong> {effectiveDevice(activity) || 'Not available'}</p>
           <p className="personal-activity__origin">Source: {activity.source} · Original file: {activity.original_filename} · Extracted Device: {activity.device_name.trim() ? activity.device_name : 'Not available'}</p>
           {editing ? <form onSubmit={(event) => { event.preventDefault(); void save(activity) }}>
             <label>Boat
@@ -235,12 +235,12 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
               <input type="text" value={label} disabled={saving} onChange={(event) => setLabel(event.target.value)} />
             </label>
             <div className="personal-activity__actions">
-              <button type="submit" disabled={saving}>Save</button>
-              <button type="button" disabled={saving} onClick={() => { setEditingId(null); setFeedback(null) }}>Cancel</button>
+              <button className="personal-action personal-action--primary" type="submit" disabled={saving}>Save</button>
+              <button className="personal-action personal-action--secondary" type="button" disabled={saving} onClick={() => { setEditingId(null); setFeedback(null) }}>Cancel</button>
             </div>
-            {saving && <p role="status">Saving Activity…</p>}
-          </form> : <button type="button" disabled={saving} onClick={() => beginEdit(activity, state.boats)}>Edit Activity</button>}
-          {feedback?.id === activity.id && <p role={feedback.error ? 'alert' : 'status'}>{feedback.message}</p>}
+            {saving && <p className="personal-feedback" role="status">Saving Activity…</p>}
+          </form> : <button className="personal-action personal-action--edit personal-activity__edit" type="button" disabled={saving} onClick={() => beginEdit(activity, state.boats)}>Edit Activity</button>}
+          {feedback?.id === activity.id && <p className="personal-feedback" role={feedback.error ? 'alert' : 'status'}>{feedback.message}</p>}
         </li>
       })}</ol>)}
   </section>

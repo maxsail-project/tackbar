@@ -169,15 +169,15 @@ export default function MyBoats({ token, onUnavailable, onBoatSaved }: {
 
   return <section aria-labelledby="my-boats-heading" className="personal-boats">
     <h2 id="my-boats-heading">My Boats</h2>
-    {state.status === 'loading' && <p role="status">Loading My Boats…</p>}
-    {state.status === 'error' && <div role="alert">Could not load My Boats. <button type="button" onClick={() => { setState({ status: 'loading' }); setRetry((value) => value + 1) }}>Retry</button></div>}
+    {state.status === 'loading' && <p className="personal-feedback" role="status">Loading My Boats…</p>}
+    {state.status === 'error' && <div className="personal-feedback" role="alert">Could not load My Boats. <button className="personal-action personal-action--secondary" type="button" onClick={() => { setState({ status: 'loading' }); setRetry((value) => value + 1) }}>Retry</button></div>}
     {state.status === 'ready' && <>
       {state.boats.length === 0 ? <p>No Boats registered yet.</p> : <ul className="personal-boats__list">{state.boats.map((boat) => <li key={boat.id}>
-        <span>{boatName(boat)}</span>
-        <button type="button" aria-label={`Edit Boat ${boatName(boat)}`} disabled={saving} onClick={() => beginEdit(boat)}>Edit Boat</button>
+        <span className="personal-boats__name">{boatName(boat)}</span>
+        <button className="personal-action personal-action--edit" type="button" aria-label={`Edit Boat ${boatName(boat)}`} disabled={saving} onClick={() => beginEdit(boat)}>Edit Boat</button>
       </li>)}</ul>}
-      <button type="button" disabled={saving} onClick={() => beginEdit('new')}>Add Boat</button>
-      {savedMessage && <p role="status">{savedMessage}</p>}
+      <button className="personal-action personal-action--secondary personal-boats__add" type="button" disabled={saving} onClick={() => beginEdit('new')}>Add Boat</button>
+      {savedMessage && <p className="personal-feedback" role="status">{savedMessage}</p>}
 
       {editing !== null && <form className="personal-boats__form" onSubmit={(event) => { event.preventDefault(); void saveBoat() }}>
         <h3>{editing === 'new' ? 'Add Boat' : 'Edit Boat'}</h3>
@@ -195,7 +195,7 @@ export default function MyBoats({ token, onUnavailable, onBoatSaved }: {
         </label>
         <span id="boat-class-help" className="personal-boats__help">Optional free text. Choose a suggestion or enter a new Class.</span>
         {showSuggestions && suggestions.length > 0 && <ul id="boat-class-suggestions" className="personal-boats__suggestions" aria-label="Known Class suggestions">
-          {suggestions.map((value, index) => <li key={value}><button type="button" disabled={saving}
+          {suggestions.map((value, index) => <li key={value}><button className="personal-action personal-action--secondary" type="button" disabled={saving}
             ref={(node) => { suggestionButtons.current[index] = node }}
             onClick={() => { setSailingClass(value); setConfirmation(null); classInput.current?.focus(); setShowSuggestions(false) }}
             onKeyDown={(event) => {
@@ -207,15 +207,15 @@ export default function MyBoats({ token, onUnavailable, onBoatSaved }: {
         <label>Sail Number<input type="text" value={sailNumber} disabled={saving} onChange={(event) => setSailNumber(event.target.value)} /></label>
         {confirmation && <div className="personal-boats__confirmation" role="alert">
           <p>Use known Class “{confirmation.suggestedClass}” for “{confirmation.submittedClass}”, or keep the new spelling?</p>
-          <button ref={confirmationAction} type="button" disabled={saving} onClick={() => { setSailingClass(confirmation.suggestedClass); void saveBoat(confirmation.suggestedClass) }}>Use {confirmation.suggestedClass}</button>
-          <button type="button" disabled={saving} onClick={() => { void saveBoat(confirmation.submittedClass, true) }}>Keep {confirmation.submittedClass}</button>
+          <button className="personal-action personal-action--secondary" ref={confirmationAction} type="button" disabled={saving} onClick={() => { setSailingClass(confirmation.suggestedClass); void saveBoat(confirmation.suggestedClass) }}>Use {confirmation.suggestedClass}</button>
+          <button className="personal-action personal-action--secondary" type="button" disabled={saving} onClick={() => { void saveBoat(confirmation.submittedClass, true) }}>Keep {confirmation.submittedClass}</button>
         </div>}
-        {formMessage && <p role="alert">{formMessage}</p>}
+        {formMessage && <p className="personal-feedback" role="alert">{formMessage}</p>}
         <div className="personal-activity__actions">
-          <button type="submit" disabled={saving || !!confirmation}>Save Boat</button>
-          <button type="button" disabled={saving} onClick={() => { setEditing(null); setConfirmation(null); setFormMessage(null) }}>Cancel</button>
+          <button className="personal-action personal-action--primary" type="submit" disabled={saving || !!confirmation}>Save Boat</button>
+          <button className="personal-action personal-action--secondary" type="button" disabled={saving} onClick={() => { setEditing(null); setConfirmation(null); setFormMessage(null) }}>Cancel</button>
         </div>
-        {saving && <p role="status">Saving Boat…</p>}
+        {saving && <p className="personal-feedback" role="status">Saving Boat…</p>}
       </form>}
 
       <div className="personal-boats__default">
@@ -232,12 +232,12 @@ export default function MyBoats({ token, onUnavailable, onBoatSaved }: {
           </select>
         </label>
         <div className="personal-activity__actions">
-          <button type="button" disabled={defaultSaving || defaultChoice === '__keep__' || defaultChoice === (state.defaultId ?? '')} onClick={() => { void saveDefault() }}>Save Default Boat</button>
-          <button type="button" disabled={defaultSaving || defaultChoice === (state.defaultId && !state.boats.some((boat) => boat.id === state.defaultId) ? '__keep__' : state.defaultId ?? '')}
+          <button className="personal-action personal-action--primary" type="button" disabled={defaultSaving || defaultChoice === '__keep__' || defaultChoice === (state.defaultId ?? '')} onClick={() => { void saveDefault() }}>Save Default Boat</button>
+          <button className="personal-action personal-action--secondary" type="button" disabled={defaultSaving || defaultChoice === (state.defaultId && !state.boats.some((boat) => boat.id === state.defaultId) ? '__keep__' : state.defaultId ?? '')}
             onClick={() => { setDefaultChoice(state.defaultId && !state.boats.some((boat) => boat.id === state.defaultId) ? '__keep__' : state.defaultId ?? ''); setDefaultMessage(null) }}>Cancel Default Boat</button>
         </div>
-        {defaultSaving && <p role="status">Saving Default Boat…</p>}
-        {defaultMessage && <p role={defaultMessage.startsWith('Could not') ? 'alert' : 'status'}>{defaultMessage}</p>}
+        {defaultSaving && <p className="personal-feedback" role="status">Saving Default Boat…</p>}
+        {defaultMessage && <p className="personal-feedback" role={defaultMessage.startsWith('Could not') ? 'alert' : 'status'}>{defaultMessage}</p>}
       </div>
     </>}
   </section>
