@@ -131,11 +131,11 @@ export function isAnalysisWindowDrag(startClientX: number, endClientX: number) {
 }
 
 export function shouldCaptureAnalysisWindowPointer(
-  startedOnManeuverMarker: boolean,
+  startedOnMarker: boolean,
   startClientX: number,
   currentClientX: number,
 ) {
-  return !startedOnManeuverMarker
+  return !startedOnMarker
     || isAnalysisWindowDrag(startClientX, currentClientX)
 }
 
@@ -256,7 +256,6 @@ export function AnalysisWindowSessionStartMarker({
         ? edgeTransform ? { transform: edgeTransform } : undefined
         : { left: `${controlOffsetPx}px` }}
       aria-label={`${start.label} Start at ${accessibleTime}, move replay`}
-      onPointerDown={(event) => event.stopPropagation()}
       onClick={select}
     ><span>{start.label}</span></button>)}
   </div>
@@ -345,7 +344,7 @@ export default function AnalysisWindow({
   const [timelineWidth, setTimelineWidth] = useState(0)
   const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
   const pointerStartClientXRef = useRef<number | null>(null)
-  const pointerStartedOnManeuverRef = useRef(false)
+  const pointerStartedOnMarkerRef = useRef(false)
   const completedGestureWasDragRef = useRef(false)
   const displayRange = analysisWindow
   const primaryPoints = useMemo(
@@ -371,8 +370,7 @@ export default function AnalysisWindow({
   useEffect(() => {
     pointerSelectionRef.current = null
     pointerStartClientXRef.current = null
-    pointerStartedOnManeuverRef.current = false
-    completedGestureWasDragRef.current = false
+    pointerStartedOnMarkerRef.current = false
     setPointerSelection(null)
   }, [displayRange?.end, displayRange?.start])
 
@@ -403,13 +401,13 @@ export default function AnalysisWindow({
     const nextSelection = startTemporalPointerSelection(event.pointerId, pointerTimestamp(event))
     if (nextSelection === null) return
 
-    const startedOnManeuverMarker = event.target instanceof Element
-      && event.target.closest('.analysis-window__maneuver-marker') !== null
-    if (!startedOnManeuverMarker) {
+    const startedOnMarker = event.target instanceof Element
+      && event.target.closest('.analysis-window__maneuver-marker, .analysis-window__session-start-control') !== null
+    if (!startedOnMarker) {
       event.currentTarget.setPointerCapture(event.pointerId)
     }
     pointerStartClientXRef.current = event.clientX
-    pointerStartedOnManeuverRef.current = startedOnManeuverMarker
+    pointerStartedOnMarkerRef.current = startedOnMarker
     completedGestureWasDragRef.current = false
     updatePointerSelection(nextSelection)
   }
@@ -420,7 +418,7 @@ export default function AnalysisWindow({
       pointerStartClientXRef.current !== null
       && !event.currentTarget.hasPointerCapture(event.pointerId)
       && shouldCaptureAnalysisWindowPointer(
-        pointerStartedOnManeuverRef.current,
+        pointerStartedOnMarkerRef.current,
         pointerStartClientXRef.current,
         event.clientX,
       )
@@ -452,13 +450,13 @@ export default function AnalysisWindow({
       onRangeChange,
     )
     pointerStartClientXRef.current = null
-    pointerStartedOnManeuverRef.current = false
+    pointerStartedOnMarkerRef.current = false
   }
 
   function cancelPointerSelection(event: ReactPointerEvent<HTMLDivElement>) {
     if (pointerSelectionRef.current?.pointerId === event.pointerId) {
       pointerStartClientXRef.current = null
-      pointerStartedOnManeuverRef.current = false
+      pointerStartedOnMarkerRef.current = false
       updatePointerSelection(null)
     }
   }
@@ -570,6 +568,9 @@ export default function AnalysisWindow({
             if (!event.currentTarget.hasPointerCapture(event.pointerId)) cancelPointerSelection(event)
           }}
           onLostPointerCapture={cancelPointerSelection}
+          onKeyDownCapture={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') completedGestureWasDragRef.current = false
+          }}
         >
           <svg viewBox={`0 0 1000 ${timelineHeight}`} preserveAspectRatio="none" aria-hidden="true">
             {centralPrimaryPath && <path className="analysis-window__sog-line" d={centralPrimaryPath} style={{ stroke: ACTIVITY_COLORS.primary }} />}
@@ -610,7 +611,10 @@ export default function AnalysisWindow({
                 position={positionPercent(start.time, analysisWindow)}
                 controlOffsetPx={sessionStartLayout.placements[index].offsetPx}
                 lane={sessionStartLayout.placements[index].lane}
-                onSelect={onSessionStartSelect}
+                onSelect={(selectedStart) => {
+                  if (!completedGestureWasDragRef.current) onSessionStartSelect(selectedStart)
+                  completedGestureWasDragRef.current = false
+                }}
               />)}
           </div>
           {pointerSelection && (
