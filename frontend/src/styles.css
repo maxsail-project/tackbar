@@ -2846,6 +2846,13 @@ input:focus-visible {
 .app-header.personal-header { padding-right: max(18px, calc((100% - 684px) / 2)); padding-left: max(18px, calc((100% - 684px) / 2)); }
 .personal-page > h1, .personal-page > section > h2 { margin: 0 0 16px; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
 .personal-name { font-size: 1.2rem; overflow-wrap: anywhere; }
+.personal-page .personal-profile { margin-top: 16px; padding: 16px; border: 1px solid #cbd9e2; border-radius: 12px; background: var(--color-white); overflow-wrap: anywhere; }
+.personal-profile p { margin: 8px 0; }
+.personal-profile form { display: grid; gap: 10px; margin-top: 12px; }
+.personal-profile label { font-weight: 700; }
+.personal-profile input { width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid #9aabb3; border-radius: 9px; color: var(--color-navy); background: var(--color-white); font: inherit; }
+.personal-profile input:focus-visible { outline: 3px solid var(--color-blue); outline-offset: 2px; }
+.personal-profile__actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .personal-page section { margin-top: 32px; }
 .personal-search { display: grid; gap: 6px; margin-bottom: 12px; font-weight: 700; }
 .personal-search input { width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid #9aabb3; border-radius: 9px; color: var(--color-navy); background: var(--color-white); font: inherit; }

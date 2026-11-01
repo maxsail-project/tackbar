@@ -9,6 +9,7 @@ from app.personal_api_models import (
     PersonalActivityContextPatch, PersonalActivityResponse,
     PersonalBoatCreate, PersonalBoatPatch, PersonalBoatResponse,
     PersonalDefaultBoatPatch, PersonalDefaultBoatResponse,
+    PersonalProfilePatch, PersonalProfileResponse,
 )
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
@@ -50,6 +51,13 @@ class PersonalContextService:
         if sailor is None:
             raise PersonalContextUnavailable
         return sailor
+
+    @locked_sailor_write
+    def update_profile(self, token: str, patch: PersonalProfilePatch) -> PersonalProfileResponse:
+        sailor = self._sailor(token)
+        name = patch.name.strip() if patch.name is not None else ""
+        updated = self.sailors.replace(replace(sailor, name=name or None))
+        return PersonalProfileResponse(name=updated.name)
 
     @locked_sailor_write
     def list_activities(self, token: str) -> list[PersonalActivityResponse]:

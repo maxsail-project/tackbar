@@ -27,6 +27,7 @@ import {
   updatePersonalActivity,
   updatePersonalBoat,
   updatePersonalDefaultBoat,
+  updatePersonalProfile,
 } from './tackbarApi'
 
 const SESSION_CONTENT = {
@@ -111,6 +112,20 @@ describe('TackBar Session API client', () => {
     }))
     await updatePersonalActivity('personal/token', 'activity/id', { boat_id: null })
     expect(fetchMock.mock.calls[3][1].body).toBe('{"boat_id":null}')
+  })
+  it('sends only the name in the personal profile PATCH and maps unavailable access', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response('{"name":"New"}'))
+      .mockResolvedValueOnce(new Response('{"name":null}'))
+      .mockResolvedValueOnce(new Response('{"detail":"private"}', { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const signal = new AbortController().signal
+    await expect(updatePersonalProfile('personal/token', 'New', signal)).resolves.toEqual({ name: 'New' })
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/me/personal%2Ftoken/profile', expect.objectContaining({
+      method: 'PATCH', signal, body: '{"name":"New"}',
+    }))
+    await expect(updatePersonalProfile('personal/token', null)).resolves.toEqual({ name: null })
+    expect(fetchMock.mock.calls[1][1].body).toBe('{"name":null}')
+    await expect(updatePersonalProfile('personal/token', 'No')).rejects.toBeInstanceOf(PersonalTackBarNotFoundError)
   })
   it('gets one Session by its encoded capability token and returns JSON', async () => {
     const fetchMock = vi.fn().mockResolvedValue(

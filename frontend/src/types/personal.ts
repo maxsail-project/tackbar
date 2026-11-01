@@ -22,6 +22,10 @@ export interface PersonalTackBar {
   sessions: PersonalSession[]
 }
 
+export interface PersonalProfile {
+  name: string | null
+}
+
 export interface PersonalBoat {
   id: string
   name: string | null

@@ -8,13 +8,14 @@ from uuid import UUID
 import pytest
 
 from app.main import app
+from app.admin_auth import ADMIN_KEY_ENVIRONMENT_VARIABLE
 from app.models import ConsentStatus, InboundEmail
 from app.repositories.activities import ActivityRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
-from app.personal_api_models import PersonalBoatPatch, PersonalDefaultBoatPatch
+from app.personal_api_models import PersonalBoatPatch, PersonalDefaultBoatPatch, PersonalProfilePatch
 from app.runtime_paths import DATA_DIR_ENVIRONMENT_VARIABLE
-from app.services.personal_context import PersonalContextService
+from app.services.personal_context import PersonalContextService, PersonalContextUnavailable
 from app.services.personal_capabilities import PersonalCapabilityService
 from app.repositories.boats import BoatRepository
 from app.services.ingestion_history import IngestionHistory
@@ -69,7 +70,8 @@ def _root(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> Path:
     return root
 
 
-def _request(method: str, path: str, body: object | None = None) -> tuple[int, object, dict[str, str]]:
+def _request(method: str, path: str, body: object | None = None,
+             admin_key: str | None = None) -> tuple[int, object, dict[str, str]]:
     messages = []
     payload = json.dumps(body).encode() if body is not None else b""
     async def run():
@@ -83,6 +85,8 @@ def _request(method: str, path: str, body: object | None = None) -> tuple[int, o
         async def send(message):
             messages.append(message)
         headers = [(b"content-type", b"application/json")] if body is not None else []
+        if admin_key is not None:
+            headers.append((b"x-tackbar-admin-key", admin_key.encode()))
         await app({"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
                    "method": method, "scheme": "http", "path": path, "raw_path": path.encode(),
                    "query_string": b"", "headers": headers, "client": ("test", 1),
@@ -91,6 +95,156 @@ def _request(method: str, path: str, body: object | None = None) -> tuple[int, o
     start = next(item for item in messages if item["type"] == "http.response.start")
     data = b"".join(item.get("body", b"") for item in messages if item["type"] == "http.response.body")
     return start["status"], json.loads(data), {key.decode().lower(): value.decode() for key, value in start["headers"]}
+
+
+def test_profile_name_set_edit_clear_and_downstream_reads(monkeypatch, temporary_directory):
+    root = _root(monkeypatch, temporary_directory)
+    monkeypatch.setenv(ADMIN_KEY_ENVIRONMENT_VARIABLE, "test-admin-key")
+    before_sailor = SailorRepository(root / "sailors.json").get_by_id(SAILOR)
+    before_activities = (root / "activities.json").read_bytes()
+    before_sessions = (root / "sessions.json").read_bytes()
+    path = f"/api/me/{TOKEN}/profile"
+
+    for submitted, expected in (("  New Sailor  ", "New Sailor"), ("Changed", "Changed"),
+                                ("  ", None), ("Again", "Again"), ("", None), (None, None)):
+        status, response, headers = _request("PATCH", path, {"name": submitted})
+        assert status == 200 and response == {"name": expected}
+        assert headers["cache-control"] == "no-store"
+        assert SailorRepository(root / "sailors.json").get_by_id(SAILOR).name == expected
+        personal = _request("GET", f"/api/me/{TOKEN}")[1]
+        shared = _request("GET", f"/api/shared/sessions/{SHARED_TOKEN}")[1]
+        admin_sailor = _request("GET", f"/api/admin/sailors/{SAILOR}", admin_key="test-admin-key")[1]
+        admin_activity = _request("GET", f"/api/admin/activities/{ACTIVITY}", admin_key="test-admin-key")[1]
+        assert personal["name"] == admin_sailor["name"] == expected
+        shared_sailor = next(item for item in shared["activities"] if item["id"] == ACTIVITY)["sailor"]
+        assert shared_sailor["name"] == expected
+        assert shared_sailor["email"] == "one@example.com"
+        assert admin_activity["sailor_label"] == (expected or "one@example.com")
+
+    after_sailor = SailorRepository(root / "sailors.json").get_by_id(SAILOR)
+    assert replace(after_sailor, name=before_sailor.name) == before_sailor
+    assert (root / "activities.json").read_bytes() == before_activities
+    assert (root / "sessions.json").read_bytes() == before_sessions
+
+
+def test_profile_rejects_invalid_payloads_and_capabilities(monkeypatch, temporary_directory):
+    root = _root(monkeypatch, temporary_directory)
+    path = f"/api/me/{TOKEN}/profile"
+    before = (root / "sailors.json").read_bytes()
+    for body in ({}, {"name": 3}, {"name": False}, {"name": ["No"]},
+                 {"name": "Okay", "email": "changed@example.com"}, {"sailor_id": OTHER, "name": "No"}):
+        status, _, headers = _request("PATCH", path, body)
+        assert status == 422 and headers["cache-control"] == "no-store"
+    assert (root / "sailors.json").read_bytes() == before
+    for token in ("invalid", SHARED_TOKEN, SAILOR):
+        status, response, headers = _request("PATCH", f"/api/me/{token}/profile", {"name": "No"})
+        assert status == 404 and headers["cache-control"] == "no-store"
+        assert "One" not in str(response) and "one@example.com" not in str(response)
+    assert (root / "sailors.json").read_bytes() == before
+    assert _request("PATCH", f"/api/me/{OTHER_TOKEN}/profile", {"name": "Other Only"})[0] == 200
+    assert SailorRepository(root / "sailors.json").get_by_id(SAILOR).name == "One"
+    assert SailorRepository(root / "sailors.json").get_by_id(OTHER).name == "Other Only"
+
+    capabilities = PersonalCapabilityService(SailorRepository(root / "sailors.json"),
+        SessionRepository(root / "sessions.json"), token_generator=lambda: "rotated-profile-token-00000000000000001")
+    capabilities.regenerate_capability(SAILOR)
+    assert _request("PATCH", path, {"name": "No"})[0] == 404
+    capabilities.revoke_capability(SAILOR)
+    current = f"/api/me/rotated-profile-token-00000000000000001/profile"
+    assert _request("PATCH", current, {"name": "No"})[0] == 404
+    sailors = SailorRepository(root / "sailors.json")
+    sailor = sailors.get_by_id(SAILOR)
+    sailors.replace(replace(sailor, personal_capability_revoked=False, consent_status=ConsentStatus.PENDING))
+    assert _request("PATCH", current, {"name": "No"})[0] == 404
+    sailor = sailors.get_by_id(SAILOR)
+    sailors.replace(replace(sailor, consent_status=ConsentStatus.REVOKED))
+    assert _request("PATCH", current, {"name": "No"})[0] == 404
+    assert sailors.get_by_id(SAILOR).name == "One"
+
+
+@pytest.mark.parametrize("action", ["rotate", "revoke", "default"])
+def test_profile_write_serializes_with_other_sailor_writes(monkeypatch, temporary_directory, action):
+    root = _root(monkeypatch, temporary_directory)
+    sailors = SailorRepository(root / "sailors.json")
+    service = PersonalContextService(sailors, BoatRepository(root / "boats.json"),
+                                     ActivityRepository(root / "activities.json"))
+    capabilities = PersonalCapabilityService(sailors, SessionRepository(root / "sessions.json"),
+        token_generator=lambda: "rotated-concurrent-profile-token-00000001")
+    entered, release = Event(), Event()
+    original_replace = sailors.replace
+    def paused_replace(sailor):
+        if sailor.name == "Concurrent":
+            entered.set()
+            assert release.wait(5)
+        return original_replace(sailor)
+    sailors.replace = paused_replace
+    results = []
+    writer = Thread(target=lambda: results.append(service.update_profile(TOKEN, PersonalProfilePatch(name="Concurrent"))))
+    writer.start()
+    assert entered.wait(5)
+    if action == "rotate":
+        change = lambda: capabilities.regenerate_capability(SAILOR)
+    elif action == "revoke":
+        change = lambda: capabilities.revoke_capability(SAILOR)
+    else:
+        change = lambda: service.update_default_boat(TOKEN, PersonalDefaultBoatPatch(default_boat_id=OWN_BOAT))
+    concurrent = Thread(target=lambda: results.append(change()))
+    concurrent.start()
+    assert concurrent.is_alive()
+    release.set()
+    writer.join(5)
+    concurrent.join(5)
+    assert not writer.is_alive() and not concurrent.is_alive()
+    current = SailorRepository(root / "sailors.json").get_by_id(SAILOR)
+    assert current.name == "Concurrent"
+    if action == "rotate":
+        assert current.personal_capability_token == "rotated-concurrent-profile-token-00000001"
+        assert _request("PATCH", f"/api/me/{TOKEN}/profile", {"name": "No"})[0] == 404
+    elif action == "revoke":
+        assert current.personal_capability_revoked
+        assert _request("PATCH", f"/api/me/{TOKEN}/profile", {"name": "No"})[0] == 404
+    else:
+        assert current.default_boat_id == OWN_BOAT
+
+
+@pytest.mark.parametrize("action", ["rotate", "revoke"])
+def test_profile_write_loses_access_when_capability_change_wins_lock(monkeypatch, temporary_directory, action):
+    root = _root(monkeypatch, temporary_directory)
+    sailors = SailorRepository(root / "sailors.json")
+    service = PersonalContextService(sailors, BoatRepository(root / "boats.json"),
+                                     ActivityRepository(root / "activities.json"))
+    capabilities = PersonalCapabilityService(sailors, SessionRepository(root / "sessions.json"),
+        token_generator=lambda: "rotated-first-profile-token-000000000001")
+    entered, release = Event(), Event()
+    original_replace = sailors.replace
+    def paused_replace(sailor):
+        if sailor.personal_capability_token != TOKEN or sailor.personal_capability_revoked:
+            entered.set()
+            assert release.wait(5)
+        return original_replace(sailor)
+    sailors.replace = paused_replace
+    change = capabilities.regenerate_capability if action == "rotate" else capabilities.revoke_capability
+    changer = Thread(target=lambda: change(SAILOR))
+    changer.start()
+    assert entered.wait(5)
+    errors = []
+    writer = Thread(target=lambda: errors.append(_profile_write_error(service)))
+    writer.start()
+    assert writer.is_alive()
+    release.set()
+    changer.join(5)
+    writer.join(5)
+    assert not changer.is_alive() and not writer.is_alive()
+    assert len(errors) == 1 and isinstance(errors[0], PersonalContextUnavailable)
+    assert SailorRepository(root / "sailors.json").get_by_id(SAILOR).name == "One"
+
+
+def _profile_write_error(service: PersonalContextService) -> Exception | None:
+    try:
+        service.update_profile(TOKEN, PersonalProfilePatch(name="Too Late"))
+    except Exception as error:
+        return error
+    return None
 
 
 def test_personal_context_reads_and_partial_writes(monkeypatch, temporary_directory):

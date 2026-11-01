@@ -4,6 +4,7 @@ from app.personal_api_models import (
     PersonalActivityContextPatch, PersonalActivityResponse,
     PersonalBoatCreate, PersonalBoatPatch, PersonalBoatResponse,
     PersonalDefaultBoatPatch, PersonalDefaultBoatResponse,
+    PersonalProfilePatch, PersonalProfileResponse,
 )
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
@@ -27,6 +28,16 @@ def _unavailable() -> HTTPException:
 
 def _integrity_error() -> HTTPException:
     return HTTPException(status_code=500, detail="Persisted personal data is inconsistent")
+
+
+@router.patch("/profile", response_model=PersonalProfileResponse)
+def update_personal_profile(token: str, patch: PersonalProfilePatch) -> PersonalProfileResponse:
+    try:
+        return _service().update_profile(token, patch)
+    except PersonalContextUnavailable as error:
+        raise _unavailable() from error
+    except ValueError as error:
+        raise _integrity_error() from error
 
 
 @router.get("/activities", response_model=list[PersonalActivityResponse])

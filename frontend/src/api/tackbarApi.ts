@@ -1,4 +1,4 @@
-import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalBoatInput, PersonalDefaultBoat, PersonalTackBar } from '../types/personal'
+import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalBoatInput, PersonalDefaultBoat, PersonalProfile, PersonalTackBar } from '../types/personal'
 import type {
   SessionAccess,
   SharedSessionDetail,
@@ -68,6 +68,11 @@ export function getPersonalTackBar(token: string, signal?: AbortSignal) {
     signal,
     () => new PersonalTackBarNotFoundError(),
   )
+}
+
+export function updatePersonalProfile(token: string, name: string | null, signal?: AbortSignal) {
+  return requestJson<PersonalProfile>(`/api/me/${encodeURIComponent(token)}/profile`, signal,
+    () => new PersonalTackBarNotFoundError(), 'PATCH', undefined, { name })
 }
 
 export function getPersonalActivities(token: string, signal?: AbortSignal) {

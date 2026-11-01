@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import BaseModel, ConfigDict, StrictBool, StrictStr
 
 from app.api_models import BoatContextResponse
 
@@ -27,6 +27,15 @@ class PersonalTackBarResponse(BaseModel):
     session_count: int
     last_sailing_end: datetime | None
     sessions: list[PersonalSessionResponse]
+
+
+class PersonalProfilePatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: StrictStr | None
+
+
+class PersonalProfileResponse(BaseModel):
+    name: str | None
 
 
 class PersonalActivityResponse(BaseModel):

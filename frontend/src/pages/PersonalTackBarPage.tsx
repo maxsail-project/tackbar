@@ -1,7 +1,7 @@
 import AboutControl, { PublicHeaderBrand } from '../components/AboutControl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getPersonalActivities, getPersonalBoats, getPersonalTackBar, PersonalTackBarNotFoundError, updatePersonalActivity } from '../api/tackbarApi'
+import { getPersonalActivities, getPersonalBoats, getPersonalTackBar, PersonalTackBarNotFoundError, updatePersonalActivity, updatePersonalProfile } from '../api/tackbarApi'
 import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalSession, PersonalTackBar } from '../types/personal'
 import MyBoats, { boatName } from './MyBoats'
 import { formatHistoricalConditionsCompact } from '../utils/historicalConditions'
@@ -53,10 +53,13 @@ function PersonalPage({ token }: { token: string }) {
     )
     return () => controller.abort()
   }, [token])
-  return <PersonalTackBarContent state={state} token={token} onUnavailable={onUnavailable} />
+  const onProfileSaved = useCallback((name: string | null) => {
+    setState((current) => current.status === 'ready' ? { status: 'ready', data: { ...current.data, name } } : current)
+  }, [])
+  return <PersonalTackBarContent state={state} token={token} onUnavailable={onUnavailable} onProfileSaved={onProfileSaved} />
 }
 
-export function PersonalTackBarContent({ state, token, onUnavailable }: { state: PersonalPageState; token?: string; onUnavailable?: () => void }) {
+export function PersonalTackBarContent({ state, token, onUnavailable, onProfileSaved }: { state: PersonalPageState; token?: string; onUnavailable?: () => void; onProfileSaved?: (name: string | null) => void }) {
   const [query, setQuery] = useState('')
   const [boatSaved, setBoatSaved] = useState<PersonalBoat | null>(null)
   const sessions = useMemo(
@@ -71,7 +74,8 @@ export function PersonalTackBarContent({ state, token, onUnavailable }: { state:
     {state.status === 'unavailable' && <p className="personal-feedback" role="alert">This personal link is unavailable.</p>}
     {state.status === 'error' && <p className="personal-feedback" role="alert">Cannot load My TackBar. Please try again.</p>}
     {state.status === 'ready' && <>
-      <p className="personal-name">{state.data.email}{state.data.name?.trim() ? ` - ${state.data.name.trim()}` : ''}</p>
+      {!token && <p className="personal-name">{state.data.email}{state.data.name?.trim() ? ` - ${state.data.name.trim()}` : ''}</p>}
+      {token && <MyProfile token={token} name={state.data.name} email={state.data.email} onSaved={onProfileSaved} onUnavailable={onUnavailable} />}
       <p>{state.data.session_count} {state.data.session_count === 1 ? 'Session' : 'Sessions'}</p>
       <section aria-labelledby="my-sessions-heading">
         {state.data.sessions.length === 0 ? <p>No Sessions recorded yet.</p> : <>
@@ -102,6 +106,74 @@ export function PersonalTackBarContent({ state, token, onUnavailable }: { state:
     </>}
     </main>
   </>
+}
+
+function MyProfile({ token, name, email, onSaved, onUnavailable }: { token: string; name: string | null; email: string; onSaved?: (name: string | null) => void; onUnavailable?: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<{ message: string; error?: boolean } | null>(null)
+  const submitting = useRef(false)
+  const writeController = useRef<AbortController | null>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const editButton = useRef<HTMLButtonElement>(null)
+  const wasEditing = useRef(false)
+
+  useEffect(() => () => writeController.current?.abort(), [])
+  useEffect(() => {
+    if (editing) input.current?.focus()
+    else if (wasEditing.current) editButton.current?.focus()
+    wasEditing.current = editing
+  }, [editing])
+
+  async function save() {
+    if (submitting.current) return
+    const normalized = draft.trim() || null
+    if (normalized === (name?.trim() || null)) {
+      setEditing(false)
+      setFeedback(null)
+      return
+    }
+    submitting.current = true
+    setSaving(true)
+    setFeedback(null)
+    const controller = new AbortController()
+    writeController.current = controller
+    try {
+      const updated = await updatePersonalProfile(token, normalized, controller.signal)
+      if (controller.signal.aborted) return
+      onSaved?.(updated.name)
+      setEditing(false)
+      setFeedback({ message: 'Profile saved.' })
+    } catch (error) {
+      if (controller.signal.aborted) return
+      if (error instanceof PersonalTackBarNotFoundError) {
+        controller.abort()
+        onUnavailable?.()
+      }
+      else setFeedback({ message: 'Could not save Profile. Please try again.', error: true })
+    } finally {
+      submitting.current = false
+      writeController.current = null
+      if (!controller.signal.aborted) setSaving(false)
+    }
+  }
+
+  return <section className="personal-profile" aria-labelledby="my-profile-heading">
+    <h2 id="my-profile-heading">My Profile</h2>
+    <p><strong>Name:</strong> {name?.trim() || 'Not set'}</p>
+    <p><strong>Email:</strong> {email}</p>
+    {editing ? <form onSubmit={(event) => { event.preventDefault(); void save() }}>
+      <label htmlFor="personal-profile-name">Name</label>
+      <input id="personal-profile-name" ref={input} type="text" value={draft} disabled={saving} onChange={(event) => setDraft(event.target.value)} />
+      <div className="personal-profile__actions">
+        <button className="personal-action personal-action--primary" type="submit" disabled={saving}>Save</button>
+        <button className="personal-action personal-action--secondary" type="button" disabled={saving} onClick={() => { setEditing(false); setFeedback(null) }}>Cancel</button>
+      </div>
+      {saving && <p className="personal-feedback" role="status">Saving Profile…</p>}
+    </form> : <button ref={editButton} className="personal-action personal-action--edit" type="button" onClick={() => { setDraft(name ?? ''); setEditing(true); setFeedback(null) }}>Edit Name</button>}
+    {feedback && <p className="personal-feedback" role={feedback.error ? 'alert' : 'status'}>{feedback.message}</p>}
+  </section>
 }
 
 type ActivitiesState =
