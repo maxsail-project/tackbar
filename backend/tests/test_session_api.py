@@ -164,6 +164,36 @@ def test_capability_session_exposes_active_subset_without_internal_id(monkeypatc
     assert ACTIVITY_B not in json.dumps(response.json)
 
 
+@pytest.mark.parametrize(
+    ("boat_owner", "visible"),
+    [(SAILOR_A, True), (None, True), (SAILOR_B, False)],
+)
+def test_shared_session_boat_metadata_respects_activity_sailor(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    boat_owner: str | None,
+    visible: bool,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    boats_path = root / "boats.json"
+    boats = json.loads(boats_path.read_text(encoding="utf-8"))
+    if boat_owner is not None:
+        boats[0]["sailor_id"] = boat_owner
+    _write_json(boats_path, boats)
+    activities_before = (root / "activities.json").read_bytes()
+
+    response = _get(f"/api/shared/sessions/{TOKEN}")
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json["activities"]] == [ACTIVITY_A]
+    activity = response.json["activities"][0]
+    assert activity["boat"] == (
+        {"id": BOAT_ID, "name": "Demo", "sailing_class": None, "sail_number": None}
+        if visible else None
+    )
+    assert (root / "activities.json").read_bytes() == activities_before
+
+
 def test_shared_session_missing_context_is_backward_compatible_and_provider_free(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,

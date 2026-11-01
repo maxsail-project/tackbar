@@ -105,6 +105,8 @@ class SessionReader:
                     raise SessionDataIntegrityError(
                         f"Activity references unknown Boat: {activity.id}"
                     )
+                if boat.sailor_id not in (None, activity.sailor_id):
+                    boat = None
 
             if sailor is None:
                 continue
