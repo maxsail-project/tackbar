@@ -21,6 +21,7 @@ vi.mock('react-map-gl/maplibre', async () => {
     }, ref) {
       map.onRotate = onRotate
       useImperativeHandle(ref, () => ({
+        getLayer: () => undefined,
         getBearing: () => map.bearing,
         jumpTo: (options: { bearing?: number }) => {
           map.jumpTo(options)

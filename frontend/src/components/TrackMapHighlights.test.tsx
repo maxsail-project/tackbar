@@ -1,4 +1,7 @@
+// @vitest-environment jsdom
+import { act } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { createRoot } from 'react-dom/client'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ACTIVITY_COLORS } from '../config/activityColors'
@@ -6,21 +9,56 @@ import type { TrackSample } from '../types/track'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import TrackMap from './TrackMap'
 
-vi.mock('react-map-gl/maplibre', () => ({
-  default: ({ children }: { children: ReactNode }) => <div data-map>{children}</div>,
-  Source: ({ id, children }: { id: string, children: ReactNode }) => <div data-source={id}>{children}</div>,
-  Layer: ({ id, paint }: { id: string, paint: Record<string, string | number> }) =>
-    <div data-layer={id} data-color={paint['line-color']} data-width={paint['line-width']} />,
+const layerStack = vi.hoisted(() => [] as string[])
+
+vi.mock('react-map-gl/maplibre', async () => {
+  const { forwardRef, useEffect, useImperativeHandle, useRef } = await import('react')
+  return {
+  default: forwardRef(function MockMap({ children }: { children: ReactNode }, ref) {
+    useImperativeHandle(ref, () => ({
+      getLayer: (id: string) => layerStack.includes(id) ? { id } : undefined,
+      getBearing: () => 0,
+      fitBounds: () => undefined,
+    }))
+    return <div data-map>{children}</div>
+  }),
+  Source: ({ id, data, children }: { id: string, data: { geometry: { type: string, coordinates: number[][] | number[][][] } }, children: ReactNode }) => {
+    const longitude = data.geometry.type === 'LineString'
+      ? (data.geometry.coordinates as number[][])[0][0]
+      : (data.geometry.coordinates as number[][][])[0][0][0]
+    return <div data-source={id} data-start-longitude={longitude}>{children}</div>
+  },
+  Layer: ({ id, beforeId, paint }: { id: string, beforeId?: string, paint: Record<string, string | number> }) => {
+    const previousBeforeId = useRef(beforeId)
+    useEffect(() => {
+      if (!layerStack.includes(id)) {
+        const index = beforeId ? layerStack.indexOf(beforeId) : -1
+        layerStack.splice(index < 0 ? layerStack.length : index, 0, id)
+      } else if (previousBeforeId.current !== beforeId) {
+        layerStack.splice(layerStack.indexOf(id), 1)
+        const index = beforeId ? layerStack.indexOf(beforeId) : -1
+        layerStack.splice(index < 0 ? layerStack.length : index, 0, id)
+      }
+      previousBeforeId.current = beforeId
+      return () => {
+        const index = layerStack.indexOf(id)
+        if (index >= 0) layerStack.splice(index, 1)
+      }
+    }, [id, beforeId])
+    return <div data-layer={id} data-color={paint['line-color']} data-width={paint['line-width']} />
+  },
   Marker: ({ children }: { children: ReactNode }) => <div data-boat-marker>{children}</div>,
   NavigationControl: () => null,
   Popup: () => null,
-}))
+  }
+})
 vi.mock('./HistoricalConditionsControl', () => ({ default: () => null }))
 
 const samples: TrackSample[] = [
   { utc: '2031-01-01T10:00:00Z', lat: 0.25, lon: -30.72, dist: 0, sog: 5, cog: 90, hdg: null, heel: null, trim: null },
   { utc: '2031-01-01T10:00:01Z', lat: 0.25, lon: -30.71, dist: 0, sog: 5, cog: 90, hdg: null, heel: null, trim: null },
 ]
+const otherSamples = samples.map((sample) => ({ ...sample, lon: sample.lon + 0.01 }))
 
 function highlight(selectionIndex: 1 | 2, activityRole: 'primary' | 'comparison'): SelectedManeuverHighlight {
   return {
@@ -34,11 +72,21 @@ function highlight(selectionIndex: 1 | 2, activityRole: 'primary' | 'comparison'
   }
 }
 
-function renderMap(selectedManeuverHighlights: SelectedManeuverHighlight[]) {
-  return renderToStaticMarkup(<TrackMap
-    primaryVisibleSamples={samples}
-    comparisonVisibleSamples={samples}
-    fitContextKey="test"
+function mapElement(
+  selectedManeuverHighlights: SelectedManeuverHighlight[],
+  primarySamples = samples,
+  comparisonSamples: TrackSample[] = samples,
+  showFleet = true,
+  fitContextKey = 'test',
+) {
+  return <TrackMap
+    primaryVisibleSamples={primarySamples}
+    comparisonVisibleSamples={comparisonSamples}
+    contextualActivities={showFleet ? [{
+      id: 'fleet', identity: 'Fleet', visibleSamples: samples,
+      boatPosition: null, cog: null,
+    }] : []}
+    fitContextKey={fitContextKey}
     selectedManeuverHighlights={selectedManeuverHighlights}
     primaryActivityIdentity="Primary"
     comparisonActivityIdentity="Comparison"
@@ -54,10 +102,75 @@ function renderMap(selectedManeuverHighlights: SelectedManeuverHighlight[]) {
     comparisonCog={90}
     comparisonHeel={null}
     comparisonTrim={null}
-  />)
+  />
+}
+
+function renderMap(
+  selectedManeuverHighlights: SelectedManeuverHighlight[],
+  primarySamples = samples,
+  comparisonSamples: TrackSample[] = samples,
+) {
+  return renderToStaticMarkup(mapElement(selectedManeuverHighlights, primarySamples, comparisonSamples))
 }
 
 describe('selected maneuver map layer order', () => {
+  it('keeps the layer stack ordered when selected tracks and fleet layers mount later', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    layerStack.length = 0
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(mapElement([], samples, [], false)))
+      expect(layerStack).toEqual(['primary-activity-track-line'])
+
+      await act(async () => root.render(mapElement([highlight(1, 'primary')], samples, otherSamples, true)))
+      expect(layerStack).toEqual([
+        'contextual-activity-track-line-fleet',
+        'comparison-activity-track-line',
+        'primary-activity-track-line',
+        'selected-maneuver-highlight-halo-1',
+        'selected-maneuver-highlight-line-1',
+      ])
+
+      await act(async () => root.render(mapElement([highlight(1, 'comparison')], otherSamples, samples, true, 'new-window')))
+      expect(layerStack).toEqual([
+        'contextual-activity-track-line-fleet',
+        'comparison-activity-track-line',
+        'primary-activity-track-line',
+        'selected-maneuver-highlight-halo-1',
+        'selected-maneuver-highlight-line-1',
+      ])
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
+
+  it('keeps fleet, Comparison, Primary, and maneuver layers in role order after a role swap', () => {
+    for (const [primary, comparison] of [[samples, otherSamples], [otherSamples, samples]]) {
+      const markup = renderMap([highlight(1, 'primary')], primary, comparison)
+      const layerIds = [...markup.matchAll(/data-layer="([^"]+)"/g)].map((match) => match[1])
+
+      expect(layerIds).toEqual([
+        'contextual-activity-track-line-fleet',
+        'comparison-activity-track-line',
+        'primary-activity-track-line',
+        'selected-maneuver-highlight-halo-1',
+        'selected-maneuver-highlight-line-1',
+      ])
+      expect(markup).toContain(`data-source="primary-activity-track" data-start-longitude="${primary[0].lon}"`)
+      expect(markup).toContain(`data-source="comparison-activity-track" data-start-longitude="${comparison[0].lon}"`)
+    }
+  })
+
+  it('keeps Primary alone above fleet context without changing its line style', () => {
+    const markup = renderMap([], samples, [])
+    const layerIds = [...markup.matchAll(/data-layer="([^"]+)"/g)].map((match) => match[1])
+
+    expect(layerIds).toEqual(['contextual-activity-track-line-fleet', 'primary-activity-track-line'])
+    expect(markup).toContain(`data-layer="primary-activity-track-line" data-color="${ACTIVITY_COLORS.primary}" data-width="4"`)
+    expect(markup).not.toContain('comparison-activity-track-line')
+  })
+
   it('draws each halo below its P/C line and leaves replay boats above the lines', () => {
     const markup = renderMap([highlight(1, 'primary'), highlight(2, 'comparison')])
     const halo1 = markup.indexOf('data-layer="selected-maneuver-highlight-halo-1"')

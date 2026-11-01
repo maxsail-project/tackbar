@@ -515,6 +515,12 @@ export default function TrackMap({
 
   if (!windowFocus) return null
 
+  // Layers added after the map has loaded must still stay below the selected pair.
+  const primaryLayerExists = Boolean(mapRef.current?.getLayer('primary-activity-track-line'))
+  const contextualBeforeId = mapRef.current?.getLayer('comparison-activity-track-line')
+    ? 'comparison-activity-track-line'
+    : primaryLayerExists ? 'primary-activity-track-line' : undefined
+
   return (
     <section className="map-panel" aria-label="Session track map">
       <Map
@@ -546,11 +552,27 @@ export default function TrackMap({
             <Layer
               id={`contextual-activity-track-line-${activity.id}`}
               type="line"
+              beforeId={contextualBeforeId}
               paint={CONTEXTUAL_TRACK_PAINT}
               layout={TRACK_LAYOUT}
             />
           </Source>
         ))}
+        {comparisonGeometry && (
+          <Source
+            id="comparison-activity-track"
+            type="geojson"
+            data={comparisonGeometry.geoJson}
+          >
+            <Layer
+              id="comparison-activity-track-line"
+              type="line"
+              beforeId={primaryLayerExists ? 'primary-activity-track-line' : undefined}
+              paint={COMPARISON_TRACK_PAINT}
+              layout={TRACK_LAYOUT}
+            />
+          </Source>
+        )}
         {primaryGeometry && (
           <Source
             id="primary-activity-track"
@@ -561,20 +583,6 @@ export default function TrackMap({
               id="primary-activity-track-line"
               type="line"
               paint={PRIMARY_TRACK_PAINT}
-              layout={TRACK_LAYOUT}
-            />
-          </Source>
-        )}
-        {comparisonGeometry && (
-          <Source
-            id="comparison-activity-track"
-            type="geojson"
-            data={comparisonGeometry.geoJson}
-          >
-            <Layer
-              id="comparison-activity-track-line"
-              type="line"
-              paint={COMPARISON_TRACK_PAINT}
               layout={TRACK_LAYOUT}
             />
           </Source>
