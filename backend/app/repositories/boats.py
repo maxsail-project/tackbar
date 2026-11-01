@@ -28,6 +28,33 @@ class BoatRepository:
             None,
         )
 
+    def list_for_sailor(self, sailor_id: str) -> list[Boat]:
+        require_uuid(sailor_id, "Sailor")
+        return [boat for boat in self.all() if boat.sailor_id == sailor_id]
+
+    def get_for_sailor(self, sailor_id: str, boat_id: str) -> Boat | None:
+        require_uuid(sailor_id, "Sailor")
+        boat = self.get_by_id(boat_id)
+        return boat if boat is not None and boat.sailor_id == sailor_id else None
+
+    def add_for_sailor(self, sailor_id: str, boat: Boat) -> Boat:
+        require_uuid(sailor_id, "Sailor")
+        if boat.sailor_id != sailor_id:
+            raise ValueError("Boat owner must match Sailor")
+        return self.add(boat)
+
+    def replace_for_sailor(self, sailor_id: str, boat: Boat) -> Boat:
+        require_uuid(sailor_id, "Sailor")
+        boats = self.all()
+        for index, existing in enumerate(boats):
+            if existing.id == boat.id and existing.sailor_id == sailor_id:
+                if boat.sailor_id != sailor_id:
+                    raise ValueError("Boat ownership cannot change")
+                boats[index] = boat
+                self._save(boats)
+                return boat
+        raise ValueError(f"Boat not owned by Sailor: {boat.id}")
+
     def add(self, boat: Boat) -> Boat:
         boats = self.all()
         if any(existing.id == boat.id for existing in boats):
@@ -54,6 +81,8 @@ def _validate_boats(boats: list[Boat]) -> None:
     seen_ids: set[str] = set()
     for boat in boats:
         require_uuid(boat.id, "Boat")
+        if boat.sailor_id is not None:
+            require_uuid(boat.sailor_id, "Sailor")
         if boat.id in seen_ids:
             raise ValueError(f"Duplicate Boat id: {boat.id}")
         seen_ids.add(boat.id)

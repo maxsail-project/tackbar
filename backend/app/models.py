@@ -142,6 +142,7 @@ class Boat:
     name: str | None
     sailing_class: str | None
     sail_number: str | None
+    sailor_id: str | None = None
 
 
 @dataclass

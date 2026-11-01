@@ -40,6 +40,7 @@ flowchart TB
     STORE[("Private persistence: JSON metadata, CSV.GZ tracks, originals, artifacts")]
 
     SAILOR -->|"owns"| ACT
+    SAILOR -->|"catalogue owner; legacy Boats unowned"| BOAT
     BOAT -.->|"optional sailing context"| ACT
     ACT --> MATCH --> SES
     ACT --> ANALYTICS
@@ -81,8 +82,9 @@ flowchart TB
   technical ingestion or Session matching. The backend enforces current
   `ACTIVE`-only visibility in shared Session responses.
 - **Sailor, Boat, Activity and Session are distinct domain concepts.**
-  An Activity belongs to one Sailor, may reference a Boat, and is associated
-  with at most one Session.
+  A Sailor may own a Boat catalogue; legacy Boats remain unowned. An Activity
+  belongs to one Sailor, may reference a Boat, and is associated with at most
+  one Session.
 - **Personal TackBar is a participation history, not a bypass into a Session.**
   Opening a Session still requires a currently usable shared capability.
   Original Session, Personal, consent-request and temporary-QR credentials
