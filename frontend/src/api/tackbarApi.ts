@@ -1,4 +1,4 @@
-import type { PersonalTackBar } from '../types/personal'
+import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalTackBar } from '../types/personal'
 import type {
   SessionAccess,
   SharedSessionDetail,
@@ -58,6 +58,21 @@ export function getPersonalTackBar(token: string, signal?: AbortSignal) {
   )
 }
 
+export function getPersonalActivities(token: string, signal?: AbortSignal) {
+  return requestJson<PersonalActivity[]>(`/api/me/${encodeURIComponent(token)}/activities`, signal, () => new PersonalTackBarNotFoundError())
+}
+
+export function getPersonalBoats(token: string, signal?: AbortSignal) {
+  return requestJson<PersonalBoat[]>(`/api/me/${encodeURIComponent(token)}/boats`, signal, () => new PersonalTackBarNotFoundError())
+}
+
+export function updatePersonalActivity(token: string, activityId: string, patch: PersonalActivityPatch, signal?: AbortSignal) {
+  return requestJson<PersonalActivity>(
+    `/api/me/${encodeURIComponent(token)}/activities/${encodeURIComponent(activityId)}`,
+    signal, () => new PersonalTackBarNotFoundError(), 'PATCH', undefined, patch,
+  )
+}
+
 export class SessionNotFoundError extends TackBarApiError {
   constructor() {
     super('Session not found.', 404)
@@ -104,15 +119,17 @@ async function requestJson<T>(
   path: string,
   signal?: AbortSignal,
   notFoundError?: () => TackBarApiError,
-  method: 'GET' | 'POST' = 'GET',
+  method: 'GET' | 'POST' | 'PATCH' = 'GET',
   statusError?: (status: number) => TackBarApiError | null,
+  body?: object,
 ): Promise<T> {
   let response: Response
 
   try {
     response = await fetch(path, {
       method,
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
       signal,
     })
   } catch (error) {

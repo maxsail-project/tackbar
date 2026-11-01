@@ -21,3 +21,27 @@ export interface PersonalTackBar {
   last_sailing_end: string | null
   sessions: PersonalSession[]
 }
+
+export interface PersonalBoat {
+  id: string
+  name: string | null
+  sailing_class: string | null
+  sail_number: string | null
+}
+
+export interface PersonalActivity {
+  id: string
+  boat_id: string | null
+  boat: PersonalBoat | null
+  device_name: string
+  device_label: string | null
+  source: string
+  original_filename: string
+  start_time: string
+  end_time: string
+}
+
+export interface PersonalActivityPatch {
+  boat_id?: string | null
+  device_label?: string | null
+}

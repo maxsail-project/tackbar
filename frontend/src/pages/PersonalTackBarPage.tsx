@@ -1,8 +1,8 @@
 import AboutControl, { PublicHeaderBrand } from '../components/AboutControl'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getPersonalTackBar, PersonalTackBarNotFoundError } from '../api/tackbarApi'
-import type { PersonalSession, PersonalTackBar } from '../types/personal'
+import { getPersonalActivities, getPersonalBoats, getPersonalTackBar, PersonalTackBarNotFoundError, updatePersonalActivity } from '../api/tackbarApi'
+import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalSession, PersonalTackBar } from '../types/personal'
 import { formatHistoricalConditionsCompact } from '../utils/historicalConditions'
 import { sessionDisplayLocation } from '../utils/sessionPresentation'
 
@@ -39,6 +39,7 @@ export default function PersonalTackBarPage() {
 
 function PersonalPage({ token }: { token: string }) {
   const [state, setState] = useState<PersonalPageState>({ status: 'loading' })
+  const onUnavailable = useCallback(() => setState({ status: 'unavailable' }), [])
   useEffect(() => {
     const controller = new AbortController()
     void getPersonalTackBar(token, controller.signal).then(
@@ -51,10 +52,10 @@ function PersonalPage({ token }: { token: string }) {
     )
     return () => controller.abort()
   }, [token])
-  return <PersonalTackBarContent state={state} />
+  return <PersonalTackBarContent state={state} token={token} onUnavailable={onUnavailable} />
 }
 
-export function PersonalTackBarContent({ state }: { state: PersonalPageState }) {
+export function PersonalTackBarContent({ state, token, onUnavailable }: { state: PersonalPageState; token?: string; onUnavailable?: () => void }) {
   const [query, setQuery] = useState('')
   const sessions = useMemo(
     () => state.status === 'ready' ? filterPersonalSessions(state.data.sessions, query) : [],
@@ -94,7 +95,117 @@ export function PersonalTackBarContent({ state }: { state: PersonalPageState }) 
           </ol>}
         </>}
       </section>
+      {token && <MyActivities token={token} onUnavailable={onUnavailable} />}
     </>}
     </main>
   </>
+}
+
+type ActivitiesState =
+  | { status: 'loading' | 'error' }
+  | { status: 'ready'; activities: PersonalActivity[]; boats: PersonalBoat[] }
+
+function boatName(boat: PersonalBoat) {
+  return [boat.name, boat.sailing_class, boat.sail_number].filter(Boolean).join(' · ')
+}
+
+function MyActivities({ token, onUnavailable }: { token: string; onUnavailable?: () => void }) {
+  const [state, setState] = useState<ActivitiesState>({ status: 'loading' })
+  const [retry, setRetry] = useState(0)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [boatChoice, setBoatChoice] = useState('')
+  const [label, setLabel] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<{ id: string; message: string; error?: boolean } | null>(null)
+  const writeController = useRef<AbortController | null>(null)
+  const submitting = useRef(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void Promise.all([getPersonalActivities(token, controller.signal), getPersonalBoats(token, controller.signal)]).then(
+      ([activities, boats]) => { if (!controller.signal.aborted) setState({ status: 'ready', activities, boats }) },
+      (error: unknown) => {
+        if (controller.signal.aborted) return
+        if (error instanceof PersonalTackBarNotFoundError) onUnavailable?.()
+        else setState({ status: 'error' })
+      },
+    )
+    return () => controller.abort()
+  }, [token, retry, onUnavailable])
+
+  useEffect(() => () => writeController.current?.abort(), [])
+
+  function beginEdit(activity: PersonalActivity, boats: PersonalBoat[]) {
+    setEditingId(activity.id)
+    setBoatChoice(activity.boat_id && !boats.some((boat) => boat.id === activity.boat_id) ? '__keep__' : activity.boat_id ?? '')
+    setLabel(activity.device_label ?? '')
+    setFeedback(null)
+  }
+
+  async function save(activity: PersonalActivity) {
+    if (submitting.current || state.status !== 'ready') return
+    const patch: PersonalActivityPatch = {}
+    if (boatChoice !== '__keep__' && boatChoice !== (activity.boat_id ?? '')) patch.boat_id = boatChoice || null
+    if (label !== (activity.device_label ?? '')) patch.device_label = label === '' ? null : label
+    if (Object.keys(patch).length === 0) { setEditingId(null); return }
+    submitting.current = true
+    setSaving(true)
+    setFeedback(null)
+    const controller = new AbortController()
+    writeController.current = controller
+    try {
+      const updated = await updatePersonalActivity(token, activity.id, patch, controller.signal)
+      if (controller.signal.aborted) return
+      setState((current) => current.status === 'ready'
+        ? { ...current, activities: current.activities.map((item) => item.id === updated.id ? updated : item) }
+        : current)
+      setEditingId(null)
+      setFeedback({ id: activity.id, message: 'Activity saved.' })
+    } catch (error) {
+      if (controller.signal.aborted) return
+      if (error instanceof PersonalTackBarNotFoundError) onUnavailable?.()
+      else setFeedback({ id: activity.id, message: 'Could not save Activity. Please try again.', error: true })
+    } finally {
+      submitting.current = false
+      writeController.current = null
+      if (!controller.signal.aborted) setSaving(false)
+    }
+  }
+
+  return <section aria-labelledby="my-activities-heading">
+    <h2 id="my-activities-heading">My Activities</h2>
+    {state.status === 'loading' && <p role="status">Loading My Activities…</p>}
+    {state.status === 'error' && <div role="alert">Could not load My Activities. <button type="button" onClick={() => { setState({ status: 'loading' }); setRetry((value) => value + 1) }}>Retry</button></div>}
+    {state.status === 'ready' && (state.activities.length === 0
+      ? <p>No Activities recorded yet.</p>
+      : <ol className="personal-activities">{state.activities.map((activity) => {
+        const owned = state.boats.some((boat) => boat.id === activity.boat_id)
+        const currentBoat = activity.boat ? boatName(activity.boat) : activity.boat_id ? 'Unavailable Boat association' : 'No Boat'
+        const editing = editingId === activity.id
+        return <li className="personal-activity" key={activity.id}>
+          <h3><time dateTime={activity.start_time}>{day(activity.start_time)} · {time(activity.start_time)}</time></h3>
+          <p>Boat: {currentBoat}</p>
+          <p>Device: {activity.device_label || activity.device_name || 'Not available'}</p>
+          <p className="personal-activity__origin">Source: {activity.source} · Original file: {activity.original_filename} · Extracted Device: {activity.device_name || 'Not available'}</p>
+          {editing ? <form onSubmit={(event) => { event.preventDefault(); void save(activity) }}>
+            <label>Boat
+              <select value={boatChoice} disabled={saving} onChange={(event) => setBoatChoice(event.target.value)}>
+                {activity.boat_id && !owned && <option value="__keep__">Keep current Boat association</option>}
+                <option value="">No Boat</option>
+                {state.boats.map((boat) => <option key={boat.id} value={boat.id}>{boatName(boat)}</option>)}
+              </select>
+            </label>
+            <label>Device label
+              <input type="text" value={label} disabled={saving} onChange={(event) => setLabel(event.target.value)} />
+            </label>
+            <div className="personal-activity__actions">
+              <button type="submit" disabled={saving}>Save</button>
+              <button type="button" disabled={saving} onClick={() => { setEditingId(null); setFeedback(null) }}>Cancel</button>
+            </div>
+            {saving && <p role="status">Saving Activity…</p>}
+          </form> : <button type="button" disabled={saving} onClick={() => beginEdit(activity, state.boats)}>Edit Activity</button>}
+          {feedback?.id === activity.id && <p role={feedback.error ? 'alert' : 'status'}>{feedback.message}</p>}
+        </li>
+      })}</ol>)}
+  </section>
 }

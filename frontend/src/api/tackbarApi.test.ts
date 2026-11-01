@@ -8,6 +8,8 @@ import {
   getActivityManeuversForAccess,
   getActivityTrackForAccess,
   getConsentRequest,
+  getPersonalActivities,
+  getPersonalBoats,
   getSharedActivityManeuvers,
   getSharedActivityTrack,
   getSharedSession,
@@ -17,6 +19,7 @@ import {
   TemporaryAccessExpiredError,
   TemporaryAccessNotFoundError,
   TemporaryAccessUnavailableError,
+  updatePersonalActivity,
 } from './tackbarApi'
 
 const SESSION_CONTENT = {
@@ -48,6 +51,22 @@ afterEach(() => {
 })
 
 describe('TackBar Session API client', () => {
+  it('uses encoded personal paths and exact Activity PATCH fields', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response('{}'))
+    vi.stubGlobal('fetch', fetchMock)
+    const controller = new AbortController()
+    await getPersonalActivities('personal/token', controller.signal)
+    await getPersonalBoats('personal/token', controller.signal)
+    await updatePersonalActivity('personal/token', 'activity/id', { device_label: 'Bow' }, controller.signal)
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/me/personal%2Ftoken/activities', expect.objectContaining({ method: 'GET', signal: controller.signal }))
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/me/personal%2Ftoken/boats', expect.objectContaining({ method: 'GET', signal: controller.signal }))
+    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/me/personal%2Ftoken/activities/activity%2Fid', expect.objectContaining({
+      method: 'PATCH', signal: controller.signal, body: '{"device_label":"Bow"}',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }))
+    await updatePersonalActivity('personal/token', 'activity/id', { boat_id: null })
+    expect(fetchMock.mock.calls[3][1].body).toBe('{"boat_id":null}')
+  })
   it('gets one Session by its encoded capability token and returns JSON', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(SESSION), { status: 200 }),
