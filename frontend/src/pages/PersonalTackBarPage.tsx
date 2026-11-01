@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getPersonalActivities, getPersonalBoats, getPersonalTackBar, PersonalTackBarNotFoundError, updatePersonalActivity } from '../api/tackbarApi'
 import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalSession, PersonalTackBar } from '../types/personal'
+import MyBoats, { boatName } from './MyBoats'
 import { formatHistoricalConditionsCompact } from '../utils/historicalConditions'
 import { sessionDisplayLocation } from '../utils/sessionPresentation'
 
@@ -57,6 +58,7 @@ function PersonalPage({ token }: { token: string }) {
 
 export function PersonalTackBarContent({ state, token, onUnavailable }: { state: PersonalPageState; token?: string; onUnavailable?: () => void }) {
   const [query, setQuery] = useState('')
+  const [boatSaved, setBoatSaved] = useState<PersonalBoat | null>(null)
   const sessions = useMemo(
     () => state.status === 'ready' ? filterPersonalSessions(state.data.sessions, query) : [],
     [query, state],
@@ -95,7 +97,8 @@ export function PersonalTackBarContent({ state, token, onUnavailable }: { state:
           </ol>}
         </>}
       </section>
-      {token && <MyActivities token={token} onUnavailable={onUnavailable} />}
+      {token && <MyActivities token={token} onUnavailable={onUnavailable} boatSaved={boatSaved} />}
+      {token && <MyBoats token={token} onUnavailable={onUnavailable} onBoatSaved={setBoatSaved} />}
     </>}
     </main>
   </>
@@ -105,11 +108,7 @@ type ActivitiesState =
   | { status: 'loading' | 'error' }
   | { status: 'ready'; activities: PersonalActivity[]; boats: PersonalBoat[] }
 
-function boatName(boat: PersonalBoat) {
-  return [boat.name, boat.sailing_class, boat.sail_number].filter(Boolean).join(' · ')
-}
-
-function MyActivities({ token, onUnavailable }: { token: string; onUnavailable?: () => void }) {
+function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUnavailable?: () => void; boatSaved: PersonalBoat | null }) {
   const [state, setState] = useState<ActivitiesState>({ status: 'loading' })
   const [retry, setRetry] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -122,18 +121,44 @@ function MyActivities({ token, onUnavailable }: { token: string; onUnavailable?:
 
   useEffect(() => {
     const controller = new AbortController()
-    void Promise.all([getPersonalActivities(token, controller.signal), getPersonalBoats(token, controller.signal)]).then(
-      ([activities, boats]) => { if (!controller.signal.aborted) setState({ status: 'ready', activities, boats }) },
-      (error: unknown) => {
+    let denied = false
+    const watchDenial = <T,>(request: Promise<T>) => request.catch((error: unknown) => {
+      if (!controller.signal.aborted && !denied && error instanceof PersonalTackBarNotFoundError) {
+        denied = true
+        onUnavailable?.()
+      }
+      throw error
+    })
+    void Promise.allSettled([
+      watchDenial(getPersonalActivities(token, controller.signal)),
+      watchDenial(getPersonalBoats(token, controller.signal)),
+    ]).then(
+      ([activityResult, boatResult]) => {
         if (controller.signal.aborted) return
-        if (error instanceof PersonalTackBarNotFoundError) onUnavailable?.()
-        else setState({ status: 'error' })
+        const errors = [activityResult, boatResult].flatMap((result) => result.status === 'rejected' ? [result.reason as unknown] : [])
+        if (errors.some((error) => error instanceof PersonalTackBarNotFoundError)) return
+        if (errors.length) setState({ status: 'error' })
+        else if (activityResult.status === 'fulfilled' && boatResult.status === 'fulfilled') {
+          setState({ status: 'ready', activities: activityResult.value, boats: boatResult.value })
+        }
       },
     )
     return () => controller.abort()
   }, [token, retry, onUnavailable])
 
   useEffect(() => () => writeController.current?.abort(), [])
+
+  useEffect(() => {
+    if (!boatSaved || state.status !== 'ready') return
+    setState((current) => current.status === 'ready' ? {
+      ...current,
+      boats: current.boats.some((boat) => boat.id === boatSaved.id)
+        ? current.boats.map((boat) => boat.id === boatSaved.id ? boatSaved : boat)
+        : [...current.boats, boatSaved],
+      activities: current.activities.map((activity) => activity.boat_id === boatSaved.id
+        ? { ...activity, boat: boatSaved } : activity),
+    } : current)
+  }, [boatSaved, state.status])
 
   function beginEdit(activity: PersonalActivity, boats: PersonalBoat[]) {
     setEditingId(activity.id)

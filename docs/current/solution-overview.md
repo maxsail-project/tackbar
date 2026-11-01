@@ -58,7 +58,7 @@ flowchart TB
   subgraph WEB["React / TypeScript web experience"]
     direction LR
     CONSENT["Web consent"]
-    PERSONAL["Personal TackBar / My Sessions"]
+    PERSONAL["Personal TackBar / My Sessions, Activities and Boats"]
     VIEWER["Session Viewer: map, UTC window, compare, replay"]
     ADMIN["Protected Admin"]
   end
@@ -85,13 +85,13 @@ flowchart TB
   A Sailor may own a Boat catalogue; legacy Boats remain unowned. An Activity
   belongs to one Sailor, may reference a Boat, and is associated with at most
   one Session.
-- **Personal TackBar is a participation history, not a bypass into a Session.**
+- **Personal TackBar includes participation history and Sailor-owned context, not a bypass into a Session.**
   Opening a Session still requires a currently usable shared capability.
   Original Session, Personal, consent-request and temporary-QR credentials
   serve different purposes.
 - **Personal context writes use the current personal capability.** The backend
-  authorizes Activity Boat and Device-label edits and optional default-Boat
-  updates; the current My Sessions UI remains read-only.
+  authorizes Activity Boat and Device-label edits, owned Boat management and
+  optional default-Boat updates through My TackBar.
 - **The Viewer uses one ephemeral shared GPS/UTC Analysis Window,**
   analytically compares at most two selected Activities, and supports replay.
   It does not persist the selected analysis window as a domain entity.

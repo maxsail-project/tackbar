@@ -3,13 +3,18 @@ import {
   acceptConsentRequest,
   ActivityManeuverAnalyticsNotFoundError,
   ActivityTrackNotFoundError,
+  BoatClassConfirmationRequiredError,
   ConsentUnavailableError,
+  createPersonalBoat,
   createTemporarySessionShare,
   getActivityManeuversForAccess,
   getActivityTrackForAccess,
   getConsentRequest,
   getPersonalActivities,
+  getPersonalBoatClasses,
   getPersonalBoats,
+  getPersonalDefaultBoat,
+  PersonalTackBarNotFoundError,
   getSharedActivityManeuvers,
   getSharedActivityTrack,
   getSharedSession,
@@ -20,6 +25,8 @@ import {
   TemporaryAccessNotFoundError,
   TemporaryAccessUnavailableError,
   updatePersonalActivity,
+  updatePersonalBoat,
+  updatePersonalDefaultBoat,
 } from './tackbarApi'
 
 const SESSION_CONTENT = {
@@ -51,6 +58,44 @@ afterEach(() => {
 })
 
 describe('TackBar Session API client', () => {
+  it('uses encoded Boat, Class and Default endpoints with approved payloads', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response('{}'))
+    vi.stubGlobal('fetch', fetchMock)
+    const signal = new AbortController().signal
+    await getPersonalBoatClasses('personal/token', signal)
+    await getPersonalDefaultBoat('personal/token', signal)
+    await createPersonalBoat('personal/token', { name: 'Mistral', sailing_class: 'snipe', sail_number: null }, signal)
+    await updatePersonalBoat('personal/token', 'boat/id', { sailing_class: 'Sinpe', confirm_new_class: true }, signal)
+    await updatePersonalDefaultBoat('personal/token', null, signal)
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/me/personal%2Ftoken/boat-classes', '/api/me/personal%2Ftoken/default-boat',
+      '/api/me/personal%2Ftoken/boats', '/api/me/personal%2Ftoken/boats/boat%2Fid',
+      '/api/me/personal%2Ftoken/default-boat',
+    ])
+    expect(fetchMock.mock.calls.map(([, options]) => options.method)).toEqual(['GET', 'GET', 'POST', 'PATCH', 'PATCH'])
+    expect(fetchMock.mock.calls[2][1].body).toBe('{"name":"Mistral","sailing_class":"snipe","sail_number":null}')
+    expect(fetchMock.mock.calls[3][1].body).toBe('{"sailing_class":"Sinpe","confirm_new_class":true}')
+    expect(fetchMock.mock.calls[4][1].body).toBe('{"default_boat_id":null}')
+    expect(fetchMock.mock.calls[4][1].signal).toBe(signal)
+  })
+
+  it('recognizes only the scoped, well-formed Class confirmation response', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: {
+        code: 'class_confirmation_required', submitted_class: 'Sinpe', suggested_class: 'Snipe',
+      } }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: { code: 'other' } }), { status: 409 }))
+      .mockResolvedValueOnce(new Response('invalid', { status: 409 }))
+      .mockResolvedValueOnce(new Response('private backend detail', { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(createPersonalBoat('token', { sailing_class: 'Sinpe' })).rejects.toMatchObject({
+      name: 'BoatClassConfirmationRequiredError', submittedClass: 'Sinpe', suggestedClass: 'Snipe',
+    })
+    await expect(updatePersonalBoat('token', 'id', { sailing_class: 'Sinpe' })).rejects.toMatchObject({ status: 409, message: 'TackBar API request failed.' })
+    await expect(createPersonalBoat('token', { sailing_class: 'Sinpe' })).rejects.toMatchObject({ status: 409, message: 'TackBar API request failed.' })
+    await expect(getPersonalBoatClasses('token')).rejects.toBeInstanceOf(PersonalTackBarNotFoundError)
+    expect(new BoatClassConfirmationRequiredError('a', 'b').status).toBe(409)
+  })
   it('uses encoded personal paths and exact Activity PATCH fields', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => new Response('{}'))
     vi.stubGlobal('fetch', fetchMock)

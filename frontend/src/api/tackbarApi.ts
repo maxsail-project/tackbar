@@ -1,4 +1,4 @@
-import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalTackBar } from '../types/personal'
+import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalBoatInput, PersonalDefaultBoat, PersonalTackBar } from '../types/personal'
 import type {
   SessionAccess,
   SharedSessionDetail,
@@ -23,6 +23,18 @@ export class PersonalTackBarNotFoundError extends TackBarApiError {
   constructor() {
     super('Personal TackBar not found.', 404)
     this.name = 'PersonalTackBarNotFoundError'
+  }
+}
+
+export class BoatClassConfirmationRequiredError extends TackBarApiError {
+  readonly submittedClass: string
+  readonly suggestedClass: string
+
+  constructor(submittedClass: string, suggestedClass: string) {
+    super('Boat Class confirmation required.', 409)
+    this.name = 'BoatClassConfirmationRequiredError'
+    this.submittedClass = submittedClass
+    this.suggestedClass = suggestedClass
   }
 }
 
@@ -64,6 +76,47 @@ export function getPersonalActivities(token: string, signal?: AbortSignal) {
 
 export function getPersonalBoats(token: string, signal?: AbortSignal) {
   return requestJson<PersonalBoat[]>(`/api/me/${encodeURIComponent(token)}/boats`, signal, () => new PersonalTackBarNotFoundError())
+}
+
+export function getPersonalBoatClasses(token: string, signal?: AbortSignal) {
+  return requestJson<string[]>(`/api/me/${encodeURIComponent(token)}/boat-classes`, signal, () => new PersonalTackBarNotFoundError())
+}
+
+export function createPersonalBoat(token: string, input: PersonalBoatInput, signal?: AbortSignal) {
+  return requestJson<PersonalBoat>(`/api/me/${encodeURIComponent(token)}/boats`, signal,
+    () => new PersonalTackBarNotFoundError(), 'POST', undefined, input, boatClassConflict)
+}
+
+export function updatePersonalBoat(token: string, boatId: string, input: PersonalBoatInput, signal?: AbortSignal) {
+  return requestJson<PersonalBoat>(`/api/me/${encodeURIComponent(token)}/boats/${encodeURIComponent(boatId)}`, signal,
+    () => new PersonalTackBarNotFoundError(), 'PATCH', undefined, input, boatClassConflict)
+}
+
+export function getPersonalDefaultBoat(token: string, signal?: AbortSignal) {
+  return requestJson<PersonalDefaultBoat>(`/api/me/${encodeURIComponent(token)}/default-boat`, signal,
+    () => new PersonalTackBarNotFoundError())
+}
+
+export function updatePersonalDefaultBoat(token: string, defaultBoatId: string | null, signal?: AbortSignal) {
+  return requestJson<PersonalDefaultBoat>(`/api/me/${encodeURIComponent(token)}/default-boat`, signal,
+    () => new PersonalTackBarNotFoundError(), 'PATCH', undefined, { default_boat_id: defaultBoatId })
+}
+
+async function boatClassConflict(response: Response): Promise<TackBarApiError | null> {
+  if (response.status !== 409) return null
+  try {
+    const payload: unknown = await response.json()
+    if (typeof payload !== 'object' || payload === null || !('detail' in payload)) return null
+    const detail = payload.detail
+    if (typeof detail !== 'object' || detail === null || !('code' in detail)
+        || !('submitted_class' in detail) || !('suggested_class' in detail)) return null
+    if (detail.code !== 'class_confirmation_required'
+        || typeof detail.submitted_class !== 'string' || !detail.submitted_class
+        || typeof detail.suggested_class !== 'string' || !detail.suggested_class) return null
+    return new BoatClassConfirmationRequiredError(detail.submitted_class, detail.suggested_class)
+  } catch {
+    return null
+  }
 }
 
 export function updatePersonalActivity(token: string, activityId: string, patch: PersonalActivityPatch, signal?: AbortSignal) {
@@ -122,6 +175,7 @@ async function requestJson<T>(
   method: 'GET' | 'POST' | 'PATCH' = 'GET',
   statusError?: (status: number) => TackBarApiError | null,
   body?: object,
+  responseError?: (response: Response) => Promise<TackBarApiError | null>,
 ): Promise<T> {
   let response: Response
 
@@ -140,6 +194,8 @@ async function requestJson<T>(
   }
 
   if (!response.ok) {
+    const parsedError = await responseError?.(response)
+    if (parsedError) throw parsedError
     const mappedError = statusError?.(response.status)
     if (mappedError) throw mappedError
     if (response.status === 404 && notFoundError) {

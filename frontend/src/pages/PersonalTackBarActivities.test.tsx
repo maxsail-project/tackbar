@@ -12,6 +12,11 @@ vi.mock('../api/tackbarApi', async (importOriginal) => ({
   getPersonalTackBar: vi.fn(),
   getPersonalActivities: vi.fn(),
   getPersonalBoats: vi.fn(),
+  getPersonalBoatClasses: vi.fn(),
+  getPersonalDefaultBoat: vi.fn(),
+  createPersonalBoat: vi.fn(),
+  updatePersonalBoat: vi.fn(),
+  updatePersonalDefaultBoat: vi.fn(),
   updatePersonalActivity: vi.fn(),
 }))
 
@@ -38,6 +43,8 @@ beforeEach(() => {
   vi.mocked(api.getPersonalTackBar).mockResolvedValue(history)
   vi.mocked(api.getPersonalActivities).mockResolvedValue([activity])
   vi.mocked(api.getPersonalBoats).mockResolvedValue([owned, other])
+  vi.mocked(api.getPersonalBoatClasses).mockResolvedValue(['Snipe', 'ILCA 7', '49er'])
+  vi.mocked(api.getPersonalDefaultBoat).mockResolvedValue({ default_boat_id: null })
 })
 
 afterEach(async () => {
@@ -81,7 +88,7 @@ describe('My Activities', () => {
     expect(container.textContent).toContain('Device: Not available')
     expect(container.textContent).toContain('Source: gpx · Original file: watch.gpx · Extracted Device: Not available')
     await click('Edit Activity')
-    const options = [...container.querySelectorAll('option')].map((item) => [item.value, item.textContent])
+    const options = [...container.querySelectorAll<HTMLOptionElement>('.personal-activity option')].map((item) => [item.value, item.textContent])
     expect(options).toEqual([
       ['__keep__', 'Keep current Boat association'], ['', 'No Boat'],
       ['owned-1', 'Mistral · Snipe · 42'], ['owned-2', 'Boreas'],
@@ -130,7 +137,7 @@ describe('My Activities', () => {
     await mount()
     expect(container.textContent).toContain('Boat: No Boat')
     await click('Edit Activity')
-    expect([...container.querySelectorAll('option')].map((option) => option.textContent)).toEqual(['No Boat'])
+    expect([...container.querySelectorAll('.personal-activity option')].map((option) => option.textContent)).toEqual(['No Boat'])
     expect(container.querySelector<HTMLSelectElement>('select')?.value).toBe('')
   })
 
@@ -172,5 +179,43 @@ describe('My Activities', () => {
     expect(container.textContent).toContain('This personal link is unavailable.')
     expect(container.textContent).not.toContain('sailor@example.test')
     expect(container.textContent).not.toContain('My Activities')
+  })
+
+  it('adds Boat choices and refreshes Activity context without losing an unsaved Activity edit', async () => {
+    vi.mocked(api.getPersonalActivities).mockResolvedValue([{ ...activity, boat_id: owned.id, boat: owned }])
+    vi.mocked(api.createPersonalBoat).mockResolvedValue({ id: 'owned-3', name: 'New boat', sailing_class: null, sail_number: null })
+    vi.mocked(api.updatePersonalBoat).mockResolvedValue({ ...owned, name: 'Renamed' })
+    await mount()
+    await click('Edit Activity')
+    await typeLabel('Unsaved label')
+    await click('Add Boat')
+    const name = container.querySelector<HTMLInputElement>('.personal-boats__form input')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(name, 'New boat')
+      name.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('Save Boat')
+    expect([...container.querySelectorAll<HTMLOptionElement>('.personal-activity option')].map((option) => option.value)).toContain('owned-3')
+    expect(container.querySelector<HTMLInputElement>('.personal-activity input')?.value).toBe('Unsaved label')
+    await click('Edit Boat')
+    const editName = container.querySelector<HTMLInputElement>('.personal-boats__form input')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(editName, 'Renamed')
+      editName.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('Save Boat')
+    expect(container.querySelector('.personal-activity')?.textContent).toContain('Boat: Renamed · Snipe · 42')
+    expect(container.querySelector<HTMLInputElement>('.personal-activity input')?.value).toBe('Unsaved label')
+    expect(api.updatePersonalActivity).not.toHaveBeenCalled()
+  })
+
+  it('clears the personal page immediately on Boat capability denial while another Boat read is pending', async () => {
+    vi.mocked(api.getPersonalBoatClasses).mockRejectedValue(new api.PersonalTackBarNotFoundError())
+    vi.mocked(api.getPersonalDefaultBoat).mockImplementation(() => new Promise(() => {}))
+    await mount()
+    expect(container.textContent).toContain('This personal link is unavailable.')
+    expect(container.textContent).not.toContain('sailor@example.test')
+    expect(container.textContent).not.toContain('My Activities')
+    expect(container.textContent).not.toContain('My Boats')
   })
 })

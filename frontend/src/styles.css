@@ -2872,6 +2872,19 @@ input:focus-visible {
 .personal-activity select:focus-visible, .personal-activity input:focus-visible, .personal-activity button:focus-visible { outline: 3px solid var(--color-blue); outline-offset: 2px; }
 .personal-activity__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .personal-activity button { min-height: 44px; padding: 8px 14px; }
+.personal-boats__list { display: grid; gap: 8px; padding: 0; list-style: none; }
+.personal-boats__list li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 14px; border: 1px solid var(--color-pale); border-radius: 12px; background: var(--color-white); overflow-wrap: anywhere; }
+.personal-boats__form, .personal-boats__default { display: grid; gap: 10px; margin-top: 16px; padding: 14px 16px; border: 1px solid var(--color-pale); border-radius: 12px; background: var(--color-white); }
+.personal-boats h3 { margin: 0; font-size: 1.05rem; }
+.personal-boats label { display: grid; gap: 5px; font-weight: 700; }
+.personal-boats input, .personal-boats select { width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid #9aabb3; border-radius: 9px; color: var(--color-navy); background: var(--color-white); font: inherit; }
+.personal-boats input:focus-visible, .personal-boats select:focus-visible, .personal-boats button:focus-visible { outline: 3px solid var(--color-blue); outline-offset: 2px; }
+.personal-boats button { min-height: 44px; padding: 8px 14px; }
+.personal-boats__help { color: #334b55; font-size: .9rem; }
+.personal-boats__suggestions { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.personal-boats__suggestions button { width: 100%; text-align: left; background: var(--color-pale); border: 1px solid #9aabb3; border-radius: 8px; }
+.personal-boats__confirmation { padding: 10px; border: 1px solid #9aabb3; border-radius: 8px; }
+.personal-boats__confirmation button { margin: 4px 8px 4px 0; }
 
 /* Navy labels on white keep small action text readable; Blue marks interaction. */
 .primary-link:hover,

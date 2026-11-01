@@ -45,3 +45,14 @@ export interface PersonalActivityPatch {
   boat_id?: string | null
   device_label?: string | null
 }
+
+export interface PersonalBoatInput {
+  name?: string | null
+  sailing_class?: string | null
+  sail_number?: string | null
+  confirm_new_class?: boolean
+}
+
+export interface PersonalDefaultBoat {
+  default_boat_id: string | null
+}
