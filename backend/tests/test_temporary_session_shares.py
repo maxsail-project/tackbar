@@ -11,6 +11,7 @@ from app.main import (
     get_temporary_shared_activity_maneuvers,
     get_temporary_shared_activity_track,
     get_temporary_shared_session,
+    get_temporary_shared_race_timer_events,
 )
 from app.normalization.track_normalizer import normalize_track
 from app.models import ConsentStatus, TemporarySessionShareState
@@ -384,6 +385,67 @@ def test_temporary_access_uses_same_visible_track_and_analytics_boundaries(
     assert len(track.samples) == 2
     assert analytics.activity_id == ACTIVITY_ID
     assert analytics.status == "unavailable"
+
+
+def test_temporary_timer_read_rechecks_share_and_visibility_without_metadata(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    current_time = [NOW]
+    service, capabilities, _, sailors = _runtime(temporary_directory, current_time)
+    monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(temporary_directory))
+    monkeypatch.setattr("app.main._temporary_share_service", lambda: service)
+    records = json.loads((temporary_directory / "activities.json").read_text(encoding="utf-8"))
+    records[0]["race_timer_events"] = [
+        {"timestamp": "2031-06-01T08:59:59+00:00", "event_type": 1,
+         "timer_value_seconds": 300},
+        {"timestamp": "2031-06-01T09:00:00.789+00:00", "event_type": 3,
+         "timer_value_seconds": 0},
+        {"timestamp": "2031-06-01T09:00:01+00:00", "event_type": 2,
+         "timer_value_seconds": 0},
+        {"timestamp": "2031-06-01T09:00:02+00:00", "event_type": 4,
+         "timer_value_seconds": 0},
+    ]
+    _write_json(temporary_directory / "activities.json", records)
+    share = service.create_or_reuse(ORIGINAL_TOKEN)
+    assert share is not None
+
+    response = Response()
+    loaded = get_temporary_shared_race_timer_events(share.token, response)
+    assert response.headers["Cache-Control"] == "no-store"
+    assert set(loaded.model_dump()) == {"activities"}
+    assert [item.activity_id for item in loaded.activities] == [ACTIVITY_ID]
+    assert [event.event_type for event in loaded.activities[0].race_timer_events] == [1, 3, 4]
+    assert loaded.activities[0].race_timer_events[1].timestamp.microsecond == 789000
+
+    sailor = sailors.get_by_id(SAILOR_ID)
+    assert sailor is not None
+    sailors.replace(replace(sailor, consent_status=ConsentStatus.REVOKED))
+    with pytest.raises(HTTPException) as hidden:
+        get_temporary_shared_race_timer_events(share.token, Response())
+    assert hidden.value.status_code == 404
+    sailors.replace(replace(sailor, consent_status=ConsentStatus.ACTIVE))
+    capabilities.revoke_capability(SESSION_ID)
+    with pytest.raises(HTTPException) as unavailable:
+        get_temporary_shared_race_timer_events(share.token, Response())
+    assert unavailable.value.status_code == 403
+
+
+def test_temporary_timer_read_unknown_and_expired_states(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    current_time = [NOW]
+    service, _, _, _ = _runtime(temporary_directory, current_time)
+    monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(temporary_directory))
+    monkeypatch.setattr("app.main._temporary_share_service", lambda: service)
+    share = service.create_or_reuse(ORIGINAL_TOKEN)
+    assert share is not None
+    with pytest.raises(HTTPException) as unknown:
+        get_temporary_shared_race_timer_events("unknown-temporary-token", Response())
+    assert unknown.value.status_code == 404
+    current_time[0] = share.expires_at
+    with pytest.raises(HTTPException) as expired:
+        get_temporary_shared_race_timer_events(share.token, Response())
+    assert expired.value.status_code == 410
 
 
 @pytest.mark.parametrize("consent", ["PENDING", "REVOKED"])

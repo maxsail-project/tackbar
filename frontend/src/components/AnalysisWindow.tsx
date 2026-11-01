@@ -3,6 +3,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
@@ -28,6 +29,7 @@ import {
   reduceSogTimelinePoints,
 } from '../utils/sogTimeline'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
+import type { InferredSessionStart } from '../utils/sessionStarts'
 import { formatAverageSog } from '../utils/metricPresentation'
 
 const TIMELINE_POINT_BUDGET = 240
@@ -50,6 +52,7 @@ interface AnalysisWindowProps {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
   maneuvers?: DisplayManeuver[]
+  sessionStarts?: InferredSessionStart[]
   hasComparison?: boolean
   primaryMetrics?: SummaryMetrics | null
   comparisonMetrics?: SummaryMetrics | null
@@ -58,6 +61,7 @@ interface AnalysisWindowProps {
   replay?: AnalysisWindowReplay | null
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
   onManeuverSelect?: (event: DisplayManeuver) => void
+  onSessionStartSelect?: (start: InferredSessionStart) => void
 }
 
 export function formatAnalysisWindowDuration(durationMilliseconds: number) {
@@ -216,6 +220,90 @@ export function AnalysisWindowManeuverMarker({
   )
 }
 
+export function AnalysisWindowSessionStartMarker({
+  start,
+  position,
+  controlOffsetPx = null,
+  lane = 0,
+  onSelect,
+}: {
+  start: InferredSessionStart
+  position: number
+  controlOffsetPx?: number | null
+  lane?: 0 | 1
+  onSelect: (start: InferredSessionStart) => void
+}) {
+  const wholeMilliseconds = Math.floor(start.time)
+  const fractionalMilliseconds = start.time - wholeMilliseconds
+  const accessibleTime = new Date(wholeMilliseconds).toISOString().replace(
+    /Z$/,
+    `${fractionalMilliseconds ? String(fractionalMilliseconds).slice(2) : ''} UTC`,
+  )
+  const edgeTransform = controlOffsetPx === null
+    ? position === 0 ? 'translateX(0)' : position === 100 ? 'translateX(-100%)' : undefined
+    : undefined
+  const select = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    onSelect(start)
+  }
+  return <div className="analysis-window__session-start" style={{ left: `${position}%` }}>
+    <span className="analysis-window__session-start-guide" aria-hidden="true" />
+    {(['top', 'bottom'] as const).map((end) => <button
+      key={end}
+      type="button"
+      className={`analysis-window__session-start-control analysis-window__session-start-control--${end} analysis-window__session-start-control--lane-${lane}`}
+      style={controlOffsetPx === null
+        ? edgeTransform ? { transform: edgeTransform } : undefined
+        : { left: `${controlOffsetPx}px` }}
+      aria-label={`${start.label} Start at ${accessibleTime}, move replay`}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={select}
+    ><span>{start.label}</span></button>)}
+  </div>
+}
+
+export function sessionStartControlOffsets(
+  starts: InferredSessionStart[],
+  range: AnalysisWindowRange,
+  width: number,
+) {
+  const controlHalfWidth = 18
+  const controlSpacing = 38
+  if (width <= 0 || starts.length === 0) return starts.map(() => null)
+  const desired = starts.map((start) => positionPercent(start.time, range) * width / 100)
+  const centers = desired.map((position) => Math.min(Math.max(position, controlHalfWidth), width - controlHalfWidth))
+  if ((starts.length - 1) * controlSpacing <= width - 2 * controlHalfWidth) {
+    for (let index = 1; index < centers.length; index += 1) {
+      centers[index] = Math.max(centers[index], centers[index - 1] + controlSpacing)
+    }
+    if (centers[centers.length - 1] > width - controlHalfWidth) {
+      centers[centers.length - 1] = width - controlHalfWidth
+      for (let index = centers.length - 2; index >= 0; index -= 1) {
+        centers[index] = Math.min(centers[index], centers[index + 1] - controlSpacing)
+      }
+    }
+  }
+  return centers.map((center, index) => center - desired[index])
+}
+
+export function sessionStartControlLayout(
+  starts: InferredSessionStart[],
+  range: AnalysisWindowRange,
+  width: number,
+) {
+  const dense = width > 0 && starts.length * 38 > width
+  const placements: { offsetPx: number | null, lane: 0 | 1 }[] = starts.map((_, index) => ({
+    offsetPx: null,
+    lane: dense ? index % 2 as 0 | 1 : 0,
+  }))
+  for (const lane of ([0, 1] as const)) {
+    const indices = starts.flatMap((_, index) => placements[index].lane === lane ? [index] : [])
+    const offsets = sessionStartControlOffsets(indices.map((index) => starts[index]), range, width)
+    indices.forEach((index, position) => { placements[index].offsetPx = offsets[position] })
+  }
+  return { dense, placements }
+}
+
 export function AnalysisWindowResetButton({
   disabled,
   onReset,
@@ -241,6 +329,7 @@ export default function AnalysisWindow({
   primarySamples,
   comparisonSamples = [],
   maneuvers = [],
+  sessionStarts = [],
   hasComparison,
   primaryMetrics = null,
   comparisonMetrics = null,
@@ -249,8 +338,11 @@ export default function AnalysisWindow({
   replay = null,
   onRangeChange,
   onManeuverSelect = () => undefined,
+  onSessionStartSelect = () => undefined,
 }: AnalysisWindowProps) {
   const [pointerSelection, setPointerSelection] = useState<TemporalPointerSelection | null>(null)
+  const timelineRef = useRef<HTMLDivElement>(null)
+  const [timelineWidth, setTimelineWidth] = useState(0)
   const pointerSelectionRef = useRef<TemporalPointerSelection | null>(null)
   const pointerStartClientXRef = useRef<number | null>(null)
   const pointerStartedOnManeuverRef = useRef(false)
@@ -283,6 +375,17 @@ export default function AnalysisWindow({
     completedGestureWasDragRef.current = false
     setPointerSelection(null)
   }, [displayRange?.end, displayRange?.start])
+
+  useEffect(() => {
+    const timeline = timelineRef.current
+    if (!timeline) return
+    const measure = () => setTimelineWidth(timeline.getBoundingClientRect().width)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(timeline)
+    return () => observer.disconnect()
+  }, [availableRange, analysisWindow])
 
   function updatePointerSelection(nextSelection: TemporalPointerSelection | null) {
     pointerSelectionRef.current = nextSelection
@@ -382,24 +485,29 @@ export default function AnalysisWindow({
       }
   const windowStartPercent = positionPercent(selectedRange.start, analysisWindow)
   const windowEndPercent = positionPercent(selectedRange.end, analysisWindow)
-  const comparisonPath = buildSogTimelinePath(
-    comparisonPoints,
-    analysisWindow,
-    maximumSog,
-    ANALYSIS_WINDOW_SOG_PLOT_BAND,
-  )
   const showsComparisonLane = hasComparison ?? (
     comparisonPoints.length > 0
     || maneuvers.some((event) => event.activityRole === 'comparison')
   )
-  const timelineHeight = showsComparisonLane
+  const visibleSessionStarts = sessionStarts.filter((start) => start.time >= analysisWindow.start && start.time <= analysisWindow.end)
+  const sessionStartLayout = sessionStartControlLayout(visibleSessionStarts, analysisWindow, timelineWidth)
+  const timelineHeight = (showsComparisonLane
     ? COMPARISON_TIMELINE_HEIGHT
-    : SINGLE_ACTIVITY_TIMELINE_HEIGHT
+    : SINGLE_ACTIVITY_TIMELINE_HEIGHT) + (sessionStartLayout.dense ? 40 : 0)
+  const plotBand = sessionStartLayout.dense
+    ? { top: 60, bottom: timelineHeight - 60 }
+    : ANALYSIS_WINDOW_SOG_PLOT_BAND
+  const comparisonPath = buildSogTimelinePath(
+    comparisonPoints,
+    analysisWindow,
+    maximumSog,
+    plotBand,
+  )
   const centralPrimaryPath = buildSogTimelinePath(
     primaryPoints,
     analysisWindow,
     maximumSog,
-    ANALYSIS_WINDOW_SOG_PLOT_BAND,
+    plotBand,
   )
   const isFullRange = analysisWindow.start === availableRange.start
     && analysisWindow.end === availableRange.end
@@ -450,7 +558,9 @@ export default function AnalysisWindow({
           </button>
         )}
         <div
-          className={`analysis-window__timeline${showsComparisonLane ? ' analysis-window__timeline--comparison' : ''}`}
+          ref={timelineRef}
+          className={`analysis-window__timeline${showsComparisonLane ? ' analysis-window__timeline--comparison' : ''}${sessionStartLayout.dense ? ' analysis-window__timeline--dense' : ''}`}
+          style={sessionStartLayout.dense ? { height: `${timelineHeight}px` } : undefined}
           aria-label="SOG timeline; drag horizontally to select the Analysis Window"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -491,6 +601,17 @@ export default function AnalysisWindow({
                   }}
                 />
               ))}
+          </div>
+          <div className="analysis-window__session-starts">
+            {visibleSessionStarts
+              .map((start, index) => <AnalysisWindowSessionStartMarker
+                key={start.label}
+                start={start}
+                position={positionPercent(start.time, analysisWindow)}
+                controlOffsetPx={sessionStartLayout.placements[index].offsetPx}
+                lane={sessionStartLayout.placements[index].lane}
+                onSelect={onSessionStartSelect}
+              />)}
           </div>
           {pointerSelection && (
             <div

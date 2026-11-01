@@ -15,6 +15,7 @@ vi.mock('../api/tackbarApi', () => ({
   getActivityTrackForAccess: vi.fn(),
   getActivityManeuversForAccess: vi.fn(),
   getSessionForAccess: vi.fn(),
+  getSessionRaceTimerEventsForAccess: vi.fn(),
   createTemporarySessionShare: vi.fn(),
   ActivityTrackNotFoundError: class extends Error {},
   ActivityManeuverAnalyticsNotFoundError: class extends Error {},
@@ -44,14 +45,22 @@ vi.mock('../components/ManeuverEventTable', () => ({
     <section data-viewer-section="maneuver-analysis">{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</section>,
 }))
 vi.mock('../components/AnalysisWindow', () => ({
-  default: ({ maneuvers, onManeuverSelect, onRangeChange, replay }: {
+  default: ({ maneuvers, sessionStarts, analysisWindow, availableRange, onManeuverSelect, onSessionStartSelect, onRangeChange, replay }: {
     maneuvers: DisplayManeuver[]
+    sessionStarts: { label: string, time: number, activityIds: string[] }[]
+    analysisWindow: { start: number, end: number } | null
+    availableRange: { start: number, end: number } | null
     onManeuverSelect: (event: DisplayManeuver) => void
+    onSessionStartSelect: (start: { label: string, time: number, activityIds: string[] }) => void
     onRangeChange: (range: { start: number, end: number }) => void
     replay: { playbackTime: number, speed: PlaybackSpeed, onSpeedChange: (speed: PlaybackSpeed) => void, onTogglePlayback: () => void } | null
   }) => <section aria-label="Analysis Window test controls">
     {maneuvers.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-marker={event.centerTimeMs} onClick={() => onManeuverSelect(event)}>Timeline event</button>)}
+    {sessionStarts.filter((start) => analysisWindow && start.time >= analysisWindow.start && start.time <= analysisWindow.end)
+      .map((start) => <button key={start.label} type="button" data-start={start.label} data-start-time={start.time} onClick={() => onSessionStartSelect(start)}>{start.label}</button>)}
     <button type="button" data-change-window onClick={() => onRangeChange({ start: start + 1_000, end: start + 9_000 })}>Change window</button>
+    <button type="button" data-narrow-window onClick={() => onRangeChange({ start: start + 7_000, end: start + 10_000 })}>Narrow window</button>
+    <button type="button" data-reset-window onClick={() => availableRange && onRangeChange(availableRange)}>Reset window</button>
     <button type="button" data-play-replay onClick={replay?.onTogglePlayback}>Play replay</button>
     <select aria-label="Playback speed test" value={replay?.speed} onChange={(event) => replay?.onSpeedChange(Number(event.target.value) as PlaybackSpeed)}>
       {PLAYBACK_SPEEDS.map((speed) => <option key={speed} value={speed}>x{speed}</option>)}
@@ -133,6 +142,11 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.mocked(api.getActivityTrackForAccess).mockImplementation(async (_access, activityId) => track(activityId))
   vi.mocked(api.getActivityManeuversForAccess).mockImplementation(async (_access, activityId) => analytics(activityId))
+  vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
+    { activity_id: 'a', race_timer_events: [{ timestamp: new Date(start + 5_000).toISOString(), event_type: 3 }] },
+    { activity_id: 'b', race_timer_events: [{ timestamp: new Date(start + 5_500).toISOString(), event_type: 3 }] },
+    { activity_id: 'c', race_timer_events: [] },
+  ] })
   nextFrame = null
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
     nextFrame = callback
@@ -206,6 +220,63 @@ function mapHighlights() {
 const marker = (seconds: number) => `[data-marker="${start + seconds * 1_000}"]`
 
 describe('Viewer selected maneuver interactions', () => {
+  it.each(['original', 'temporary'] as const)('infers Starts from every visible Activity regardless of P/C with %s access', async (accessKind) => {
+    await mountViewer(accessKind)
+    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    await choose('My track', 'c')
+    await choose('Compare', 'a')
+    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    expect(api.getSessionRaceTimerEventsForAccess).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(api.getSessionRaceTimerEventsForAccess).mock.calls[0][0].kind).toBe(accessKind)
+  })
+
+  it('filters stable Sxx labels by window, restores them on Reset, and seeks without changing selection or window', async () => {
+    await mountViewer()
+    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    await click('[data-narrow-window]')
+    expect(container.querySelector('[data-start="S01"]')).toBeNull()
+    await click('[data-reset-window]')
+    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    await choose('Compare', 'c')
+    await click('[data-play-replay]')
+    await click('[data-start="S01"]')
+    expect(Number(container.querySelector('output')?.getAttribute('data-playback-time'))).toBe(start + 5_250)
+    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('c')
+    expect(mapHighlights()).toEqual([])
+    expect(nextFrame).not.toBeNull()
+    expect(vi.mocked(globalThis.cancelAnimationFrame)).toHaveBeenCalled()
+  })
+
+  it('does not show Session Starts when selected Activities have no comparable GPS overlap', async () => {
+    vi.mocked(api.getActivityTrackForAccess).mockImplementation(async (_access, activityId) => {
+      const result = track(activityId)
+      if (activityId === 'b') result.samples = result.samples.map((sample) => ({
+        ...sample, utc: new Date(Date.parse(sample.utc) + 20_000).toISOString(),
+      }))
+      return result
+    })
+    await mountViewer()
+    await choose('Compare', 'b')
+    expect(container.textContent).toContain('No comparable GPS/UTC interval')
+    expect(container.querySelector('[data-start="S01"]')).toBeNull()
+  })
+
+  it('discards a previous capability response after access changes', async () => {
+    let resolveOriginal!: (value: { activities: { activity_id: string, race_timer_events: { timestamp: string, event_type: 3 }[] }[] }) => void
+    vi.mocked(api.getSessionRaceTimerEventsForAccess).mockImplementation((access) => access.token === 'old'
+      ? new Promise((resolve) => { resolveOriginal = resolve })
+      : Promise.resolve({ activities: [{ activity_id: 'a', race_timer_events: [
+        { timestamp: new Date(start + 7_000).toISOString(), event_type: 3 },
+      ] }] }))
+    await act(async () => root.render(<SessionViewer access={{ kind: 'original', token: 'old' }} session={session} />))
+    await act(async () => root.render(<SessionViewer access={{ kind: 'original', token: 'new' }} session={session} />))
+    expect(container.querySelector('[data-start-time]')?.getAttribute('data-start-time')).toBe(String(start + 7_000))
+    await act(async () => resolveOriginal({ activities: [{ activity_id: 'a', race_timer_events: [
+      { timestamp: new Date(start + 2_000).toISOString(), event_type: 3 },
+    ] }] }))
+    expect(container.querySelector('[data-start-time]')?.getAttribute('data-start-time')).toBe(String(start + 7_000))
+  })
   it.each(['original', 'temporary'] as const)('keeps duplicate selector labels tied to Activity IDs across roles with %s access', async (accessKind) => {
     const commonBoat = { id: 'boat-1', name: 'Shared boat', sailing_class: null, sail_number: '123' }
     const visibleSession = {

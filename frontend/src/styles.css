@@ -1047,6 +1047,69 @@ input:focus-visible {
   pointer-events: none;
 }
 
+.analysis-window__session-starts {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.analysis-window__session-start {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  pointer-events: none;
+}
+
+.analysis-window__session-start-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #52636b;
+  transform: translateX(-0.5px);
+  pointer-events: none;
+}
+
+.analysis-window__session-start-control {
+  position: absolute;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  width: 36px;
+  height: 28px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #52636b;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translateX(-50%);
+}
+
+.analysis-window__session-start-control span {
+  display: flex;
+  width: 28px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #52636b;
+  border-radius: 3px;
+  background: #f8fbfb;
+}
+.analysis-window__session-start-control--top { top: 2px; }
+.analysis-window__session-start-control--bottom { bottom: 2px; }
+.analysis-window__timeline--dense .analysis-window__session-start-control--top.analysis-window__session-start-control--lane-1 { top: 30px; }
+.analysis-window__timeline--dense .analysis-window__session-start-control--bottom.analysis-window__session-start-control--lane-1 { bottom: 30px; }
+.analysis-window__session-start-control:focus-visible { outline: 2px solid #222b33; outline-offset: 1px; }
+
 .analysis-window__maneuver-annotation {
   position: absolute;
   top: 0;

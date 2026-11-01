@@ -9,6 +9,7 @@ from app.api_models import (
     ActivityManeuverAnalyticsResponse,
     ActivityTrackResponse,
     SharedSessionDetailResponse,
+    SharedSessionRaceTimerEventsResponse,
     TemporarySessionShareResponse,
     TemporarySharedSessionDetailResponse,
 )
@@ -164,6 +165,26 @@ def get_shared_session(token: str) -> SharedSessionDetailResponse:
     return session
 
 
+@app.get(
+    "/api/shared/sessions/{token}/race-timer-events",
+    response_model=SharedSessionRaceTimerEventsResponse,
+)
+def get_shared_race_timer_events(
+    token: str,
+) -> SharedSessionRaceTimerEventsResponse:
+    try:
+        events = _shared_session_reader().get_race_timer_events(token)
+    except (
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise _integrity_error() from error
+    if events is None:
+        raise _session_not_found()
+    return events
+
+
 @app.post(
     "/api/shared/sessions/{token}/temporary-share",
     response_model=TemporarySessionShareResponse,
@@ -228,6 +249,39 @@ def get_temporary_shared_session(
         historical_conditions=detail.historical_conditions,
         temporary_access_expires_at=resolution.share.expires_at,
     )
+
+
+@app.get(
+    "/api/temporary/sessions/{token}/race-timer-events",
+    response_model=SharedSessionRaceTimerEventsResponse,
+)
+def get_temporary_shared_race_timer_events(
+    token: str,
+    response: Response,
+) -> SharedSessionRaceTimerEventsResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        resolution = _resolve_temporary_share(token)
+        if resolution.session is None:
+            raise ValueError("Valid temporary share resolution is incomplete")
+        events = _shared_session_reader().get_race_timer_events_for_resolved(
+            resolution.session
+        )
+    except HTTPException:
+        raise
+    except (
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Persisted Session data is inconsistent",
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    if events is None:
+        raise _temporary_share_not_found()
+    return events
 
 
 @app.get(

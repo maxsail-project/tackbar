@@ -100,6 +100,88 @@ def _set_status(root: Path, sailor_id: str, status: str) -> None:
     _write_json(root / "sailors.json", sailors)
 
 
+def _set_timer_events(root: Path) -> None:
+    records = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    for activity in records:
+        activity["race_timer_events"] = [
+            {"timestamp": "2031-06-01T08:00:00.123+00:00", "event_type": 3,
+             "timer_value_seconds": 0},
+            {"timestamp": "2031-06-01T08:00:00.123+00:00", "event_type": 4,
+             "timer_value_seconds": 0},
+            {"timestamp": "2031-06-01T08:00:01.456+00:00", "event_type": 1,
+             "timer_value_seconds": 90},
+        ]
+        activity["line_positions"] = [{
+            "timestamp": "2031-06-01T08:00:00+00:00", "endpoint_type": 1,
+            "latitude": 1.0, "longitude": 2.0,
+        }]
+    _write_json(root / "activities.json", records)
+
+
+def test_shared_timer_read_is_minimal_ordered_and_current_visibility(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    _set_timer_events(root)
+    original_bytes = (root / "activities.json").read_bytes()
+    path = f"/api/shared/sessions/{TOKEN}/race-timer-events"
+
+    initial = _get(path)
+    assert initial.status_code == 200
+    assert [item["activity_id"] for item in initial.json["activities"]] == [ACTIVITY_A]
+    assert set(initial.json) == {"activities"}
+    assert set(initial.json["activities"][0]) == {"activity_id", "race_timer_events"}
+    assert [event["event_type"] for event in initial.json["activities"][0]["race_timer_events"]] == [3, 4, 1]
+    assert initial.json["activities"][0]["race_timer_events"][0]["timestamp"].startswith("2031-06-01T08:00:00.123")
+    assert "line_positions" not in json.dumps(initial.json)
+    assert "shift_angle" not in json.dumps(initial.json)
+    assert "timer_value_seconds" not in json.dumps(initial.json)
+    assert ACTIVITY_B not in json.dumps(initial.json)
+    assert ACTIVITY_OTHER not in json.dumps(initial.json)
+    assert (root / "activities.json").read_bytes() == original_bytes
+
+    _set_status(root, SAILOR_B, "ACTIVE")
+    active = _get(path)
+    assert [item["activity_id"] for item in active.json["activities"]] == [ACTIVITY_B, ACTIVITY_A]
+    _set_status(root, SAILOR_A, "REVOKED")
+    revoked = _get(path)
+    assert [item["activity_id"] for item in revoked.json["activities"]] == [ACTIVITY_B]
+    _set_status(root, SAILOR_B, "PENDING")
+    assert _get(path).status_code == 404
+
+
+def test_shared_timer_read_requires_current_session_capability(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    _set_timer_events(root)
+    other = _get(f"/api/shared/sessions/{OTHER_TOKEN}/race-timer-events")
+    assert other.status_code == 200
+    assert [item["activity_id"] for item in other.json["activities"]] == [ACTIVITY_OTHER]
+    for token in (SESSION_ID, ACTIVITY_A, "bad-token"):
+        assert _get(f"/api/shared/sessions/{token}/race-timer-events").status_code == 404
+    sessions = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    sessions[0]["capability_revoked"] = True
+    _write_json(root / "sessions.json", sessions)
+    assert _get(f"/api/shared/sessions/{TOKEN}/race-timer-events").status_code == 404
+    sessions[0]["capability_revoked"] = False
+    sessions[0]["created_at"] = "2000-01-01T00:00:00+00:00"
+    sessions[0]["expires_at"] = "2000-01-31T00:00:00+00:00"
+    _write_json(root / "sessions.json", sessions)
+    assert _get(f"/api/shared/sessions/{TOKEN}/race-timer-events").status_code == 404
+
+
+def test_shared_timer_read_legacy_activity_has_explicit_empty_events(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    response = _get(f"/api/shared/sessions/{TOKEN}/race-timer-events")
+    assert response.status_code == 200
+    assert response.json == {
+        "activities": [{"activity_id": ACTIVITY_A, "race_timer_events": []}]
+    }
+
+
 def _maneuver_track(*, with_hdg: bool = True) -> pd.DataFrame:
     start = datetime(2031, 6, 1, 8, 0, tzinfo=timezone.utc)
     heading = 40.0

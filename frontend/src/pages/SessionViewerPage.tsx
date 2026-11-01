@@ -8,6 +8,7 @@ import {
   getActivityManeuversForAccess,
   getActivityTrackForAccess,
   getSessionForAccess,
+  getSessionRaceTimerEventsForAccess,
   SessionNotFoundError,
   TemporaryAccessExpiredError,
   TemporaryAccessNotFoundError,
@@ -44,6 +45,7 @@ import type {
   SessionAccess,
   SessionActivity,
   SessionDetail,
+  SessionRaceTimerEvents,
   SharedSessionDetail,
   TemporarySessionDetail,
   TemporarySessionShare,
@@ -84,6 +86,35 @@ import {
 } from '../utils/maneuverEvents'
 import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
 import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeometry'
+import { inferSessionStarts } from '../utils/sessionStarts'
+
+function useSessionRaceTimerEvents(access: SessionAccess) {
+  const accessKey = `${access.kind}:${access.token}`
+  const [state, setState] = useState<{
+    accessKey: string
+    status: 'loading' | 'ready' | 'error'
+    data: SessionRaceTimerEvents | null
+  }>({ accessKey, status: 'loading', data: null })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let current = true
+    setState({ accessKey, status: 'loading', data: null })
+    getSessionRaceTimerEventsForAccess(access, controller.signal).then((data) => {
+      if (current) setState({ accessKey, status: 'ready', data })
+    }).catch((error: unknown) => {
+      if (current && !(error instanceof DOMException && error.name === 'AbortError')) {
+        setState({ accessKey, status: 'error', data: null })
+      }
+    })
+    return () => {
+      current = false
+      controller.abort()
+    }
+  }, [access.kind, access.token, accessKey])
+
+  return state.accessKey === accessKey && state.status === 'ready' ? state.data : null
+}
 
 type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
 
@@ -470,6 +501,11 @@ export function SessionViewer({
   const [speed, setSpeed] = useState<PlaybackSpeed>(5)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
   const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
+  const sessionRaceTimerEvents = useSessionRaceTimerEvents(access)
+  const sessionStarts = useMemo(
+    () => sessionRaceTimerEvents ? inferSessionStarts(sessionRaceTimerEvents.activities) : [],
+    [sessionRaceTimerEvents],
+  )
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
   const [shareStatus, setShareStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [temporaryShare, setTemporaryShare] = useState<TemporarySessionShare | null>(null)
@@ -1024,6 +1060,8 @@ export function SessionViewer({
         primarySamples={primaryAvailableSamples}
         comparisonSamples={comparisonAvailableSamples}
         maneuvers={timelineManeuvers}
+        sessionStarts={canReplay && availableRange !== null ? sessionStarts : []}
+        onSessionStartSelect={(start) => scrubTo(start.time)}
         hasComparison={comparisonActivityId !== null}
         {...createAnalysisWindowSummaryMetrics(
           primarySummaryMetrics,

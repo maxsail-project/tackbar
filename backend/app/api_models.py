@@ -88,6 +88,20 @@ class TemporarySharedSessionDetailResponse(SharedSessionContentResponse):
     temporary_access_expires_at: datetime
 
 
+class SharedRaceTimerEventResponse(BaseModel):
+    timestamp: datetime
+    event_type: Literal[1, 3, 4]
+
+
+class SharedActivityRaceTimerEventsResponse(BaseModel):
+    activity_id: str
+    race_timer_events: list[SharedRaceTimerEventResponse]
+
+
+class SharedSessionRaceTimerEventsResponse(BaseModel):
+    activities: list[SharedActivityRaceTimerEventsResponse]
+
+
 class TrackSampleResponse(BaseModel):
     utc: str
     lat: float

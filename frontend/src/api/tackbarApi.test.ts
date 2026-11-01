@@ -18,6 +18,7 @@ import {
   getSharedActivityManeuvers,
   getSharedActivityTrack,
   getSharedSession,
+  getSessionRaceTimerEventsForAccess,
   getTemporarySharedSession,
   SessionNotFoundError,
   TackBarApiError,
@@ -296,6 +297,33 @@ describe('TackBar Session API client', () => {
       '/api/temporary/sessions/temporary%2Ftoken/activities/activity/maneuvers',
     ])
     expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('original')
+  })
+
+  it.each(['original', 'temporary'] as const)('reads minimal Session timer events through %s capability', async (kind) => {
+    const payload = { activities: [{ activity_id: 'activity', race_timer_events: [
+      { timestamp: '2031-06-15T07:55:00.000Z', event_type: 1 },
+      { timestamp: '2031-06-15T08:00:00.123Z', event_type: 3 },
+      { timestamp: '2031-06-15T08:10:00.000Z', event_type: 4 },
+    ] }] }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const access = kind === 'original'
+      ? { kind: 'original' as const, token: 'original/token' }
+      : { kind: 'temporary' as const, token: 'temporary/token', expiresAt: '2031-06-17T08:00:00Z' }
+    await expect(getSessionRaceTimerEventsForAccess(access)).resolves.toEqual(payload)
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/${kind === 'original' ? 'shared' : 'temporary'}/sessions/${kind}%2Ftoken/race-timer-events`,
+      expect.objectContaining({ method: 'GET' }),
+    )
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain(kind === 'original' ? 'temporary/token' : 'original/token')
+  })
+
+  it('maps expired and unavailable temporary timer reads to capability errors', async () => {
+    const access = { kind: 'temporary' as const, token: 'temporary', expiresAt: '2031-06-17T08:00:00Z' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(null, { status: 410 }))
+      .mockResolvedValueOnce(new Response(null, { status: 403 })))
+    await expect(getSessionRaceTimerEventsForAccess(access)).rejects.toBeInstanceOf(TemporaryAccessExpiredError)
+    await expect(getSessionRaceTimerEventsForAccess(access)).rejects.toBeInstanceOf(TemporaryAccessUnavailableError)
   })
 
   it.each(['original', 'temporary'] as const)('preserves LOW angle and null rate fields through %s access', async (kind) => {

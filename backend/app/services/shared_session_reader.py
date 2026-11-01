@@ -6,6 +6,9 @@ from app.api_models import (
     ManeuverResponse,
     HistoricalConditionsResponse,
     SharedSessionDetailResponse,
+    SharedSessionRaceTimerEventsResponse,
+    SharedActivityRaceTimerEventsResponse,
+    SharedRaceTimerEventResponse,
 )
 from app.models import Session
 from app.services.activity_track_reader import ActivityTrackReader
@@ -75,6 +78,39 @@ class SharedSessionReader:
             ),
             session_access_expires_at=resolved.expires_at,
         )
+
+    def get_race_timer_events(
+        self, token: str,
+    ) -> SharedSessionRaceTimerEventsResponse | None:
+        resolved = self.capabilities.resolve(token)
+        if resolved is None:
+            return None
+        return self.get_race_timer_events_for_resolved(resolved)
+
+    def get_race_timer_events_for_resolved(
+        self, resolved: Session,
+    ) -> SharedSessionRaceTimerEventsResponse | None:
+        # Recheck current shared visibility before reading any timer collection.
+        detail = self.sessions.get_session(resolved.id)
+        if detail is None:
+            return None
+        activities_by_id = {
+            activity.id: activity for activity in self.sessions.activities.all()
+        }
+        return SharedSessionRaceTimerEventsResponse(activities=[
+            SharedActivityRaceTimerEventsResponse(
+                activity_id=visible.id,
+                race_timer_events=[
+                    SharedRaceTimerEventResponse(
+                        timestamp=event.timestamp,
+                        event_type=event.event_type,
+                    )
+                    for event in activities_by_id[visible.id].race_timer_events
+                    if event.event_type in (1, 3, 4)
+                ],
+            )
+            for visible in detail.activities
+        ])
 
     def get_track(
         self,

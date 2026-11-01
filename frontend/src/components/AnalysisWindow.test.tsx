@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
+import type { InferredSessionStart } from '../utils/sessionStarts'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
 import type { SummaryMetrics } from '../utils/summaryMetrics'
 import ManeuverEventTable from './ManeuverEventTable'
@@ -18,6 +19,8 @@ import AnalysisWindow, {
   requestAnalysisWindowReset,
   resolveAnalysisWindowPointerTimestamp,
   selectManeuverAfterPointerGesture,
+  sessionStartControlLayout,
+  sessionStartControlOffsets,
   shouldCaptureAnalysisWindowPointer,
   type AnalysisWindowReplay,
 } from './AnalysisWindow'
@@ -73,6 +76,7 @@ function render({
   primarySamples,
   comparisonSamples,
   maneuvers = [],
+  sessionStarts = [],
   range = availableRange,
   window = selectedRange,
   replay = null,
@@ -85,6 +89,7 @@ function render({
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
   maneuvers?: DisplayManeuver[]
+  sessionStarts?: InferredSessionStart[]
   range?: AnalysisWindowRange
   window?: AnalysisWindowRange
   replay?: AnalysisWindowReplay | null
@@ -101,6 +106,7 @@ function render({
       primarySamples={primarySamples}
       comparisonSamples={comparisonSamples}
       maneuvers={maneuvers}
+      sessionStarts={sessionStarts}
       hasComparison={hasComparison}
       primaryMetrics={primaryMetrics}
       comparisonMetrics={comparisonMetrics}
@@ -113,6 +119,91 @@ function render({
 }
 
 describe('Analysis Window SOG timeline', () => {
+  it('shows only in-window Session Starts with two accessible controls and a full-height guide', () => {
+    const sessionStarts: InferredSessionStart[] = [
+      { label: 'S01', time: availableRange.start + 1_000, activityIds: ['a'] },
+      { label: 'S02', time: availableRange.start + 2_123, activityIds: ['a', 'b'] },
+      { label: 'S03', time: availableRange.start + 8_000, activityIds: ['a', 'b'] },
+      { label: 'S04', time: availableRange.start + 9_000, activityIds: ['a'] },
+    ]
+    const markup = render({ primarySamples: [], sessionStarts })
+    expect(markup).not.toContain('>S01</span></button>')
+    expect(markup.match(/>S02<\/span><\/button>/g)).toHaveLength(2)
+    expect(markup.match(/>S03<\/span><\/button>/g)).toHaveLength(2)
+    expect(markup).not.toContain('>S04</span></button>')
+    expect(markup).toContain('analysis-window__session-start-guide')
+    expect(markup).toMatch(/left:2\.05\d*%/)
+    expect(markup).toContain('S02 Start at 2031-01-01T10:00:02.123 UTC, move replay')
+    expect(markup).not.toContain('10:00:02.123</span>')
+  })
+
+  it('announces a median between UTC milliseconds without truncating the seek time', () => {
+    const markup = render({ primarySamples: [], sessionStarts: [
+      { label: 'S01', time: availableRange.start + 5_123.5, activityIds: ['a', 'b'] },
+    ] })
+    expect(markup).toContain('S01 Start at 2031-01-01T10:00:05.1235 UTC, move replay')
+  })
+
+  it('keeps Start tap targets above maneuver markers while leaving the timeline middle brushable', () => {
+    const markup = render({ primarySamples: [], maneuvers: [maneuver(4, 'primary')], sessionStarts: [
+      { label: 'S01', time: availableRange.start + 4_000, activityIds: ['a', 'b'] },
+    ] })
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(markup).toContain('analysis-window__maneuver-marker')
+    expect(markup.match(/analysis-window__session-start-control--(?:top|bottom)/g)).toHaveLength(2)
+    expect(css).toMatch(/\.analysis-window__session-starts\s*\{[^}]*z-index:\s*4;[^}]*pointer-events:\s*none;/s)
+    expect(css).toMatch(/\.analysis-window__session-start-control\s*\{[^}]*pointer-events:\s*auto;/s)
+    expect(css).toMatch(/\.analysis-window__session-start-control\s*\{[^}]*height:\s*28px;[^}]*min-height:\s*28px;/s)
+    expect(css).toMatch(/\.analysis-window__session-start-guide\s*\{[^}]*top:\s*0;[^}]*bottom:\s*0;[^}]*pointer-events:\s*none;/s)
+    expect(css).toMatch(/\.analysis-window__session-start-guide\s*\{[^}]*width:\s*1px;[^}]*background:\s*#52636b;/s)
+    expect(css).toMatch(/\.analysis-window__session-start-control span\s*\{[^}]*width:\s*28px;[^}]*height:\s*18px;[^}]*border:\s*1px solid #52636b;/s)
+  })
+
+  it('keeps both edge Start controls fully inside the clipped timeline', () => {
+    const markup = render({ primarySamples: [], window: availableRange, sessionStarts: [
+      { label: 'S01', time: availableRange.start, activityIds: ['a'] },
+      { label: 'S02', time: availableRange.end, activityIds: ['a'] },
+    ] })
+    expect(markup.match(/transform:translateX\(0\)/g)).toHaveLength(2)
+    expect(markup.match(/transform:translateX\(-100%\)/g)).toHaveLength(2)
+  })
+
+  it('separates nearby labels on a long timeline without moving their UTC guides', () => {
+    const range = { start: 0, end: 7_200_000 }
+    const starts: InferredSessionStart[] = [
+      { label: 'S01', time: 0, activityIds: ['a'] },
+      { label: 'S02', time: 300_000, activityIds: ['a'] },
+      { label: 'S03', time: 600_000, activityIds: ['a'] },
+      { label: 'S04', time: 7_200_000, activityIds: ['a'] },
+    ]
+    const offsets = sessionStartControlOffsets(starts, range, 320)
+    const centers = starts.map((start, index) => (start.time / range.end) * 320 + (offsets[index] ?? 0))
+    expect(centers[0]).toBeGreaterThanOrEqual(18)
+    expect(centers[3]).toBeLessThanOrEqual(302)
+    expect(centers[1] - centers[0]).toBeGreaterThanOrEqual(38)
+    expect(centers[2] - centers[1]).toBeGreaterThanOrEqual(38)
+    expect(starts.map((start) => start.time)).toEqual([0, 300_000, 600_000, 7_200_000])
+  })
+
+  it('uses two control lanes for ten nearby Starts in a 320px timeline', () => {
+    const range = { start: 0, end: 3_000_000 }
+    const starts = Array.from({ length: 10 }, (_, index) => ({
+      label: `S${String(index + 1).padStart(2, '0')}`,
+      time: index * 300_000,
+      activityIds: ['a'],
+    }))
+    const { dense, placements } = sessionStartControlLayout(starts, range, 320)
+    expect(dense).toBe(true)
+    for (const lane of [0, 1]) {
+      const centers = starts.flatMap((start, index) => placements[index].lane === lane
+        ? [(start.time / range.end) * 320 + (placements[index].offsetPx ?? 0)] : [])
+      expect(centers[0]).toBeGreaterThanOrEqual(18)
+      expect(centers.at(-1)).toBeLessThanOrEqual(302)
+      for (let index = 1; index < centers.length; index += 1) {
+        expect(centers[index] - centers[index - 1]).toBeGreaterThanOrEqual(38)
+      }
+    }
+  })
   const summaryMetrics: SummaryMetrics = {
     distanceMeters: 209.6,
     distanceNm: 209.6 / 1_852,

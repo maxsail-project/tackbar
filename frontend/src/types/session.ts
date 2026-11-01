@@ -81,6 +81,13 @@ export interface TemporarySessionShare {
   expires_at: string
 }
 
+export interface SessionRaceTimerEvents {
+  activities: {
+    activity_id: string
+    race_timer_events: { timestamp: string, event_type: 1 | 3 | 4 }[]
+  }[]
+}
+
 export type SessionAccess =
   | { kind: 'original', token: string }
   | { kind: 'temporary', token: string, expiresAt: string }
