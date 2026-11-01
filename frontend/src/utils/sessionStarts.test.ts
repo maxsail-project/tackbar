@@ -23,7 +23,7 @@ function times(activities: SessionTimerActivity[], thresholds?: Parameters<typeo
 }
 
 describe('Session Start inference', () => {
-  it('reconstructs both real Atlas timer-zero cycles without RACE_END', () => {
+  it('infers both Atlas timer-zero Starts with or without other timer events', () => {
     const source: SessionTimerActivity = { activity_id: 'atlas', race_timer_events: [
       { timestamp: '2026-10-31T12:23:13.060Z', event_type: 1 },
       { timestamp: '2026-10-31T12:24:04.824Z', event_type: 0 },
@@ -38,31 +38,16 @@ describe('Session Start inference', () => {
       ['S01', '2026-10-31T12:34:09.689Z'],
       ['S02', '2026-10-31T13:12:55.160Z'],
     ])
+    expect(inferSessionStarts([{
+      ...source,
+      race_timer_events: source.race_timer_events.filter((event) => event.event_type === 3),
+    }])).toEqual(inferSessionStarts([source]))
   })
 
-  it('uses a new timer START after timer zero to delimit cycles, retaining only each final zero', () => {
-    const source = activity('A', [[0, 1], [1_000, 3], [2_000, 3], [3_000, 1], [4_000, 3], [5_000, 3]])
-    expect(extractActivityStartCandidates(source).map(({ time }) => time - BASE)).toEqual([2_000, 5_000])
-    expect(times([source])).toEqual([5_000]) // Distinct-start selection still applies.
-  })
-
-  it.each([
-    [299_000, [299_000]],
-    [300_000, [0, 300_000]],
-    [301_000, [0, 301_000]],
-  ])('separates undelimited timer-zero candidates at the %ims gap', (gap, expected) => {
-    const source = activity('A', [[0, 3], [gap, 3]])
-    expect(extractActivityStartCandidates(source).map(({ time }) => time - BASE)).toEqual(expected)
-    expect(times([source])).toEqual(expected)
-  })
-
-  it('uses the latest timer-zero in each closed and open Activity period', () => {
-    const source = activity('A', [
-      [0, 1], [1_000, 3], [2_000, 3], [3_000, 4],
-      [4_000, 4], [5_000, 3], [6_000, 2], [7_000, 3],
-    ])
-    expect(extractActivityStartCandidates(source).map(({ time }) => time - BASE)).toEqual([2_000, 7_000])
-    expect(times([source])).toEqual([7_000]) // Same potential start inside five minutes.
+  it('does not let timer START or RACE_END create, end or suppress candidates', () => {
+    const source = activity('A', [[0, 1], [1_000, 3], [2_000, 3], [3_000, 4], [4_000, 3], [5_000, 1], [6_000, 3]])
+    expect(extractActivityStartCandidates(source).map(({ time }) => time - BASE)).toEqual([1_000, 2_000, 4_000, 6_000])
+    expect(times([source])).toEqual(times([activity('A', [[1_000, 3], [2_000, 3], [4_000, 3], [6_000, 3]])]))
   })
 
   it('stable-sorts equal UTC timestamps by source order, keeping repeated observations', () => {
@@ -70,15 +55,18 @@ describe('Session Start inference', () => {
       [1_000, 3], [0, 4], [1_000, 4], [1_000, 3], [1_000, 3],
     ])
     expect(extractActivityStartCandidates(source).map(({ time, sourceIndex }) => [time - BASE, sourceIndex])).toEqual([
-      [1_000, 0], [1_000, 4],
+      [1_000, 0], [1_000, 3], [1_000, 4],
     ])
   })
 
-  it('does not make candidates from END-only, VKX START, or unknown codes', () => {
+  it('does not make candidates from non-zero timer types or invalid timestamps', () => {
     expect(inferSessionStarts([
       activity('A', [[0, 4], [1_000, 1], [2_000, 8], [3_000, 4]]),
       activity('B', []),
     ])).toEqual([])
+    expect(extractActivityStartCandidates({ activity_id: 'A', race_timer_events: [
+      { timestamp: 'invalid', event_type: 3 }, { timestamp: new Date(BASE).toISOString(), event_type: 3 },
+    ] })).toEqual([{ activityId: 'A', time: BASE, sourceIndex: 1 }])
   })
 
   it('handles missing and legacy empty event collections', () => {
@@ -134,9 +122,9 @@ describe('Session Start inference', () => {
     ])).toEqual([])
   })
 
-  it('uses one candidate per Activity per group, including overlapping repeated periods', () => {
+  it('uses one candidate per Activity per group, including repeated timer zeros', () => {
     const starts = inferSessionStarts([
-      activity('A', [[0, 3], [1, 4], [2, 3]]),
+      activity('A', [[0, 3], [2, 3]]),
       activity('B', [[1, 3]]),
       activity('C', [[2, 3]]),
     ])
@@ -145,8 +133,8 @@ describe('Session Start inference', () => {
 
   it('keeps separate multi-device Starts across a long Session and numbers them chronologically', () => {
     const starts = inferSessionStarts([
-      activity('A', [[0, 3], [1_000, 4], [600_000, 3]]),
-      activity('B', [[1_000, 3], [2_000, 4], [601_000, 3]]),
+      activity('A', [[0, 3], [600_000, 3]]),
+      activity('B', [[1_000, 3], [601_000, 3]]),
       activity('C', [[602_000, 3]]),
       activity('D', [[1_000, 3]]),
     ])
@@ -161,7 +149,14 @@ describe('Session Start inference', () => {
     [300_000, [0, 300_000]],
     [301_000, [0, 301_000]],
   ])('applies the %ims single-source start gap', (gap, expected) => {
-    expect(times([activity('A', [[0, 3], [1_000, 4], [gap, 3]])])).toEqual(expected)
+    expect(extractActivityStartCandidates(activity('A', [[0, 3], [gap, 3]])).map(({ time }) => time - BASE)).toEqual([0, gap])
+    expect(times([activity('A', [[0, 3], [gap, 3]])])).toEqual(expected)
+  })
+
+  it('accepts an injected distinct-start gap without changing Activity candidates', () => {
+    const source = activity('A', [[0, 3], [10_000, 3]])
+    expect(extractActivityStartCandidates(source)).toHaveLength(2)
+    expect(times([source], { distinctStartGapMs: 10_000 })).toEqual([0, 10_000])
   })
 
   it.each([
@@ -170,16 +165,16 @@ describe('Session Start inference', () => {
     [301_000, [0, 301_000]],
   ])('applies the %ims gap to multi-Activity medians', (gap, expected) => {
     expect(times([
-      activity('A', [[0, 3], [1, 4], [gap, 3]]),
-      activity('B', [[0, 3], [1, 4], [gap, 3]]),
+      activity('A', [[0, 3], [gap, 3]]),
+      activity('B', [[0, 3], [gap, 3]]),
     ])).toEqual(expected)
   })
 
   it('selects greatest distinct support, then the later median, without a global winner', () => {
     const starts = inferSessionStarts([
-      activity('A', [[0, 3], [1_000, 4], [100_000, 3], [101_000, 4], [600_000, 3]]),
-      activity('B', [[1_000, 3], [2_000, 4], [101_000, 3], [102_000, 4], [601_000, 3]]),
-      activity('C', [[0, 3], [1_000, 4], [602_000, 3]]),
+      activity('A', [[0, 3], [100_000, 3], [600_000, 3]]),
+      activity('B', [[1_000, 3], [101_000, 3], [601_000, 3]]),
+      activity('C', [[0, 3], [602_000, 3]]),
     ])
     expect(starts.map((start) => [start.label, start.time - BASE, start.activityIds.length])).toEqual([
       ['S01', 0, 3],
@@ -188,7 +183,7 @@ describe('Session Start inference', () => {
   })
 
   it('does not let one group suppress a whole transitive five-minute chain', () => {
-    expect(times([activity('A', [[0, 3], [1, 4], [299_000, 3], [299_001, 4], [598_000, 3]])])).toEqual([
+    expect(times([activity('A', [[0, 3], [299_000, 3], [598_000, 3]])])).toEqual([
       0, 598_000,
     ])
   })

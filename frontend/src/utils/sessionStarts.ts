@@ -25,39 +25,17 @@ export const SESSION_START_THRESHOLDS: Readonly<SessionStartThresholds> = {
   distinctStartGapMs: 300_000,
 }
 
-/** Keep the final timer-zero in each delimited or well-separated timer cycle. */
-export function extractActivityStartCandidates(
-  activity: SessionTimerActivity,
-  distinctStartGapMs = SESSION_START_THRESHOLDS.distinctStartGapMs,
-): ActivityStartCandidate[] {
-  const events = activity.race_timer_events
+/** Preserve every valid timer-zero observation as an Activity candidate. */
+export function extractActivityStartCandidates(activity: SessionTimerActivity): ActivityStartCandidate[] {
+  return activity.race_timer_events
     .map((event, sourceIndex) => ({
       eventType: event.event_type,
       time: Date.parse(event.timestamp),
       sourceIndex,
     }))
-    .filter((event) => Number.isFinite(event.time) && (event.eventType === 1 || event.eventType === 3 || event.eventType === 4))
+    .filter((event) => Number.isFinite(event.time) && event.eventType === 3)
     .sort((a, b) => a.time - b.time || a.sourceIndex - b.sourceIndex)
-
-  const candidates: ActivityStartCandidate[] = []
-  let lastStart: typeof events[number] | null = null
-  const finishCycle = () => {
-    if (lastStart) {
-      candidates.push({ activityId: activity.activity_id, time: lastStart.time, sourceIndex: lastStart.sourceIndex })
-    }
-    lastStart = null
-  }
-  for (const event of events) {
-    if (event.eventType === 3) {
-      if (lastStart && event.time - lastStart.time >= distinctStartGapMs) finishCycle()
-      lastStart = event
-    } else {
-      // RACE_END always closes a period; a new timer START closes it only after timer zero.
-      finishCycle()
-    }
-  }
-  finishCycle()
-  return candidates
+    .map((event) => ({ activityId: activity.activity_id, time: event.time, sourceIndex: event.sourceIndex }))
 }
 
 interface SynchronizationGroup {
@@ -100,7 +78,7 @@ export function inferSessionStarts(
     ...SESSION_START_THRESHOLDS,
     ...thresholds,
   }
-  const candidates = activities.flatMap((activity) => extractActivityStartCandidates(activity, distinctStartGapMs))
+  const candidates = activities.flatMap(extractActivityStartCandidates)
   if (candidates.length === 0) return []
 
   const contributorCount = new Set(candidates.map((candidate) => candidate.activityId)).size

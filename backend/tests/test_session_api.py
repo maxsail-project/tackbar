@@ -106,10 +106,14 @@ def _set_timer_events(root: Path) -> None:
         activity["race_timer_events"] = [
             {"timestamp": "2031-06-01T08:00:00.123+00:00", "event_type": 3,
              "timer_value_seconds": 0},
+            {"timestamp": "2031-06-01T08:00:00.123+00:00", "event_type": 3,
+             "timer_value_seconds": 0},
             {"timestamp": "2031-06-01T08:00:00.123+00:00", "event_type": 4,
              "timer_value_seconds": 0},
             {"timestamp": "2031-06-01T08:00:01.456+00:00", "event_type": 1,
              "timer_value_seconds": 90},
+            {"timestamp": "2031-06-01T07:59:59.000+00:00", "event_type": 3,
+             "timer_value_seconds": 0},
         ]
         activity["line_positions"] = [{
             "timestamp": "2031-06-01T08:00:00+00:00", "endpoint_type": 1,
@@ -131,8 +135,10 @@ def test_shared_timer_read_is_minimal_ordered_and_current_visibility(
     assert [item["activity_id"] for item in initial.json["activities"]] == [ACTIVITY_A]
     assert set(initial.json) == {"activities"}
     assert set(initial.json["activities"][0]) == {"activity_id", "race_timer_events"}
-    assert [event["event_type"] for event in initial.json["activities"][0]["race_timer_events"]] == [3, 4, 1]
+    assert [event["event_type"] for event in initial.json["activities"][0]["race_timer_events"]] == [3, 3, 3]
     assert initial.json["activities"][0]["race_timer_events"][0]["timestamp"].startswith("2031-06-01T08:00:00.123")
+    assert initial.json["activities"][0]["race_timer_events"][1]["timestamp"] == initial.json["activities"][0]["race_timer_events"][0]["timestamp"]
+    assert initial.json["activities"][0]["race_timer_events"][2]["timestamp"].startswith("2031-06-01T07:59:59")
     assert "line_positions" not in json.dumps(initial.json)
     assert "shift_angle" not in json.dumps(initial.json)
     assert "timer_value_seconds" not in json.dumps(initial.json)

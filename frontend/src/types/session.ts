@@ -84,7 +84,7 @@ export interface TemporarySessionShare {
 export interface SessionRaceTimerEvents {
   activities: {
     activity_id: string
-    race_timer_events: { timestamp: string, event_type: 1 | 3 | 4 }[]
+    race_timer_events: { timestamp: string, event_type: 3 }[]
   }[]
 }
 

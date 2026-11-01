@@ -400,6 +400,8 @@ def test_temporary_timer_read_rechecks_share_and_visibility_without_metadata(
          "timer_value_seconds": 300},
         {"timestamp": "2031-06-01T09:00:00.789+00:00", "event_type": 3,
          "timer_value_seconds": 0},
+        {"timestamp": "2031-06-01T09:00:00.789+00:00", "event_type": 3,
+         "timer_value_seconds": 0},
         {"timestamp": "2031-06-01T09:00:01+00:00", "event_type": 2,
          "timer_value_seconds": 0},
         {"timestamp": "2031-06-01T09:00:02+00:00", "event_type": 4,
@@ -414,8 +416,8 @@ def test_temporary_timer_read_rechecks_share_and_visibility_without_metadata(
     assert response.headers["Cache-Control"] == "no-store"
     assert set(loaded.model_dump()) == {"activities"}
     assert [item.activity_id for item in loaded.activities] == [ACTIVITY_ID]
-    assert [event.event_type for event in loaded.activities[0].race_timer_events] == [1, 3, 4]
-    assert loaded.activities[0].race_timer_events[1].timestamp.microsecond == 789000
+    assert [event.event_type for event in loaded.activities[0].race_timer_events] == [3, 3]
+    assert [event.timestamp.microsecond for event in loaded.activities[0].race_timer_events] == [789000, 789000]
 
     sailor = sailors.get_by_id(SAILOR_ID)
     assert sailor is not None

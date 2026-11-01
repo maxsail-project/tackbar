@@ -90,7 +90,7 @@ class TemporarySharedSessionDetailResponse(SharedSessionContentResponse):
 
 class SharedRaceTimerEventResponse(BaseModel):
     timestamp: datetime
-    event_type: Literal[1, 3, 4]
+    event_type: Literal[3]
 
 
 class SharedActivityRaceTimerEventsResponse(BaseModel):
