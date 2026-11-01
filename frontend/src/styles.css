@@ -2843,7 +2843,7 @@ input:focus-visible {
 /* Personal TackBar shares the application brand baseline. */
 .personal-page { max-width: 640px; margin: 0 auto; padding: 24px 18px 40px; }
 .app-header.personal-header { padding-right: max(18px, calc((100% - 604px) / 2)); padding-left: max(18px, calc((100% - 604px) / 2)); }
-.personal-page h1 { margin: 0 0 16px; }
+.personal-page > h1, .personal-page > section > h2 { margin: 0 0 16px; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
 .personal-name { font-size: 1.2rem; overflow-wrap: anywhere; }
 .personal-page section { margin-top: 32px; }
 .personal-search { display: grid; gap: 6px; margin-bottom: 12px; font-weight: 700; }

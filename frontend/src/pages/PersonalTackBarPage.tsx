@@ -108,6 +108,11 @@ type ActivitiesState =
   | { status: 'loading' | 'error' }
   | { status: 'ready'; activities: PersonalActivity[]; boats: PersonalBoat[] }
 
+function effectiveDevice(activity: PersonalActivity): string {
+  return (activity.device_label?.trim() && activity.device_label)
+    || (activity.device_name.trim() && activity.device_name) || ''
+}
+
 function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUnavailable?: () => void; boatSaved: PersonalBoat | null }) {
   const [state, setState] = useState<ActivitiesState>({ status: 'loading' })
   const [retry, setRetry] = useState(0)
@@ -163,7 +168,7 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
   function beginEdit(activity: PersonalActivity, boats: PersonalBoat[]) {
     setEditingId(activity.id)
     setBoatChoice(activity.boat_id && !boats.some((boat) => boat.id === activity.boat_id) ? '__keep__' : activity.boat_id ?? '')
-    setLabel(activity.device_label ?? '')
+    setLabel(effectiveDevice(activity))
     setFeedback(null)
   }
 
@@ -171,7 +176,13 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
     if (submitting.current || state.status !== 'ready') return
     const patch: PersonalActivityPatch = {}
     if (boatChoice !== '__keep__' && boatChoice !== (activity.boat_id ?? '')) patch.boat_id = boatChoice || null
-    if (label !== (activity.device_label ?? '')) patch.device_label = label === '' ? null : label
+    const nextLabel = label.trim()
+    const originalLabel = activity.device_label?.trim() || ''
+    const extractedName = activity.device_name.trim()
+    if (label !== effectiveDevice(activity)) {
+      if (originalLabel && (!nextLabel || nextLabel === extractedName)) patch.device_label = null
+      else if (nextLabel) patch.device_label = nextLabel
+    }
     if (Object.keys(patch).length === 0) { setEditingId(null); return }
     submitting.current = true
     setSaving(true)
@@ -210,8 +221,8 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
         return <li className="personal-activity" key={activity.id}>
           <h3><time dateTime={activity.start_time}>{day(activity.start_time)} · {time(activity.start_time)}</time></h3>
           <p>Boat: {currentBoat}</p>
-          <p>Device: {activity.device_label || activity.device_name || 'Not available'}</p>
-          <p className="personal-activity__origin">Source: {activity.source} · Original file: {activity.original_filename} · Extracted Device: {activity.device_name || 'Not available'}</p>
+          <p>Device: {effectiveDevice(activity) || 'Not available'}</p>
+          <p className="personal-activity__origin">Source: {activity.source} · Original file: {activity.original_filename} · Extracted Device: {activity.device_name.trim() ? activity.device_name : 'Not available'}</p>
           {editing ? <form onSubmit={(event) => { event.preventDefault(); void save(activity) }}>
             <label>Boat
               <select value={boatChoice} disabled={saving} onChange={(event) => setBoatChoice(event.target.value)}>
