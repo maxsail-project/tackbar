@@ -6,6 +6,13 @@ export type ConsentOperationalGroup =
 
 export type CapabilityState = 'never_generated' | 'active' | 'revoked' | 'expired'
 
+export interface AdminBoat {
+  id: string
+  name: string | null
+  sailing_class: string | null
+  sail_number: string | null
+}
+
 export interface AdminSailor {
   id: string
   email: string
@@ -19,6 +26,7 @@ export interface AdminSailor {
   session_count: number
   last_sailing_start: string | null
   last_sailing_end: string | null
+  owned_boats: AdminBoat[]
 }
 
 export interface AdminConsentEvent {
@@ -48,12 +56,9 @@ export interface AdminSailorDetail extends AdminSailor {
   consent_request: AdminConsentRequest
   consent_events: AdminConsentEvent[]
   sessions: AdminSailorSession[]
-  default_boat: {
-    id: string
-    name: string | null
-    sailing_class: string | null
-    sail_number: string | null
-  } | null
+  default_boat_id: string | null
+  default_boat_status: 'none' | 'owned' | 'historical' | 'unavailable'
+  default_boat: AdminBoat | null
   diagnostic: Record<string, unknown>
 }
 
@@ -187,8 +192,11 @@ export interface AdminActivitySummary {
   id: string
   sailor_id: string
   sailor_label: string
+  boat_id: string | null
+  boat: AdminBoat | null
   source: string
   device_name: string
+  device_label: string | null
   original_filename: string
   start_time: string
   end_time: string
@@ -208,7 +216,6 @@ export interface AdminManeuverState {
 }
 
 export interface AdminActivity extends AdminActivitySummary {
-  boat: { id: string; name: string | null; sailing_class: string | null; sail_number: string | null } | null
   source: string
   device_name: string
   original_filename: string

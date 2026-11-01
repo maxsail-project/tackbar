@@ -21,6 +21,13 @@ ConsentRequestAdminState = Literal[
 ]
 
 
+class AdminSailorBoatResponse(BaseModel):
+    id: str
+    name: str | None
+    sailing_class: str | None
+    sail_number: str | None
+
+
 class AdminSailorResponse(BaseModel):
     id: str
     email: str
@@ -34,6 +41,7 @@ class AdminSailorResponse(BaseModel):
     session_count: int
     last_sailing_start: datetime | None
     last_sailing_end: datetime | None
+    owned_boats: list[AdminSailorBoatResponse]
 
 
 class AdminConsentEventResponse(BaseModel):
@@ -53,13 +61,6 @@ class AdminConsentRequestResponse(BaseModel):
     delivery_last_error: str | None
 
 
-class AdminSailorBoatResponse(BaseModel):
-    id: str
-    name: str | None
-    sailing_class: str | None
-    sail_number: str | None
-
-
 class AdminSailorDetailResponse(AdminSailorResponse):
     personal_capability_state: Literal["never_generated", "active", "revoked", "consent_inactive"]
     personal_capability_path: str | None
@@ -68,6 +69,8 @@ class AdminSailorDetailResponse(AdminSailorResponse):
     consent_request: AdminConsentRequestResponse
     consent_events: list[AdminConsentEventResponse]
     sessions: list["AdminSailorSessionResponse"]
+    default_boat_id: str | None
+    default_boat_status: Literal["none", "owned", "historical", "unavailable"]
     default_boat: AdminSailorBoatResponse | None
     diagnostic: dict[str, object]
 
@@ -228,8 +231,11 @@ class AdminActivitySummaryResponse(BaseModel):
     id: str
     sailor_id: str
     sailor_label: str
+    boat_id: str | None
     source: str
     device_name: str
+    device_label: str | None
+    boat: AdminActivityBoatResponse | None
     original_filename: str
     start_time: datetime
     end_time: datetime
@@ -266,7 +272,6 @@ class AdminActivityTechnicalTrackResponse(BaseModel):
 
 
 class AdminActivityResponse(AdminActivitySummaryResponse):
-    boat: AdminActivityBoatResponse | None
     source: str
     device_name: str
     original_filename: str

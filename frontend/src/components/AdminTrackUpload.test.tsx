@@ -9,7 +9,7 @@ const sailors: AdminSailor[] = ['ACTIVE', 'PENDING', 'REVOKED'].map((status) => 
   id: status, email: `${status.toLowerCase()}@example.test`, name: `${status} Sailor`, consent_status: status,
   consent_request_sent_at: null, consent_granted_at: null, consent_revoked_at: null,
   operational_group: status === 'ACTIVE' ? 'active' : status === 'REVOKED' ? 'revoked' : 'pending_needs_request',
-  activity_count: 0, session_count: 0, last_sailing_start: null, last_sailing_end: null,
+  activity_count: 0, session_count: 0, last_sailing_start: null, last_sailing_end: null, owned_boats: [],
 }))
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {

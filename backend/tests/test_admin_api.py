@@ -332,11 +332,115 @@ def test_admin_sailor_detail_resolves_default_boat_and_safe_diagnostics(
         "sailing_class": "Snipe",
         "sail_number": "ESP 1",
     }
+    assert detail.json["default_boat_status"] == "historical"
+    assert detail.json["owned_boats"] == []
     assert detail.json["diagnostic"]["default_boat"]["id"] == boat_id
     serialized = json.dumps(detail.json["diagnostic"])
     assert ACTIVE_TOKEN not in serialized
     assert "personal_capability_token" not in serialized
     assert "capability_path" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("default_kind", "expected_status", "expected_name"),
+    [
+        ("none", "none", None),
+        ("owned", "owned", "Owned"),
+        ("legacy", "historical", "Legacy"),
+        ("missing", "unavailable", None),
+        ("foreign", "unavailable", None),
+    ],
+)
+def test_admin_sailor_boat_catalogue_and_default_status(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+    default_kind: str,
+    expected_status: str,
+    expected_name: str | None,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    owned_id = "40000000-0000-4000-8000-000000000001"
+    legacy_id = "40000000-0000-4000-8000-000000000002"
+    foreign_id = "40000000-0000-4000-8000-000000000003"
+    missing_id = "40000000-0000-4000-8000-000000000004"
+    boats = [
+        {"id": owned_id, "sailor_id": ACTIVE, "name": "Owned", "sailing_class": "Snipe", "sail_number": "ESP 1"},
+        {"id": legacy_id, "name": "Legacy", "sailing_class": None, "sail_number": None},
+        {"id": foreign_id, "sailor_id": REVOKED, "name": "Foreign", "sailing_class": None, "sail_number": None},
+    ]
+    _write_json(root / "boats.json", boats)
+    defaults = {"none": None, "owned": owned_id, "legacy": legacy_id, "missing": missing_id, "foreign": foreign_id}
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    next(item for item in sailors if item["id"] == ACTIVE)["default_boat_id"] = defaults[default_kind]
+    _write_json(root / "sailors.json", sailors)
+    activities = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    activities[0]["boat_id"] = legacy_id
+    _write_json(root / "activities.json", activities)
+
+    detail = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+    listing = _request("GET", "/api/admin/sailors")
+
+    assert detail.status_code == listing.status_code == 200
+    assert detail.json["default_boat_status"] == expected_status
+    assert detail.json["default_boat_id"] == defaults[default_kind]
+    assert (detail.json["default_boat"] or {}).get("name") == expected_name
+    expected_owned = [{"id": owned_id, "name": "Owned", "sailing_class": "Snipe", "sail_number": "ESP 1"}]
+    assert detail.json["owned_boats"] == expected_owned
+    assert next(item for item in listing.json if item["id"] == ACTIVE)["owned_boats"] == expected_owned
+
+
+def test_admin_activity_context_reflects_personal_edits_and_preserves_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+    temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    boat_id = "40000000-0000-4000-8000-000000000001"
+    token = "admin-context-personal-token-000000000000001"
+    _write_json(root / "boats.json", [{
+        "id": boat_id, "sailor_id": ACTIVE, "name": "Owned", "sailing_class": "Snipe", "sail_number": "ESP 1",
+    }])
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    active = next(item for item in sailors if item["id"] == ACTIVE)
+    active["default_boat_id"] = boat_id
+    active["personal_capability_token"] = token
+    _write_json(root / "sailors.json", sailors)
+
+    before = _request("GET", "/api/admin/activities")
+    assert before.status_code == 200
+    assert next(item for item in before.json if item["id"] == ACTIVITY_ACTIVE)["boat"] is None
+    assert _request("GET", "/api/admin/activities", admin_key=None).status_code == 401
+    edited = _request("PATCH", f"/api/me/{token}/activities/{ACTIVITY_ACTIVE}", admin_key=None,
+                      json_body={"boat_id": boat_id, "device_label": "Cockpit Tablet"})
+    assert edited.status_code == 200
+
+    listing = _request("GET", "/api/admin/activities")
+    detail = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    assert listing.status_code == detail.status_code == 200
+    summary = next(item for item in listing.json if item["id"] == ACTIVITY_ACTIVE)
+    assert summary["boat"] == detail.json["boat"] == {
+        "id": boat_id, "name": "Owned", "sailing_class": "Snipe", "sail_number": "ESP 1",
+    }
+    assert summary["boat_id"] == detail.json["boat_id"] == boat_id
+    assert summary["device_label"] == detail.json["device_label"] == "Cockpit Tablet"
+    assert summary["device_name"] == detail.json["device_name"] == "demo"
+    assert summary["original_filename"] == detail.json["original_filename"] == "demo.csv.gz"
+
+    renamed = _request("PATCH", f"/api/me/{token}/boats/{boat_id}", admin_key=None,
+                       json_body={"name": "Renamed"})
+    assert renamed.status_code == 200
+    refreshed = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    assert refreshed.json["boat"]["name"] == "Renamed"
+
+    second_id = "40000000-0000-4000-8000-000000000002"
+    boats = json.loads((root / "boats.json").read_text(encoding="utf-8"))
+    boats.append({"id": second_id, "sailor_id": ACTIVE, "name": "Second", "sailing_class": None, "sail_number": None})
+    _write_json(root / "boats.json", boats)
+    reassigned = _request("PATCH", f"/api/me/{token}/activities/{ACTIVITY_ACTIVE}", admin_key=None,
+                          json_body={"boat_id": second_id})
+    assert reassigned.status_code == 200
+    refreshed = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    assert refreshed.json["boat"]["name"] == "Second"
+    assert refreshed.json["device_label"] == "Cockpit Tablet"
 
 
 def test_admin_sailor_detail_exposes_welcome_email_delivery_state(
@@ -1874,6 +1978,9 @@ def test_admin_activity_collection_is_newest_first_compact_and_protected(
         "sailor_label": "active",
         "source": "vakaros",
         "device_name": "demo",
+        "device_label": None,
+        "boat_id": None,
+        "boat": None,
         "original_filename": "demo.csv.gz",
         "start_time": "2026-08-12T09:00:00Z",
         "end_time": "2026-08-12T10:00:00Z",

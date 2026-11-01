@@ -12,7 +12,7 @@ from app.admin_api_models import (
     AdminActivityTechnicalTrackResponse,
     AdminManeuverStateResponse,
 )
-from app.models import StoredActivity
+from app.models import Boat, StoredActivity
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.sailors import SailorRepository
@@ -38,7 +38,8 @@ class AdminActivityReader:
         self.analytics = ManeuverAnalyticsStorage()
 
     def list_activities(self) -> list[AdminActivitySummaryResponse]:
-        responses = [self._summary(activity) for activity in self.activities.all()]
+        boats = {boat.id: boat for boat in self.boats.all()}
+        responses = [self._summary(activity, boats) for activity in self.activities.all()]
         return sorted(
             responses,
             key=lambda item: (item.start_time, item.id),
@@ -49,8 +50,9 @@ class AdminActivityReader:
         activity = self.activities.get_by_id(activity_id)
         if activity is None:
             return None
-        summary = self._summary(activity)
-        boat = self.boats.get_by_id(activity.boat_id) if activity.boat_id else None
+        boats = {boat.id: boat for boat in self.boats.all()}
+        summary = self._summary(activity, boats)
+        boat = boats.get(activity.boat_id) if activity.boat_id else None
         if activity.boat_id is not None and boat is None:
             raise AdminDataIntegrityError("Activity references unknown Boat")
         related_ingestions = [
@@ -99,6 +101,7 @@ class AdminActivityReader:
             "boat_id": activity.boat_id,
             "source": activity.source,
             "device_name": activity.device_name,
+            "device_label": activity.device_label,
             "original_filename": activity.original_filename,
             "start_time": activity.start_time.isoformat(),
             "end_time": activity.end_time.isoformat(),
@@ -116,7 +119,6 @@ class AdminActivityReader:
         }
         return AdminActivityResponse(
             **summary.model_dump(),
-            boat=AdminActivityBoatResponse(**boat.__dict__) if boat else None,
             attachment_sha256=activity.attachment_sha256,
             track_available=track_available,
             source_ingestion_id=source_ingestion_id,
@@ -136,7 +138,7 @@ class AdminActivityReader:
         generate_maneuver_analytics(activity_id, self.tracks, self.analytics)
         return self._maneuver_state(activity_id)
 
-    def _summary(self, activity: StoredActivity) -> AdminActivitySummaryResponse:
+    def _summary(self, activity: StoredActivity, boats: dict[str, Boat]) -> AdminActivitySummaryResponse:
         sailor = self.sailors.get_by_id(activity.sailor_id)
         if sailor is None:
             raise AdminDataIntegrityError("Activity references unknown Sailor")
@@ -145,8 +147,14 @@ class AdminActivityReader:
             id=activity.id,
             sailor_id=activity.sailor_id,
             sailor_label=sailor.name or sailor.email,
+            boat_id=activity.boat_id,
             source=activity.source,
             device_name=activity.device_name,
+            device_label=activity.device_label,
+            boat=(AdminActivityBoatResponse(
+                id=boat.id, name=boat.name,
+                sailing_class=boat.sailing_class, sail_number=boat.sail_number,
+            ) if (boat := boats.get(activity.boat_id)) else None),
             original_filename=activity.original_filename,
             start_time=activity.start_time,
             end_time=activity.end_time,

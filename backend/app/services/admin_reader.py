@@ -20,6 +20,7 @@ from app.admin_api_models import (
     ConsentOperationalGroup,
 )
 from app.models import (
+    Boat,
     ConsentRequestState,
     ConsentStatus,
     Sailor,
@@ -94,10 +95,14 @@ class AdminReader:
 
     def list_sailors(self) -> list[AdminSailorResponse]:
         persisted_sailors = self.sailors.all()
+        boats = self.boats.all()
         self._validate_consent_event_sailors(
             {sailor.id for sailor in persisted_sailors}
         )
-        sailors = [self._sailor_response(sailor) for sailor in persisted_sailors]
+        sailors = [
+            self._sailor_response(sailor, [boat for boat in boats if boat.sailor_id == sailor.id])
+            for sailor in persisted_sailors
+        ]
         order = {
             "pending_needs_request": 0,
             "pending_awaiting_response": 1,
@@ -124,7 +129,10 @@ class AdminReader:
         )
         if sailor is None:
             return None
-        summary = self._sailor_response(sailor)
+        boats = self.boats.all()
+        summary = self._sailor_response(
+            sailor, [boat for boat in boats if boat.sailor_id == sailor.id]
+        )
         events = sorted(
             self.consent_events.for_sailor(sailor_id),
             key=lambda event: (event.timestamp, event.event_type.value),
@@ -135,10 +143,18 @@ class AdminReader:
         )
         request = request_resolution.request
         sessions = self._sailor_sessions(sailor.id)
-        boat = (
-            self.boats.get_by_id(sailor.default_boat_id)
-            if sailor.default_boat_id is not None else None
+        resolved_default = next(
+            (boat for boat in boats if boat.id == sailor.default_boat_id), None
         )
+        if sailor.default_boat_id is None:
+            default_status = "none"
+        elif resolved_default is None or resolved_default.sailor_id not in (None, sailor.id):
+            default_status = "unavailable"
+        elif resolved_default.sailor_id is None:
+            default_status = "historical"
+        else:
+            default_status = "owned"
+        boat = resolved_default if default_status in ("owned", "historical") else None
         request_states = {
             ConsentRequestState.NOT_FOUND: "none",
             ConsentRequestState.VALID: "valid",
@@ -202,6 +218,8 @@ class AdminReader:
                 )
                 if boat is not None else None
             ),
+            default_boat_id=sailor.default_boat_id,
+            default_boat_status=default_status,
             diagnostic={
                 "sailor": {
                     "id": sailor.id,
@@ -228,6 +246,8 @@ class AdminReader:
                 ),
                 "activity_count": summary.activity_count,
                 "session_count": summary.session_count,
+                "default_boat_status": default_status,
+                "owned_boat_count": len(summary.owned_boats),
                 "default_boat": (
                     {
                         "id": boat.id,
@@ -311,7 +331,7 @@ class AdminReader:
             {sailor.id: sailor for sailor in self.sailors.all()},
         )
 
-    def _sailor_response(self, sailor: Sailor) -> AdminSailorResponse:
+    def _sailor_response(self, sailor: Sailor, owned_boats: list[Boat]) -> AdminSailorResponse:
         sessions = self._sailor_sessions(sailor.id)
         return AdminSailorResponse(
             id=sailor.id,
@@ -326,6 +346,10 @@ class AdminReader:
             session_count=len(sessions),
             last_sailing_start=(sessions[0].sailing_start if sessions else None),
             last_sailing_end=(sessions[0].sailing_end if sessions else None),
+            owned_boats=[AdminSailorBoatResponse(
+                id=boat.id, name=boat.name,
+                sailing_class=boat.sailing_class, sail_number=boat.sail_number,
+            ) for boat in owned_boats],
         )
 
     def _sailor_sessions(self, sailor_id: str) -> list[AdminSailorSessionResponse]:

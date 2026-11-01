@@ -32,7 +32,7 @@ import {
   type IngestionDispositionFilter,
   type IngestionStatusFilter,
 } from '../api/adminApi'
-import type { AdminActivity, AdminActivitySummary, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary, CapabilityState, ConsentOperationalGroup } from '../types/admin'
+import type { AdminActivity, AdminActivitySummary, AdminBoat, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 import { sessionDisplayLocation } from '../utils/sessionPresentation'
 
 export type Section = 'sailors' | 'sessions' | 'ingestions' | 'activities'
@@ -104,6 +104,19 @@ function matchesAdminSearch(values: Array<string | null | undefined>, search: st
   return !query || values.some((value) => value?.toLocaleLowerCase().includes(query))
 }
 
+function boatSearchValues(boat: AdminBoat | null | undefined) {
+  return [boat?.name, boat?.sailing_class, boat?.sail_number]
+    .filter((value) => value?.trim())
+}
+
+function adminBoatLabel(boat: AdminBoat | null | undefined) {
+  return boatSearchValues(boat).join(' · ') || 'Unavailable'
+}
+
+function adminDeviceLabel(activity: Pick<AdminActivitySummary, 'device_label' | 'device_name'>) {
+  return activity.device_label?.trim() || activity.device_name.trim() || 'Unavailable'
+}
+
 export function filterAdminActivities(activities: AdminActivitySummary[], search: string) {
   return activities.filter((activity) => matchesAdminSearch([
     activity.id,
@@ -112,15 +125,20 @@ export function filterAdminActivities(activities: AdminActivitySummary[], search
     activity.session_id,
     activity.source,
     activity.device_name,
+    activity.device_label,
     activity.original_filename,
+    ...boatSearchValues(activity.boat),
   ], search))
 }
 
-export function filterAdminSailors(sailors: AdminSailor[], search: string) {
+export function filterAdminSailors(sailors: AdminSailor[], search: string, activities: AdminActivitySummary[] = []) {
   return sailors.filter((sailor) => matchesAdminSearch([
     sailor.id,
     sailor.name,
     sailor.email,
+    ...sailor.owned_boats.flatMap(boatSearchValues),
+    ...activities.filter((activity) => activity.sailor_id === sailor.id)
+      .flatMap((activity) => boatSearchValues(activity.boat)),
   ], search))
 }
 
@@ -143,7 +161,7 @@ export function filterAdminSessions(sessions: AdminSessionSummary[], activities:
       sessionDisplayLocation(session.location_label, session.location_country),
       sessionSailingLabel(session),
       sessionDateSearchText(session),
-      ...members.flatMap((activity) => [activity.id, activity.sailor_id, activity.sailor_label]),
+      ...members.flatMap((activity) => [activity.id, activity.sailor_id, activity.sailor_label, ...boatSearchValues(activity.boat)]),
     ], search)
   })
 }
@@ -460,7 +478,7 @@ export default function AdminPage() {
     search: ingestionSearch,
   })
   const visibleActivities = filterAdminActivities(activities, activitySearch)
-  const visibleSailors = filterAdminSailors(sailors, sailorSearch)
+  const visibleSailors = filterAdminSailors(sailors, sailorSearch, activities)
   const visibleSessions = filterAdminSessions(sessions, activities, sessionSearch)
   const sailorOptions = ingestionSailorOptions(presentedIngestions)
   const lastUpload = presentedIngestions.find((item) => item.id === lastUploadId)
@@ -590,7 +608,7 @@ export function ActivityCard({ activity, detail, session, sourceIngestion, busy,
   return <article className={`admin-card admin-entity-card admin-activity-card${detail ? ' is-expanded is-selected' : ''}`} aria-current={detail ? 'true' : undefined}>
     <button className="admin-entity-summary admin-activity-summary" type="button" aria-expanded={Boolean(detail)} disabled={busy} onClick={onSelect}>
       <div className="admin-card__heading"><div><h2>{activityRelationIdentity(activity)}</h2><p>{sailorIdentity(activity.sailor_label, null, activity.sailor_id)}</p></div><span className="state-badge">{activity.sample_count.toLocaleString()} samples</span></div>
-      <p className="admin-meta">{activity.source} · {activity.device_name}</p>
+      <p className="admin-meta">{activity.source} · Boat: {activity.boat ? adminBoatLabel(activity.boat) : activity.boat_id ? 'Unavailable' : 'No Boat'} · Device: {adminDeviceLabel(activity)}</p>
       <DisclosureAffordance expanded={Boolean(detail)} />
     </button>
     {detail && <ActivityAdminDetail activity={detail} session={session} sourceIngestion={sourceIngestion} busy={busy} onFollow={onFollow} onRecalculate={onRecalculate} />}
@@ -598,11 +616,11 @@ export function ActivityCard({ activity, detail, session, sourceIngestion, busy,
 }
 
 export function ActivityAdminDetail({ activity, session, sourceIngestion, busy = false, onFollow, onRecalculate = () => undefined }: { activity: AdminActivity, session?: AdminSessionSummary, sourceIngestion?: AdminIngestion, busy?: boolean, onFollow: (kind: AdminDrilldown['kind'], id: string) => void, onRecalculate?: () => void }) {
-  const boat = activity.boat ? [activity.boat.name, activity.boat.sailing_class, activity.boat.sail_number].filter(Boolean).join(' · ') : '—'
+  const boat = activity.boat ? adminBoatLabel(activity.boat) : activity.boat_id ? 'Unavailable' : 'No Boat'
   const maneuvers = activity.maneuvers
   const detector = maneuvers.detector_status === null ? 'Not available' : maneuvers.detector_status === 'available' ? 'Available' : `Unavailable · ${maneuvers.unavailable_reason?.replaceAll('_', ' ') || 'unknown reason'}`
   const ingestionUnavailable = activity.source_ingestion_resolution === 'ambiguous' ? 'Ambiguous · multiple related Ingestions' : 'Unavailable'
-  return <div className="admin-entity-detail admin-activity-detail"><div className="admin-detail-grid admin-activity-detail__sections"><section><h3>Track</h3><dl><div><dt>Date</dt><dd>{sailingDate(activity.start_time)}</dd></div><div><dt>Start</dt><dd>{sailingTime(activity.start_time)}</dd></div><div><dt>End</dt><dd>{sailingTime(activity.end_time)}</dd></div><div><dt>Duration</dt><dd>{sailingDuration(activity.start_time, activity.end_time)}</dd></div><div><dt>Samples</dt><dd>{activity.sample_count.toLocaleString()}</dd></div><div><dt>Normalized track</dt><dd>{activity.track_available ? 'Available' : 'Unavailable'}</dd></div></dl></section><section><h3>Source</h3><dl><div><dt>Provider/source</dt><dd>{activity.source}</dd></div><div><dt>Device</dt><dd>{activity.device_name}</dd></div><div><dt>Original filename</dt><dd>{activity.original_filename}</dd></div></dl></section><section className="admin-detail-grid__wide"><h3>Traceability</h3><dl><div><dt>Boat</dt><dd>{boat}</dd></div></dl><div className="admin-relations"><RelationButton label="Sailor" id={activity.sailor_id} value={sailorIdentity(activity.sailor_label, null, activity.sailor_id)} onFollow={() => onFollow('sailor', activity.sailor_id)} /><RelationButton label="Session" id={activity.session_id} value={session ? sessionRelationIdentity(session, true) : undefined} onFollow={() => activity.session_id && onFollow('session', activity.session_id)} /><RelationButton label="Source Ingestion" id={activity.source_ingestion_id} value={sourceIngestion ? ingestionRelationIdentity(sourceIngestion) : undefined} unavailableValue={ingestionUnavailable} onFollow={() => activity.source_ingestion_id && onFollow('ingestion', activity.source_ingestion_id)} /></div></section><section className="admin-detail-grid__wide"><h3>Maneuvers</h3><dl><div><dt>Artifact currency</dt><dd>{maneuvers.artifact_currency.toUpperCase()}</dd></div><div><dt>Detector status</dt><dd>{detector}</dd></div><div><dt>Detector mode</dt><dd>{maneuvers.detector_mode ?? 'Not available'}</dd></div><div><dt>Detected event count</dt><dd>{maneuvers.detected_count ?? '—'}</dd></div><div><dt>Persisted algorithm version</dt><dd>{maneuvers.artifact_algorithm_version ?? '—'}</dd></div><div><dt>Current algorithm version</dt><dd>{maneuvers.current_algorithm_version}</dd></div></dl><div className="admin-actions"><button disabled={busy || !activity.track_available} onClick={onRecalculate}>{busy ? 'Recalculating…' : 'Recalculate maneuvers'}</button></div></section></div><details className="admin-advanced"><summary>Advanced</summary><h4>Technical traceability</h4><dl><div><dt>Activity ID</dt><dd>{activity.id}</dd></div><div><dt>Sailor ID</dt><dd>{activity.sailor_id}</dd></div><div><dt>Session ID</dt><dd>{activity.session_id || '—'}</dd></div>{activity.source_ingestion_resolution === 'ambiguous' ? <div><dt>Source Ingestion</dt><dd>AMBIGUOUS</dd></div> : <div><dt>Source Ingestion ID</dt><dd>{activity.source_ingestion_id || '—'}</dd></div>}<div><dt>Attachment SHA-256</dt><dd>{activity.attachment_sha256}</dd></div></dl>{activity.source_ingestion_resolution === 'ambiguous' && activity.related_ingestions.length > 0 && <div className="admin-technical-ingestions"><h4>Related Ingestions</h4><ul>{activity.related_ingestions.map((ingestion) => <li key={ingestion.id}><strong>{relatedIngestionIdentity(ingestion)}</strong><span>{ingestion.id}</span></li>)}</ul></div>}<h4>Technical track</h4>{activity.technical_track ? <dl><div><dt>Sample count</dt><dd>{activity.technical_track.sample_count.toLocaleString()}</dd></div><div><dt>Duration</dt><dd>{activity.technical_track.duration_seconds.toLocaleString(undefined, { maximumFractionDigits: 2 })} s</dd></div><div><dt>Effective sample frequency</dt><dd>{activity.technical_track.effective_sample_frequency_hz === null ? 'Unavailable' : `${activity.technical_track.effective_sample_frequency_hz.toLocaleString(undefined, { maximumFractionDigits: 2 })} Hz`}</dd></div><div><dt>Available telemetry channels</dt><dd>{activity.technical_track.available_channels.join(' · ') || 'None available'}</dd></div></dl> : <dl><div><dt>Normalized track</dt><dd>Unavailable</dd></div></dl>}</details><DiagnosticJson value={activity.diagnostic} label="Diagnostic JSON" /></div>
+  return <div className="admin-entity-detail admin-activity-detail"><div className="admin-detail-grid admin-activity-detail__sections"><section><h3>Track</h3><dl><div><dt>Date</dt><dd>{sailingDate(activity.start_time)}</dd></div><div><dt>Start</dt><dd>{sailingTime(activity.start_time)}</dd></div><div><dt>End</dt><dd>{sailingTime(activity.end_time)}</dd></div><div><dt>Duration</dt><dd>{sailingDuration(activity.start_time, activity.end_time)}</dd></div><div><dt>Samples</dt><dd>{activity.sample_count.toLocaleString()}</dd></div><div><dt>Normalized track</dt><dd>{activity.track_available ? 'Available' : 'Unavailable'}</dd></div></dl></section><section><h3>Context</h3><dl><div><dt>Boat</dt><dd>{boat}</dd></div><div><dt>Device</dt><dd>{adminDeviceLabel(activity)}</dd></div></dl></section><section><h3>Source</h3><dl><div><dt>Provider/source</dt><dd>{activity.source}</dd></div><div><dt>Original Device</dt><dd>{activity.device_name.trim() || 'Unavailable'}</dd></div><div><dt>Original filename</dt><dd>{activity.original_filename}</dd></div></dl></section><section className="admin-detail-grid__wide"><h3>Traceability</h3><div className="admin-relations"><RelationButton label="Sailor" id={activity.sailor_id} value={sailorIdentity(activity.sailor_label, null, activity.sailor_id)} onFollow={() => onFollow('sailor', activity.sailor_id)} /><RelationButton label="Session" id={activity.session_id} value={session ? sessionRelationIdentity(session, true) : undefined} onFollow={() => activity.session_id && onFollow('session', activity.session_id)} /><RelationButton label="Source Ingestion" id={activity.source_ingestion_id} value={sourceIngestion ? ingestionRelationIdentity(sourceIngestion) : undefined} unavailableValue={ingestionUnavailable} onFollow={() => activity.source_ingestion_id && onFollow('ingestion', activity.source_ingestion_id)} /></div></section><section className="admin-detail-grid__wide"><h3>Maneuvers</h3><dl><div><dt>Artifact currency</dt><dd>{maneuvers.artifact_currency.toUpperCase()}</dd></div><div><dt>Detector status</dt><dd>{detector}</dd></div><div><dt>Detector mode</dt><dd>{maneuvers.detector_mode ?? 'Not available'}</dd></div><div><dt>Detected event count</dt><dd>{maneuvers.detected_count ?? '—'}</dd></div><div><dt>Persisted algorithm version</dt><dd>{maneuvers.artifact_algorithm_version ?? '—'}</dd></div><div><dt>Current algorithm version</dt><dd>{maneuvers.current_algorithm_version}</dd></div></dl><div className="admin-actions"><button disabled={busy || !activity.track_available} onClick={onRecalculate}>{busy ? 'Recalculating…' : 'Recalculate maneuvers'}</button></div></section></div><details className="admin-advanced"><summary>Advanced</summary><h4>Technical traceability</h4><dl><div><dt>Activity ID</dt><dd>{activity.id}</dd></div><div><dt>Boat ID</dt><dd>{activity.boat_id || '—'}</dd></div><div><dt>Sailor ID</dt><dd>{activity.sailor_id}</dd></div><div><dt>Session ID</dt><dd>{activity.session_id || '—'}</dd></div>{activity.source_ingestion_resolution === 'ambiguous' ? <div><dt>Source Ingestion</dt><dd>AMBIGUOUS</dd></div> : <div><dt>Source Ingestion ID</dt><dd>{activity.source_ingestion_id || '—'}</dd></div>}<div><dt>Attachment SHA-256</dt><dd>{activity.attachment_sha256}</dd></div></dl>{activity.source_ingestion_resolution === 'ambiguous' && activity.related_ingestions.length > 0 && <div className="admin-technical-ingestions"><h4>Related Ingestions</h4><ul>{activity.related_ingestions.map((ingestion) => <li key={ingestion.id}><strong>{relatedIngestionIdentity(ingestion)}</strong><span>{ingestion.id}</span></li>)}</ul></div>}<h4>Technical track</h4>{activity.technical_track ? <dl><div><dt>Sample count</dt><dd>{activity.technical_track.sample_count.toLocaleString()}</dd></div><div><dt>Duration</dt><dd>{activity.technical_track.duration_seconds.toLocaleString(undefined, { maximumFractionDigits: 2 })} s</dd></div><div><dt>Effective sample frequency</dt><dd>{activity.technical_track.effective_sample_frequency_hz === null ? 'Unavailable' : `${activity.technical_track.effective_sample_frequency_hz.toLocaleString(undefined, { maximumFractionDigits: 2 })} Hz`}</dd></div><div><dt>Available telemetry channels</dt><dd>{activity.technical_track.available_channels.join(' · ') || 'None available'}</dd></div></dl> : <dl><div><dt>Normalized track</dt><dd>Unavailable</dd></div></dl>}</details><DiagnosticJson value={activity.diagnostic} label="Diagnostic JSON" /></div>
 }
 
 type SailorActions = {
@@ -628,10 +646,11 @@ export function SailorDetail({ sailor, activities = [], busy, onActivitySelect, 
   const requestAction = request.state === 'none' ? 'Send consent request' : request.state === 'expired' ? 'Reissue consent request' : request.state === 'valid' ? 'Resend consent request' : null
   const sendRequest = () => confirmConsentRequestSend(request.state, (message) => window.confirm(message), onConsentRequestSend)
   const canResendWelcome = sailor.consent_status === 'ACTIVE' && sailor.personal_capability_state === 'active' && sailor.personal_capability_path !== null
-  const boat = sailor.default_boat ? [sailor.default_boat.name, sailor.default_boat.sailing_class, sailor.default_boat.sail_number].filter(Boolean).join(' · ') : null
+  const defaultBoat = sailor.default_boat_status === 'none' ? 'No default Boat' : sailor.default_boat_status === 'owned' ? `Owned · ${adminBoatLabel(sailor.default_boat)}` : sailor.default_boat_status === 'historical' ? `Historical/legacy · ${adminBoatLabel(sailor.default_boat)}` : 'Unavailable'
   return <div className="admin-entity-detail admin-sailor-detail">
     <div className="admin-detail-grid admin-sailor-detail__sections">
-      <section><h3>Current state</h3><dl><div><dt>Name</dt><dd>{sailor.name || '—'}</dd></div><div><dt>Email</dt><dd>{sailor.email}</dd></div><div><dt>Consent</dt><dd>{sailor.consent_status}</dd></div><div><dt>Operational group</dt><dd>{consentLabels[sailor.operational_group]}</dd></div><div><dt>Personal TackBar</dt><dd>{personalCapabilityLabels[sailor.personal_capability_state]}</dd></div><div><dt>Latest sailing</dt><dd>{sailor.last_sailing_end ? `${localDate(sailor.last_sailing_start)}–${localDate(sailor.last_sailing_end)}` : '—'}</dd></div>{boat && <div><dt>Default Boat</dt><dd>{boat}</dd></div>}</dl></section>
+      <section><h3>Current state</h3><dl><div><dt>Name</dt><dd>{sailor.name || '—'}</dd></div><div><dt>Email</dt><dd>{sailor.email}</dd></div><div><dt>Consent</dt><dd>{sailor.consent_status}</dd></div><div><dt>Operational group</dt><dd>{consentLabels[sailor.operational_group]}</dd></div><div><dt>Personal TackBar</dt><dd>{personalCapabilityLabels[sailor.personal_capability_state]}</dd></div><div><dt>Latest sailing</dt><dd>{sailor.last_sailing_end ? `${localDate(sailor.last_sailing_start)}–${localDate(sailor.last_sailing_end)}` : '—'}</dd></div></dl></section>
+      <section className="admin-detail-grid__wide"><h3>Boats</h3><dl><div><dt>Default Boat</dt><dd>{defaultBoat}</dd></div></dl><h4>Owned Boats</h4>{sailor.owned_boats.length === 0 ? <p>No owned Boats recorded.</p> : <ul className="admin-owned-boats">{sailor.owned_boats.map((boat) => <li key={boat.id}>{adminBoatLabel(boat)}</li>)}</ul>}</section>
       <ConsentRequestStatus sailor={sailor} />
       <details className="admin-sailor-disclosure"><summary>Consent timeline</summary>{sailor.consent_events.length === 0 ? <p>No consent events recorded.</p> : <ul className="event-list">{sailor.consent_events.map((event, index) => <li key={`${event.timestamp}-${index}`}><strong>{event.event_type.replaceAll('_', ' ')}</strong><span>{localDate(event.timestamp)} · {event.source}{event.agreement_version ? ` · ${event.agreement_version}` : ''}</span></li>)}</ul>}</details>
       <PersonalCapabilityControls key={`${sailor.id}-${sailor.personal_capability_path}-${sailor.personal_capability_state}`} sailor={sailor} busy={busy} />
@@ -639,7 +658,7 @@ export function SailorDetail({ sailor, activities = [], busy, onActivitySelect, 
       <WelcomeEmailStatus sailor={sailor} />
       <section className="admin-detail-grid__wide admin-maintenance"><h3>Maintenance</h3><div className="admin-maintenance-groups"><div><h4>Consent</h4><div className="admin-actions">{sailor.operational_group === 'pending_needs_request' && <button disabled={busy} onClick={onRequested}>Mark request sent manually</button>}{sailor.consent_status === 'PENDING' && requestAction && <button disabled={busy} onClick={sendRequest}>{busy ? 'Sending consent request…' : requestAction}</button>}{pending && <><button disabled={busy} onClick={onConfirm}>Confirm consent</button><button disabled={busy} className="danger" onClick={onRevoke}>Record decline</button></>}{sailor.operational_group === 'active' && <button disabled={busy} className="danger" onClick={onRevoke}>Record withdrawal</button>}{sailor.operational_group === 'revoked' && <button disabled={busy} onClick={onNewCycle}>Start new consent cycle</button>}</div></div><div><h4>Personal TackBar</h4><div className="admin-actions"><button disabled={busy} onClick={onPersonalRegenerate}>Regenerate</button>{(sailor.personal_capability_state === 'active' || sailor.personal_capability_state === 'consent_inactive') && <button className="danger" disabled={busy} onClick={onPersonalRevoke}>Revoke</button>}</div></div>{canResendWelcome && <div><h4>Communication</h4><div className="admin-actions"><button disabled={busy} onClick={onWelcomeEmailResend}>{busy ? 'Resending welcome email…' : 'Resend welcome email'}</button></div></div>}</div></section>
     </div>
-    <details className="admin-advanced"><summary>Advanced</summary><h4>Technical traceability</h4><dl><div><dt>Sailor ID</dt><dd>{sailor.id}</dd></div>{sailor.default_boat && <div><dt>Default Boat ID</dt><dd>{sailor.default_boat.id}</dd></div>}{activities.length > 0 && <div><dt>Activity IDs</dt><dd>{activities.map((activity) => activity.id).join(' · ')}</dd></div>}{sailor.sessions.length > 0 && <div><dt>Session IDs</dt><dd>{sailor.sessions.map((session) => session.session_id).join(' · ')}</dd></div>}</dl><h4>Consent timestamps</h4><dl><div><dt>Consent requested</dt><dd>{localDate(sailor.consent_request_sent_at)}</dd></div><div><dt>Consent granted</dt><dd>{localDate(sailor.consent_granted_at)}</dd></div><div><dt>Consent revoked</dt><dd>{localDate(sailor.consent_revoked_at)}</dd></div></dl></details>
+    <details className="admin-advanced"><summary>Advanced</summary><h4>Technical traceability</h4><dl><div><dt>Sailor ID</dt><dd>{sailor.id}</dd></div>{sailor.default_boat_id && <div><dt>Default Boat ID</dt><dd>{sailor.default_boat_id}</dd></div>}{activities.length > 0 && <div><dt>Activity IDs</dt><dd>{activities.map((activity) => activity.id).join(' · ')}</dd></div>}{sailor.sessions.length > 0 && <div><dt>Session IDs</dt><dd>{sailor.sessions.map((session) => session.session_id).join(' · ')}</dd></div>}</dl><h4>Consent timestamps</h4><dl><div><dt>Consent requested</dt><dd>{localDate(sailor.consent_request_sent_at)}</dd></div><div><dt>Consent granted</dt><dd>{localDate(sailor.consent_granted_at)}</dd></div><div><dt>Consent revoked</dt><dd>{localDate(sailor.consent_revoked_at)}</dd></div></dl></details>
     <DiagnosticJson value={sailor.diagnostic} label="Diagnostic JSON" />
   </div>
 }

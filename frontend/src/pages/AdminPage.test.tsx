@@ -11,7 +11,7 @@ const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetai
   personal_capability_state: 'never_generated', personal_capability_path: null,
   welcome_email_sent_at: null, welcome_email_last_error: null,
   consent_request: { state: 'none', agreement_version: null, created_at: null, expires_at: null, automatic_delivery_attempted_at: null, delivery_sent_at: null, delivery_last_error: null },
-  activity_count: 0, session_count: 0, last_sailing_start: null, last_sailing_end: null, sessions: [], default_boat: null, diagnostic: { sailor: { id: 'sailor-1' } },
+  activity_count: 0, session_count: 0, last_sailing_start: null, last_sailing_end: null, sessions: [], owned_boats: [], default_boat_id: null, default_boat_status: 'none', default_boat: null, diagnostic: { sailor: { id: 'sailor-1' } },
 })
 const session = (state: AdminSession['capability_state']): AdminSession => ({
   id: 'session-123', created_at: '2026-08-01T10:00:00Z', expires_at: '2026-09-30T10:00:00Z',
@@ -27,7 +27,7 @@ const session = (state: AdminSession['capability_state']): AdminSession => ({
   location: null, historical_conditions: null,
   diagnostic: { session: { id: 'session-123' }, temporary_shares: [{ id: 'share-1', state: 'VALID' }] },
 })
-const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', detector_mode: 'HIGH', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 7, current_algorithm_version: 7 }, diagnostic: { id: 'activity-123456789' } }
+const activity: AdminActivity = { id: 'activity-123456789', sailor_id: 'sailor-123456789', sailor_label: 'Pilot', boat_id: 'boat-1', boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' }, source: 'vakaros', device_name: 'Atlas 2', device_label: null, original_filename: 'pilot.csv.gz', start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', sample_count: 25453, attachment_sha256: 'abc123', track_available: true, session_id: 'session-123456789', source_ingestion_id: 'ingestion-123456789', source_ingestion_resolution: 'authoritative', related_ingestions: [], technical_track: { sample_count: 25453, duration_seconds: 12720, effective_sample_frequency_hz: 2, available_channels: ['SOG', 'COG', 'HDG', 'HEEL', 'TRIM', 'QUATERNION'] }, maneuvers: { artifact_currency: 'current', detector_status: 'available', detector_mode: 'HIGH', unavailable_reason: null, detected_count: 4, artifact_algorithm_version: 7, current_algorithm_version: 7 }, diagnostic: { id: 'activity-123456789' } }
 const sourceIngestion: AdminIngestion = { id: 'ingestion-123456789', provider: 'ovh', provider_message_id: 'message-1', sender_email: 'pilot@example.test', received_at: '2026-09-05T17:25:00Z', attachment_name: 'pilot.csv.gz', status: 'processed', disposition: 'active', attempts: 1, last_attempt_at: '2026-09-05T17:26:00Z', last_error: null, activity_id: activity.id, session_id: activity.session_id, activity_created_by_ingestion: true, sailor_id: activity.sailor_id, sailor_label: activity.sailor_label, sailor_email: 'pilot@example.test', sailor_consent_status: 'ACTIVE', original_available: true, activity_start_time: activity.start_time, activity_end_time: activity.end_time, activity_sample_count: activity.sample_count }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
@@ -603,6 +603,8 @@ describe('minimal Admin UI', () => {
     const detail = {
       ...sailor('active'),
       default_boat: { id: 'boat-1', name: 'Zafar', sailing_class: 'Snipe', sail_number: 'ESP 1' },
+      default_boat_id: 'boat-1',
+      default_boat_status: 'historical' as const,
       consent_events: [
         { event_type: 'consent_granted', timestamp: '2026-08-21T10:00:00Z', source: 'admin', agreement_version: 'v1' },
         { event_type: 'consent_requested', timestamp: '2026-08-20T10:00:00Z', source: 'automatic', agreement_version: 'v1' },
@@ -750,7 +752,9 @@ describe('minimal Admin UI', () => {
     const source = markup.slice(markup.indexOf('<h3>Source</h3>'), markup.indexOf('<h3>Traceability</h3>'))
     const traceability = markup.slice(markup.indexOf('<h3>Traceability</h3>'), markup.indexOf('<h3>Maneuvers</h3>'))
 
-    expect(traceability).toContain('Sailor'); expect(traceability).toContain('Pilot'); expect(traceability).toContain('Boat'); expect(traceability).toContain('Zafar · Snipe · ESP 1'); expect(traceability).toContain('Session'); expect(traceability).toContain('<button class="admin-relation" type="button"><span>Source Ingestion</span>')
+    expect(traceability).toContain('Sailor'); expect(traceability).toContain('Pilot'); expect(traceability).not.toContain('<dt>Boat</dt>'); expect(traceability).toContain('Session'); expect(traceability).toContain('<button class="admin-relation" type="button"><span>Source Ingestion</span>')
+    expect(markup).toContain('<h3>Context</h3>')
+    expect(markup).toContain('Zafar · Snipe · ESP 1')
     expect(traceability).toContain('3 Activities')
     expect(traceability).toContain('pilot.csv.gz')
     expect(traceability).not.toContain('>session-…</strong>')
@@ -909,6 +913,29 @@ describe('shared Admin entity search', () => {
     expect(filterAdminActivities([activity, secondActivity], search).map((item) => item.id)).toEqual([expected])
   })
 
+  it('searches associated Boat metadata without substituting defaults or global Class names', () => {
+    const noBoat = { ...secondActivity, boat_id: null, boat: null }
+    for (const query of ['Zafar', 'Snipe', 'ESP 1']) {
+      expect(filterAdminActivities([activity, noBoat], query).map((item) => item.id)).toEqual([activity.id])
+    }
+    expect(filterAdminActivities([noBoat], 'Zafar')).toEqual([])
+  })
+
+  it('searches Sailors by owned and actually used Boats, and Sessions by member Boats', () => {
+    const owned = { id: 'owned-boat', name: 'Owned Meteor', sailing_class: 'Snipe', sail_number: 'ESP 5' }
+    const legacy = { ...activity, sailor_id: 'sailor-1', boat_id: 'legacy-boat', boat: { id: 'legacy-boat', name: 'Legacy Star', sailing_class: 'Star', sail_number: 'ESP 9' } }
+    const sailors = [{ ...sailor('active'), owned_boats: [owned] }, { ...sailor('active'), id: 'sailor-2', owned_boats: [] }]
+    expect(filterAdminSailors(sailors, 'Meteor', [legacy]).map((item) => item.id)).toEqual(['sailor-1'])
+    expect(filterAdminSailors(sailors, 'Legacy Star', [legacy]).map((item) => item.id)).toEqual(['sailor-1'])
+    expect(filterAdminSailors(sailors, 'Legacy Star', [{ ...legacy, sailor_id: 'sailor-2' }]).map((item) => item.id)).toEqual(['sailor-2'])
+    expect(filterAdminSessions([session('active')], [{ ...legacy, session_id: session('active').id }], 'ESP 9').map((item) => item.id)).toEqual([session('active').id])
+    expect(filterAdminSessions([session('active')], [{ ...legacy, session_id: 'other' }], 'ESP 9')).toEqual([])
+    const secondBoat = { ...legacy, id: 'second-member', boat: owned, session_id: session('active').id }
+    expect(filterAdminSessions([session('active')], [{ ...legacy, session_id: session('active').id }, secondBoat], 'Meteor').map((item) => item.id)).toEqual([session('active').id])
+    expect(filterAdminSessions([session('active')], [{ ...legacy, session_id: session('active').id }, secondBoat], 'Legacy Star').map((item) => item.id)).toEqual([session('active').id])
+    expect(filterAdminSailors(sailors, 'Star', [secondBoat])).toEqual([])
+  })
+
   it('filters Sailors by name, email and diagnostic ID', () => {
     const sailors = [sailor('active'), { ...sailor('revoked'), id: 'sailor-leandro', name: 'Leandro Alonso', email: 'lea@example.test' }]
 
@@ -940,6 +967,31 @@ describe('shared Admin entity search', () => {
     expect(filterAdminSessions([valencia, mahon, countryOnly], [], 'MAHÓN').map((item) => item.id)).toEqual(['session-mahon'])
     expect(filterAdminSessions([valencia, mahon, countryOnly], [], 'spain').map((item) => item.id)).toEqual(['session-spain'])
     expect(renderToStaticMarkup(<SessionCard session={countryOnly} busy={false} onSelect={() => undefined} onEnrich={() => undefined} onRegenerate={() => undefined} onRevoke={() => undefined} onRenew={() => undefined} />)).toContain('Spain ·')
+  })
+})
+
+describe('Admin Boat and Device context', () => {
+  it('keeps current Activity context separate from original provenance', () => {
+    const current = { ...activity, device_label: 'Cockpit Tablet' }
+    const markup = renderToStaticMarkup(<ActivityCard activity={current} detail={current} busy={false} onSelect={() => undefined} onFollow={() => undefined} onRecalculate={() => undefined} />)
+    expect(markup).toContain('Boat: Zafar')
+    expect(markup).toContain('Device: Cockpit Tablet')
+    expect(markup).toContain('<h3>Context</h3>')
+    expect(markup).toContain('<dt>Original Device</dt><dd>Atlas 2</dd>')
+    expect(markup).toContain('<dt>Original filename</dt><dd>pilot.csv.gz</dd>')
+    expect(renderToStaticMarkup(<ActivityCard activity={{ ...activity, boat: null, boat_id: null, device_label: '  ', device_name: '  ' }} detail={null} busy={false} onSelect={() => undefined} onFollow={() => undefined} onRecalculate={() => undefined} />)).toContain('Boat: No Boat · Device: Unavailable')
+    expect(renderToStaticMarkup(<ActivityCard activity={{ ...activity, boat: null, boat_id: 'missing', device_label: null }} detail={null} busy={false} onSelect={() => undefined} onFollow={() => undefined} onRecalculate={() => undefined} />)).toContain('Boat: Unavailable · Device: Atlas 2')
+  })
+
+  it.each([
+    ['none', 'No default Boat'], ['owned', 'Owned · Zafar'],
+    ['historical', 'Historical/legacy · Zafar'], ['unavailable', 'Unavailable'],
+  ] as const)('shows %s Default Boat state and explicit owned catalogue', (status, label) => {
+    const detail = { ...sailor('active'), default_boat_status: status, default_boat_id: status === 'none' ? null : 'boat-1', default_boat: status === 'owned' || status === 'historical' ? activity.boat : null, owned_boats: [activity.boat!] }
+    const markup = renderToStaticMarkup(<SailorDetail sailor={detail} busy={false} onRequested={() => undefined} onConsentRequestSend={() => undefined} onConfirm={() => undefined} onRevoke={() => undefined} onNewCycle={() => undefined} onPersonalRegenerate={() => undefined} onPersonalRevoke={() => undefined} onWelcomeEmailResend={() => undefined} />)
+    expect(markup).toContain(`<dt>Default Boat</dt><dd>${label}`)
+    expect(markup).toContain('<h4>Owned Boats</h4>')
+    expect(markup).toContain('Zafar · Snipe · ESP 1')
   })
 })
 
