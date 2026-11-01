@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -51,6 +51,23 @@ class Activity:
     min_lon: float
     max_lon: float
     samples: list[dict[str, Any]]
+    race_timer_events: list["RaceTimerEvent"] = field(default_factory=list)
+    line_positions: list["LinePosition"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class RaceTimerEvent:
+    timestamp: datetime
+    event_type: int
+    timer_value_seconds: int
+
+
+@dataclass(frozen=True)
+class LinePosition:
+    timestamp: datetime
+    endpoint_type: int
+    latitude: float
+    longitude: float
 
 
 @dataclass
@@ -169,6 +186,8 @@ class StoredActivity:
     attachment_sha256: str
     track_file: str | None = None
     device_label: str | None = None
+    race_timer_events: list[RaceTimerEvent] = field(default_factory=list)
+    line_positions: list[LinePosition] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

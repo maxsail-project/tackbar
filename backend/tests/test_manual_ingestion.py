@@ -412,3 +412,33 @@ def test_manual_formats_use_delivered_parsers(runtime, filename, vakaros_vkx_byt
     assert completed["status"] == "processed"
     assert list(TrackStorage().read_normalized_track(completed["activity_id"]).columns) == CANONICAL_TRACK_COLUMNS
     assert_silent(runtime, completed)
+
+
+def test_manual_vkx_reprocess_replaces_observations_without_changing_personal_context(
+    runtime, vakaros_vkx_observations_bytes,
+):
+    original = accept(runtime, vakaros_vkx_observations_bytes, "Atlas.vkx")
+    completed = process(runtime, original)
+    assert completed["status"] == "processed"
+    activity_id = completed["activity_id"]
+    session_id = completed["session_id"]
+    assert len(runtime.activities.get_by_id(activity_id).race_timer_events) == 2
+    runtime.activities.update_context_for_sailor(
+        runtime.sailor.id, activity_id, boat_id=None, device_label="My Atlas",
+    )
+    historical = json.loads(runtime.activities.path.read_text(encoding="utf-8"))
+    historical[0].pop("race_timer_events")
+    historical[0].pop("line_positions")
+    runtime.activities.path.write_text(json.dumps(historical), encoding="utf-8")
+
+    for attempts in (2, 3):
+        updated = process(runtime, original, reprocess=True)
+        assert updated["status"] == "processed"
+        assert updated["attempts"] == attempts
+        assert updated["activity_id"] == activity_id
+        assert updated["session_id"] == session_id
+        activity = runtime.activities.get_by_id(activity_id)
+        assert activity.boat_id is None and activity.device_label == "My Atlas"
+        assert len(activity.race_timer_events) == len(activity.line_positions) == 2
+        assert_silent(runtime, updated)
+    assert len(runtime.activities.all()) == len(runtime.sessions.all()) == 1

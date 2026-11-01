@@ -348,12 +348,12 @@ def test_reprocessing_reports_missing_archived_original(
 
 def test_reprocessing_restores_vkx_track_and_preserves_identity_and_session(
     temporary_directory: Path,
-    vakaros_vkx_bytes: bytes,
+    vakaros_vkx_observations_bytes: bytes,
 ) -> None:
     repository = ActivityRepository(temporary_directory / "activities.json")
     storage = TrackStorage(temporary_directory)
     original_filename = "Atlas 10-10-2026.vkx.gz"
-    original_bytes = gzip.compress(vakaros_vkx_bytes)
+    original_bytes = gzip.compress(vakaros_vkx_observations_bytes)
     parsed = parse_vakaros_attachment(
         original_bytes,
         original_filename=original_filename,
@@ -377,11 +377,18 @@ def test_reprocessing_restores_vkx_track_and_preserves_identity_and_session(
     expected_identity = (
         persisted.id,
         persisted.sailor_id,
-        persisted.boat_id,
+        None,
         persisted.source,
         persisted.original_filename,
         persisted.attachment_sha256,
     )
+    repository.update_context_for_sailor(
+        SAILOR_ID, persisted.id, boat_id=None, device_label="My Atlas",
+    )
+    historical = json.loads(repository.path.read_text(encoding="utf-8"))
+    historical[0].pop("race_timer_events")
+    historical[0].pop("line_positions")
+    repository.path.write_text(json.dumps(historical), encoding="utf-8")
 
     storage.track_path(persisted.id).unlink()
     reprocessed = reprocess_activity(persisted.id, repository, storage)
@@ -396,6 +403,12 @@ def test_reprocessing_restores_vkx_track_and_preserves_identity_and_session(
         reprocessed.attachment_sha256,
     ) == expected_identity
     assert reprocessed.source == "vakaros"
+    assert reprocessed.device_label == "My Atlas"
+    assert len(reprocessed.race_timer_events) == len(reprocessed.line_positions) == 2
+    assert reprocessed.race_timer_events[0].timestamp.microsecond == 789000
+    repeated = reprocess_activity(persisted.id, repository, storage)
+    assert repeated.race_timer_events == reprocessed.race_timer_events
+    assert repeated.line_positions == reprocessed.line_positions
     assert list(restored.columns) == CANONICAL_TRACK_COLUMNS
     quaternions = restored.loc[
         0,

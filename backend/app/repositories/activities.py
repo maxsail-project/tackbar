@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from app.models import Activity, StoredActivity
+from app.models import Activity, LinePosition, RaceTimerEvent, StoredActivity
 from app.runtime_paths import runtime_paths
 
 
@@ -57,6 +57,8 @@ class ActivityRepository:
             max_lon=activity.max_lon,
             sample_count=len(activity.samples),
             attachment_sha256=attachment_sha256,
+            race_timer_events=list(activity.race_timer_events),
+            line_positions=list(activity.line_positions),
         )
         activities.append(stored_activity)
         self._save(activities)
@@ -101,6 +103,18 @@ class ActivityRepository:
                 return activity
         raise ValueError(f"Activity not found: {activity_id}")
 
+    def replace_auxiliary_observations(
+        self, activity_id: str, parsed_activity: Activity,
+    ) -> StoredActivity:
+        activities = self._load()
+        for activity in activities:
+            if activity.id == activity_id:
+                activity.race_timer_events = list(parsed_activity.race_timer_events)
+                activity.line_positions = list(parsed_activity.line_positions)
+                self._save(activities)
+                return activity
+        raise ValueError(f"Activity not found: {activity_id}")
+
     def refresh_track_metadata(
         self,
         activity_id: str,
@@ -127,6 +141,8 @@ class ActivityRepository:
             activity.max_lon = parsed_activity.max_lon
             activity.sample_count = len(parsed_activity.samples)
             activity.track_file = track_file
+            activity.race_timer_events = list(parsed_activity.race_timer_events)
+            activity.line_positions = list(parsed_activity.line_positions)
             self._save(activities)
             return activity
         raise ValueError(f"Activity not found: {activity_id}")
@@ -151,17 +167,48 @@ class ActivityRepository:
                     "max_lon": item.get("max_lon"),
                     "start_time": _parse_datetime(item["start_time"]),
                     "end_time": _parse_datetime(item["end_time"]),
+                    "race_timer_events": [
+                        RaceTimerEvent(
+                            timestamp=_parse_datetime(event["timestamp"]),
+                            event_type=event["event_type"],
+                            timer_value_seconds=event["timer_value_seconds"],
+                        )
+                        for event in item.get("race_timer_events", [])
+                    ],
+                    "line_positions": [
+                        LinePosition(
+                            timestamp=_parse_datetime(position["timestamp"]),
+                            endpoint_type=position["endpoint_type"],
+                            latitude=position["latitude"],
+                            longitude=position["longitude"],
+                        )
+                        for position in item.get("line_positions", [])
+                    ],
                 }
             )
             for item in data
         ]
 
     def _save(self, activities: list[StoredActivity]) -> None:
+        existing_by_id = {}
+        if self.path.exists():
+            existing_by_id = {
+                item["id"]: item
+                for item in json.loads(self.path.read_text(encoding="utf-8"))
+            }
         records = []
         for activity in activities:
             record = asdict(activity)
             record["start_time"] = activity.start_time.isoformat()
             record["end_time"] = activity.end_time.isoformat()
+            for event in record["race_timer_events"]:
+                event["timestamp"] = event["timestamp"].isoformat()
+            for position in record["line_positions"]:
+                position["timestamp"] = position["timestamp"].isoformat()
+            previous = existing_by_id.get(activity.id, {})
+            for collection in ("race_timer_events", "line_positions"):
+                if previous and collection not in previous and not record[collection]:
+                    del record[collection]
             records.append(record)
 
         self.path.parent.mkdir(parents=True, exist_ok=True)

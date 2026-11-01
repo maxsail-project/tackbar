@@ -1,4 +1,5 @@
 import gzip
+import logging
 import math
 import struct
 from datetime import datetime, timedelta, timezone
@@ -6,7 +7,7 @@ from pathlib import Path
 from statistics import median
 from typing import BinaryIO
 
-from app.models import Activity
+from app.models import Activity, LinePosition, RaceTimerEvent
 from app.parsers.vakaros import (
     VAKAROS_VKX_SUFFIXES,
     extract_vakaros_device_name,
@@ -16,6 +17,8 @@ from app.parsers.vakaros import (
 VKX_1_4_REVISION = 0x05
 METRES_PER_SECOND_TO_KNOTS = 1.9438444924406
 POSITION_ROW = struct.Struct("<Qii7f")
+RACE_TIMER_ROW = struct.Struct("<QBi")
+LINE_POSITION_ROW = struct.Struct("<QBff")
 DEVICE_CONFIGURATION_ROW = struct.Struct("<QIB")
 DEVICE_FIXED_TO_BODY_FRAME = 1 << 0
 QUATERNION_NORM_EPSILON = 1e-12
@@ -25,8 +28,8 @@ ROW_PAYLOAD_SIZES = {
     0x01: 32,
     0x02: POSITION_ROW.size,
     0x03: 20,
-    0x04: 13,
-    0x05: 17,
+    0x04: RACE_TIMER_ROW.size,
+    0x05: LINE_POSITION_ROW.size,
     0x06: 18,
     0x07: 12,
     0x08: 13,
@@ -39,6 +42,7 @@ ROW_PAYLOAD_SIZES = {
     0x20: 13,
     0x21: 52,
 }
+logger = logging.getLogger(__name__)
 
 
 class VKXParseError(ValueError):
@@ -60,7 +64,7 @@ def parse_vakaros_vkx(
             "Vakaros VKX input filename must end with .vkx or .vkx.gz"
         )
 
-    samples = _parse_rows(data)
+    samples, race_timer_events, line_positions = _parse_rows(data)
     samples.sort(key=lambda sample: sample["utc"])
     latitudes = [float(sample["lat"]) for sample in samples]
     longitudes = [float(sample["lon"]) for sample in samples]
@@ -83,6 +87,8 @@ def parse_vakaros_vkx(
         min_lon=min(longitudes),
         max_lon=max(longitudes),
         samples=samples,
+        race_timer_events=race_timer_events,
+        line_positions=line_positions,
     )
 
 
@@ -111,11 +117,17 @@ def _read_source(
     return data, original_filename
 
 
-def _parse_rows(data: bytes) -> list[dict[str, object]]:
+def _parse_rows(
+    data: bytes,
+) -> tuple[list[dict[str, object]], list[RaceTimerEvent], list[LinePosition]]:
     if not data or data[0] != 0xFF:
         raise VKXParseError("Vakaros VKX must start with a page header")
 
     samples: list[dict[str, object]] = []
+    race_timer_events: list[RaceTimerEvent] = []
+    line_positions: list[LinePosition] = []
+    skipped_timer_rows = 0
+    skipped_line_rows = 0
     body_frame_configurations: list[bool] = []
     offset = 0
     while offset < len(data):
@@ -142,6 +154,18 @@ def _parse_rows(data: bytes) -> list[dict[str, object]]:
                 )
         elif row_key == 0x02:
             samples.append(_parse_position_row(payload))
+        elif row_key == 0x04:
+            event = _parse_race_timer_row(payload)
+            if event is None:
+                skipped_timer_rows += 1
+            else:
+                race_timer_events.append(event)
+        elif row_key == 0x05:
+            position = _parse_line_position_row(payload)
+            if position is None:
+                skipped_line_rows += 1
+            else:
+                line_positions.append(position)
         elif row_key == 0x08:
             body_frame_configurations.append(
                 _device_is_fixed_to_body_frame(payload)
@@ -152,7 +176,44 @@ def _parse_rows(data: bytes) -> list[dict[str, object]]:
     if body_frame_configurations and all(body_frame_configurations):
         for sample in samples:
             _derive_body_orientation(sample)
-    return samples
+    if skipped_timer_rows or skipped_line_rows:
+        logger.warning(
+            "Vakaros VKX skipped invalid auxiliary observations: race_timer=%d line_position=%d",
+            skipped_timer_rows,
+            skipped_line_rows,
+        )
+    return samples, race_timer_events, line_positions
+
+
+def _timestamp_from_ms(timestamp_ms: int) -> datetime | None:
+    try:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
+            milliseconds=timestamp_ms
+        )
+    except (OverflowError, ValueError):
+        return None
+
+
+def _parse_race_timer_row(payload: bytes) -> RaceTimerEvent | None:
+    timestamp_ms, event_type, timer_value_seconds = RACE_TIMER_ROW.unpack(payload)
+    timestamp = _timestamp_from_ms(timestamp_ms)
+    if timestamp is None:
+        return None
+    return RaceTimerEvent(timestamp, event_type, timer_value_seconds)
+
+
+def _parse_line_position_row(payload: bytes) -> LinePosition | None:
+    timestamp_ms, endpoint_type, latitude, longitude = LINE_POSITION_ROW.unpack(payload)
+    timestamp = _timestamp_from_ms(timestamp_ms)
+    if (
+        timestamp is None
+        or not math.isfinite(latitude)
+        or not math.isfinite(longitude)
+        or not -90.0 <= latitude <= 90.0
+        or not -180.0 <= longitude <= 180.0
+    ):
+        return None
+    return LinePosition(timestamp, endpoint_type, latitude, longitude)
 
 
 def _device_is_fixed_to_body_frame(payload: bytes) -> bool:
@@ -223,12 +284,9 @@ def _parse_position_row(payload: bytes) -> dict[str, object]:
             raise VKXParseError(
                 f"Vakaros VKX contains invalid {field_name} telemetry"
             )
-    try:
-        timestamp = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
-            milliseconds=timestamp_ms
-        )
-    except OverflowError as error:
-        raise VKXParseError("Vakaros VKX contains invalid timestamp") from error
+    timestamp = _timestamp_from_ms(timestamp_ms)
+    if timestamp is None:
+        raise VKXParseError("Vakaros VKX contains invalid timestamp")
 
     return {
         "utc": timestamp,

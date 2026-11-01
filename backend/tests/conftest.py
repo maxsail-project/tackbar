@@ -43,6 +43,18 @@ def vakaros_vkx_bytes() -> bytes:
 
 
 @pytest.fixture
+def vakaros_vkx_observations_bytes(vakaros_vkx_bytes: bytes) -> bytes:
+    timestamp_ms = 1_938_854_096_789
+    return (
+        vakaros_vkx_bytes
+        + bytes([0x04]) + struct.pack("<QBi", timestamp_ms, 3, -2)
+        + bytes([0x05]) + struct.pack("<QBff", timestamp_ms + 1, 0, 38.125, -0.25)
+        + bytes([0x04]) + struct.pack("<QBi", timestamp_ms, 3, -2)
+        + bytes([0x05]) + struct.pack("<QBff", timestamp_ms + 2, 1, 38.25, -0.5)
+    )
+
+
+@pytest.fixture
 def temporary_json_file() -> Callable[[str, object], Path]:
     directory = BACKEND_DIR / "tmp" / f"test-json-{uuid4()}"
     directory.mkdir(parents=True)

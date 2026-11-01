@@ -103,6 +103,7 @@ def reprocess_ingestion(
         if record["provider"] == ADMIN_UPLOAD:
             return _run_manual_attempt(
                 record, sailors, boats, activities, sessions, history, track_storage,
+                reprocessing=True,
             )
         establish_activity_creation_provenance = record["status"] != "processed"
         record["attempts"] += 1
@@ -138,6 +139,7 @@ def reprocess_ingestion(
                 attempt_started=True,
                 establish_activity_creation_provenance=establish_activity_creation_provenance,
                 session_result_sender=session_result_sender,
+                reprocessing=True,
             )
         updated = history.get(ingestion_id)
         if updated is None: raise ValueError("Ingestion disappeared after reprocessing")
@@ -202,7 +204,10 @@ def process_admin_upload(
         )
 
 
-def _run_manual_attempt(record, sailors, boats, activities, sessions, history, track_storage):
+def _run_manual_attempt(
+    record, sailors, boats, activities, sessions, history, track_storage,
+    reprocessing=False,
+):
     establish_provenance = record["status"] != "processed"
     record.update(
         status="processing", attempts=record["attempts"] + 1,
@@ -213,6 +218,7 @@ def _run_manual_attempt(record, sailors, boats, activities, sessions, history, t
         record, None, sailors, boats, activities, sessions, history, track_storage,
         None, None, False, attempt_started=True,
         establish_activity_creation_provenance=establish_provenance,
+        reprocessing=reprocessing,
     )
     updated = history.get(record["id"])
     if updated is None:
@@ -235,6 +241,7 @@ def _attempt_record(
     attempt_started=False,
     establish_activity_creation_provenance=True,
     session_result_sender=None,
+    reprocessing=False,
 ):
     if not attempt_started:
         record["attempts"] += 1; record["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
@@ -245,6 +252,7 @@ def _attempt_record(
             result = _process_manual_record(
                 record, sailors, boats, activities, sessions, history,
                 establish_activity_creation_provenance, track_storage,
+                reprocessing,
             )
         else:
             if email.attachment_bytes is None or sha256(email.attachment_bytes).hexdigest() != record["attachment_sha256"]: raise ValueError("Preserved ingestion original SHA-256 mismatch")
@@ -260,6 +268,7 @@ def _attempt_record(
                 establish_activity_creation_provenance,
                 track_storage,
                 consent_events,
+                reprocessing,
             )
         automatic_consent = None
         onboarding_reservation = None
@@ -404,6 +413,7 @@ def _process_known_email(
     establish_activity_creation_provenance: bool,
     track_storage: TrackStorage | None = None,
     consent_events: ConsentEventRepository | None = None,
+    reprocessing: bool = False,
 ) -> IngestionProcessingResult:
     provider_message_id = email.provider_message_id
     if not provider_message_id:
@@ -417,12 +427,13 @@ def _process_known_email(
         provider, ingestion.activity, email.attachment_bytes, sailor, sailor_created,
         sailors, boats, activities, sessions, history, record,
         establish_activity_creation_provenance, track_storage, consent_events,
+        reprocessing,
     )
 
 
 def _process_manual_record(
     record, sailors, boats, activities, sessions, history, establish_provenance,
-    track_storage,
+    track_storage, reprocessing=False,
 ):
     content = IngestionOriginalStorage(history.path.parent).read(record["original_file"])
     if sha256(content).hexdigest() != record["attachment_sha256"]:
@@ -434,6 +445,7 @@ def _process_manual_record(
     return _process_activity(
         ADMIN_UPLOAD, parsed, content, sailor, False, sailors, boats, activities,
         sessions, history, record, establish_provenance, track_storage,
+        reprocessing=reprocessing,
     )
 
 
@@ -452,6 +464,7 @@ def _process_activity(
     establish_activity_creation_provenance: bool,
     track_storage: TrackStorage | None = None,
     consent_events: ConsentEventRepository | None = None,
+    reprocessing: bool = False,
 ) -> IngestionProcessingResult:
     if sailor.consent_status == ConsentStatus.REVOKED:
         event_repository = consent_events or ConsentEventRepository(
@@ -480,6 +493,10 @@ def _process_activity(
         parsed_activity,
         attachment_bytes,
     )
+    if reprocessing and not created:
+        stored_activity = activities.replace_auxiliary_observations(
+            stored_activity.id, parsed_activity,
+        )
     if (
         establish_activity_creation_provenance
         and record["activity_created_by_ingestion"] is None

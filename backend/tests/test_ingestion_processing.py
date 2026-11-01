@@ -546,6 +546,49 @@ def test_vkx_uses_existing_activity_track_session_and_raw_dedup_pipeline(
     assert len(history.records()) == 2
 
 
+def test_vkx_email_reprocess_replaces_legacy_observations_without_changing_context(
+    temporary_json_file: Callable[[str, object], Path],
+    vakaros_vkx_observations_bytes: bytes,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
+    first = process_provider_email(
+        "ovh", _email(vakaros_vkx_observations_bytes, provider_message_id="vkx-1", filename="Atlas.vkx"),
+        sailors, boats, activities, sessions, history,
+    )
+    assert first is not None
+    activity_id = first.activity.id
+    session_id = first.session_match.session.id
+    assert len(first.activity.race_timer_events) == 2
+    assert len(first.activity.line_positions) == 2
+    activities.update_context_for_sailor(first.sailor.id, activity_id, boat_id=None, device_label="Race watch")
+
+    historical = json.loads(activities.path.read_text(encoding="utf-8"))
+    historical[0].pop("race_timer_events")
+    historical[0].pop("line_positions")
+    activities.path.write_text(json.dumps(historical), encoding="utf-8")
+    duplicate = process_provider_email(
+        "ovh", _email(vakaros_vkx_observations_bytes, provider_message_id="vkx-2", filename="Atlas.vkx"),
+        sailors, boats, activities, sessions, history,
+    )
+    assert duplicate is not None and not duplicate.activity_created
+    assert duplicate.activity.id == activity_id
+    assert duplicate.activity.race_timer_events == duplicate.activity.line_positions == []
+
+    ingestion_id = history.find_provider_message("ovh", "vkx-1")["id"]
+    for expected_attempts in (2, 3):
+        updated = reprocess_ingestion(ingestion_id, sailors, boats, activities, sessions, history)
+        assert updated["status"] == "processed"
+        assert updated["attempts"] == expected_attempts
+        assert updated["activity_id"] == activity_id
+        assert updated["session_id"] == session_id
+        persisted = activities.get_by_id(activity_id)
+        assert persisted.boat_id is None and persisted.device_label == "Race watch"
+        assert len(persisted.race_timer_events) == 2
+        assert len(persisted.line_positions) == 2
+        assert persisted.race_timer_events[0].timestamp.microsecond == 789000
+    assert len(activities.all()) == len(sessions.all()) == 1
+
+
 def test_disposition_is_preserved_without_affecting_provider_deduplication(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:

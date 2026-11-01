@@ -7,6 +7,7 @@ from uuid import UUID
 
 from app.models import Activity, StoredActivity
 from app.parsers.vakaros_csv import parse_vakaros_csv
+from app.parsers.vakaros_vkx import parse_vakaros_vkx
 from app.repositories.activities import (
     ActivityRepository,
     calculate_attachment_sha256,
@@ -214,3 +215,45 @@ def test_personal_context_survives_duplicate_and_track_refresh(
     assert (refreshed.boat_id, refreshed.device_label) == (BOAT_B, "My watch")
     assert refreshed.device_name == parsed.device_name
     assert refreshed.attachment_sha256 == original.attachment_sha256
+
+
+def test_vkx_observations_round_trip_and_legacy_missing_collections(
+    temporary_json_file: Callable[[str, object], Path],
+    vakaros_vkx_observations_bytes: bytes,
+    vakaros_vkx_bytes: bytes,
+) -> None:
+    path = temporary_json_file("activities", [])
+    repository = ActivityRepository(path)
+    parsed = parse_vakaros_vkx(vakaros_vkx_observations_bytes, "Atlas.vkx")
+    created, is_new = repository.find_or_create(
+        SAILOR_A, BOAT_A, parsed, vakaros_vkx_observations_bytes,
+    )
+    assert is_new
+    loaded = repository.get_by_id(created.id)
+    assert loaded is not None
+    assert loaded.race_timer_events == parsed.race_timer_events
+    assert loaded.line_positions == parsed.line_positions
+    assert loaded.race_timer_events[0].timestamp.microsecond == 789000
+    assert loaded.line_positions[0].timestamp.microsecond == 790000
+    assert len(loaded.race_timer_events) == 2
+
+    legacy = json.loads(path.read_text(encoding="utf-8"))
+    del legacy[0]["race_timer_events"]
+    del legacy[0]["line_positions"]
+    path.write_text(json.dumps(legacy), encoding="utf-8")
+    reused, is_new = repository.find_or_create(
+        SAILOR_A, BOAT_B, parsed, vakaros_vkx_observations_bytes,
+    )
+    assert not is_new
+    assert reused.id == created.id
+    assert reused.race_timer_events == []
+    assert reused.line_positions == []
+
+    refreshed = repository.replace_auxiliary_observations(created.id, parsed)
+    assert refreshed.race_timer_events == parsed.race_timer_events
+    assert refreshed.line_positions == parsed.line_positions
+
+    empty = parse_vakaros_vkx(vakaros_vkx_bytes, "Atlas.vkx")
+    cleared = repository.replace_auxiliary_observations(created.id, empty)
+    assert cleared.race_timer_events == []
+    assert cleared.line_positions == []

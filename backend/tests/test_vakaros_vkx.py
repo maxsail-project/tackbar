@@ -1,7 +1,7 @@
 import gzip
 import math
 import struct
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -59,6 +59,14 @@ def _device_configuration(body_fixed: bool) -> bytes:
     return _row(0x08, struct.pack("<QIB", 0, configuration, 10))
 
 
+def _timer(timestamp_ms: int, event_type: int, value: int) -> bytes:
+    return _row(0x04, struct.pack("<QBi", timestamp_ms, event_type, value))
+
+
+def _line(timestamp_ms: int, endpoint_type: int, latitude: float, longitude: float) -> bytes:
+    return _row(0x05, struct.pack("<QBff", timestamp_ms, endpoint_type, latitude, longitude))
+
+
 def _quaternion_from_euler(
     *,
     roll: float = 0.0,
@@ -93,6 +101,8 @@ def test_valid_vkx_parses_canonical_activity_and_ignores_altitude() -> None:
     )
 
     assert activity.source == "vakaros"
+    assert activity.race_timer_events == []
+    assert activity.line_positions == []
     assert activity.original_filename == "Atlas 10-10-2026.vkx"
     assert activity.device_name == "Atlas"
     assert activity.start_time == datetime(
@@ -318,7 +328,7 @@ def test_navigation_rows_are_sorted_and_drive_activity_metadata() -> None:
     assert activity.max_lon == pytest.approx(-0.1)
 
 
-def test_documented_non_navigation_rows_are_safely_skipped() -> None:
+def test_documented_rows_do_not_change_navigation_sample_schema() -> None:
     documented_rows = [
         _row(key)
         for key in ROW_PAYLOAD_SIZES
@@ -345,6 +355,71 @@ def test_documented_non_navigation_rows_are_safely_skipped() -> None:
         "quat_y",
         "quat_z",
     }
+
+
+def test_auxiliary_rows_preserve_codes_signed_values_precision_and_source_order() -> None:
+    base = 1_938_854_096_789
+    activity = parse_vakaros_vkx(_vkx(
+        _timer(base + 5, 0, -60),
+        _line(base + 4, 0, 38.125, -0.25),
+        _position(),
+        _timer(base + 3, 1, 120),
+        _timer(base + 2, 2, -3),
+        _line(base + 1, 1, 38.25, -0.5),
+        _timer(base + 1, 3, 0),
+        _timer(base, 4, 17),
+        _timer(base, 4, 17),
+        _timer(base, 255, -1),
+        _line(base, 255, 38.5, -0.75),
+        _line(base + 4, 0, 38.125, -0.25),
+    ), original_filename="Atlas.vkx")
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+    assert [event.event_type for event in activity.race_timer_events] == [0, 1, 2, 3, 4, 4, 255]
+    assert [event.timer_value_seconds for event in activity.race_timer_events] == [-60, 120, -3, 0, 17, 17, -1]
+    assert [event.timestamp for event in activity.race_timer_events] == [
+        epoch + timedelta(milliseconds=ms)
+        for ms in (base + 5, base + 3, base + 2, base + 1, base, base, base)
+    ]
+    assert [position.endpoint_type for position in activity.line_positions] == [0, 1, 255, 0]
+    assert [(position.latitude, position.longitude) for position in activity.line_positions] == [
+        (38.125, -0.25), (38.25, -0.5), (38.5, -0.75), (38.125, -0.25),
+    ]
+    assert [position.timestamp.microsecond for position in activity.line_positions] == [
+        793000, 790000, 789000, 793000,
+    ]
+    assert len(activity.samples) == 1
+
+
+@pytest.mark.parametrize("invalid_line", [
+    _line(1_938_854_096_789, 0, float("nan"), 0),
+    _line(1_938_854_096_789, 1, 0, float("inf")),
+    _line(1_938_854_096_789, 0, 90.1, 0),
+    _line(1_938_854_096_789, 1, 0, -180.1),
+    _line(2**64 - 1, 0, 0, 0),
+])
+def test_invalid_complete_auxiliary_rows_are_skipped_with_aggregate_diagnostics(
+    invalid_line: bytes, caplog: pytest.LogCaptureFixture,
+) -> None:
+    activity = parse_vakaros_vkx(_vkx(
+        _timer(2**64 - 1, 3, 0), invalid_line,
+        _timer(1_938_854_096_789, 3, 0),
+        _line(1_938_854_096_789, 0, 0, 0),
+        _position(),
+    ), original_filename="Atlas.vkx")
+
+    assert len(activity.samples) == len(activity.race_timer_events) == len(activity.line_positions) == 1
+    assert "race_timer=1 line_position=1" in caplog.text
+    assert "Atlas.vkx" not in caplog.text
+
+
+@pytest.mark.parametrize("row", [
+    bytes([0x04]) + bytes(12),
+    bytes([0x05]) + bytes(16),
+])
+def test_truncated_auxiliary_rows_reject_entire_file(row: bytes) -> None:
+    with pytest.raises(VKXParseError, match="truncated"):
+        parse_vakaros_vkx(_vkx(_position(), row), original_filename="Atlas.vkx")
 
 
 def test_unknown_row_key_is_rejected_without_scanning_forward() -> None:
@@ -411,15 +486,18 @@ def test_invalid_navigation_telemetry_is_rejected(
     ["Atlas.vkx", "Atlas.VKX", "Atlas.vkx.gz", "Atlas.VKX.GZ"],
 )
 def test_vkx_and_gzip_suffixes_parse_equivalently(filename: str) -> None:
-    raw = _vkx(_position())
+    raw = _vkx(_timer(1_938_854_096_789, 3, 0), _line(1_938_854_096_789, 0, 38.25, -0.5), _position())
     source = gzip.compress(raw) if filename.lower().endswith(".gz") else raw
 
     activity = parse_vakaros_vkx(source, original_filename=filename)
 
-    assert activity.samples == parse_vakaros_vkx(
+    plain = parse_vakaros_vkx(
         raw,
         original_filename="Atlas.vkx",
-    ).samples
+    )
+    assert activity.samples == plain.samples
+    assert activity.race_timer_events == plain.race_timer_events
+    assert activity.line_positions == plain.line_positions
 
 
 def test_corrupt_gzip_is_rejected_cleanly() -> None:
