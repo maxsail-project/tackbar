@@ -160,7 +160,6 @@ function MyProfile({ token, name, email, onSaved, onUnavailable }: { token: stri
   }
 
   return <section className="personal-profile" aria-labelledby="my-profile-heading">
-    <h2 id="my-profile-heading">My Profile</h2>
     <p><strong>Name:</strong> {name?.trim() || 'Not set'}</p>
     <p><strong>Email:</strong> {email}</p>
     {editing ? <form onSubmit={(event) => { event.preventDefault(); void save() }}>
