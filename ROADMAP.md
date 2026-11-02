@@ -60,6 +60,7 @@ Broad, non-committed themes include:
 - additional Activity sources and formats;
 - pilot and production automation and robustness;
 - saved and personal debrief concepts.
+- wind-oriented Session map context with explicit reference provenance, evolving manual observations and progressively validated wind sources. [Wind-reference family #163](https://github.com/maxsail-project/tackbar/issues/163) holds the product decisions; [onboard WIND #167](https://github.com/maxsail-project/tackbar/issues/167) remains dependent on existing [Calypso/Vakaros feasibility #57](https://github.com/maxsail-project/tackbar/issues/57). These are exploratory directions, not release commitments.
 
 Open GitHub Issues are the canonical pending-work inventory. The GitHub Project
 provides physical backlog ordering and presentation. These future directions do
@@ -130,6 +131,7 @@ Los temas amplios y no comprometidos incluyen:
 - fuentes y formatos adicionales de Activities;
 - automatización y robustez del piloto y producción;
 - conceptos de debriefing guardado y personal.
+- orientación del mapa de Session respecto al viento, con procedencia explícita de la referencia, observaciones manuales variables y fuentes de viento validadas progresivamente. La [familia de referencias de viento #163](https://github.com/maxsail-project/tackbar/issues/163) agrupa las decisiones de producto; [WIND embarcado #167](https://github.com/maxsail-project/tackbar/issues/167) depende de la investigación existente [Calypso/Vakaros #57](https://github.com/maxsail-project/tackbar/issues/57). Son direcciones de exploración, no compromisos de release.
 
 Los Issues abiertos de GitHub son el inventario canónico del trabajo pendiente.
 El GitHub Project proporciona su orden físico y presentación. Estas direcciones
