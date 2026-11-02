@@ -24,7 +24,7 @@ from app.services.session_reader import SessionReader
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
 from app.storage.track_storage import TrackStorage
 
-from test_gpx import gpx_bytes
+from test_gpx import gpx_bytes, gpx_from_gaps_ns
 from test_ingestion_lock import processes, _blocked, _track
 
 
@@ -231,6 +231,7 @@ def test_partial_domain_failure_recovers_without_duplicating_activity_or_provena
         patch.setattr(processing, "match_activity_to_session", fail)
         failed = process(runtime, record)
     assert failed["status"] == "failed"
+    assert failed["last_error"] == "Manual track processing failed"
     assert failed["activity_created_by_ingestion"] is True
     activity_id = runtime.activities.all()[0].id
     recovered = process(runtime, failed, reprocess=True)
@@ -241,23 +242,77 @@ def test_partial_domain_failure_recovers_without_duplicating_activity_or_provena
     assert_silent(runtime, recovered)
 
 
-@pytest.mark.parametrize("content,filename", [
-    (b"not XML private content", "track.gpx"), (b"bad csv private content", "track.csv"),
-    (b"bad VKX private content", "track.vkx"), (b"unsupported", "track.fit"),
-    (b"compressed", "track.gpx.gz"),
+@pytest.mark.parametrize("content,filename,expected_error", [
+    (b"not XML private content", "track.gpx", "Malformed GPX XML"),
+    (b"bad csv private content", "track.csv", "Manual track processing failed"),
+    (b"bad VKX private content", "track.vkx", "Manual track processing failed"),
+    (b"unsupported", "track.fit", "Manual track processing failed"),
+    (b"compressed", "track.gpx.gz", "Manual track processing failed"),
 ])
-def test_invalid_files_are_preserved_failed_and_never_automatically_retried(runtime, content, filename):
+def test_invalid_files_are_preserved_failed_and_never_automatically_retried(runtime, content, filename, expected_error):
     pending = accept(runtime, content, filename)
     failed = process(runtime, pending)
     assert failed["status"] == "failed" and failed["attempts"] == 1
-    assert failed["last_error"] == "Manual track processing failed"
+    assert failed["last_error"] == expected_error
     assert (runtime.root / failed["original_file"]).read_bytes() == content
     assert runtime.activities.all() == []
     with pytest.raises(ValueError, match="explicit Reprocess"):
         process(runtime, failed)
     repeated = process(runtime, failed, reprocess=True)
     assert repeated["status"] == "failed" and repeated["attempts"] == 2
+    assert repeated["last_error"] == expected_error
     assert_silent(runtime, repeated)
+
+
+@pytest.mark.parametrize("content,expected_error", [
+    (gpx_bytes((0, 3)), "GPX temporal quality failed: median 3 s > 2 s"),
+    (gpx_from_gaps_ns([1_000_000_000] * 18 + [5_000_000_001, 10_000_000_000]), "GPX temporal quality failed: P95 5.000000001 s > 5 s"),
+    (gpx_from_gaps_ns([1_000_000_000] * 19 + [10_000_000_001]), "GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s"),
+    (gpx_from_gaps_ns([5_000_000_000] * 18 + [11_000_000_000, 12_000_000_000]), "GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; maximum adjacent gap 12 s > 10 s"),
+])
+def test_manual_gpx_quality_errors_survive_reprocessing(runtime, content, expected_error):
+    pending = accept(runtime, content)
+    failed = process(runtime, pending)
+    assert failed["status"] == "failed" and failed["attempts"] == 1
+    assert failed["last_error"] == expected_error
+    assert (runtime.root / failed["original_file"]).read_bytes() == content
+    assert runtime.activities.all() == runtime.sessions.all() == []
+    repeated = process(runtime, failed, reprocess=True)
+    assert repeated["status"] == "failed" and repeated["attempts"] == 2
+    assert repeated["last_error"] == expected_error
+    assert_silent(runtime, repeated)
+
+
+@pytest.mark.parametrize("error", [
+    ValueError("private source data at C:/secret/track.gpx"),
+    OSError("private storage path C:/secret/track.gpx"),
+    RuntimeError("private internal traceback details"),
+])
+def test_unexpected_manual_errors_remain_generic(runtime, monkeypatch, error):
+    def fail(*args):
+        raise error
+
+    monkeypatch.setattr(processing, "parse_track_attachment", fail)
+    failed = process(runtime, accept(runtime))
+    assert failed["status"] == "failed"
+    assert failed["last_error"] == "Manual track processing failed"
+
+
+def test_successful_manual_reprocess_clears_prior_safe_error(runtime, monkeypatch):
+    pending = accept(runtime)
+    parser = processing.parse_track_attachment
+
+    def reject(*args):
+        return parser(gpx_bytes((0, 3)), "track.gpx")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(processing, "parse_track_attachment", reject)
+        failed = process(runtime, pending)
+    assert failed["last_error"] == "GPX temporal quality failed: median 3 s > 2 s"
+    recovered = process(runtime, failed, reprocess=True)
+    assert recovered["status"] == "processed" and recovered["attempts"] == 2
+    assert recovered["last_error"] is None
+    assert len(runtime.activities.all()) == len(runtime.sessions.all()) == 1
 
 
 @pytest.mark.parametrize("problem", ["missing", "tampered", "owner_removed"])

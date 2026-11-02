@@ -157,9 +157,10 @@ def test_active_gpx_default_boat_raw_byte_identity_and_notification_compatibilit
 
 
 @pytest.mark.parametrize("invalid,criterion", [
-    (gpx_bytes((0, 3)), "median adjacent timestamp gap exceeds 2 seconds"),
-    (gpx_from_gaps_ns([1_000_000_000] * 18 + [5_000_000_001, 10_000_000_000]), "P95 adjacent timestamp gap exceeds 5 seconds"),
-    (gpx_bytes((0, 11)), "adjacent timestamp gap exceeds 10 seconds"),
+    (gpx_bytes((0, 3)), "GPX temporal quality failed: median 3 s > 2 s"),
+    (gpx_from_gaps_ns([1_000_000_000] * 18 + [5_000_000_001, 10_000_000_000]), "GPX temporal quality failed: P95 5.000000001 s > 5 s"),
+    (gpx_from_gaps_ns([1_000_000_000] * 19 + [10_000_000_001]), "GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s"),
+    (gpx_from_gaps_ns([5_000_000_000] * 18 + [11_000_000_000, 12_000_000_000]), "GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; maximum adjacent gap 12 s > 10 s"),
 ])
 def test_gpx_failure_preserves_original_and_history_and_review_continues(runtime, monkeypatch, invalid, criterion):
     adapter, _, _ = _adapter(monkeypatch, {
@@ -169,10 +170,10 @@ def test_gpx_failure_preserves_original_and_history_and_review_continues(runtime
     summary = review_mailbox_now(adapter)
     assert (summary.processed, summary.failed) == (1, 1)
     record = runtime.history.find_provider_message("ovh", "456:1")
-    assert record["status"] == "failed" and criterion in record["last_error"]
+    assert record["status"] == "failed" and record["last_error"] == criterion
     assert (runtime.root / record["original_file"]).read_bytes() == invalid
     assert len(runtime.activities.all()) == 1
     updated = reprocess(runtime, record)
     assert updated["status"] == "failed" and updated["attempts"] == 2
-    assert criterion in updated["last_error"]
+    assert updated["last_error"] == criterion
     assert review_mailbox_now(adapter).discovered_candidates == 0

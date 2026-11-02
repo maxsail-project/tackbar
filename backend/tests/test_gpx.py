@@ -107,7 +107,7 @@ def test_order_and_gap_checks_use_normalized_utc_and_preserve_subseconds():
     with pytest.raises(GPXParseError, match="strictly increasing"):
         parse_gpx(content, "track.gpx")
     content = gpx_bytes((0, 1)).replace(b"08:00:01+00:00", b"08:00:10.000000001+00:00")
-    with pytest.raises(GPXParseError, match="10 seconds"):
+    with pytest.raises(GPXParseError, match="maximum adjacent gap 10.000000001 s > 10 s"):
         parse_gpx(content, "track.gpx")
     content = gpx_bytes((0, 1)).replace(b"08:00:01+00:00", b"08:00:01.123456789+00:00")
     samples = parse_gpx(content, "track.gpx").samples
@@ -134,29 +134,45 @@ def test_median_limit_equality_is_accepted(gaps):
 
 def test_median_just_above_limit_rejects_independently():
     # Median is 2 s + 0.5 ns; P95 and maximum still pass.
-    with pytest.raises(GPXParseError, match="median adjacent timestamp gap exceeds 2 seconds"):
+    with pytest.raises(GPXParseError) as rejected:
         parse_gpx(gpx_from_gaps_ns([1_000_000_000, 3_000_000_001]), "track.gpx")
+    assert str(rejected.value) == "GPX temporal quality failed: median 2.0000000005 s > 2 s"
 
 
 def test_p95_just_above_limit_rejects_independently():
     # Nearest-rank P95 is the 19th of 20 sorted intervals.
     gaps = [1_000_000_000] * 18 + [5_000_000_001, 10_000_000_000]
-    with pytest.raises(GPXParseError, match="P95 adjacent timestamp gap exceeds 5 seconds"):
+    with pytest.raises(GPXParseError) as rejected:
         parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
+    assert str(rejected.value) == "GPX temporal quality failed: P95 5.000000001 s > 5 s"
 
 
 def test_maximum_just_above_limit_rejects_independently():
     # One outlier is above 10 s while nearest-rank P95 remains 1 s.
     gaps = [1_000_000_000] * 19 + [10_000_000_001]
-    with pytest.raises(GPXParseError, match="adjacent timestamp gap exceeds 10 seconds"):
+    with pytest.raises(GPXParseError) as rejected:
         parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
+    assert str(rejected.value) == "GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s"
+
+
+def test_two_temporal_quality_failures_are_reported_in_order():
+    # Median and P95 fail while every interval remains within 10 s.
+    with pytest.raises(GPXParseError) as rejected:
+        parse_gpx(gpx_from_gaps_ns([1_000_000_000, 6_000_000_000]), "track.gpx")
+    assert str(rejected.value) == (
+        "GPX temporal quality failed: median 3.5 s > 2 s; P95 6 s > 5 s"
+    )
 
 
 def test_sparse_garmin_like_cadence_fails_temporal_quality():
     # Synthetic 5 s median with a few 11–12 s gaps, without private track data.
     gaps = [5_000_000_000] * 18 + [11_000_000_000, 12_000_000_000]
-    with pytest.raises(GPXParseError, match="adjacent timestamp gap exceeds 10 seconds"):
+    with pytest.raises(GPXParseError) as rejected:
         parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
+    assert str(rejected.value) == (
+        "GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; "
+        "maximum adjacent gap 12 s > 10 s"
+    )
 
 
 def test_gzip_payload_cannot_bypass_plain_gpx_policy_by_filename():

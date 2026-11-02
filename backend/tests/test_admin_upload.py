@@ -22,7 +22,7 @@ from app.services.manual_upload_worker import (
     ACTIVATION_FAILURE, MAX_UPLOAD_BYTES, ManualUploadWorker, reconcile_manual_uploads,
 )
 
-from test_gpx import gpx_bytes
+from test_gpx import gpx_bytes, gpx_from_gaps_ns
 from test_manual_ingestion import runtime
 
 
@@ -240,12 +240,31 @@ def test_unsupported_or_corrupt_accepted_size_file_is_inspectable_failed_origina
     status, accepted, _ = http(sailor_id=runtime.sailor.id, filename=filename, body=b"invalid private content")
     assert status == 202
     record = terminal(runtime, accepted["id"])
-    assert record["status"] == "failed" and record["last_error"] == "Manual track processing failed"
+    expected_error = "Malformed GPX XML" if filename == "track.gpx" else "Manual track processing failed"
+    assert record["status"] == "failed" and record["last_error"] == expected_error
     assert (runtime.root / record["original_file"]).read_bytes() == b"invalid private content"
     code, detail, _ = http("GET", f"/api/admin/ingestions/{accepted['id']}")
     assert code == 200 and detail["original_available"]
     assert detail["sailor_id"] == runtime.sailor.id and detail["sender_email"] is None
     assert detail["diagnostic"]["owner_sailor_id"] == runtime.sailor.id
+
+
+def test_admin_api_exposes_controlled_gpx_error_on_upload_and_reprocess(runtime, worker):
+    content = gpx_from_gaps_ns([5_000_000_000] * 18 + [11_000_000_000, 12_000_000_000])
+    code, accepted, _ = http(sailor_id=runtime.sailor.id, body=content)
+    assert code == 202
+    record = terminal(runtime, accepted["id"])
+    error = (
+        "GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; "
+        "maximum adjacent gap 12 s > 10 s"
+    )
+    assert record["status"] == "failed" and record["last_error"] == error
+    code, detail, _ = http("GET", f"/api/admin/ingestions/{record['id']}")
+    assert code == 200 and detail["last_error"] == error
+    code, repeated, _ = http("POST", f"/api/admin/ingestions/{record['id']}/reprocess")
+    assert code == 200 and repeated["status"] == "failed"
+    assert repeated["attempts"] == 2 and repeated["last_error"] == error
+    assert (runtime.root / record["original_file"]).read_bytes() == content
 
 
 @pytest.mark.parametrize("filename", ["track.csv", "track.CSV.GZ", "track.GPX", "track.vkx", "track.VKX.GZ"])

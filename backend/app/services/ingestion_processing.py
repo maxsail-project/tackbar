@@ -6,6 +6,7 @@ from typing import Callable
 from uuid import uuid4
 
 from app.models import Activity, ConsentStatus, InboundEmail, Sailor, StoredActivity
+from app.parsers.gpx import GPXParseError
 from app.parsers.track import parse_track_attachment
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
@@ -295,9 +296,16 @@ def _attempt_record(
                 and record["attempts"] == 1
                 and isinstance(error, ActionableTrackRejected)):
             record["technical_notice_reason"] = "invalid_track"
+        if manual:
+            last_error = (
+                str(error) if isinstance(error, GPXParseError)
+                else "Manual track processing failed"
+            )
+        else:
+            last_error = _safe_error(error)
         record.update(
             status="failed",
-            last_error="Manual track processing failed" if manual else _safe_error(error),
+            last_error=last_error,
         )
         history.replace(record)
         if manual:

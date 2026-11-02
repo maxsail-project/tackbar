@@ -5,6 +5,7 @@ the mathematical approach in MaxSail utils.py without dropping or retiming point
 """
 
 from bisect import bisect_left
+from decimal import Decimal
 from io import BytesIO
 import math
 from pathlib import Path
@@ -43,6 +44,11 @@ TIMESTAMP = re.compile(
 
 class GPXParseError(ValueError):
     """A controlled rejection that never includes private XML content."""
+
+
+def _seconds_text(twice_nanoseconds: int) -> str:
+    """Format an exact interval, including an even median's possible half-ns."""
+    return format(Decimal(twice_nanoseconds) / (2 * NS_PER_SECOND), "f")
 
 
 class _BoundedTreeBuilder(ET.TreeBuilder):
@@ -143,32 +149,34 @@ def parse_gpx(
                 raise GPXParseError(
                     "GPX timestamps must be strictly increasing in source order"
                 )
-            if delta_ns > MAX_ADJACENT_GAP_SECONDS * NS_PER_SECOND:
-                raise GPXParseError(
-                    f"GPX adjacent timestamp gap exceeds {MAX_ADJACENT_GAP_SECONDS} seconds"
-                )
             gaps_ns.append(delta_ns)
         samples.append({"utc": utc, "lat": lat, "lon": lon})
 
     ordered_gaps = sorted(gaps_ns)
     middle = len(ordered_gaps) // 2
-    # Compare the exact middle value or pair sum; no floating-point rounding.
+    # Twice the median keeps an even sample count's half-nanosecond exact.
     if len(ordered_gaps) % 2:
-        median_exceeds = ordered_gaps[middle] > MAX_MEDIAN_GAP_SECONDS * NS_PER_SECOND
+        median_twice_ns = 2 * ordered_gaps[middle]
     else:
-        median_exceeds = (
-            ordered_gaps[middle - 1] + ordered_gaps[middle]
-            > 2 * MAX_MEDIAN_GAP_SECONDS * NS_PER_SECOND
-        )
-    if median_exceeds:
-        raise GPXParseError(
-            f"GPX median adjacent timestamp gap exceeds {MAX_MEDIAN_GAP_SECONDS} seconds"
-        )
+        median_twice_ns = ordered_gaps[middle - 1] + ordered_gaps[middle]
     # Nearest-rank P95: sorted observed interval at rank ceil(0.95 * count).
     p95_index = (95 * len(ordered_gaps) + 99) // 100 - 1
-    if ordered_gaps[p95_index] > MAX_P95_GAP_SECONDS * NS_PER_SECOND:
+    p95_ns = ordered_gaps[p95_index]
+    maximum_ns = ordered_gaps[-1]
+    failures = []
+    if median_twice_ns > 2 * MAX_MEDIAN_GAP_SECONDS * NS_PER_SECOND:
+        failures.append(
+            f"median {_seconds_text(median_twice_ns)} s > {MAX_MEDIAN_GAP_SECONDS} s"
+        )
+    if p95_ns > MAX_P95_GAP_SECONDS * NS_PER_SECOND:
+        failures.append(f"P95 {_seconds_text(2 * p95_ns)} s > {MAX_P95_GAP_SECONDS} s")
+    if maximum_ns > MAX_ADJACENT_GAP_SECONDS * NS_PER_SECOND:
+        failures.append(
+            f"maximum adjacent gap {_seconds_text(2 * maximum_ns)} s > {MAX_ADJACENT_GAP_SECONDS} s"
+        )
+    if failures:
         raise GPXParseError(
-            f"GPX P95 adjacent timestamp gap exceeds {MAX_P95_GAP_SECONDS} seconds"
+            "GPX temporal quality failed: " + "; ".join(failures)
         )
 
     _derive_movement(samples)
