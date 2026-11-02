@@ -547,7 +547,7 @@ export default function TrackMap({
           <Source key={`session-start-line-${line.label}`} id={`session-start-line-${line.label}`} type="geojson" data={{
             type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[line.pin!.longitude, line.pin!.latitude], [line.boat!.longitude, line.boat!.latitude]] },
           }}>
-            <Layer id={`session-start-line-layer-${line.label}`} type="line" paint={{ 'line-color': '#52636b', 'line-opacity': 0.72, 'line-width': 1.5 }} layout={TRACK_LAYOUT} />
+            <Layer id={`session-start-line-layer-${line.label}`} type="line" paint={{ 'line-color': '#B46B42', 'line-opacity': 0.85, 'line-width': 2.5 }} layout={TRACK_LAYOUT} />
           </Source>
         ))}
         {sessionStartLines.flatMap((line) => ([
@@ -555,7 +555,7 @@ export default function TrackMap({
           ...(line.boat ? [{ label: `B${line.label.slice(1)}`, point: line.boat }] : []),
         ])).map(({ label, point }) => (
           <Marker key={`session-start-endpoint-${label}`} longitude={point.longitude} latitude={point.latitude} anchor="center" style={{ zIndex: 2 }}>
-            <span className="session-start-line-marker" role="img" aria-label={`${label} Session start line endpoint`}>{label}</span>
+            <span className="session-start-line-endpoint" role="img" aria-label={`${label} Session start line endpoint`}>{label}</span>
           </Marker>
         ))}
         {contextualGeometries.map(({ activity, geometry }) => geometry && (

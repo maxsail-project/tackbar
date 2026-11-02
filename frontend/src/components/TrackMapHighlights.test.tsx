@@ -26,7 +26,8 @@ vi.mock('react-map-gl/maplibre', async () => {
     const longitude = data.geometry.type === 'LineString'
       ? (data.geometry.coordinates as number[][])[0][0]
       : (data.geometry.coordinates as number[][][])[0][0][0]
-    return <div data-source={id} data-start-longitude={longitude}>{children}</div>
+    const coordinates = data.geometry.coordinates as number[][]
+    return <div data-source={id} data-start-longitude={longitude} data-line-coordinates={JSON.stringify(coordinates)}>{children}</div>
   },
   Layer: ({ id, beforeId, paint }: { id: string, beforeId?: string, paint: Record<string, string | number> }) => {
     const previousBeforeId = useRef(beforeId)
@@ -47,8 +48,8 @@ vi.mock('react-map-gl/maplibre', async () => {
     }, [id, beforeId])
     return <div data-layer={id} data-color={paint['line-color']} data-width={paint['line-width']} />
   },
-  Marker: ({ children, style, longitude, latitude }: { children: ReactNode, style?: CSSProperties, longitude: number, latitude: number }) =>
-    <div className="maplibregl-marker" data-boat-marker data-longitude={longitude} data-latitude={latitude} style={style}>{children}</div>,
+  Marker: ({ children, style, longitude, latitude, anchor }: { children: ReactNode, style?: CSSProperties, longitude: number, latitude: number, anchor?: string }) =>
+    <div className="maplibregl-marker" data-boat-marker data-anchor={anchor} data-longitude={longitude} data-latitude={latitude} style={style}>{children}</div>,
   NavigationControl: () => null,
   Popup: ({ children, style }: { children: ReactNode, style?: CSSProperties }) =>
     <div className="maplibregl-popup" style={style}>{children}</div>,
@@ -87,6 +88,7 @@ function mapElement(
     comparisonPosition?: { lat: number, lon: number } | null
     contextualPosition?: { lat: number, lon: number } | null
     onCompare?: (activityId: string) => void
+    sessionStartLines?: { label: string, time: number, pin: { latitude: number, longitude: number } | null, boat: { latitude: number, longitude: number } | null }[]
   } = {},
 ) {
   const overlap = { lat: 0.25, lon: -30.72 }
@@ -99,6 +101,7 @@ function mapElement(
     }] : []}
     fitContextKey={fitContextKey}
     selectedManeuverHighlights={selectedManeuverHighlights}
+    sessionStartLines={markerOptions.sessionStartLines}
     primaryActivityIdentity={markerOptions.primaryIdentity ?? 'Primary'}
     comparisonActivityIdentity={markerOptions.comparisonIdentity ?? 'Comparison'}
     primaryBoatPosition={markerOptions.primaryPosition === undefined ? overlap : markerOptions.primaryPosition}
@@ -203,6 +206,30 @@ describe('selected maneuver map layer order', () => {
 
   it('renders no highlight layers without selections', () => {
     expect(renderMap([])).not.toContain('selected-maneuver-highlight-')
+  })
+})
+
+describe('Session Start endpoint markers', () => {
+  it('renders one anchored circular label for each complete or isolated endpoint', () => {
+    const markup = renderToStaticMarkup(mapElement([], samples, samples, false, 'start-lines', {
+      sessionStartLines: [
+        { label: 'S1', time: 1, pin: { latitude: 1, longitude: 2 }, boat: { latitude: 3, longitude: 4 } },
+        { label: 'S12', time: 2, pin: null, boat: { latitude: 5, longitude: 6 } },
+      ],
+    }))
+    expect(markup).toContain('data-longitude="2" data-latitude="1"')
+    expect(markup).toContain('data-longitude="4" data-latitude="3"')
+    expect(markup).toContain('data-longitude="6" data-latitude="5"')
+    expect(markup.match(/data-anchor="center"/g)).toHaveLength(5)
+    expect(markup).toContain('data-line-coordinates="[[2,1],[4,3]]"')
+    expect(markup).toContain('session-start-line-endpoint" role="img" aria-label="P1 Session start line endpoint">P1</span>')
+    expect(markup).toContain('session-start-line-endpoint" role="img" aria-label="B1 Session start line endpoint">B1</span>')
+    expect(markup).toContain('session-start-line-endpoint" role="img" aria-label="B12 Session start line endpoint">B12</span>')
+    expect(markup.match(/class="session-start-line-endpoint"/g)).toHaveLength(3)
+    expect(markup).not.toContain('endpoint__dot')
+    expect(markup).not.toContain('endpoint__label')
+    expect(markup).toContain('data-source="session-start-line-S1"')
+    expect(markup).not.toContain('session-start-line-S12')
   })
 })
 
