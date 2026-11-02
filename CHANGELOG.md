@@ -2,6 +2,70 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.18 Californian — On the Line
+
+### English
+
+Adds Activity-owned Vakaros start observations and a bounded Session Viewer interpretation of them. Personal TackBar gains Boat and Activity context management, with focused map and Admin refinements.
+
+### Added
+
+* VKX/VKX.GZ ingestion preserves source-ordered Race Timer, Line Position and Shift Angle observations on the originating Activity. Explicit reprocessing replaces these collections while preserving Activity and Session identity. Protected Admin Activity detail shows a read-only VKX row inventory and separate persisted counts.
+* The Viewer infers navigable Session Starts from visible Activities' timer-zero observations. The SOG timeline marks those Starts and supports seeking, map focus and range brushing. The map reconstructs ephemeral PIN/BOAT line context from recorded positions; it does not claim an official race start or committee line.
+* Personal TackBar supports Sailor-owned Boats, an optional default Boat, per-Activity Boat and descriptive Device edits, and optional Sailor name editing. Compact Viewer selectors identify Activities by Boat, Device or Sailor with stable disambiguation.
+
+### Changed
+
+* Map bearing gains incremental direction controls; the compact DIR control and map navigation are simplified. Primary track and replay boat markers appear above Comparison where they overlap.
+* Admin shows current Boat/Device context and Boat-aware search. Shared Session reads continue to enforce capability, consent and ACTIVE-only visibility, including Boat metadata and the exposed timer/line observations.
+
+### Issues
+
+- [#151](https://github.com/maxsail-project/tackbar/issues/151) — [#151] Persist VKX Race Timer and Line Position records on Activities
+- [#152](https://github.com/maxsail-project/tackbar/issues/152) — [#152] Preserve VKX Shift Angle observations on Activities
+- [#153](https://github.com/maxsail-project/tackbar/issues/153) — [#153] Explore race-timer and start-line observations in Session Viewer
+- [#154](https://github.com/maxsail-project/tackbar/issues/154) — [#154] Add ±5° controls to map bearing indicator
+- [#155](https://github.com/maxsail-project/tackbar/issues/155) — [#155] Enable per-Activity Boat context editing and compact track identification
+- [#157](https://github.com/maxsail-project/tackbar/issues/157) — [#157] Align Primary/Comparison track and boat stacking
+- [#160](https://github.com/maxsail-project/tackbar/issues/160) — [#160] Simplify map overlay with compact DIR-only navigation
+
+### Validation
+
+Completed Issues record focused backend/frontend tests, typecheck and build checks, code review and selected product-owner manual checks during implementation. #151 records private real-VKX parsing/persistence and Admin inspection; #152 records synthetic Shift Angle tests and explicitly accepted absence of positive real-hardware `0x06` evidence. #153 records accepted residual spatial-boundary and multi-Atlas field-validation risks. These are prior implementation results, not checks rerun during release preparation. Release preparation verifies Issue state and commit inclusion, documentation consistency, the bilingual entry and `git diff --check`; it does not claim a full product regression.
+
+---
+
+### Español
+
+Añade observaciones Vakaros de salida asociadas a cada Activity y una interpretación acotada en Session Viewer. Personal TackBar incorpora gestión del contexto Boat y Activity, junto con ajustes del mapa y Admin.
+
+### Añadido
+
+* La ingesta VKX/VKX.GZ conserva en la Activity original las observaciones Race Timer, Line Position y Shift Angle en orden de origen. El reprocesamiento explícito sustituye estas colecciones sin cambiar la identidad de Activity o Session. El detalle protegido de Admin muestra un inventario VKX de solo lectura y recuentos persistidos separados.
+* El Viewer infiere Session Starts navegables a partir de las observaciones de temporizador a cero de las Activities visibles. La línea temporal SOG marca esas salidas y permite buscar el instante, centrar el mapa y seleccionar un rango arrastrando. El mapa reconstruye contexto efímero de línea PIN/BOAT a partir de posiciones registradas; no afirma una salida oficial ni una línea del comité.
+* Personal TackBar permite Boats propios del Sailor, un Boat predeterminado opcional, editar Boat y Device descriptivo por Activity, y editar el nombre opcional del Sailor. Los selectores compactos identifican Activities por Boat, Device o Sailor con desambiguación estable.
+
+### Cambiado
+
+* La orientación del mapa incorpora controles de giro incremental; se simplifican el control compacto DIR y la navegación. El track y el marcador de replay de Primary aparecen encima de Comparison cuando se superponen.
+* Admin muestra el contexto Boat/Device actual y permite buscar por Boat. Las lecturas compartidas de Session siguen aplicando capability, consentimiento y visibilidad solo de Activities ACTIVE, incluidos metadatos Boat y las observaciones de temporizador/línea expuestas.
+
+### Issues
+
+- [#151](https://github.com/maxsail-project/tackbar/issues/151) — [#151] Persist VKX Race Timer and Line Position records on Activities
+- [#152](https://github.com/maxsail-project/tackbar/issues/152) — [#152] Preserve VKX Shift Angle observations on Activities
+- [#153](https://github.com/maxsail-project/tackbar/issues/153) — [#153] Explore race-timer and start-line observations in Session Viewer
+- [#154](https://github.com/maxsail-project/tackbar/issues/154) — [#154] Add ±5° controls to map bearing indicator
+- [#155](https://github.com/maxsail-project/tackbar/issues/155) — [#155] Enable per-Activity Boat context editing and compact track identification
+- [#157](https://github.com/maxsail-project/tackbar/issues/157) — [#157] Align Primary/Comparison track and boat stacking
+- [#160](https://github.com/maxsail-project/tackbar/issues/160) — [#160] Simplify map overlay with compact DIR-only navigation
+
+### Validación
+
+Los Issues completados registran pruebas backend/frontend focalizadas, comprobaciones de tipos y build, revisión de código y algunas comprobaciones manuales del propietario durante la implementación. #151 registra parsing/persistencia de un VKX real privado e inspección en Admin; #152 registra pruebas sintéticas de Shift Angle y la ausencia aceptada de evidencia positiva `0x06` de hardware real. #153 registra riesgos residuales aceptados de límites espaciales y validación de campo con varios Atlas. Son resultados previos de implementación, no pruebas repetidas durante la preparación. La preparación verifica el estado e inclusión de los Issues, la coherencia documental, la entrada bilingüe y `git diff --check`; no afirma una regresión completa del producto.
+
+---
+
 ## v0.7.17 Californian — The Shape of a Turn
 
 ### English

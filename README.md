@@ -186,8 +186,8 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. Latest published release: v0.7.16 Californian
-— Every Turn Tells a Story.**
+**Controlled real-sailing pilot. Latest published release: v0.7.17 Californian
+— The Shape of a Turn.**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
@@ -221,11 +221,11 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ## Published release and next direction
 
-### v0.7.16 Californian — Every Turn Tells a Story
+### v0.7.17 Californian — The Shape of a Turn
 
-v0.7.16 adds one typical maneuver-profile chart for Primary and Comparison,
-covering SOG, relative COG and absolute-magnitude HEEL with signal-specific
-Insights. Analytical comparison remains limited to two Activities.
+v0.7.17 separates individual Maneuver Analysis from typical Maneuver Profiles,
+adds Selected Maneuvers near the map and a compact whole-window P/C metrics
+table. Analytical comparison remains limited to two Activities.
 
 The accepted scope for **v0.7.14 Californian — GPX & Maneuver Analytics** is
 recorded in the [CHANGELOG](CHANGELOG.md). The
@@ -450,7 +450,7 @@ El foco pasa a estar en:
 ## Estado del proyecto
 
 **Piloto controlado con navegaciones reales. Última release publicada:
-v0.7.16 Californian — Every Turn Tells a Story.**
+v0.7.17 Californian — The Shape of a Turn.**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
@@ -484,11 +484,11 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ## Release publicada y próxima dirección
 
-### v0.7.16 Californian — Every Turn Tells a Story
+### v0.7.17 Californian — The Shape of a Turn
 
-v0.7.16 añade un gráfico de perfiles típicos de maniobras para Primary y
-Comparison, con SOG, COG relativo y magnitud absoluta de HEEL e Insights por
-señal. La comparación analítica sigue limitada a dos Activities.
+v0.7.17 separa Maneuver Analysis individual de Maneuver Profiles típicos,
+añade Selected Maneuvers junto al mapa y una tabla compacta P/C de métricas de
+toda la ventana. La comparación analítica sigue limitada a dos Activities.
 
 El alcance aceptado de **v0.7.14 Californian — GPX & Maneuver Analytics** queda
 recogido en [CHANGELOG](CHANGELOG.md). El
