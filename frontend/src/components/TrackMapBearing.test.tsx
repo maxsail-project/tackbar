@@ -10,6 +10,8 @@ const map = vi.hoisted(() => ({
   onRotate: null as null | ((event: { viewState: { bearing: number } }) => void),
   jumpTo: vi.fn(),
   fitBounds: vi.fn(),
+  zoomIn: vi.fn(),
+  zoomOut: vi.fn(),
 }))
 
 vi.mock('react-map-gl/maplibre', async () => {
@@ -23,6 +25,7 @@ vi.mock('react-map-gl/maplibre', async () => {
       useImperativeHandle(ref, () => ({
         getLayer: () => undefined,
         getBearing: () => map.bearing,
+        getMap: () => ({ zoomIn: map.zoomIn, zoomOut: map.zoomOut }),
         jumpTo: (options: { bearing?: number }) => {
           map.jumpTo(options)
           if (options.bearing !== undefined) {
@@ -37,7 +40,6 @@ vi.mock('react-map-gl/maplibre', async () => {
     Source: ({ children }: { children: ReactNode }) => <>{children}</>,
     Layer: () => null,
     Marker: ({ children }: { children: ReactNode }) => <>{children}</>,
-    NavigationControl: () => null,
     Popup: () => null,
   }
 })
@@ -57,6 +59,8 @@ beforeEach(() => {
   map.onRotate = null
   map.jumpTo.mockClear()
   map.fitBounds.mockClear()
+  map.zoomIn.mockClear()
+  map.zoomOut.mockClear()
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -109,16 +113,39 @@ function expectBearing(value: string, markerRotation: number) {
 describe('map bearing controls', () => {
   it('keeps one accessible direction display between the two buttons', async () => {
     await renderMap()
-    const control = container.querySelector('.map-bearing')!
+    const group = container.querySelector('.map-navigation-group')!
+    const control = group.querySelector('.map-navigation-group__direction')!
     const value = control.querySelector('.map-bearing__value')!
 
-    expect(control.children).toHaveLength(3)
-    expect(control.children[1]).toBe(value)
+    expect(group.contains(control)).toBe(true)
+    expect(group.querySelector('.maplibregl-ctrl-top-right')).toBeNull()
+    expect(control.querySelector('.map-bearing__value')).toBe(value)
     expect(value.querySelectorAll('.map-bearing__value')).toHaveLength(0)
     expect(value.getAttribute('role')).toBe('status')
     expect(value.getAttribute('aria-label')).toBe('Map direction 000°')
     expect(value.children[0].textContent).toBe('DIR')
     expect(value.children[1].textContent).toBe('000°')
+    expect(control.querySelectorAll('button svg')).toHaveLength(2)
+  })
+
+  it('renders one integrated horizontal zoom row and delegates to MapLibre zoom operations', async () => {
+    await renderMap()
+    const group = container.querySelector('.map-navigation-group')!
+    const direction = group.querySelector('.map-navigation-group__direction')!
+    const zoom = group.querySelector('.map-navigation-group__zoom')!
+
+    expect(group.children).toHaveLength(2)
+    expect(group.children[0]).toBe(direction)
+    expect(group.children[1]).toBe(zoom)
+    expect(zoom.querySelectorAll('button')).toHaveLength(2)
+    expect([...zoom.querySelectorAll('button')].map((button) => button.getAttribute('aria-label')))
+      .toEqual(['Zoom out', 'Zoom in'])
+    expect(container.querySelectorAll('.maplibregl-ctrl-group')).toHaveLength(0)
+
+    await act(async () => zoom.querySelector<HTMLButtonElement>('[aria-label="Zoom out"]')!.click())
+    await act(async () => zoom.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click())
+    expect(map.zoomOut).toHaveBeenCalledOnce()
+    expect(map.zoomIn).toHaveBeenCalledOnce()
   })
 
   it('rotates the map in 5-degree steps, wraps both ways, and updates both markers', async () => {
