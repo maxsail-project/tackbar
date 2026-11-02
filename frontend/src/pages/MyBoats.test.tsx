@@ -42,7 +42,7 @@ afterEach(async () => {
 })
 
 async function mount() {
-  await act(async () => root.render(<MyBoats token="personal/token" onUnavailable={onUnavailable} onBoatSaved={onBoatSaved} />))
+  await act(async () => root.render(<MyBoats token="personal/token" onUnavailable={onUnavailable} onBoatSaved={onBoatSaved} expanded onToggle={() => {}} />))
 }
 
 async function click(text: string) {

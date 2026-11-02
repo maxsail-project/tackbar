@@ -2948,10 +2948,16 @@ input:focus-visible {
 /* Personal TackBar shares the application brand baseline. */
 .personal-page { max-width: 720px; margin: 0 auto; padding: 24px 18px 40px; }
 .app-header.personal-header { padding-right: max(18px, calc((100% - 684px) / 2)); padding-left: max(18px, calc((100% - 684px) / 2)); }
-.personal-page > h1, .personal-page > section > h2 { margin: 0 0 16px; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
-.personal-name { font-size: 1.2rem; overflow-wrap: anywhere; }
-.personal-page .personal-profile { margin: 0 0 24px; padding: 16px; border: 1px solid #cbd9e2; border-radius: 12px; background: var(--color-white); overflow-wrap: anywhere; }
+.personal-page__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.personal-page > section > h2 { margin: 0 0 10px; font-size: 1.3rem; line-height: 1.2; }
+.personal-disclosure { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid #cbd9e2; border-radius: 10px; color: var(--color-navy); background: var(--color-white); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.personal-disclosure::after { content: '⌄'; font-size: 1.4rem; line-height: 1; }
+.personal-disclosure[aria-expanded="true"]::after { transform: rotate(180deg); }
+.personal-disclosure:hover { background: var(--color-pale); }
+.personal-page .personal-profile { margin: 0 0 16px; padding: 16px; border: 1px solid #cbd9e2; border-radius: 12px; background: var(--color-white); overflow-wrap: anywhere; }
 .personal-profile p { margin: 8px 0; }
+.personal-page .personal-last-session { margin-top: 0; }
+.personal-page .personal-last-session h2 { margin: 0 0 10px; font-size: 1.1rem; }
 .personal-profile form { display: grid; gap: 10px; margin-top: 12px; }
 .personal-profile label { font-weight: 700; }
 .personal-profile input { width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid #9aabb3; border-radius: 9px; color: var(--color-navy); background: var(--color-white); font: inherit; }
@@ -2967,7 +2973,7 @@ input:focus-visible {
 .personal-session a.personal-session__target:hover { background: var(--color-pale); }
 .personal-session a.personal-session__target:focus-visible { outline: 3px solid var(--color-blue); outline-offset: -3px; }
 .personal-session--unavailable { color: #61767d; background: var(--color-background); }
-.personal-session h2 { margin: 0; font-size: 1.1rem; }
+.personal-session h3 { margin: 0; font-size: 1.1rem; }
 .personal-session p { margin: 5px 0 0; }
 .personal-session__summary { color: #334b55; }
 .personal-session--unavailable .personal-session__summary { color: inherit; }

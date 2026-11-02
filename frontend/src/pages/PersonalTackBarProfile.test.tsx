@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../api/tackbarApi'
 import type { PersonalTackBar } from '../types/personal'
@@ -62,6 +62,21 @@ async function typeName(value: string) {
 }
 
 describe('My Profile', () => {
+  it('opens the Viewer by activating the Last Session card', async () => {
+    const router = createMemoryRouter([
+      { path: '/me/:token', element: <PersonalTackBarPage /> },
+      { path: '/s/:token', element: <p>Session Viewer</p> },
+    ], { initialEntries: ['/me/personal-token'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const card = container.querySelector<HTMLAnchorElement>('.personal-last-session .personal-session__target')
+    expect(card?.getAttribute('href')).toBe('/s/shared')
+    expect(card?.getAttribute('referrerpolicy')).toBe('no-referrer')
+    await act(async () => card!.click())
+    expect(router.state.matches.at(-1)?.route.path).toBe('/s/:token')
+    expect(router.state.matches.at(-1)?.params.token).toBe('shared')
+    router.dispose()
+  })
+
   it('starts with an empty editor when the name is unset', async () => {
     vi.mocked(api.getPersonalTackBar).mockResolvedValue({ ...history, name: null })
     await mount()
@@ -82,8 +97,14 @@ describe('My Profile', () => {
     expect(profile.getAttribute('aria-label')).toBe('My Profile')
     expect(profile.querySelector('h2')).toBeNull()
     const headings = [...container.querySelectorAll('main h1')]
-    expect(headings.map((heading) => heading.textContent)).toEqual(['My Sessions'])
-    expect(profile.compareDocumentPosition(headings[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(headings.map((heading) => heading.textContent)).toEqual(['Personal TackBar'])
+    expect(headings[0].classList.contains('personal-page__sr-only')).toBe(true)
+    expect(container.textContent).not.toContain('My TackBar')
+    expect(headings[0].compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect([...container.querySelectorAll('main > section > h2')].map((heading) => heading.textContent)).toEqual(['Open Last Session', 'My Sessions', 'My Activities', 'My Boats'])
+    expect(profile.textContent?.indexOf('Name:')).toBeLessThan(profile.textContent!.indexOf('Email:'))
+    expect(profile.textContent?.indexOf('Email:')).toBeLessThan(profile.textContent!.indexOf('Edit Name'))
+    expect(profile.textContent).not.toContain('Last Session')
     expect((container.querySelector('header.app-header')?.compareDocumentPosition(profile) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(container.querySelector('a[href="/s/shared"]')).not.toBeNull()
     expect(container.textContent).toContain('My Activities')

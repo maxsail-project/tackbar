@@ -80,12 +80,42 @@ async function typeLabel(value: string) {
 }
 
 describe('My Activities', () => {
+  it('starts with independent collapsed sections and preserves Boat and Activity drafts across disclosure', async () => {
+    await mount()
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>('main > section > h2 > button')]
+    expect(buttons.map((button) => button.textContent)).toEqual(['My Sessions', 'My Activities', 'My Boats'])
+    expect(buttons.map((button) => button.getAttribute('aria-expanded'))).toEqual(['false', 'false', 'false'])
+    expect(['my-boats-content', 'my-sessions-content', 'my-activities-content'].map((id) => container.querySelector(`#${id}`)?.hasAttribute('hidden'))).toEqual([true, true, true])
+
+    await click('My Boats')
+    await click('My Activities')
+    expect(buttons.map((button) => button.getAttribute('aria-expanded'))).toEqual(['false', 'true', 'true'])
+    await click('Add Boat')
+    const boatInput = container.querySelector<HTMLInputElement>('.personal-boats__form input')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(boatInput, 'Unsaved Boat')
+      boatInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('Edit Activity')
+    await typeLabel('Unsaved Device')
+    await click('My Boats')
+    await click('My Activities')
+    expect(container.querySelector('#my-boats-content')?.hasAttribute('hidden')).toBe(true)
+    expect(container.querySelector('#my-activities-content')?.hasAttribute('hidden')).toBe(true)
+    await click('My Boats')
+    await click('My Activities')
+    expect(container.querySelector<HTMLInputElement>('.personal-boats__form input')?.value).toBe('Unsaved Boat')
+    expect(container.querySelector<HTMLInputElement>('.personal-activity input')?.value).toBe('Unsaved Device')
+    await click('My Sessions')
+    expect(buttons.map((button) => button.getAttribute('aria-expanded'))).toEqual(['true', 'true', 'true'])
+  })
+
   it('renders origin and optional context, with only owned Boats as new choices', async () => {
     await mount()
     expect(container.textContent).toContain('My Sessions')
     expect(container.querySelector('a[href="/s/shared"]')).not.toBeNull()
     expect(container.textContent).toContain('My Activities')
-    expect(container.querySelector('main.personal-page > h1#my-sessions-heading')).not.toBeNull()
+    expect(container.querySelector('main.personal-page > h1.personal-page__sr-only')?.textContent).toBe('Personal TackBar')
     expect(container.querySelector('main.personal-page > section > h2#my-activities-heading')).not.toBeNull()
     expect(container.querySelector('main.personal-page > section > h2#my-boats-heading')).not.toBeNull()
     expect(container.querySelector('.personal-activity h3')).not.toBeNull()
@@ -104,7 +134,7 @@ describe('My Activities', () => {
       ['__keep__', 'Keep current Boat association'], ['', 'No Boat'],
       ['owned-1', 'Mistral · Snipe · 42'], ['owned-2', 'Boreas'],
     ])
-    expect(container.querySelector<HTMLSelectElement>('select')?.value).toBe('__keep__')
+    expect(container.querySelector<HTMLSelectElement>('.personal-activity select')?.value).toBe('__keep__')
     expect(options.some(([value]) => value === 'legacy-1')).toBe(false)
     expect(container.querySelector<HTMLInputElement>('.personal-activity input')?.value).toBe('')
   })
@@ -219,7 +249,7 @@ describe('My Activities', () => {
     expect(container.textContent).toContain('Boat: No Boat')
     await click('Edit Activity')
     expect([...container.querySelectorAll('.personal-activity option')].map((option) => option.textContent)).toEqual(['No Boat'])
-    expect(container.querySelector<HTMLSelectElement>('select')?.value).toBe('')
+    expect(container.querySelector<HTMLSelectElement>('.personal-activity select')?.value).toBe('')
   })
 
   it('does not display foreign Boat metadata from an unavailable reference', async () => {
@@ -227,7 +257,7 @@ describe('My Activities', () => {
     await mount()
     expect(container.textContent).toContain('Unavailable Boat association')
     await click('Edit Activity')
-    expect(container.querySelector<HTMLSelectElement>('select')?.value).toBe('__keep__')
+    expect(container.querySelector<HTMLSelectElement>('.personal-activity select')?.value).toBe('__keep__')
     expect(container.textContent).not.toContain('foreign-1')
   })
 
@@ -246,6 +276,7 @@ describe('My Activities', () => {
     vi.mocked(api.updatePersonalActivity).mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectWrite = reject }))
       .mockRejectedValueOnce(new api.PersonalTackBarNotFoundError())
     await mount()
+    await click('My Activities')
     await click('Edit Activity')
     await typeLabel('Bow watch')
     await click('Save')
@@ -254,7 +285,10 @@ describe('My Activities', () => {
     expect([...container.querySelectorAll<HTMLButtonElement>('.personal-activity__actions button')].find((button) => button.textContent === 'Cancel')?.disabled).toBe(true)
     await click('Save')
     expect(api.updatePersonalActivity).toHaveBeenCalledTimes(1)
+    await click('My Activities')
+    expect(container.querySelector('#my-activities-content')?.hasAttribute('hidden')).toBe(true)
     await act(async () => rejectWrite(new Error('secret server detail')))
+    await click('My Activities')
     expect(container.textContent).toContain('Could not save Activity. Please try again.')
     expect(container.textContent).not.toContain('secret server detail')
     expect(container.querySelector<HTMLInputElement>('.personal-activity input')?.value).toBe('Bow watch')

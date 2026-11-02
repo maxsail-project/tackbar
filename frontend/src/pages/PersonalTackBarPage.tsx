@@ -36,6 +36,26 @@ function compactWeather(session: PersonalSession) {
   return compact?.replace('°C', ' °C') ?? null
 }
 
+function latestSession(sessions: PersonalSession[]): PersonalSession | null {
+  return sessions.reduce<PersonalSession | null>((latest, session) =>
+    !latest || Date.parse(session.sailing_end) > Date.parse(latest.sailing_end) ? session : latest, null)
+}
+
+function SessionCard({ session }: { session: PersonalSession }) {
+  const weather = compactWeather(session)
+  const location = sessionDisplayLocation(session.location_label, session.location_country)
+  const content = <>
+    <h3>{location && `${location} · `}<time dateTime={session.sailing_start}>{day(session.sailing_start)}</time></h3>
+    <p className="personal-session__summary">{sailingInterval(session.sailing_start, session.sailing_end)} · {session.sailor_count} {session.sailor_count === 1 ? 'sailor' : 'sailors'}</p>
+    {weather && <p className="personal-session__weather">{weather}</p>}
+  </>
+  return <li className={`personal-session${session.session_path ? '' : ' personal-session--unavailable'}`}>
+    {session.session_path
+      ? <Link className="personal-session__target" to={session.session_path} referrerPolicy="no-referrer">{content}</Link>
+      : <div className="personal-session__target" aria-disabled="true">{content}<span className="personal-session__status">Session unavailable</span></div>}
+  </li>
+}
+
 export default function PersonalTackBarPage() {
   const { token = '' } = useParams<{ token: string }>()
   return <PersonalPage key={token} token={token} />
@@ -65,6 +85,10 @@ function PersonalPage({ token }: { token: string }) {
 export function PersonalTackBarContent({ state, token, onUnavailable, onProfileSaved }: { state: PersonalPageState; token?: string; onUnavailable?: () => void; onProfileSaved?: (name: string | null) => void }) {
   const [query, setQuery] = useState('')
   const [boatSaved, setBoatSaved] = useState<PersonalBoat | null>(null)
+  const [boatsExpanded, setBoatsExpanded] = useState(false)
+  const [sessionsExpanded, setSessionsExpanded] = useState(false)
+  const [activitiesExpanded, setActivitiesExpanded] = useState(false)
+  const lastSession = state.status === 'ready' ? latestSession(state.data.sessions) : null
   const sessions = useMemo(
     () => state.status === 'ready' ? filterPersonalSessions(state.data.sessions, query) : [],
     [query, state],
@@ -72,41 +96,35 @@ export function PersonalTackBarContent({ state, token, onUnavailable, onProfileS
   return <>
     <header className="app-header personal-header"><PublicHeaderBrand /><AboutControl /></header>
     <main className="personal-page">
+    <h1 className="personal-page__sr-only">Personal TackBar</h1>
     {state.status === 'ready' && (token
       ? <MyProfile token={token} name={state.data.name} email={state.data.email} onSaved={onProfileSaved} onUnavailable={onUnavailable} />
-      : <p className="personal-name">{state.data.email}{state.data.name?.trim() ? ` - ${state.data.name.trim()}` : ''}</p>)}
-    <h1 id="my-sessions-heading">My Sessions</h1>
+      : <section className="personal-profile" aria-label="My Profile"><p><strong>Name:</strong> {state.data.name?.trim() || 'Not set'}</p><p><strong>Email:</strong> {state.data.email}</p></section>)}
     {state.status === 'loading' && <p className="personal-feedback" role="status">Loading My Sessions…</p>}
     {state.status === 'unavailable' && <p className="personal-feedback" role="alert">This personal link is unavailable.</p>}
     {state.status === 'error' && <p className="personal-feedback" role="alert">Cannot load My TackBar. Please try again.</p>}
     {state.status === 'ready' && <>
-      <p>{state.data.session_count} {state.data.session_count === 1 ? 'Session' : 'Sessions'}</p>
+      <section className="personal-last-session" aria-labelledby="personal-last-session-heading">
+        <h2 id="personal-last-session-heading">Open Last Session</h2>
+        {lastSession ? <ol className="personal-sessions"><SessionCard session={lastSession} /></ol> : <p>No Sessions recorded yet.</p>}
+      </section>
       <section aria-labelledby="my-sessions-heading">
+        <h2 id="my-sessions-heading"><button className="personal-disclosure" type="button" aria-expanded={sessionsExpanded} aria-controls="my-sessions-content" onClick={() => setSessionsExpanded((value) => !value)}>My Sessions</button></h2>
+        <div id="my-sessions-content" hidden={!sessionsExpanded}>
+        <p>{state.data.session_count} {state.data.session_count === 1 ? 'Session' : 'Sessions'}</p>
         {state.data.sessions.length === 0 ? <p>No Sessions recorded yet.</p> : <>
           <label className="personal-search">
             <span>Search Sessions</span>
             <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Location or sailing date" />
           </label>
           {sessions.length === 0 ? <p>No Sessions match this search.</p> : <ol className="personal-sessions">
-            {sessions.map((session, index) => {
-              const weather = compactWeather(session)
-              const location = sessionDisplayLocation(session.location_label, session.location_country)
-              const content = <>
-                <h2>{location && `${location} · `}<time dateTime={session.sailing_start}>{day(session.sailing_start)}</time></h2>
-                <p className="personal-session__summary">{sailingInterval(session.sailing_start, session.sailing_end)} · {session.sailor_count} {session.sailor_count === 1 ? 'sailor' : 'sailors'}</p>
-                {weather && <p className="personal-session__weather">{weather}</p>}
-              </>
-              return <li className={`personal-session${session.session_path ? '' : ' personal-session--unavailable'}`} key={index}>
-                {session.session_path
-                  ? <Link className="personal-session__target" to={session.session_path} referrerPolicy="no-referrer">{content}</Link>
-                  : <div className="personal-session__target" aria-disabled="true">{content}<span className="personal-session__status">Session unavailable</span></div>}
-              </li>
-            })}
+            {sessions.map((session, index) => <SessionCard key={index} session={session} />)}
           </ol>}
         </>}
+        </div>
       </section>
-      {token && <MyActivities token={token} onUnavailable={onUnavailable} boatSaved={boatSaved} />}
-      {token && <MyBoats token={token} onUnavailable={onUnavailable} onBoatSaved={setBoatSaved} />}
+      {token && <MyActivities token={token} onUnavailable={onUnavailable} boatSaved={boatSaved} expanded={activitiesExpanded} onToggle={() => setActivitiesExpanded((value) => !value)} />}
+      {token && <MyBoats token={token} onUnavailable={onUnavailable} onBoatSaved={setBoatSaved} expanded={boatsExpanded} onToggle={() => setBoatsExpanded((value) => !value)} />}
     </>}
     </main>
   </>
@@ -188,7 +206,7 @@ function effectiveDevice(activity: PersonalActivity): string {
     || (activity.device_name.trim() && activity.device_name) || ''
 }
 
-function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUnavailable?: () => void; boatSaved: PersonalBoat | null }) {
+function MyActivities({ token, onUnavailable, boatSaved, expanded, onToggle }: { token: string; onUnavailable?: () => void; boatSaved: PersonalBoat | null; expanded: boolean; onToggle: () => void }) {
   const [state, setState] = useState<ActivitiesState>({ status: 'loading' })
   const [retry, setRetry] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -284,7 +302,8 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
   }
 
   return <section aria-labelledby="my-activities-heading">
-    <h2 id="my-activities-heading">My Activities</h2>
+    <h2 id="my-activities-heading"><button className="personal-disclosure" type="button" aria-expanded={expanded} aria-controls="my-activities-content" onClick={onToggle}>My Activities</button></h2>
+    <div id="my-activities-content" hidden={!expanded}>
     {state.status === 'loading' && <p className="personal-feedback" role="status">Loading My Activities…</p>}
     {state.status === 'error' && <div className="personal-feedback" role="alert">Could not load My Activities. <button className="personal-action personal-action--secondary" type="button" onClick={() => { setState({ status: 'loading' }); setRetry((value) => value + 1) }}>Retry</button></div>}
     {state.status === 'ready' && (state.activities.length === 0
@@ -319,5 +338,6 @@ function MyActivities({ token, onUnavailable, boatSaved }: { token: string; onUn
           {feedback?.id === activity.id && <p className="personal-feedback" role={feedback.error ? 'alert' : 'status'}>{feedback.message}</p>}
         </li>
       })}</ol>)}
+    </div>
   </section>
 }

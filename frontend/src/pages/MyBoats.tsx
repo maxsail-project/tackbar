@@ -14,10 +14,12 @@ type BoatState =
   | { status: 'loading' | 'error' }
   | { status: 'ready'; boats: PersonalBoat[]; classes: string[]; defaultId: string | null }
 
-export default function MyBoats({ token, onUnavailable, onBoatSaved }: {
+export default function MyBoats({ token, onUnavailable, onBoatSaved, expanded, onToggle }: {
   token: string
   onUnavailable?: () => void
   onBoatSaved: (boat: PersonalBoat) => void
+  expanded: boolean
+  onToggle: () => void
 }) {
   const [state, setState] = useState<BoatState>({ status: 'loading' })
   const [retry, setRetry] = useState(0)
@@ -168,7 +170,8 @@ export default function MyBoats({ token, onUnavailable, onBoatSaved }: {
   }
 
   return <section aria-labelledby="my-boats-heading" className="personal-boats">
-    <h2 id="my-boats-heading">My Boats</h2>
+    <h2 id="my-boats-heading"><button className="personal-disclosure" type="button" aria-expanded={expanded} aria-controls="my-boats-content" onClick={onToggle}>My Boats</button></h2>
+    <div id="my-boats-content" hidden={!expanded}>
     {state.status === 'loading' && <p className="personal-feedback" role="status">Loading My Boats…</p>}
     {state.status === 'error' && <div className="personal-feedback" role="alert">Could not load My Boats. <button className="personal-action personal-action--secondary" type="button" onClick={() => { setState({ status: 'loading' }); setRetry((value) => value + 1) }}>Retry</button></div>}
     {state.status === 'ready' && <>
@@ -240,5 +243,6 @@ export default function MyBoats({ token, onUnavailable, onBoatSaved }: {
         {defaultMessage && <p className="personal-feedback" role={defaultMessage.startsWith('Could not') ? 'alert' : 'status'}>{defaultMessage}</p>}
       </div>
     </>}
+    </div>
   </section>
 }

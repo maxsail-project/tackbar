@@ -35,23 +35,24 @@ describe('Personal TackBar / My Sessions', () => {
     const loaded = await getPersonalTackBar('personal-token')
     const markup = render(loaded)
     expect(fetchMock).toHaveBeenCalledWith('/api/me/personal-token', expect.objectContaining({ method: 'GET' }))
-    expect(markup).toContain('<h1 id="my-sessions-heading">My Sessions</h1>')
+    expect(markup).toContain('<h1 class="personal-page__sr-only">Personal TackBar</h1>')
+    expect(markup).not.toContain('<h1>My TackBar</h1>')
     expect(markup.match(/<h1\b/g)).toHaveLength(1)
     expect(markup.match(/My Sessions/g)).toHaveLength(1)
-    expect(markup).not.toContain('My TackBar')
+    expect(markup).toContain('<h2 id="my-sessions-heading"><button class="personal-disclosure" type="button" aria-expanded="false"')
     expect(markup).toMatch(/<header[^>]*><div class="public-header-brand"><img[^>]*alt="TackBar"/)
     expect(markup).toContain('>About</button>')
     expect(markup).not.toContain('public-header-release')
-    expect(markup).toMatch(/sailor@example\.com - Test Sailor<\/p><h1 id="my-sessions-heading">My Sessions<\/h1><p>2 Sessions<\/p>/)
+    expect(markup).toMatch(/Name:<\/strong> Test Sailor<\/p><p><strong>Email:<\/strong> sailor@example\.com<\/p><\/section><section class="personal-last-session"/)
+    expect(markup).toContain('>Open Last Session</h2>')
     expect(markup).toContain('2 Sessions')
-    expect(markup).not.toContain('Last sailing')
     expect(markup.indexOf('2026-09-05T13:49:00Z')).toBeLessThan(markup.indexOf('2026-09-04T17:24:00Z'))
     expect(markup).toContain('2 sailors')
     expect(markup).toContain('3 sailors')
     expect(markup).toContain('Mahón · ')
     expect(markup).not.toContain('Mahón, Spain')
     expect(markup).toContain('092° · 4.2 kt · 23 °C')
-    expect(markup.match(/personal-session__weather/g)).toHaveLength(1)
+    expect(markup.match(/personal-session__weather/g)).toHaveLength(2)
     expect(markup).toMatch(/<\/time>–<time[^>]*>[^<]*<\/time> · 2 sailors/)
     expect(markup).not.toContain('Gust')
     expect(markup).not.toContain('Cloud')
@@ -73,7 +74,7 @@ describe('Personal TackBar / My Sessions', () => {
     const markup = render({ ...data, sessions: [{ ...data.sessions[0], sailing_start: start, sailing_end: end }] })
     const firstDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Europe/Madrid' }).format(new Date(start))
     const nextDay = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Europe/Madrid' }).format(new Date(end))
-    expect(markup).toContain(`<h2>${data.sessions[0].location_label} · <time dateTime="${start}">${firstDay}</time></h2>`)
+    expect(markup).toContain(`<h3>${data.sessions[0].location_label} · <time dateTime="${start}">${firstDay}</time></h3>`)
     expect(markup).toContain(`<p class="personal-session__summary"><time dateTime="${start}">23:30</time>–<time dateTime="${end}">${nextDay} · 01:15</time> · 2 sailors</p>`)
   })
 
@@ -89,9 +90,9 @@ describe('Personal TackBar / My Sessions', () => {
 
   it('opens the existing Viewer from the available row and leaves unavailable history inert', async () => {
     const markup = render(data)
-    expect(markup).toMatch(/<a[^>]*href="\/s\/shared-session-token"[^>]*><h2>/)
-    expect(markup).toMatch(/<div[^>]*aria-disabled="true"[^>]*><h2>/)
-    expect(markup).not.toContain('Open Session')
+    expect(markup).toMatch(/<a[^>]*href="\/s\/shared-session-token"[^>]*><h3>/)
+    expect(markup).toMatch(/<div[^>]*aria-disabled="true"[^>]*><h3>/)
+    expect(markup).not.toContain('>Open Session</a>')
     expect(markup.match(/Session unavailable/g)).toHaveLength(1)
     const router = createMemoryRouter(appRoutes, { initialEntries: ['/me/personal-token'] })
     expect(router.state.matches.at(-1)?.route.path).toBe('/me/:token')
@@ -124,9 +125,36 @@ describe('Personal TackBar / My Sessions', () => {
     const matches = filterPersonalSessions(sessions, 'spain')
     expect(matches).toEqual(sessions)
     const markup = render({ ...data, session_count: 4, sessions: matches })
-    const positions = matches.map((session) => markup.indexOf(`dateTime="${session.sailing_start}"`))
+    const listMarkup = markup.slice(markup.indexOf('<div id="my-sessions-content"'))
+    const positions = matches.map((session) => listMarkup.indexOf(`dateTime="${session.sailing_start}"`))
     expect(positions).toEqual([...positions].sort((left, right) => left - right))
-    expect(markup.match(/Session unavailable/g)).toHaveLength(2)
+    expect(listMarkup.match(/Session unavailable/g)).toHaveLength(2)
+  })
+
+  it('uses sailing chronology for LAST SESSION even when an unavailable Session follows an available one', () => {
+    const latest = { ...data.sessions[1], sailing_start: '2026-09-07T10:00:00Z', sailing_end: '2026-09-07T11:00:00Z', location_country: 'Portugal' }
+    const markup = render({ ...data, sessions: [data.sessions[0], latest] })
+    const summary = markup.slice(markup.indexOf('<section class="personal-last-session"'), markup.indexOf('</section>', markup.indexOf('<section class="personal-last-session"')))
+    expect(summary).toContain('Portugal · <time dateTime="2026-09-07T10:00:00Z"')
+    expect(summary).toMatch(/dateTime="2026-09-07T11:00:00Z"[^>]*>[^<]+<\/time> · 3 sailors/)
+    expect(summary).toContain('Session unavailable')
+    expect(summary).toContain('personal-session--unavailable')
+    expect(summary).not.toContain('href=')
+    const history = markup.slice(markup.indexOf('<div id="my-sessions-content"'))
+    expect(history.indexOf('<li class="personal-session"')).toBeLessThan(history.indexOf('<li class="personal-session personal-session--unavailable"'))
+  })
+
+  it('makes the latest available Session card itself the only action in its area', () => {
+    const markup = render(data)
+    const summary = markup.slice(markup.indexOf('<section class="personal-last-session"'), markup.indexOf('</section>', markup.indexOf('<section class="personal-last-session"')))
+    expect(summary).toContain('class="personal-session__target"')
+    expect(summary).toContain('href="/s/shared-session-token"')
+    expect(summary).toContain('referrerPolicy="no-referrer"')
+    expect(summary).toContain('092° · 4.2 kt · 23 °C')
+    expect(summary).toContain('2 sailors')
+    expect(summary.match(/<a\b/g)).toHaveLength(1)
+    expect(summary).not.toContain('>Open Session</a>')
+    expect(markup).toContain('id="my-sessions-content" hidden=""')
   })
 
   it('shows loading and handles denied access without identifying a Sailor', async () => {
@@ -150,21 +178,28 @@ describe('Personal TackBar / My Sessions', () => {
 
   it('keeps the identity and count with an empty history', () => {
     const markup = render({ email: data.email, name: null, session_count: 0, last_sailing_end: null, sessions: [] })
-    expect(markup).toContain('sailor@example.com</p><h1 id="my-sessions-heading">My Sessions</h1><p>0 Sessions</p>')
+    expect(markup).toContain('Name:</strong> Not set</p><p><strong>Email:')
+    expect(markup).toContain('0 Sessions')
     expect(markup).toContain('No Sessions recorded yet.')
     expect(markup).not.toContain('Last sailing:')
-    expect(markup).not.toContain('Open Session')
+    expect(markup).toContain('Open Last Session')
+    expect(markup).not.toContain('class="personal-session"')
   })
 
-  it.each([null, '', '   ', '\t\n'])('shows only email when name is %j', (name) => {
+  it('uses the singular Session count for one entry', () => {
+    const markup = render({ ...data, session_count: 1, sessions: [data.sessions[0]] })
+    expect(markup).toContain('<p>1 Session</p>')
+    expect(markup).not.toContain('<p>1 Sessions</p>')
+  })
+
+  it.each([null, '', '   ', '\t\n'])('shows an unset name and read-only email when name is %j', (name) => {
     const markup = render({ ...data, name })
-    expect(markup).toContain('<p class="personal-name">sailor@example.com</p><h1 id="my-sessions-heading">My Sessions</h1><p>2 Sessions</p>')
-    expect(markup).not.toContain('sailor@example.com -')
-    expect(markup).not.toContain('Last sailing')
+    expect(markup).toContain('Name:</strong> Not set</p><p><strong>Email:')
+    expect(markup).toContain('Email:</strong> sailor@example.com')
   })
 
   it('trims surrounding whitespace from a usable name', () => {
-    expect(render({ ...data, name: '  Test Sailor  ' })).toContain('sailor@example.com - Test Sailor</p>')
+    expect(render({ ...data, name: '  Test Sailor  ' })).toContain('Name:</strong> Test Sailor</p>')
   })
 
   it('encodes the personal credential and supports cancellation', async () => {
