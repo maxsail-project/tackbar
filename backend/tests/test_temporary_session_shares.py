@@ -407,6 +407,12 @@ def test_temporary_timer_read_rechecks_share_and_visibility_without_metadata(
         {"timestamp": "2031-06-01T09:00:02+00:00", "event_type": 4,
          "timer_value_seconds": 0},
     ]
+    records[0]["line_positions"] = [
+        {"timestamp": "2031-06-01T08:00:00.123456+00:00", "endpoint_type": 0,
+         "latitude": 38.1, "longitude": -0.2},
+        {"timestamp": "2031-06-01T08:00:01+00:00", "endpoint_type": 2,
+         "latitude": 38.2, "longitude": -0.3},
+    ]
     _write_json(temporary_directory / "activities.json", records)
     share = service.create_or_reuse(ORIGINAL_TOKEN)
     assert share is not None
@@ -418,6 +424,7 @@ def test_temporary_timer_read_rechecks_share_and_visibility_without_metadata(
     assert [item.activity_id for item in loaded.activities] == [ACTIVITY_ID]
     assert [event.event_type for event in loaded.activities[0].race_timer_events] == [3, 3]
     assert [event.timestamp.microsecond for event in loaded.activities[0].race_timer_events] == [789000, 789000]
+    assert [(position.endpoint_type, position.latitude, position.longitude) for position in loaded.activities[0].line_positions] == [(0, 38.1, -0.2)]
 
     sailor = sailors.get_by_id(SAILOR_ID)
     assert sailor is not None

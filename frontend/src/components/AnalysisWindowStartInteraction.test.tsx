@@ -45,7 +45,7 @@ async function renderWindow() {
       activityRole: 'primary', centerTimeMs: startTime + 5_000,
       maneuver: { start_time: timestamp, center_time: timestamp, end_time: timestamp } as never,
     }]}
-    sessionStarts={[{ label: 'S01', time: startTime + 5_000, activityIds: ['a', 'b'] }]}
+    sessionStarts={[{ label: 'S1', time: startTime + 5_000, activityIds: ['a', 'b'] }]}
     onRangeChange={onRangeChange}
     onManeuverSelect={onManeuver}
     onSessionStartSelect={onStart}
@@ -71,7 +71,7 @@ describe('Analysis Window Start controls', () => {
       pointer(control.firstElementChild!, 'pointerup', 100)
       pointerClick(control)
     })
-    expect(onStart).toHaveBeenCalledExactlyOnceWith({ label: 'S01', time: startTime + 5_000, activityIds: ['a', 'b'] })
+    expect(onStart).toHaveBeenCalledExactlyOnceWith({ label: 'S1', time: startTime + 5_000, activityIds: ['a', 'b'] })
     expect(onManeuver).not.toHaveBeenCalled()
     expect(onRangeChange).not.toHaveBeenCalled()
     expect(setPointerCapture).not.toHaveBeenCalled()
@@ -135,7 +135,7 @@ describe('Analysis Window Start controls', () => {
         availableRange={range}
         analysisWindow={window}
         primarySamples={[]}
-        sessionStarts={[{ label: 'S01', time: startTime + 5_000, activityIds: ['a'] }]}
+        sessionStarts={[{ label: 'S1', time: startTime + 5_000, activityIds: ['a'] }]}
         onRangeChange={setWindow}
         onSessionStartSelect={onStart}
       />

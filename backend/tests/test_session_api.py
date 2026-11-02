@@ -134,12 +134,15 @@ def test_shared_timer_read_is_minimal_ordered_and_current_visibility(
     assert initial.status_code == 200
     assert [item["activity_id"] for item in initial.json["activities"]] == [ACTIVITY_A]
     assert set(initial.json) == {"activities"}
-    assert set(initial.json["activities"][0]) == {"activity_id", "race_timer_events"}
+    assert set(initial.json["activities"][0]) == {"activity_id", "race_timer_events", "line_positions"}
     assert [event["event_type"] for event in initial.json["activities"][0]["race_timer_events"]] == [3, 3, 3]
     assert initial.json["activities"][0]["race_timer_events"][0]["timestamp"].startswith("2031-06-01T08:00:00.123")
     assert initial.json["activities"][0]["race_timer_events"][1]["timestamp"] == initial.json["activities"][0]["race_timer_events"][0]["timestamp"]
     assert initial.json["activities"][0]["race_timer_events"][2]["timestamp"].startswith("2031-06-01T07:59:59")
-    assert "line_positions" not in json.dumps(initial.json)
+    assert initial.json["activities"][0]["line_positions"] == [{
+        "timestamp": "2031-06-01T08:00:00Z", "endpoint_type": 1,
+        "latitude": 1.0, "longitude": 2.0,
+    }]
     assert "shift_angle" not in json.dumps(initial.json)
     assert "timer_value_seconds" not in json.dumps(initial.json)
     assert ACTIVITY_B not in json.dumps(initial.json)
@@ -184,7 +187,7 @@ def test_shared_timer_read_legacy_activity_has_explicit_empty_events(
     response = _get(f"/api/shared/sessions/{TOKEN}/race-timer-events")
     assert response.status_code == 200
     assert response.json == {
-        "activities": [{"activity_id": ACTIVITY_A, "race_timer_events": []}]
+        "activities": [{"activity_id": ACTIVITY_A, "race_timer_events": [], "line_positions": []}]
     }
 
 

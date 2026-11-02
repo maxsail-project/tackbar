@@ -121,32 +121,32 @@ function render({
 describe('Analysis Window SOG timeline', () => {
   it('shows only in-window Session Starts with two accessible controls and a full-height guide', () => {
     const sessionStarts: InferredSessionStart[] = [
-      { label: 'S01', time: availableRange.start + 1_000, activityIds: ['a'] },
-      { label: 'S02', time: availableRange.start + 2_123, activityIds: ['a', 'b'] },
-      { label: 'S03', time: availableRange.start + 8_000, activityIds: ['a', 'b'] },
-      { label: 'S04', time: availableRange.start + 9_000, activityIds: ['a'] },
+      { label: 'S1', time: availableRange.start + 1_000, activityIds: ['a'] },
+      { label: 'S2', time: availableRange.start + 2_123, activityIds: ['a', 'b'] },
+      { label: 'S3', time: availableRange.start + 8_000, activityIds: ['a', 'b'] },
+      { label: 'S4', time: availableRange.start + 9_000, activityIds: ['a'] },
     ]
     const markup = render({ primarySamples: [], sessionStarts })
-    expect(markup).not.toContain('>S01</span></button>')
-    expect(markup.match(/>S02<\/span><\/button>/g)).toHaveLength(2)
-    expect(markup.match(/>S03<\/span><\/button>/g)).toHaveLength(2)
-    expect(markup).not.toContain('>S04</span></button>')
+    expect(markup).not.toContain('>S1</span></button>')
+    expect(markup.match(/>S2<\/span><\/button>/g)).toHaveLength(2)
+    expect(markup.match(/>S3<\/span><\/button>/g)).toHaveLength(2)
+    expect(markup).not.toContain('>S4</span></button>')
     expect(markup).toContain('analysis-window__session-start-guide')
     expect(markup).toMatch(/left:2\.05\d*%/)
-    expect(markup).toContain('S02 Start at 2031-01-01T10:00:02.123 UTC, move replay')
+    expect(markup).toContain('S2 Start at 2031-01-01T10:00:02.123 UTC, move replay')
     expect(markup).not.toContain('10:00:02.123</span>')
   })
 
   it('announces a median between UTC milliseconds without truncating the seek time', () => {
     const markup = render({ primarySamples: [], sessionStarts: [
-      { label: 'S01', time: availableRange.start + 5_123.5, activityIds: ['a', 'b'] },
+      { label: 'S1', time: availableRange.start + 5_123.5, activityIds: ['a', 'b'] },
     ] })
-    expect(markup).toContain('S01 Start at 2031-01-01T10:00:05.1235 UTC, move replay')
+    expect(markup).toContain('S1 Start at 2031-01-01T10:00:05.1235 UTC, move replay')
   })
 
   it('keeps Start tap targets above maneuver markers while leaving the timeline middle brushable', () => {
     const markup = render({ primarySamples: [], maneuvers: [maneuver(4, 'primary')], sessionStarts: [
-      { label: 'S01', time: availableRange.start + 4_000, activityIds: ['a', 'b'] },
+      { label: 'S1', time: availableRange.start + 4_000, activityIds: ['a', 'b'] },
     ] })
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
     expect(markup).toContain('analysis-window__maneuver-marker')
@@ -161,8 +161,8 @@ describe('Analysis Window SOG timeline', () => {
 
   it('keeps both edge Start controls fully inside the clipped timeline', () => {
     const markup = render({ primarySamples: [], window: availableRange, sessionStarts: [
-      { label: 'S01', time: availableRange.start, activityIds: ['a'] },
-      { label: 'S02', time: availableRange.end, activityIds: ['a'] },
+      { label: 'S1', time: availableRange.start, activityIds: ['a'] },
+      { label: 'S2', time: availableRange.end, activityIds: ['a'] },
     ] })
     expect(markup.match(/transform:translateX\(0\)/g)).toHaveLength(2)
     expect(markup.match(/transform:translateX\(-100%\)/g)).toHaveLength(2)
@@ -171,10 +171,10 @@ describe('Analysis Window SOG timeline', () => {
   it('separates nearby labels on a long timeline without moving their UTC guides', () => {
     const range = { start: 0, end: 7_200_000 }
     const starts: InferredSessionStart[] = [
-      { label: 'S01', time: 0, activityIds: ['a'] },
-      { label: 'S02', time: 300_000, activityIds: ['a'] },
-      { label: 'S03', time: 600_000, activityIds: ['a'] },
-      { label: 'S04', time: 7_200_000, activityIds: ['a'] },
+      { label: 'S1', time: 0, activityIds: ['a'] },
+      { label: 'S2', time: 300_000, activityIds: ['a'] },
+      { label: 'S3', time: 600_000, activityIds: ['a'] },
+      { label: 'S4', time: 7_200_000, activityIds: ['a'] },
     ]
     const offsets = sessionStartControlOffsets(starts, range, 320)
     const centers = starts.map((start, index) => (start.time / range.end) * 320 + (offsets[index] ?? 0))

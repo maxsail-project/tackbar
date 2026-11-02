@@ -85,6 +85,7 @@ export interface SessionRaceTimerEvents {
   activities: {
     activity_id: string
     race_timer_events: { timestamp: string, event_type: 3 }[]
+    line_positions: { timestamp: string, endpoint_type: 0 | 1, latitude: number, longitude: number }[]
   }[]
 }
 

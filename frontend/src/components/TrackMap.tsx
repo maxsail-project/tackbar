@@ -18,6 +18,7 @@ import {
 import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import type { ManeuverActivityRole } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
+import type { SessionStartLine } from '../utils/sessionStartLines'
 import {
   buildTrackGeometry,
   combineTrackBounds,
@@ -41,6 +42,7 @@ interface TrackMapProps {
   primaryVisibleSamples: TrackSample[]
   comparisonVisibleSamples?: TrackSample[]
   contextualActivities?: ContextualMapActivity[]
+  sessionStartLines?: SessionStartLine[]
   fitContextKey: string
   focusRequest?: MapFocusRequest | null
   selectedManeuverHighlights?: SelectedManeuverHighlight[]
@@ -368,6 +370,7 @@ export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
   contextualActivities = [],
+  sessionStartLines = [],
   fitContextKey,
   focusRequest = null,
   selectedManeuverHighlights = [],
@@ -540,6 +543,21 @@ export default function TrackMap({
         onLoad={fitTrack}
         onRotate={(event) => setMapBearing(event.viewState.bearing)}
       >
+        {sessionStartLines.filter((line) => line.pin && line.boat).map((line) => (
+          <Source key={`session-start-line-${line.label}`} id={`session-start-line-${line.label}`} type="geojson" data={{
+            type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[line.pin!.longitude, line.pin!.latitude], [line.boat!.longitude, line.boat!.latitude]] },
+          }}>
+            <Layer id={`session-start-line-layer-${line.label}`} type="line" paint={{ 'line-color': '#52636b', 'line-opacity': 0.72, 'line-width': 1.5 }} layout={TRACK_LAYOUT} />
+          </Source>
+        ))}
+        {sessionStartLines.flatMap((line) => ([
+          ...(line.pin ? [{ label: `P${line.label.slice(1)}`, point: line.pin }] : []),
+          ...(line.boat ? [{ label: `B${line.label.slice(1)}`, point: line.boat }] : []),
+        ])).map(({ label, point }) => (
+          <Marker key={`session-start-endpoint-${label}`} longitude={point.longitude} latitude={point.latitude} anchor="center" style={{ zIndex: 2 }}>
+            <span className="session-start-line-marker" role="img" aria-label={`${label} Session start line endpoint`}>{label}</span>
+          </Marker>
+        ))}
         {contextualGeometries.map(({ activity, geometry }) => geometry && (
           <Source
             key={activity.id}

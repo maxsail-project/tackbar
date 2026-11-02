@@ -93,9 +93,17 @@ class SharedRaceTimerEventResponse(BaseModel):
     event_type: Literal[3]
 
 
+class SharedLinePositionResponse(BaseModel):
+    timestamp: datetime
+    endpoint_type: Literal[0, 1]
+    latitude: float
+    longitude: float
+
+
 class SharedActivityRaceTimerEventsResponse(BaseModel):
     activity_id: str
     race_timer_events: list[SharedRaceTimerEventResponse]
+    line_positions: list[SharedLinePositionResponse]
 
 
 class SharedSessionRaceTimerEventsResponse(BaseModel):

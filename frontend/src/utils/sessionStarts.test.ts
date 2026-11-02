@@ -15,6 +15,7 @@ function activity(id: string, events: [number, number][]): SessionTimerActivity 
       timestamp: new Date(BASE + offsetMs).toISOString(),
       event_type,
     })),
+    line_positions: [],
   }
 }
 
@@ -24,7 +25,7 @@ function times(activities: SessionTimerActivity[], thresholds?: Parameters<typeo
 
 describe('Session Start inference', () => {
   it('infers both Atlas timer-zero Starts with or without other timer events', () => {
-    const source: SessionTimerActivity = { activity_id: 'atlas', race_timer_events: [
+    const source: SessionTimerActivity = { activity_id: 'atlas', line_positions: [], race_timer_events: [
       { timestamp: '2026-10-31T12:23:13.060Z', event_type: 1 },
       { timestamp: '2026-10-31T12:24:04.824Z', event_type: 0 },
       { timestamp: '2026-10-31T12:26:27.935Z', event_type: 0 },
@@ -35,8 +36,8 @@ describe('Session Start inference', () => {
       { timestamp: '2026-10-31T13:12:55.160Z', event_type: 3 },
     ] }
     expect(inferSessionStarts([source]).map(({ label, time }) => [label, new Date(time).toISOString()])).toEqual([
-      ['S01', '2026-10-31T12:34:09.689Z'],
-      ['S02', '2026-10-31T13:12:55.160Z'],
+      ['S1', '2026-10-31T12:34:09.689Z'],
+      ['S2', '2026-10-31T13:12:55.160Z'],
     ])
     expect(inferSessionStarts([{
       ...source,
@@ -81,7 +82,7 @@ describe('Session Start inference', () => {
       activity('C', [[3_000, 3]]),
       activity('D', [[10_000, 3]]),
     ])
-    expect(starts).toEqual([{ label: 'S01', time: BASE + 1_001, activityIds: ['A', 'B', 'C'] }])
+    expect(starts).toEqual([{ label: 'S1', time: BASE + 1_001, activityIds: ['A', 'B', 'C'] }])
     expect(times([activity('A', [[0, 3]]), activity('B', [[3_001, 3]])])).toEqual([])
   })
 
@@ -128,7 +129,7 @@ describe('Session Start inference', () => {
       activity('B', [[1, 3]]),
       activity('C', [[2, 3]]),
     ])
-    expect(starts).toEqual([{ label: 'S01', time: BASE + 2, activityIds: ['A', 'B', 'C'] }])
+    expect(starts).toEqual([{ label: 'S1', time: BASE + 2, activityIds: ['A', 'B', 'C'] }])
   })
 
   it('keeps separate multi-device Starts across a long Session and numbers them chronologically', () => {
@@ -139,8 +140,8 @@ describe('Session Start inference', () => {
       activity('D', [[1_000, 3]]),
     ])
     expect(starts.map(({ label, time, activityIds }) => [label, time - BASE, activityIds])).toEqual([
-      ['S01', 1_000, ['A', 'B', 'D']],
-      ['S02', 601_000, ['A', 'B', 'C']],
+      ['S1', 1_000, ['A', 'B', 'D']],
+      ['S2', 601_000, ['A', 'B', 'C']],
     ])
   })
 
@@ -177,8 +178,8 @@ describe('Session Start inference', () => {
       activity('C', [[0, 3], [602_000, 3]]),
     ])
     expect(starts.map((start) => [start.label, start.time - BASE, start.activityIds.length])).toEqual([
-      ['S01', 0, 3],
-      ['S02', 601_000, 3],
+      ['S1', 0, 3],
+      ['S2', 601_000, 3],
     ])
   })
 
@@ -193,7 +194,7 @@ describe('Session Start inference', () => {
       activity(`A${String(index).padStart(2, '0')}`, [[index % 3 * 500, 3]]),
     )
     expect(inferSessionStarts(fleet)).toEqual([{
-      label: 'S01', time: BASE + 500, activityIds: fleet.map(({ activity_id }) => activity_id),
+      label: 'S1', time: BASE + 500, activityIds: fleet.map(({ activity_id }) => activity_id),
     }])
   })
 

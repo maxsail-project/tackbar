@@ -143,9 +143,9 @@ beforeEach(() => {
   vi.mocked(api.getActivityTrackForAccess).mockImplementation(async (_access, activityId) => track(activityId))
   vi.mocked(api.getActivityManeuversForAccess).mockImplementation(async (_access, activityId) => analytics(activityId))
   vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
-    { activity_id: 'a', race_timer_events: [{ timestamp: new Date(start + 5_000).toISOString(), event_type: 3 }] },
-    { activity_id: 'b', race_timer_events: [{ timestamp: new Date(start + 5_500).toISOString(), event_type: 3 }] },
-    { activity_id: 'c', race_timer_events: [] },
+    { activity_id: 'a', race_timer_events: [{ timestamp: new Date(start + 5_000).toISOString(), event_type: 3 }], line_positions: [] },
+    { activity_id: 'b', race_timer_events: [{ timestamp: new Date(start + 5_500).toISOString(), event_type: 3 }], line_positions: [] },
+    { activity_id: 'c', race_timer_events: [], line_positions: [] },
   ] })
   nextFrame = null
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
@@ -222,26 +222,26 @@ const marker = (seconds: number) => `[data-marker="${start + seconds * 1_000}"]`
 describe('Viewer selected maneuver interactions', () => {
   it.each(['original', 'temporary'] as const)('infers Starts from every visible Activity regardless of P/C with %s access', async (accessKind) => {
     await mountViewer(accessKind)
-    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
     await choose('My track', 'c')
     await choose('Compare', 'a')
-    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
     expect(api.getSessionRaceTimerEventsForAccess).toHaveBeenCalledTimes(1)
     expect(vi.mocked(api.getSessionRaceTimerEventsForAccess).mock.calls[0][0].kind).toBe(accessKind)
   })
 
   it('filters stable Sxx labels by window, restores them on Reset, and seeks without changing selection or window', async () => {
     await mountViewer()
-    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
     await click('[data-narrow-window]')
-    expect(container.querySelector('[data-start="S01"]')).toBeNull()
+    expect(container.querySelector('[data-start="S1"]')).toBeNull()
     await click('[data-reset-window]')
-    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
     await choose('Compare', 'c')
     await click('[data-play-replay]')
-    await click('[data-start="S01"]')
+    await click('[data-start="S1"]')
     expect(Number(container.querySelector('output')?.getAttribute('data-playback-time'))).toBe(start + 5_250)
-    expect(container.querySelector('[data-start="S01"]')).not.toBeNull()
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
     expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('c')
     expect(mapHighlights()).toEqual([])
     expect(nextFrame).not.toBeNull()
@@ -259,22 +259,22 @@ describe('Viewer selected maneuver interactions', () => {
     await mountViewer()
     await choose('Compare', 'b')
     expect(container.textContent).toContain('No comparable GPS/UTC interval')
-    expect(container.querySelector('[data-start="S01"]')).toBeNull()
+    expect(container.querySelector('[data-start="S1"]')).toBeNull()
   })
 
   it('discards a previous capability response after access changes', async () => {
-    let resolveOriginal!: (value: { activities: { activity_id: string, race_timer_events: { timestamp: string, event_type: 3 }[] }[] }) => void
+    let resolveOriginal!: (value: { activities: { activity_id: string, race_timer_events: { timestamp: string, event_type: 3 }[], line_positions: [] }[] }) => void
     vi.mocked(api.getSessionRaceTimerEventsForAccess).mockImplementation((access) => access.token === 'old'
       ? new Promise((resolve) => { resolveOriginal = resolve })
       : Promise.resolve({ activities: [{ activity_id: 'a', race_timer_events: [
         { timestamp: new Date(start + 7_000).toISOString(), event_type: 3 },
-      ] }] }))
+      ], line_positions: [] }] }))
     await act(async () => root.render(<SessionViewer access={{ kind: 'original', token: 'old' }} session={session} />))
     await act(async () => root.render(<SessionViewer access={{ kind: 'original', token: 'new' }} session={session} />))
     expect(container.querySelector('[data-start-time]')?.getAttribute('data-start-time')).toBe(String(start + 7_000))
     await act(async () => resolveOriginal({ activities: [{ activity_id: 'a', race_timer_events: [
       { timestamp: new Date(start + 2_000).toISOString(), event_type: 3 },
-    ] }] }))
+    ], line_positions: [] }] }))
     expect(container.querySelector('[data-start-time]')?.getAttribute('data-start-time')).toBe(String(start + 7_000))
   })
   it.each(['original', 'temporary'] as const)('keeps duplicate selector labels tied to Activity IDs across roles with %s access', async (accessKind) => {

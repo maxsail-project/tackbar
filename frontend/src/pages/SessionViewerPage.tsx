@@ -87,6 +87,7 @@ import {
 import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
 import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeometry'
 import { inferSessionStarts } from '../utils/sessionStarts'
+import { inferSessionStartLines, visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
 
 function useSessionRaceTimerEvents(access: SessionAccess) {
   const accessKey = `${access.kind}:${access.token}`
@@ -505,6 +506,10 @@ export function SessionViewer({
   const sessionStarts = useMemo(
     () => sessionRaceTimerEvents ? inferSessionStarts(sessionRaceTimerEvents.activities) : [],
     [sessionRaceTimerEvents],
+  )
+  const sessionStartLines = useMemo(
+    () => sessionRaceTimerEvents ? inferSessionStartLines(sessionStarts, sessionRaceTimerEvents.activities) : [],
+    [sessionRaceTimerEvents, sessionStarts],
   )
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
   const [shareStatus, setShareStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -1011,6 +1016,7 @@ export function SessionViewer({
           primaryVisibleSamples={primaryWindowSamples}
           comparisonVisibleSamples={comparisonWindowSamples}
           contextualActivities={contextualMapActivities}
+          sessionStartLines={analysisWindow ? visibleDeduplicatedSessionStartLines(sessionStartLines, analysisWindow) : []}
           fitContextKey={createMapFitContextKey(
             primaryTrack.activity_id,
             comparisonTrack?.activity_id ?? null,

@@ -300,7 +300,7 @@ describe('TackBar Session API client', () => {
   })
 
   it.each(['original', 'temporary'] as const)('reads minimal Session timer events through %s capability', async (kind) => {
-    const payload = { activities: [{ activity_id: 'activity', race_timer_events: [
+    const payload = { activities: [{ activity_id: 'activity', line_positions: [], race_timer_events: [
       { timestamp: '2031-06-15T08:00:00.123Z', event_type: 3 },
     ] }] }
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))

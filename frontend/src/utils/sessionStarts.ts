@@ -1,6 +1,7 @@
 export interface SessionTimerActivity {
   activity_id: string
   race_timer_events: { timestamp: string, event_type: number }[]
+  line_positions?: { timestamp: string, endpoint_type: 0 | 1, latitude: number, longitude: number }[]
 }
 
 export interface SessionStartThresholds {
@@ -99,7 +100,7 @@ export function inferSessionStarts(
   return selected
     .sort((a, b) => a.time - b.time)
     .map((group, index) => ({
-      label: `S${String(index + 1).padStart(2, '0')}`,
+      label: `S${index + 1}`,
       time: group.time,
       activityIds: group.activityIds,
     }))

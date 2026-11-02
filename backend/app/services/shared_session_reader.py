@@ -9,6 +9,7 @@ from app.api_models import (
     SharedSessionRaceTimerEventsResponse,
     SharedActivityRaceTimerEventsResponse,
     SharedRaceTimerEventResponse,
+    SharedLinePositionResponse,
 )
 from app.models import Session
 from app.services.activity_track_reader import ActivityTrackReader
@@ -107,6 +108,16 @@ class SharedSessionReader:
                     )
                     for event in activities_by_id[visible.id].race_timer_events
                     if event.event_type == 3
+                ],
+                line_positions=[
+                    SharedLinePositionResponse(
+                        timestamp=position.timestamp,
+                        endpoint_type=position.endpoint_type,
+                        latitude=position.latitude,
+                        longitude=position.longitude,
+                    )
+                    for position in activities_by_id[visible.id].line_positions
+                    if position.endpoint_type in (0, 1)
                 ],
             )
             for visible in detail.activities
