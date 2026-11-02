@@ -47,23 +47,26 @@ delivered release detail.
 
 ## Current product direction
 
-Continue validating and deepening the collaborative post-sailing debrief
-workflow with real sailors, selecting increments from the issue backlog based
-on observed product and operational needs. This direction does not commit a
-release, version or next feature.
+Build on TackBar's validated post-sailing workflow and delivered collaborative debrief capabilities. Track ingestion, consent-aware Session sharing, personal Sailor/Boat/Activity context, synchronized replay, comparative analytics, historical weather context, and recorded race-start evidence now provide a substantial foundation for real sailing debriefs.
+
+The next product focus is to make this evidence easier to explore, interpret and discuss together. TackBar should help sailors identify meaningful situations, compare observations and ask better questions, without automatically judging tactical decisions or presenting unsupported inferences as facts.
+
+Continue evolving the tablet-first experience through small, focused increments validated with real sailors. Prioritize clarity, traceability, reliable operations and reuse of existing capabilities over unnecessary complexity. Specific features and releases remain subject to explicit product decisions.
 
 ## Future directions
 
-Broad, non-committed themes include:
+Broad, non-committed areas for exploration include:
 
-- richer collaborative debrief analytics;
-- additional Activity sources and formats;
-- pilot and production automation and robustness;
-- saved and personal debrief concepts.
+- **Evidence-led collaborative debrief:** contextual Session Moments, meaningful comparisons, neutral sailing questions and guided exploration of tracks, replay and analytics, building on the [Debrief Experiences family (#149)](https://github.com/maxsail-project/tackbar/issues/149).
+- **Wind-aware sailing context:** wind-relative map orientation, transparent source provenance, manual wind references and progressively validated estimates or measurements, following the [Wind Reference family (#163)](https://github.com/maxsail-project/tackbar/issues/163) and related sensor feasibility research.
+- **Race and course context:** further use of recorded start-line and device observations, exploration of race-course references and wind-dependent analysis only where supported by reliable evidence.
+- **Additional Activity sources and formats:** broader compatibility with sailing instruments and navigation platforms, including Garmin-related integrations and other formats when technically and operationally viable.
+- **Debrief continuity and collaboration:** saved analysis windows, selected moments, focused sharing and personal follow-up experiences that extend the usefulness of a Session beyond the initial debrief.
+- **Operational maturity:** incremental improvements to ingestion automation, diagnostics, security, reliability and production operations, preserving the simplicity of the pilot workflow.
 
-Open GitHub Issues are the canonical pending-work inventory. The GitHub Project
-provides physical backlog ordering and presentation. These future directions do
-not assign versions, ordering or release commitments.
+These directions are opportunities for independent, evidence-driven increments, not a fixed implementation sequence or a commitment to additional features.
+
+Completed functionality is documented in the authoritative `docs/current/` specifications and recorded in the changelog. Open GitHub Issues remain the canonical pending-work inventory, while the GitHub Project provides backlog organization and presentation. Neither this roadmap nor backlog placement assigns release scope, priority or implementation authorization.
 
 ---
 
@@ -117,20 +120,23 @@ detalle de las releases entregadas.
 
 ## Dirección actual del producto
 
-Continuar validando y profundizando con regatistas reales el flujo de debriefing
-colaborativo posterior a la navegación, seleccionando incrementos del backlog de
-Issues según las necesidades observadas de producto y operación. Esta dirección
-no compromete una release, versión ni siguiente funcionalidad.
+Consolidar el flujo de trabajo validado de TackBar y las capacidades de debriefing colaborativo ya entregadas. La ingesta de tracks, las Sessions compartidas con control de consentimiento, el contexto personal de Sailor/Boat/Activity, el replay sincronizado, la analítica comparativa, el contexto meteorológico histórico y las evidencias registradas de las salidas de regata constituyen una base funcional sólida para analizar navegaciones reales.
+
+La siguiente prioridad de producto es facilitar la exploración, interpretación y discusión conjunta de esas evidencias. TackBar debe ayudar a los regatistas a identificar situaciones relevantes, comparar observaciones y plantear mejores preguntas, sin evaluar automáticamente decisiones tácticas ni presentar inferencias insuficientemente respaldadas como hechos.
+
+Continuar evolucionando la experiencia *tablet-first* mediante incrementos pequeños y focalizados, validados con regatistas reales. Priorizar claridad, trazabilidad, fiabilidad operativa y reutilización de las capacidades existentes frente a complejidad innecesaria. Las funcionalidades y releases concretas requieren decisiones explícitas de producto.
 
 ## Direcciones futuras
 
-Los temas amplios y no comprometidos incluyen:
+Las principales áreas de exploración, todavía no comprometidas, incluyen:
 
-- analítica más rica para el debriefing colaborativo;
-- fuentes y formatos adicionales de Activities;
-- automatización y robustez del piloto y producción;
-- conceptos de debriefing guardado y personal.
+- **Debriefing colaborativo basado en evidencias:** Contextual Session Moments, comparaciones significativas, preguntas neutrales de navegación y exploración guiada de tracks, replay y analítica, siguiendo la [familia Debrief Experiences (#149)](https://github.com/maxsail-project/tackbar/issues/149).
+- **Contexto de navegación respecto al viento:** orientación del mapa, procedencia transparente de la dirección del viento, referencias manuales y estimaciones o mediciones progresivamente validadas, conforme a la [familia Wind Reference (#163)](https://github.com/maxsail-project/tackbar/issues/163) y las investigaciones instrumentales relacionadas.
+- **Contexto de regata y recorrido:** aprovechamiento de los registros de salida y observaciones de los dispositivos, exploración de referencias del campo de regatas y análisis dependientes del viento únicamente cuando existan evidencias suficientes.
+- **Nuevas fuentes y formatos de Activities:** ampliación de la compatibilidad con instrumentos de navegación y plataformas como Garmin, así como otros formatos cuya viabilidad técnica y operativa quede demostrada.
+- **Continuidad y colaboración en el debriefing:** ventanas de análisis guardadas, momentos seleccionados, compartición focalizada y experiencias personales que permitan aprovechar una Session más allá del debriefing inicial.
+- **Madurez operativa:** mejoras incrementales en automatización de ingesta, diagnóstico, seguridad, fiabilidad y operación en producción, preservando la sencillez del flujo validado durante el piloto.
 
-Los Issues abiertos de GitHub son el inventario canónico del trabajo pendiente.
-El GitHub Project proporciona su orden físico y presentación. Estas direcciones
-futuras no asignan versiones, orden ni compromisos de release.
+Estas direcciones representan oportunidades de evolución mediante incrementos independientes y respaldados por evidencias. No constituyen una secuencia fija de implementación ni un compromiso de nuevas funcionalidades.
+
+Las capacidades entregadas se documentan en las especificaciones vigentes de `docs/current/` y se registran en el changelog. Los Issues abiertos de GitHub siguen siendo el inventario canónico del trabajo pendiente, mientras que el GitHub Project organiza y presenta el backlog. Ni este roadmap ni la posición de un Issue asignan alcance de release, prioridad o autorización de implementación.
