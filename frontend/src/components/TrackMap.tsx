@@ -693,7 +693,7 @@ export default function TrackMap({
           </Popup>
         )}
       </Map>
-      <div className="map-navigation-group" role="group" aria-label="Map direction and zoom controls">
+      <div className="map-navigation-group" role="group" aria-label="Map direction control">
         <div className="map-navigation-group__direction">
           <button type="button" aria-label="Rotate map 5 degrees counterclockwise" onClick={() => rotateMap(-5)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 2 7M4 4v6h6" /></svg>
@@ -705,10 +705,6 @@ export default function TrackMap({
           <button type="button" aria-label="Rotate map 5 degrees clockwise" onClick={() => rotateMap(5)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-2 7m2-13v6h-6" /></svg>
           </button>
-        </div>
-        <div className="map-navigation-group__zoom" aria-label="Zoom controls">
-          <button type="button" aria-label="Zoom out" onClick={() => mapRef.current?.getMap().zoomOut()}>−</button>
-          <button type="button" aria-label="Zoom in" onClick={() => mapRef.current?.getMap().zoomIn()}>+</button>
         </div>
       </div>
       <HistoricalConditionsControl
