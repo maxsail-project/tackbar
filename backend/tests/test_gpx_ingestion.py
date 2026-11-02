@@ -23,7 +23,7 @@ from app.storage.track_storage import TrackStorage
 
 # Reuse the existing offline MIME/IMAP and ASGI harnesses.
 from test_activity_track_api import _get
-from test_gpx import gpx_bytes
+from test_gpx import gpx_bytes, gpx_from_gaps_ns
 from test_ovh_adapter import _adapter, _message
 
 
@@ -123,11 +123,15 @@ def test_active_gpx_default_boat_raw_byte_identity_and_notification_compatibilit
     sailor, _ = runtime.sailors.find_or_create_by_email("sailor-a@example.com")
     boat = runtime.boats.add(Boat(str(uuid4()), "Default", "Snipe", "123"))
     runtime.sailors.replace(replace(sailor, consent_status=ConsentStatus.ACTIVE, personal_capability_token="p" * 43, default_boat_id=boat.id))
-    content = gpx_bytes()
+    content = gpx_bytes([*range(18), 19, 24, 34])
     raw = _message(attachments=[("track.gpx", content)])
     adapter, fake, _ = _adapter(monkeypatch, {b"1": raw})
     assert review_mailbox_now(adapter).processed == 1
     first = runtime.activities.all()[0]
+    frame = TrackStorage(runtime.root).read_normalized_track(first.id)
+    assert len(frame) == 21
+    assert frame.sog.tolist() == pytest.approx([2.16146] * 21, rel=1e-5)
+    assert frame.cog.tolist() == pytest.approx([90] * 21)
     assert first.boat_id == boat.id
     assert len(runtime.sent) == 1 and runtime.sent[0].subject == SESSION_RESULT_SUBJECT
     first_record = runtime.history.records()[0]
@@ -152,8 +156,12 @@ def test_active_gpx_default_boat_raw_byte_identity_and_notification_compatibilit
     assert len(runtime.sessions.all()) == 1
 
 
-def test_gpx_failure_preserves_original_and_history_and_review_continues(runtime, monkeypatch):
-    invalid = gpx_bytes((0, 11))
+@pytest.mark.parametrize("invalid,criterion", [
+    (gpx_bytes((0, 3)), "median adjacent timestamp gap exceeds 2 seconds"),
+    (gpx_from_gaps_ns([1_000_000_000] * 18 + [5_000_000_001, 10_000_000_000]), "P95 adjacent timestamp gap exceeds 5 seconds"),
+    (gpx_bytes((0, 11)), "adjacent timestamp gap exceeds 10 seconds"),
+])
+def test_gpx_failure_preserves_original_and_history_and_review_continues(runtime, monkeypatch, invalid, criterion):
     adapter, _, _ = _adapter(monkeypatch, {
         b"1": _message(attachments=[("invalid.gpx", invalid)]),
         b"2": _message(attachments=[("valid.gpx", gpx_bytes())]),
@@ -161,9 +169,10 @@ def test_gpx_failure_preserves_original_and_history_and_review_continues(runtime
     summary = review_mailbox_now(adapter)
     assert (summary.processed, summary.failed) == (1, 1)
     record = runtime.history.find_provider_message("ovh", "456:1")
-    assert record["status"] == "failed" and "10 seconds" in record["last_error"]
+    assert record["status"] == "failed" and criterion in record["last_error"]
     assert (runtime.root / record["original_file"]).read_bytes() == invalid
     assert len(runtime.activities.all()) == 1
     updated = reprocess(runtime, record)
     assert updated["status"] == "failed" and updated["attempts"] == 2
+    assert criterion in updated["last_error"]
     assert review_mailbox_now(adapter).discovered_candidates == 0

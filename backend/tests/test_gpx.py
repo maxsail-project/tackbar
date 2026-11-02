@@ -24,7 +24,16 @@ def gpx_bytes(seconds=(0, 1, 2, 3, 4), positions=None, namespace="http://www.top
     return f'<gpx xmlns="{namespace}" version="1.1"><trk><trkseg>{points}</trkseg></trk></gpx>'.encode()
 
 
-@pytest.mark.parametrize("seconds", [(0, 1, 2, 3, 4), (0, 2, 4, 6), (0, 2, 7, 9, 14), (0, 5, 10), (0, 10)])
+def gpx_from_gaps_ns(gaps_ns):
+    time = pd.Timestamp("2031-06-15T08:00:00Z")
+    points = [f'<trkpt lat="0" lon="0"><time>{time.isoformat()}</time></trkpt>']
+    for index, gap_ns in enumerate(gaps_ns, start=1):
+        time += pd.Timedelta(gap_ns, unit="ns")
+        points.append(f'<trkpt lat="0" lon="{index * .00001}"><time>{time.isoformat()}</time></trkpt>')
+    return f'<gpx><trk><trkseg>{"".join(points)}</trkseg></trk></gpx>'.encode()
+
+
+@pytest.mark.parametrize("seconds", [(0, 1, 2, 3, 4), (0, 2, 4, 6), (0, 1, 2, 4, 9)])
 def test_cadence_and_speed_use_elapsed_time_and_keep_all_samples(seconds):
     activity = parse_gpx(gpx_bytes(seconds), "training.GPX")
     assert len(activity.samples) == len(seconds)
@@ -51,7 +60,8 @@ def test_centered_window_and_one_sided_endpoints():
 
 
 def test_irregular_window_chooses_nearest_real_time_with_earlier_ties():
-    samples = parse_gpx(gpx_bytes((0, 2, 7, 9, 14), [(0, x * .00001) for x in (0, 1, 4, 9, 16)]), "track.gpx").samples
+    seconds = (0, 2, 7, 9, 14, 15, 16, 17, 18, 19, 20)
+    samples = parse_gpx(gpx_bytes(seconds, [(0, x * .00001) for x in (0, 1, 4, 9, 16, 17, 18, 19, 20, 21, 22)]), "track.gpx").samples
     # t7 uses t2 and t9, actual interval 7 seconds.
     assert samples[2]["sog"] == pytest.approx(8 / 7 * 2.16146, rel=1e-5)
     tied = parse_gpx(gpx_bytes((0, 1, 3, 4), [(0, x * .00001) for x in (0, 1, 9, 16)]), "track.gpx").samples
@@ -102,6 +112,51 @@ def test_order_and_gap_checks_use_normalized_utc_and_preserve_subseconds():
     content = gpx_bytes((0, 1)).replace(b"08:00:01+00:00", b"08:00:01.123456789+00:00")
     samples = parse_gpx(content, "track.gpx").samples
     assert normalize_track("activity", samples).utc.iloc[-1] == "2031-06-15T08:00:01.123456789Z"
+
+
+def test_one_hertz_and_quality_limit_equalities_preserve_all_samples():
+    one_hertz = parse_gpx(gpx_bytes(range(21)), "track.gpx")
+    assert len(one_hertz.samples) == 21
+    # 20 intervals: median 1 s, nearest-rank P95 5 s, maximum 10 s.
+    gaps = [1_000_000_000] * 17 + [2_000_000_000, 5_000_000_000, 10_000_000_000]
+    activity = parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
+    assert len(activity.samples) == len(gaps) + 1
+    assert [b["utc"].value - a["utc"].value for a, b in zip(activity.samples, activity.samples[1:])] == gaps
+
+
+@pytest.mark.parametrize("gaps", [
+    [2_000_000_000],  # One interval is its own median and P95.
+    [1_000_000_000, 3_000_000_000],  # Even-count median equals 2 s.
+])
+def test_median_limit_equality_is_accepted(gaps):
+    assert len(parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx").samples) == len(gaps) + 1
+
+
+def test_median_just_above_limit_rejects_independently():
+    # Median is 2 s + 0.5 ns; P95 and maximum still pass.
+    with pytest.raises(GPXParseError, match="median adjacent timestamp gap exceeds 2 seconds"):
+        parse_gpx(gpx_from_gaps_ns([1_000_000_000, 3_000_000_001]), "track.gpx")
+
+
+def test_p95_just_above_limit_rejects_independently():
+    # Nearest-rank P95 is the 19th of 20 sorted intervals.
+    gaps = [1_000_000_000] * 18 + [5_000_000_001, 10_000_000_000]
+    with pytest.raises(GPXParseError, match="P95 adjacent timestamp gap exceeds 5 seconds"):
+        parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
+
+
+def test_maximum_just_above_limit_rejects_independently():
+    # One outlier is above 10 s while nearest-rank P95 remains 1 s.
+    gaps = [1_000_000_000] * 19 + [10_000_000_001]
+    with pytest.raises(GPXParseError, match="adjacent timestamp gap exceeds 10 seconds"):
+        parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
+
+
+def test_sparse_garmin_like_cadence_fails_temporal_quality():
+    # Synthetic 5 s median with a few 11–12 s gaps, without private track data.
+    gaps = [5_000_000_000] * 18 + [11_000_000_000, 12_000_000_000]
+    with pytest.raises(GPXParseError, match="adjacent timestamp gap exceeds 10 seconds"):
+        parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
 
 
 def test_gzip_payload_cannot_bypass_plain_gpx_policy_by_filename():

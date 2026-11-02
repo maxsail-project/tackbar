@@ -24,6 +24,17 @@ MAX_GPX_BYTES = 16 * 1024 * 1024
 MAX_XML_ELEMENTS = 500_000
 MAX_XML_DEPTH = 32
 MAX_GPX_SAMPLES = 100_000
+# Plain GPX temporal-quality admission thresholds (Issue #171).
+# Require sufficiently frequent and consistent GPS samples for sailing analysis.
+# All three limits must be satisfied; values are in seconds.
+# Changes to these thresholds require review of the product contract and tests.
+MAX_MEDIAN_GAP_SECONDS = 2
+MAX_P95_GAP_SECONDS = 5
+MAX_ADJACENT_GAP_SECONDS = 10
+
+# Conversion factor for nanosecond-precision UTC interval comparisons.
+NS_PER_SECOND = 1_000_000_000
+
 TIMESTAMP = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?"
     r"(?:Z|[+-]\d{2}:\d{2})"
@@ -101,6 +112,7 @@ def parse_gpx(
         raise GPXParseError("GPX requires 2 to 100000 trackpoints")
 
     samples = []
+    gaps_ns = []
     for point in points:
         try:
             lat, lon = float(point.attrib["lat"]), float(point.attrib["lon"])
@@ -131,9 +143,33 @@ def parse_gpx(
                 raise GPXParseError(
                     "GPX timestamps must be strictly increasing in source order"
                 )
-            if delta_ns > 10_000_000_000:
-                raise GPXParseError("GPX adjacent timestamp gap exceeds 10 seconds")
+            if delta_ns > MAX_ADJACENT_GAP_SECONDS * NS_PER_SECOND:
+                raise GPXParseError(
+                    f"GPX adjacent timestamp gap exceeds {MAX_ADJACENT_GAP_SECONDS} seconds"
+                )
+            gaps_ns.append(delta_ns)
         samples.append({"utc": utc, "lat": lat, "lon": lon})
+
+    ordered_gaps = sorted(gaps_ns)
+    middle = len(ordered_gaps) // 2
+    # Compare the exact middle value or pair sum; no floating-point rounding.
+    if len(ordered_gaps) % 2:
+        median_exceeds = ordered_gaps[middle] > MAX_MEDIAN_GAP_SECONDS * NS_PER_SECOND
+    else:
+        median_exceeds = (
+            ordered_gaps[middle - 1] + ordered_gaps[middle]
+            > 2 * MAX_MEDIAN_GAP_SECONDS * NS_PER_SECOND
+        )
+    if median_exceeds:
+        raise GPXParseError(
+            f"GPX median adjacent timestamp gap exceeds {MAX_MEDIAN_GAP_SECONDS} seconds"
+        )
+    # Nearest-rank P95: sorted observed interval at rank ceil(0.95 * count).
+    p95_index = (95 * len(ordered_gaps) + 99) // 100 - 1
+    if ordered_gaps[p95_index] > MAX_P95_GAP_SECONDS * NS_PER_SECOND:
+        raise GPXParseError(
+            f"GPX P95 adjacent timestamp gap exceeds {MAX_P95_GAP_SECONDS} seconds"
+        )
 
     _derive_movement(samples)
     latitudes = [sample["lat"] for sample in samples]
