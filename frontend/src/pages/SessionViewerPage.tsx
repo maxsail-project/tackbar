@@ -384,6 +384,16 @@ export function createTimelineManeuverNavigation(
   }
 }
 
+export function createSessionStartNavigation(
+  startTime: number,
+  requestId: number,
+): { playbackTime: number, focusRequest: MapFocusRequest } {
+  return {
+    playbackTime: startTime,
+    focusRequest: { activityRole: 'primary', requestId },
+  }
+}
+
 export function resolveSelectedDisplayManeuver(
   selectedManeuverKey: string | null,
   displayManeuvers: DisplayManeuver[],
@@ -881,6 +891,13 @@ export function SessionViewer({
     selectManeuver(event, true)
   }
 
+  function selectSessionStart(start: { time: number }) {
+    scrubTo(start.time)
+    mapFocusRequestIdRef.current += 1
+    const navigation = createSessionStartNavigation(start.time, mapFocusRequestIdRef.current)
+    setMapFocusRequest(navigation.focusRequest)
+  }
+
   function selectTableManeuver(event: DisplayManeuver) {
     selectManeuver(event, false)
   }
@@ -1067,7 +1084,7 @@ export function SessionViewer({
         comparisonSamples={comparisonAvailableSamples}
         maneuvers={timelineManeuvers}
         sessionStarts={canReplay && availableRange !== null ? sessionStarts : []}
-        onSessionStartSelect={(start) => scrubTo(start.time)}
+        onSessionStartSelect={selectSessionStart}
         hasComparison={comparisonActivityId !== null}
         {...createAnalysisWindowSummaryMetrics(
           primarySummaryMetrics,

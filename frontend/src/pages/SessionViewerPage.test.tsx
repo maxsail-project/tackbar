@@ -7,6 +7,7 @@ import {
   createAnalysisWindowSummaryMetrics,
   createContextualMapActivities,
   createTimelineManeuverNavigation,
+  createSessionStartNavigation,
   promoteContextualActivityToComparison,
   resolveSelectedDisplayManeuver,
   resolveSelectedManeuverAnalytics,
@@ -364,6 +365,10 @@ describe('integrated Analysis Window replay', () => {
         activityRole: 'comparison',
         requestId: 3,
       },
+    })
+    expect(createSessionStartNavigation(789, 4)).toEqual({
+      playbackTime: 789,
+      focusRequest: { activityRole: 'primary', requestId: 4 },
     })
   })
 })

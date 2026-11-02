@@ -25,8 +25,8 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessUnavailableError: class extends Error {},
 }))
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime }: { selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number }) =>
-    <div data-map-playback-time={playbackTime}>{selectedManeuverHighlights.map((highlight) =>
+  default: ({ selectedManeuverHighlights, playbackTime, focusRequest }: { selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number, focusRequest: { activityRole: string, requestId: number } | null }) =>
+    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''}>{selectedManeuverHighlights.map((highlight) =>
       <span key={highlight.selectionIndex} data-map-highlight={highlight.selectionIndex} data-role={highlight.activityRole} data-geometry={JSON.stringify(highlight.geoJson.geometry.coordinates)} />
     )}</div>,
   createMapFitContextKey: () => 'test-map',
@@ -244,6 +244,11 @@ describe('Viewer selected maneuver interactions', () => {
     expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
     expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('c')
     expect(mapHighlights()).toEqual([])
+    expect(document.querySelector('[data-focus-role]')?.getAttribute('data-focus-role')).toBe('primary')
+    const firstFocusId = Number(document.querySelector('[data-focus-request]')?.getAttribute('data-focus-request'))
+    await click('[data-start="S1"]')
+    expect(Number(document.querySelector('output')?.getAttribute('data-playback-time'))).toBe(start + 5_250)
+    expect(Number(document.querySelector('[data-focus-request]')?.getAttribute('data-focus-request'))).toBeGreaterThan(firstFocusId)
     expect(nextFrame).not.toBeNull()
     expect(vi.mocked(globalThis.cancelAnimationFrame)).toHaveBeenCalled()
   })

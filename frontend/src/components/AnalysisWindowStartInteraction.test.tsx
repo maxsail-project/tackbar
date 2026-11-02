@@ -96,6 +96,7 @@ describe('Analysis Window Start controls', () => {
     expect(setPointerCapture).toHaveBeenCalledExactlyOnceWith(1)
     expect(onRangeChange).toHaveBeenCalledExactlyOnceWith({ start: startTime + 5_000, end: startTime + 8_000 })
     expect(onStart).not.toHaveBeenCalled()
+    expect(onRangeChange).toHaveBeenCalledOnce()
     expect(onManeuver).not.toHaveBeenCalled()
   })
 
