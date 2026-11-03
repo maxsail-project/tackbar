@@ -97,9 +97,9 @@ flowchart TB
   It does not persist the selected analysis window as a domain entity.
 - **Maneuver analytics are evidence-based.** Candidate events are not
   automatic tack/gybe classifications.
-- **Session context is optional and descriptive.** Historical/modelled
-  weather and marine values are not onboard measurements and do not enter
-  sailing analytics.
+- **Session context is optional.** Historical/modelled weather and marine
+  values are not onboard measurements. Persisted modelled wind can orient
+  the Viewer map as TWD; current sailing analytics do not consume it.
 - **Providers and storage are backend concerns.** The frontend consumes
   APIs, not private files; acquisition and context providers remain replaceable.
 

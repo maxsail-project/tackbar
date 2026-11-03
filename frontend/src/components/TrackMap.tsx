@@ -8,6 +8,7 @@ import Map, {
 } from 'react-map-gl/maplibre'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import HistoricalConditionsControl from './HistoricalConditionsControl'
+import TwdControl from './TwdControl'
 import { MAP_STYLE_URL } from '../config/map'
 import type { TrackSample } from '../types/track'
 import type { HistoricalConditionsSample } from '../types/session'
@@ -19,6 +20,8 @@ import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import type { ManeuverActivityRole } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import type { SessionStartLine } from '../utils/sessionStartLines'
+import type { TwdReference } from '../utils/twdReference'
+import type { TwdPresentation } from '../utils/twdPresentation'
 import {
   buildTrackGeometry,
   combineTrackBounds,
@@ -64,6 +67,10 @@ interface TrackMapProps {
   historicalConditionsSample?: HistoricalConditionsSample | null
   historicalConditionsWeatherProvider?: string | null
   historicalConditionsMarineProvider?: string | null
+  twdReference?: TwdReference
+  twdPresentation?: TwdPresentation
+  onTwdStep?: (step: -5 | 5) => void
+  onTwdAutomatic?: () => void
 }
 
 interface MapTelemetryOverlayProps {
@@ -392,9 +399,13 @@ export default function TrackMap({
   historicalConditionsSample = null,
   historicalConditionsWeatherProvider = null,
   historicalConditionsMarineProvider = null,
+  twdReference = { status: 'unavailable' },
+  twdPresentation = { bearing: 0, displayDegrees: null, automaticDegrees: null, manual: false },
+  onTwdStep = () => undefined,
+  onTwdAutomatic = () => undefined,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
-  const [mapBearing, setMapBearing] = useState(0)
+  const mapBearing = twdPresentation.bearing
   const [weatherDetailExpanded, setWeatherDetailExpanded] = useState(false)
   const [inspectedContextualActivityId, setInspectedContextualActivityId] = useState<string | null>(null)
   const fittedContextKeyRef = useRef<string | null>(null)
@@ -449,7 +460,7 @@ export default function TrackMap({
     if (combinedBounds) {
       mapRef.current.fitBounds(
         combinedBounds,
-        trackFitOptions(mapRef.current.getBearing()),
+        trackFitOptions(mapBearing),
       )
       return
     }
@@ -457,12 +468,15 @@ export default function TrackMap({
     mapRef.current.jumpTo({
       center: [windowFocus.lon, windowFocus.lat],
       zoom: 14,
+      bearing: mapBearing,
     })
-  }, [combinedBounds, windowFocus])
-  const rotateMap = (step: number) => {
-    const map = mapRef.current
-    if (!map) return
-    map.jumpTo({ bearing: steppedMapBearing(map.getBearing(), step) })
+  }, [combinedBounds, mapBearing, windowFocus])
+
+  const handleMapLoad = () => {
+    const map = mapRef.current?.getMap()
+    map?.touchZoomRotate.disableRotation()
+    map?.keyboard.disableRotation()
+    fitTrack()
   }
 
   useEffect(() => {
@@ -474,6 +488,12 @@ export default function TrackMap({
     fittedContextKeyRef.current = fitContextKey
     fitTrack()
   }, [fitContextKey, fitTrack])
+
+  useEffect(() => {
+    if (mapRef.current && mapRef.current.getBearing() !== mapBearing) {
+      mapRef.current.jumpTo({ bearing: mapBearing })
+    }
+  }, [mapBearing])
 
   useEffect(() => {
     if (
@@ -531,17 +551,19 @@ export default function TrackMap({
           ? {
               bounds: combinedBounds,
               fitBoundsOptions: FIT_OPTIONS,
+              bearing: mapBearing,
             }
           : {
               longitude: windowFocus.lon,
               latitude: windowFocus.lat,
               zoom: 14,
+              bearing: mapBearing,
             }}
         mapStyle={MAP_STYLE_URL}
         attributionControl={{ compact: true }}
+        dragRotate={false}
         {...mapWeatherDetailDismissHandlers(dismissWeatherDetail)}
-        onLoad={fitTrack}
-        onRotate={(event) => setMapBearing(event.viewState.bearing)}
+        onLoad={handleMapLoad}
       >
         {sessionStartLines.filter((line) => line.pin && line.boat).map((line) => (
           <Source key={`session-start-line-${line.label}`} id={`session-start-line-${line.label}`} type="geojson" data={{
@@ -711,20 +733,7 @@ export default function TrackMap({
           </Popup>
         )}
       </Map>
-      <div className="map-navigation-group" role="group" aria-label="Map direction control">
-        <div className="map-navigation-group__direction">
-          <button type="button" aria-label="Rotate map 5 degrees counterclockwise" onClick={() => rotateMap(-5)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 2 7M4 4v6h6" /></svg>
-          </button>
-          <span className="map-bearing__value" role="status" aria-label={`Map direction ${formatMapBearing(mapBearing)}`}>
-            <span>DIR</span>
-            <strong>{formatMapBearing(mapBearing)}</strong>
-          </span>
-          <button type="button" aria-label="Rotate map 5 degrees clockwise" onClick={() => rotateMap(5)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-2 7m2-13v6h-6" /></svg>
-          </button>
-        </div>
-      </div>
+      <TwdControl reference={twdReference} presentation={twdPresentation} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
       <HistoricalConditionsControl
         sample={historicalConditionsSample}
         weatherProvider={historicalConditionsWeatherProvider}

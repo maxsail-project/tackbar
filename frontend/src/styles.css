@@ -500,12 +500,17 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  max-width: calc(100% - 20px);
   overflow: hidden;
   border: 1px solid rgb(31 44 49 / 16%);
   border-radius: 7px;
   color: #273b41;
   background: #fff;
   box-shadow: 0 2px 7px rgb(7 31 37 / 14%);
+}
+
+.map-navigation-group--expanded {
+  z-index: 5;
 }
 
 .map-navigation-group__direction {
@@ -524,6 +529,73 @@ input:focus-visible {
   gap: 0;
   min-width: 2rem;
   white-space: nowrap;
+}
+
+.map-navigation-group__direction .map-bearing__value {
+  width: auto;
+  min-width: 44px;
+  padding: 3px 5px;
+  font-size: 0.63rem;
+}
+
+.map-navigation-group__direction .map-bearing__value strong {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-twd__manual {
+  padding: 0 8px 5px;
+  font-size: 0.58rem;
+  text-align: center;
+}
+
+.map-twd__detail {
+  width: min(270px, calc(100vw - 20px));
+  box-sizing: border-box;
+  padding: 10px;
+  border-top: 1px solid rgb(31 44 49 / 16%);
+  font-size: 0.7rem;
+}
+
+.map-twd__detail dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 9px;
+  margin: 0;
+}
+
+.map-twd__detail dl div {
+  display: contents;
+}
+
+.map-twd__detail dt {
+  color: #52636b;
+}
+
+.map-twd__detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.map-twd__detail p {
+  margin: 8px 0 0;
+}
+
+.map-twd__automatic {
+  min-height: 44px;
+  margin-top: 5px;
+  padding: 0 8px;
+  border: 1px solid #80949b;
+  border-radius: 4px;
+  color: inherit;
+  background: #eef4f5;
+  font: inherit;
+  cursor: pointer;
+}
+
+.map-twd__automatic:focus-visible {
+  outline: 2px solid #174e68;
+  outline-offset: 2px;
 }
 
 .map-navigation-group__direction button {

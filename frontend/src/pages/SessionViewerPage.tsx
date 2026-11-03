@@ -79,6 +79,8 @@ import {
   formatSessionRange,
 } from '../utils/sessionPresentation'
 import { selectHistoricalConditionsSample } from '../utils/historicalConditions'
+import { resolveTwdReference } from '../utils/twdReference'
+import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -510,6 +512,7 @@ export function SessionViewer({
     DEFAULT_VIEWER_METRIC_VIEW,
   )
   const [isPlaying, setIsPlaying] = useState(false)
+  const [manualTwdDegrees, setManualTwdDegrees] = useState<number | null>(null)
   const [speed, setSpeed] = useState<PlaybackSpeed>(5)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
   const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
@@ -753,6 +756,16 @@ export function SessionViewer({
     ),
     [analysisWindow, session.historical_conditions],
   )
+  const twdReference = useMemo(
+    () => resolveTwdReference(
+      analysisWindow === null
+        ? Number.NaN
+        : analysisWindow.start + (analysisWindow.end - analysisWindow.start) / 2,
+      session.historical_conditions,
+    ),
+    [analysisWindow, session.historical_conditions],
+  )
+  const twdPresentation = resolveTwdPresentation(twdReference, manualTwdDegrees)
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
@@ -1063,6 +1076,13 @@ export function SessionViewer({
           historicalConditionsSample={historicalConditionsSample}
           historicalConditionsWeatherProvider={session.historical_conditions?.weather_source?.provider ?? null}
           historicalConditionsMarineProvider={session.historical_conditions?.marine_source?.provider ?? null}
+          twdReference={twdReference}
+          twdPresentation={twdPresentation}
+          onTwdStep={(step) => setManualTwdDegrees((current) => stepViewerTwd(
+            current ?? twdPresentation.automaticDegrees,
+            step,
+          ))}
+          onTwdAutomatic={() => setManualTwdDegrees(null)}
         />
       ) : (
         <section className="track-unavailable" aria-live="polite">

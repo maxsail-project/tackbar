@@ -8,6 +8,8 @@ import type { SharedSessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
+import type { TwdReference } from '../utils/twdReference'
+import type { TwdPresentation } from '../utils/twdPresentation'
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../utils/replay'
 import { SessionViewer } from './SessionViewerPage'
 
@@ -25,8 +27,15 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessUnavailableError: class extends Error {},
 }))
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest }: { selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number, focusRequest: { activityRole: string, requestId: number } | null }) =>
-    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''}>{selectedManeuverHighlights.map((highlight) =>
+  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, twdReference, twdPresentation, onTwdStep, onTwdAutomatic }: {
+    selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
+    focusRequest: { activityRole: string, requestId: number } | null,
+    twdReference: TwdReference, twdPresentation: TwdPresentation,
+    onTwdStep: (step: -5 | 5) => void, onTwdAutomatic: () => void,
+  }) =>
+    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'}>
+      <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button>
+      {selectedManeuverHighlights.map((highlight) =>
       <span key={highlight.selectionIndex} data-map-highlight={highlight.selectionIndex} data-role={highlight.activityRole} data-geometry={JSON.stringify(highlight.geoJson.geometry.coordinates)} />
     )}</div>,
   createMapFitContextKey: () => 'test-map',
@@ -88,6 +97,19 @@ const session: SharedSessionDetail = {
     sailor: { id, name: id.toUpperCase(), email: `${id}@example.test` },
     boat: null,
   })),
+}
+
+const windSession: SharedSessionDetail = {
+  ...session,
+  historical_conditions: {
+    weather_source: { provider: 'open-meteo' }, marine_source: null,
+    hourly: [4, 9].map((seconds, index) => ({
+      time: new Date(start + seconds * 1_000).toISOString(),
+      wind_direction_10m_deg: index === 0 ? 91.6 : 180,
+      air_temperature_c: null, wind_speed_10m_kn: null, wind_gusts_10m_kn: null,
+      cloud_cover_pct: null, wave_height_m: null, wave_direction_deg: null, wave_period_s: null,
+    })),
+  },
 }
 
 function track(activityId: string): ActivityTrack {
@@ -156,6 +178,42 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
+})
+
+describe('Viewer TWD state', () => {
+  it.each(['original', 'temporary'] as const)('resolves current-window wind and preserves a manual correction on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const mapState = () => container.querySelector('[data-twd]')!
+    expect(mapState().getAttribute('data-twd')).toBe('90')
+    expect(mapState().getAttribute('data-twd-original')).toBe('91.6')
+    await click('[data-twd-plus]')
+    expect(mapState().getAttribute('data-twd')).toBe('95')
+    expect(mapState().getAttribute('data-twd-manual')).toBe('true')
+    await click('[data-narrow-window]')
+    expect(mapState().getAttribute('data-twd-original')).toBe('180')
+    expect(mapState().getAttribute('data-twd')).toBe('95')
+    await click('[data-twd-auto]')
+    expect(mapState().getAttribute('data-twd')).toBe('180')
+    expect(mapState().getAttribute('data-twd-manual')).toBe('false')
+    await click('[data-reset-window]')
+    expect(mapState().getAttribute('data-twd')).toBe('90')
+    await click('[data-play-replay]')
+    await act(async () => nextFrame!(performance.now() + 500))
+    expect(mapState().getAttribute('data-twd')).toBe('90')
+  })
+
+  it('keeps unavailable North-up distinct from manual-only ±5° and returns to unavailable', async () => {
+    await mountViewer('original', session)
+    const mapState = () => container.querySelector('[data-twd]')!
+    expect(mapState().getAttribute('data-twd')).toBe('unavailable')
+    expect(mapState().getAttribute('data-twd-bearing')).toBe('0')
+    await click('[data-twd-minus]')
+    expect(mapState().getAttribute('data-twd')).toBe('355')
+    await click('[data-twd-auto]')
+    expect(mapState().getAttribute('data-twd')).toBe('unavailable')
+    await click('[data-twd-plus]')
+    expect(mapState().getAttribute('data-twd')).toBe('5')
+  })
 })
 
 afterEach(async () => {
