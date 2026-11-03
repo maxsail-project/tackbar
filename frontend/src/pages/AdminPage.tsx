@@ -282,6 +282,7 @@ export default function AdminPage() {
   const [selectedSailor, setSelectedSailor] = useState<AdminSailorDetail | null>(null)
   const [selectedSession, setSelectedSession] = useState<AdminSession | null>(null)
   const [selectedActivity, setSelectedActivity] = useState<AdminActivity | null>(null)
+  const detailRevision = useRef(0)
   const [drilldown, setDrilldown] = useState<AdminDrilldown[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -289,6 +290,7 @@ export default function AdminPage() {
   const handleError = (cause: unknown) => {
     setError(errorMessage(cause))
     if (cause instanceof AdminApiError && cause.status === 401) {
+      detailRevision.current += 1
       setAdminKey(null)
       setSailors([])
       setSessions([])
@@ -346,35 +348,50 @@ export default function AdminPage() {
   }
   const refresh = async () => {
     if (!adminKey) return
+    const revision = detailRevision.current
     setBusy(true); setError(null)
     try {
       await loadAll(adminKey)
-      if (selectedSailor) setSelectedSailor(await getAdminSailor(adminKey, selectedSailor.id))
-      if (selectedSession) setSelectedSession(await getAdminSession(adminKey, selectedSession.id))
-      if (selectedActivity) setSelectedActivity(await getAdminActivity(adminKey, selectedActivity.id))
+      if (selectedSailor && revision === detailRevision.current) {
+        const detail = await getAdminSailor(adminKey, selectedSailor.id)
+        if (revision === detailRevision.current) setSelectedSailor(detail)
+      }
+      if (selectedSession && revision === detailRevision.current) {
+        const detail = await getAdminSession(adminKey, selectedSession.id)
+        if (revision === detailRevision.current) setSelectedSession(detail)
+      }
+      if (selectedActivity && revision === detailRevision.current) {
+        const detail = await getAdminActivity(adminKey, selectedActivity.id)
+        if (revision === detailRevision.current) setSelectedActivity(detail)
+      }
       const selected = drilldown.find((item) => item.kind === 'ingestion')
       if (selected) {
         const detail = await getAdminIngestion(adminKey, selected.value.id)
         setDrilldown((current) => current.map((item) => item.kind === 'ingestion' && item.value.id === detail.id ? { kind: 'ingestion', value: detail } : item))
       }
-    } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    } catch (cause) {
+      if (revision === detailRevision.current) { setSelectedSailor(null); setSelectedSession(null); setSelectedActivity(null) }
+      if (revision === detailRevision.current || (cause instanceof AdminApiError && cause.status === 401)) handleError(cause)
+    } finally { setBusy(false) }
   }
   const sailorAction = async (action: () => Promise<AdminSailorDetail>) => {
     if (!adminKey) return
+    const revision = detailRevision.current
     setBusy(true); setError(null)
     try {
       const updated = await action()
-      setSelectedSailor(updated)
+      if (revision === detailRevision.current) setSelectedSailor(updated)
       setSailors((current) => current.map((sailor) => sailor.id === updated.id ? updated : sailor))
       setSailors(await listAdminSailors(adminKey))
     } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
   const sessionAction = async (action: () => Promise<AdminSession>) => {
     if (!adminKey) return
+    const revision = detailRevision.current
     setBusy(true); setError(null)
     try {
       const updated = await action()
-      if (selectedSession?.id === updated.id) setSelectedSession(updated)
+      if (revision === detailRevision.current && selectedSession?.id === updated.id) setSelectedSession(updated)
       setSessions((current) => current.map((session) => session.id === updated.id ? updated : session))
       setSessions(await listAdminSessions(adminKey))
     } catch (cause) { handleError(cause) } finally { setBusy(false) }
@@ -421,22 +438,28 @@ export default function AdminPage() {
     try { setDrilldown([await fetchDrilldown('ingestion', id)]) } catch (cause) { ingestionToReveal.current = null; handleError(cause) } finally { setBusy(false) }
   }
   const selectActivity = async (id: string) => {
+    const revision = ++detailRevision.current
     if (selectedActivity?.id === id) { setSelectedActivity(null); return }
     if (!adminKey) return
+    setSelectedActivity(null)
     setBusy(true); setError(null)
-    try { setSelectedActivity(await getAdminActivity(adminKey, id)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    try { const detail = await getAdminActivity(adminKey, id); if (revision === detailRevision.current) setSelectedActivity(detail) } catch (cause) { if (revision === detailRevision.current || (cause instanceof AdminApiError && cause.status === 401)) handleError(cause) } finally { setBusy(false) }
   }
   const selectSailor = async (id: string) => {
+    const revision = ++detailRevision.current
     if (selectedSailor?.id === id) { setSelectedSailor(null); return }
     if (!adminKey) return
+    setSelectedSailor(null)
     setBusy(true); setError(null)
-    try { setSelectedSailor(await getAdminSailor(adminKey, id)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    try { const detail = await getAdminSailor(adminKey, id); if (revision === detailRevision.current) setSelectedSailor(detail) } catch (cause) { if (revision === detailRevision.current || (cause instanceof AdminApiError && cause.status === 401)) handleError(cause) } finally { setBusy(false) }
   }
   const selectSession = async (id: string) => {
+    const revision = ++detailRevision.current
     if (selectedSession?.id === id) { setSelectedSession(null); return }
     if (!adminKey) return
+    setSelectedSession(null)
     setBusy(true); setError(null)
-    try { setSelectedSession(await getAdminSession(adminKey, id)) } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    try { const detail = await getAdminSession(adminKey, id); if (revision === detailRevision.current) setSelectedSession(detail) } catch (cause) { if (revision === detailRevision.current || (cause instanceof AdminApiError && cause.status === 401)) handleError(cause) } finally { setBusy(false) }
   }
   const recalculateManeuvers = async () => {
     if (!adminKey || !selectedActivity) return
@@ -447,10 +470,13 @@ export default function AdminPage() {
     } catch (cause) { handleError(cause) } finally { setBusy(false) }
   }
   const followRelation = async (kind: AdminDrilldown['kind'], id: string) => {
+    const revision = ++detailRevision.current
     setBusy(true); setError(null)
     try {
       const target = adminNavigationTarget(kind, id, section)
       const next = await fetchDrilldown(target.selected.kind, target.selected.id)
+      if (revision !== detailRevision.current) return
+      setSelectedActivity(null); setSelectedSailor(null); setSelectedSession(null)
       // Newly processed uploads may refer to entities absent from the initial
       // dashboard snapshot. Insert the fetched entity into its owning list.
       if (next.kind === 'activity') { setActivitySearch(''); setActivities((current) => [next.value, ...current.filter((item) => item.id !== next.value.id)]) }
@@ -464,7 +490,15 @@ export default function AdminPage() {
       }
       else { setSelectedActivity(next.value); setDrilldown([]) }
       setSection(target.section)
-    } catch (cause) { handleError(cause) } finally { setBusy(false) }
+    } catch (cause) { if (revision === detailRevision.current || (cause instanceof AdminApiError && cause.status === 401)) handleError(cause) } finally { setBusy(false) }
+  }
+  const changeSection = (next: Section) => {
+    if (next !== section) {
+      detailRevision.current += 1
+      setSelectedActivity(null); setSelectedSailor(null); setSelectedSession(null)
+    }
+    setSection(next)
+    setDrilldown([])
   }
   const withSailorLabel = <T extends AdminIngestion,>(record: T): T => {
     const owner = record.provider === 'admin_upload' ? sailors.find((sailor) => sailor.id === record.owner_sailor_id) : undefined
@@ -487,7 +521,7 @@ export default function AdminPage() {
   return <main className="admin-page">
     <AdminHeader busy={busy} onRefresh={refresh} />
     <nav className="admin-tabs" aria-label="Admin sections">
-      {ADMIN_SECTION_ORDER.map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => { setSection(item); setDrilldown([]) }}>{item[0].toUpperCase() + item.slice(1)}</button>)}
+      {ADMIN_SECTION_ORDER.map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => changeSection(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
     </nav>
     {error && <p className="admin-error admin-feedback" role="alert">{error}</p>}
     {section === 'activities' ? <section className="admin-content"><h1>Activities</h1><AdminSearch value={activitySearch} busy={busy} placeholder="Sailor, Boat, Device or filename" onChange={(value) => { setActivitySearch(value); setSelectedActivity(null) }} />{visibleActivities.length === 0 && <p className="admin-meta">No Activities match the search.</p>}<div className="admin-list admin-activity-list">
