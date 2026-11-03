@@ -34,18 +34,22 @@ jobs:
         run: npm ci
 
       - name: Run complete frontend test suite
+        id: tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           npm run test -- \
             --reporter=default \
+            --reporter=github-actions \
             --reporter=junit \
             --outputFile.junit="$RUNNER_TEMP/frontend-linux-results.xml"
 
       - name: Typecheck frontend
+        id: typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
 
       - name: Build production frontend
+        id: build
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build
 
@@ -57,3 +61,101 @@ jobs:
           path: ${{ runner.temp }}/frontend-linux-results.xml
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Publish validation summary
+        if: always()
+        env:
+          SUMMARY_TITLE: 'Frontend (Linux)'
+          ARTIFACT_NAME: 'frontend-linux-junit'
+          REPORT_PATH: ${{ runner.temp }}/frontend-linux-results.xml
+          CHECK_INSTALL: ${{ steps.install.outcome }}
+          CHECK_TESTS: ${{ steps.tests.outcome }}
+          CHECK_TYPECHECK: ${{ steps.typecheck.outcome }}
+          CHECK_BUILD: ${{ steps.build.outcome }}
+        run: |
+          python3 - <<'PY'
+          import html
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+
+          def cell(value, limit=180):
+              return html.escape(' '.join(str(value or '').split())[:limit]).replace('|', r'\|').replace('`', r'\`')
+
+
+          def status(value):
+              return {
+                  'success': 'PASS',
+                  'failure': 'FAIL',
+                  'skipped': 'NOT RUN',
+                  'cancelled': 'CANCELLED',
+              }.get(value, 'UNKNOWN')
+
+
+          report = Path(os.environ['REPORT_PATH'])
+          sha = os.environ['GITHUB_SHA']
+          repo = os.environ['GITHUB_REPOSITORY']
+          server = os.environ['GITHUB_SERVER_URL']
+          run_url = f"{server}/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          lines = [
+              f"## {os.environ['SUMMARY_TITLE']} validation",
+              '',
+              f"**Commit:** [`{sha[:12]}`]({server}/{repo}/commit/{sha})",
+              f"**Run:** [View GitHub Actions execution]({run_url})",
+              '',
+              '| Check | Result |',
+              '| --- | --- |',
+          ]
+          checks = [('Install dependencies', os.environ['CHECK_INSTALL']),
+                    ('Tests', os.environ['CHECK_TESTS'])]
+          if os.environ['SUMMARY_TITLE'] == 'Frontend (Linux)':
+              checks.extend([
+                  ('TypeScript typecheck', os.environ['CHECK_TYPECHECK']),
+                  ('Production build', os.environ['CHECK_BUILD']),
+              ])
+          for name, outcome in checks:
+              lines.append(f'| {name} | **{status(outcome)}** |')
+
+          lines.extend(['', '### Test results', ''])
+          valid_report = False
+          if report.is_file():
+              try:
+                  cases = ET.parse(report).getroot().findall('.//testcase')
+                  if not cases:
+                      lines.append('JUnit XML contains no test cases; verify the test logs.')
+                  else:
+                      valid_report = True
+                      failed = [c for c in cases if c.find('failure') is not None or c.find('error') is not None]
+                      skipped = [c for c in cases if c.find('skipped') is not None]
+                      passed = len(cases) - len(failed) - len(skipped)
+                      lines.extend([
+                          '| Total | Passed | Failed / errors | Skipped |',
+                          '| ---: | ---: | ---: | ---: |',
+                          f'| **{len(cases)}** | **{passed}** | **{len(failed)}** | **{len(skipped)}** |',
+                      ])
+                      for heading, selected, limit in [('Failed tests', failed, 15), ('Skipped tests', skipped, 10)]:
+                          if selected:
+                              lines.extend(['', f'### {heading} (showing up to {limit})', ''])
+                              for case in selected[:limit]:
+                                  label = cell(f"{case.get('classname', '')} :: {case.get('name', '')}")
+                                  if heading == 'Failed tests':
+                                      detail = case.find('failure')
+                                      if detail is None:
+                                          detail = case.find('error')
+                                      message = cell(detail.get('message') or detail.text or '' if detail is not None else '', 220)
+                                      lines.append(f'- **{label}** — {message}' if message else f'- **{label}**')
+                                  else:
+                                      lines.append(f'- {label}')
+                              if len(selected) > limit:
+                                  lines.append(f'- ... and {len(selected) - limit} more; see JUnit XML.')
+              except (ET.ParseError, OSError) as exc:
+                  lines.append(f'JUnit XML is unreadable: {cell(exc)}')
+          else:
+              lines.append('JUnit XML was not generated; check installation and test logs.')
+
+          lines.extend(['', '**Full JUnit report:** download the `'+os.environ['ARTIFACT_NAME']+'` artifact from the run page (7-day retention).', ''])
+          Path(os.environ['GITHUB_STEP_SUMMARY']).write_text('\n'.join(lines), encoding='utf-8')
+          if os.environ['CHECK_TESTS'] == 'success' and not valid_report:
+              raise SystemExit('Test step succeeded but the JUnit report is absent, invalid, or empty.')
+          PY
