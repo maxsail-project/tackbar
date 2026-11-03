@@ -20,6 +20,7 @@ from app.repositories.boats import BoatRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.admin_reader import AdminDataIntegrityError
+from app.services.admin_diagnostics import persisted_model
 from app.services.ingestion_history import IngestionHistory
 from app.services.maneuver_analytics import (
     generate_maneuver_analytics,
@@ -110,26 +111,18 @@ class AdminActivityReader:
         )
         vkx_record_summary = self._vkx_record_summary(activity, technical_track)
         diagnostic = {
-            "id": activity.id,
-            "sailor_id": activity.sailor_id,
-            "boat_id": activity.boat_id,
-            "source": activity.source,
-            "device_name": activity.device_name,
-            "device_label": activity.device_label,
-            "original_filename": activity.original_filename,
-            "start_time": activity.start_time.isoformat(),
-            "end_time": activity.end_time.isoformat(),
-            "sample_count": activity.sample_count,
-            "attachment_sha256": activity.attachment_sha256,
-            "track_available": track_available,
-            "session_id": summary.session_id,
-            "source_ingestion_id": source_ingestion_id,
-            "source_ingestion_resolution": source_ingestion_resolution,
-            "source_ingestion_activity_created_by_ingestion": (
-                source_ingestion["activity_created_by_ingestion"]
-                if source_ingestion else None
-            ),
-            "related_ingestion_count": len(related_ingestions),
+            "persisted_record": persisted_model(activity),
+            "operational_context": {
+                "track_available": track_available,
+                "session_id": summary.session_id,
+                "source_ingestion_id": source_ingestion_id,
+                "source_ingestion_resolution": source_ingestion_resolution,
+                "source_ingestion_activity_created_by_ingestion": (
+                    source_ingestion["activity_created_by_ingestion"]
+                    if source_ingestion else None
+                ),
+                "related_ingestion_count": len(related_ingestions),
+            },
         }
         return AdminActivityResponse(
             **summary.model_dump(),

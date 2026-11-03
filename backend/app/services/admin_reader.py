@@ -39,6 +39,8 @@ from app.services.consent_requests import (
     CONSENT_REQUEST_DELIVERY_FAILURE,
     ConsentRequestService,
 )
+from app.services.admin_diagnostics import persisted_model
+from app.services.welcome_email_delivery import WELCOME_EMAIL_DELIVERY_FAILURE
 from app.services.sailor_sessions import sailor_sessions
 from app.services.shared_activity_visibility import (
     SharedActivityVisibilityError,
@@ -187,7 +189,10 @@ class AdminReader:
                 and sailor.consent_status == ConsentStatus.ACTIVE else None
             ),
             welcome_email_sent_at=sailor.welcome_email_sent_at,
-            welcome_email_last_error=sailor.welcome_email_last_error,
+            welcome_email_last_error=(
+                WELCOME_EMAIL_DELIVERY_FAILURE
+                if sailor.welcome_email_last_error is not None else None
+            ),
             consent_request=AdminConsentRequestResponse(
                 state=request_states[request_resolution.state],
                 agreement_version=(
@@ -221,22 +226,8 @@ class AdminReader:
             default_boat_id=sailor.default_boat_id,
             default_boat_status=default_status,
             diagnostic={
-                "sailor": {
-                    "id": sailor.id,
-                    "email": sailor.email,
-                    "name": sailor.name,
-                    "default_boat_id": sailor.default_boat_id,
-                    "consent_status": sailor.consent_status.value,
-                    "consent_request_sent_at": sailor.consent_request_sent_at,
-                    "consent_granted_at": sailor.consent_granted_at,
-                    "consent_revoked_at": sailor.consent_revoked_at,
-                    "personal_capability_revoked": sailor.personal_capability_revoked,
-                    "welcome_email_sent_at": sailor.welcome_email_sent_at,
-                    "welcome_email_last_error": (
-                        "Delivery failed"
-                        if sailor.welcome_email_last_error is not None else None
-                    ),
-                },
+                "persisted_record": persisted_model(sailor),
+                "operational_context": {
                 "operational_group": summary.operational_group,
                 "personal_capability_state": (
                     "revoked" if sailor.personal_capability_revoked else
@@ -292,6 +283,7 @@ class AdminReader:
                     }
                     for item in sessions
                 ],
+                },
             },
         )
 
@@ -459,31 +451,11 @@ class AdminReader:
                 if session.historical_conditions is not None else None
             ),
             diagnostic={
-                "session": {
-                    "id": session.id,
-                    "created_at": session.created_at.isoformat(),
-                    "expires_at": session.expires_at.isoformat(),
-                    "activity_ids": list(session.activity_ids),
+                "persisted_record": persisted_model(session),
+                "operational_context": {
                     "capability_state": state,
-                    "location": (
-                        {
-                            "label": session.location_label,
-                            "region": session.location_region,
-                            "country": session.location_country,
-                            "country_code": session.location_country_code,
-                            "provider": session.location_provider,
-                            "resolved_at": session.location_resolved_at,
-                            "source_activity_id": session.location_source_activity_id,
-                        }
-                        if session.has_geographic_context else None
-                    ),
-                    "historical_conditions": (
-                        asdict(session.historical_conditions)
-                        if session.historical_conditions is not None else None
-                    ),
-                },
-                "membership": [item.model_dump() for item in membership],
-                "temporary_shares": [
+                    "membership": [item.model_dump() for item in membership],
+                    "temporary_shares": [
                     {
                         "id": item.id,
                         "created_at": item.created_at.isoformat(),
@@ -491,7 +463,8 @@ class AdminReader:
                         "state": item.state,
                     }
                     for item in temporary_items
-                ],
+                    ],
+                },
             },
         )
 

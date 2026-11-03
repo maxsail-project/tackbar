@@ -246,7 +246,9 @@ def test_unsupported_or_corrupt_accepted_size_file_is_inspectable_failed_origina
     code, detail, _ = http("GET", f"/api/admin/ingestions/{accepted['id']}")
     assert code == 200 and detail["original_available"]
     assert detail["sailor_id"] == runtime.sailor.id and detail["sender_email"] is None
-    assert detail["diagnostic"]["owner_sailor_id"] == runtime.sailor.id
+    assert detail["diagnostic"]["persisted_record"]["owner_sailor_id"] == runtime.sailor.id
+    assert detail["diagnostic"]["persisted_record"]["original_file"] == record["original_file"]
+    assert detail["diagnostic"]["operational_context"]["original_available"] is True
 
 
 def test_admin_api_exposes_controlled_gpx_error_on_upload_and_reprocess(runtime, worker):

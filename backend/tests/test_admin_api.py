@@ -1,7 +1,7 @@
 import asyncio
 import gzip
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from pathlib import Path
@@ -19,8 +19,11 @@ from app.models import (
     HistoricalConditions,
     HistoricalConditionsSample,
     HistoricalConditionsSource,
+    StoredActivity, Sailor, Session,
 )
+from app.services.admin_diagnostics import REDACTED, persisted_model, persisted_ingestion
 from app.repositories.consent_events import ConsentEventRepository
+from app.repositories.activities import ActivityRepository
 from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
@@ -335,10 +338,10 @@ def test_admin_sailor_detail_resolves_default_boat_and_safe_diagnostics(
     }
     assert detail.json["default_boat_status"] == "historical"
     assert detail.json["owned_boats"] == []
-    assert detail.json["diagnostic"]["default_boat"]["id"] == boat_id
+    assert detail.json["diagnostic"]["operational_context"]["default_boat"]["id"] == boat_id
     serialized = json.dumps(detail.json["diagnostic"])
     assert ACTIVE_TOKEN not in serialized
-    assert "personal_capability_token" not in serialized
+    assert detail.json["diagnostic"]["persisted_record"]["personal_capability_token"] is None
     assert "capability_path" not in serialized
 
 
@@ -1348,7 +1351,7 @@ def test_admin_session_detail_summarizes_temporary_shares_using_existing_states(
     assert temporary_token not in diagnostic
     assert TEMP_ACTIVE_TOKEN not in diagnostic
     assert matching_fingerprint not in diagnostic
-    assert {item["state"] for item in response.json["diagnostic"]["temporary_shares"]} == {
+    assert {item["state"] for item in response.json["diagnostic"]["operational_context"]["temporary_shares"]} == {
         "VALID", "EXPIRED", "UNAVAILABLE",
     }
 
@@ -1721,9 +1724,9 @@ def test_admin_ingestion_detail_exposes_safe_traceability_notification_and_diagn
     assert response.json["activity_created_by_ingestion"] is True
     assert response.json["session_result_notification"]["status"] == "sent"
     assert response.json["attachment_sha256"] == "a" * 64
-    assert response.json["diagnostic"]["original_available"] is False
-    assert "original_file" not in response.json["diagnostic"]
-    assert "pending_onboarding_reservation" not in response.json["diagnostic"]
+    assert response.json["diagnostic"]["operational_context"]["original_available"] is False
+    assert response.json["diagnostic"]["persisted_record"]["original_file"] is None
+    assert response.json["diagnostic"]["persisted_record"]["pending_onboarding_reservation"] is None
     assert str(root) not in json.dumps(response.json)
 
 
@@ -1764,10 +1767,10 @@ def test_admin_activity_detail_uses_authoritative_source_ingestion_and_safe_json
     assert response.json["sailor_id"] == ACTIVE
     assert response.json["session_id"] == SESSION_ACTIVE
     assert response.json["track_available"] is False
-    assert response.json["diagnostic"]["source_ingestion_id"] == source["id"]
-    assert response.json["diagnostic"]["source_ingestion_activity_created_by_ingestion"] is True
-    assert response.json["diagnostic"]["related_ingestion_count"] == 2
-    assert "track_file" not in response.json["diagnostic"]
+    assert response.json["diagnostic"]["operational_context"]["source_ingestion_id"] == source["id"]
+    assert response.json["diagnostic"]["operational_context"]["source_ingestion_activity_created_by_ingestion"] is True
+    assert response.json["diagnostic"]["operational_context"]["related_ingestion_count"] == 2
+    assert response.json["diagnostic"]["persisted_record"]["track_file"] == f"tracks/{ACTIVITY_ACTIVE}.csv.gz"
     assert str(root) not in json.dumps(response.json)
 
 
@@ -1804,7 +1807,7 @@ def test_admin_activity_detail_uses_single_related_ingestion_without_changing_pr
     assert response.json["source_ingestion_id"] == related["id"]
     assert response.json["source_ingestion_resolution"] == expected_resolution
     assert response.json["related_ingestions"] == []
-    assert response.json["diagnostic"]["source_ingestion_activity_created_by_ingestion"] is provenance
+    assert response.json["diagnostic"]["operational_context"]["source_ingestion_activity_created_by_ingestion"] is provenance
     assert history.get(related["id"])["activity_created_by_ingestion"] is provenance
 
 
@@ -1820,7 +1823,7 @@ def test_admin_activity_detail_reports_no_related_ingestion(
     assert response.json["source_ingestion_id"] is None
     assert response.json["source_ingestion_resolution"] == "none"
     assert response.json["related_ingestions"] == []
-    assert response.json["diagnostic"]["related_ingestion_count"] == 0
+    assert response.json["diagnostic"]["operational_context"]["related_ingestion_count"] == 0
 
 
 def test_admin_activity_detail_reports_ambiguous_related_ingestions_without_guessing(
@@ -1862,7 +1865,7 @@ def test_admin_activity_detail_reports_ambiguous_related_ingestions_without_gues
         set(candidate) == {"id", "attachment_name", "received_at"}
         for candidate in response.json["related_ingestions"]
     )
-    assert response.json["diagnostic"]["related_ingestion_count"] == 2
+    assert response.json["diagnostic"]["operational_context"]["related_ingestion_count"] == 2
 
 
 def test_admin_activity_detail_reports_canonical_technical_track_evidence(
@@ -1963,11 +1966,153 @@ def test_admin_vkx_detail_separates_source_normalized_and_persisted_counts(
         "0x05": ("Line Position", "activity_observations", 2),
         "0x06": ("Shift Angle", "activity_observations", 2),
     }
-    assert '"race_timer_events":' not in json.dumps(detail.json)
-    assert '"line_positions":' not in json.dumps(detail.json)
-    assert '"shift_angle_observations":' not in json.dumps(detail.json)
+    assert detail.json["diagnostic"]["persisted_record"]["race_timer_events"] == [{
+        "timestamp": "2031-06-10T10:00:00.789+00:00", "event_type": 3, "timer_value_seconds": -2,
+    }]
+    assert detail.json["diagnostic"]["persisted_record"]["line_positions"] == []
+    assert detail.json["diagnostic"]["persisted_record"]["shift_angle_observations"] == [{
+        "timestamp": "2031-06-10T10:00:00.789+00:00", "tack_code": 1,
+        "setting_origin_code": 7, "true_heading_degrees": 359.5, "average_sog_knots": 4.25,
+    }]
     assert str(root) not in json.dumps(detail.json)
     assert (root / "activities.json").read_bytes() == before
+
+
+def test_admin_diagnostics_cover_canonical_records_and_redact_secrets(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    activity_records = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    selected_activity = activity_records[0]
+    selected_activity["race_timer_events"] = [
+        {"timestamp": "2031-06-10T10:00:00.123000+00:00", "event_type": 3, "timer_value_seconds": 0},
+        {"timestamp": "2031-06-10T10:00:01.456000+00:00", "event_type": 2, "timer_value_seconds": 5},
+    ]
+    selected_activity["line_positions"] = [{"timestamp": "2031-06-10T10:00:00.789000+00:00", "endpoint_type": 1, "latitude": 38.1, "longitude": -0.2}]
+    _write_json(root / "activities.json", activity_records)
+    sailor_records = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    selected_sailor = next(item for item in sailor_records if item["id"] == ACTIVE)
+    token = "admin-personal-secret-" + "x" * 40
+    selected_sailor.update(personal_capability_token=token, welcome_email_last_error="private SMTP host /secret/path")
+    _write_json(root / "sailors.json", sailor_records)
+    session_records = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
+    selected_session = next(item for item in session_records if item["id"] == SESSION_ACTIVE)
+    selected_session["historical_conditions"] = {
+        "coverage_start": "2026-08-10T09:00:00+00:00", "coverage_end": "2026-08-10T10:00:00+00:00",
+        "requested_latitude": 38.1, "requested_longitude": -0.2,
+        "weather_source": {"provider": "test", "route": "archive", "retrieved_at": "2026-08-11T00:00:00+00:00", "grid_latitude": 38.1, "grid_longitude": -0.2},
+        "marine_source": None, "hourly": [{"time": "2026-08-10T09:00:00+00:00", "air_temperature_c": 24}],
+    }
+    _write_json(root / "sessions.json", session_records)
+    history = IngestionHistory(root / "ingestion_history.json")
+    record = history.create("ovh", "message-1", "active@example.com", "track.vkx", "a" * 64)
+    record.update(technical_notice_reason="invalid_track", original_file=f"originals/ingestions/{record['id']}/track.vkx",
+                  pending_onboarding_reservation={"sailor_id": ACTIVE, "consent_cycle_sequence": 1, "activity_id": ACTIVITY_ACTIVE, "session_id": TEMP_SESSION_ID})
+    history.replace(record)
+
+    paths = {"activity": f"/api/admin/activities/{ACTIVITY_ACTIVE}", "sailor": f"/api/admin/sailors/{ACTIVE}",
+             "session": f"/api/admin/sessions/{SESSION_ACTIVE}", "ingestion": f"/api/admin/ingestions/{record['id']}"}
+    responses = {kind: _request("GET", path) for kind, path in paths.items()}
+    assert all(response.status_code == 200 for response in responses.values())
+    assert all(_request("GET", path, admin_key=None).status_code == 401 for path in paths.values())
+    activity_record = responses["activity"].json["diagnostic"]["persisted_record"]
+    sailor_record = responses["sailor"].json["diagnostic"]["persisted_record"]
+    session_record = responses["session"].json["diagnostic"]["persisted_record"]
+    ingestion_record = responses["ingestion"].json["diagnostic"]["persisted_record"]
+    assert set(activity_record) == {field.name for field in fields(StoredActivity)}
+    assert set(sailor_record) == {field.name for field in fields(Sailor)}
+    assert set(session_record) == {field.name for field in fields(Session)}
+    assert set(ingestion_record) == set(record)
+    assert activity_record["start_lat"] == 0.1 and activity_record["center_lon"] == -30.15
+    assert activity_record["track_file"] == f"tracks/{ACTIVITY_ACTIVE}.csv.gz"
+    assert [event["timestamp"] for event in activity_record["race_timer_events"]] == [
+        "2031-06-10T10:00:00.123+00:00", "2031-06-10T10:00:01.456+00:00",
+    ]
+    assert activity_record["line_positions"][0] == {
+        "timestamp": "2031-06-10T10:00:00.789+00:00", "endpoint_type": 1,
+        "latitude": 38.1, "longitude": -0.2,
+    }
+    assert sailor_record["personal_capability_token"] == REDACTED
+    assert sailor_record["welcome_email_last_error"] == "Delivery failed"
+    assert sailor_record["consent_status"] == "ACTIVE"
+    assert sailor_record["consent_granted_at"] == "2026-08-02T12:00:00.000+00:00"
+    assert responses["sailor"].json["welcome_email_last_error"] == "Welcome email delivery failed"
+    assert "private SMTP host" not in json.dumps(responses["sailor"].json)
+    assert session_record["capability_token"] == REDACTED
+    assert session_record["capability_revoked"] is False
+    assert session_record["expires_at"] == "2099-03-02T00:00:00.000+00:00"
+    assert session_record["historical_conditions"]["hourly"][0]["air_temperature_c"] == 24
+    revoked = _request("GET", f"/api/admin/sessions/{SESSION_REVOKED}")
+    assert revoked.json["diagnostic"]["persisted_record"]["capability_revoked"] is True
+    assert revoked.json["diagnostic"]["persisted_record"]["capability_token"] is None
+    assert ingestion_record["technical_notice_reason"] == "invalid_track"
+    assert ingestion_record["original_file"] == record["original_file"]
+    assert ingestion_record["pending_onboarding_reservation"] == record["pending_onboarding_reservation"]
+    assert all("operational_context" in response.json["diagnostic"] for response in responses.values())
+    diagnostic_json = json.dumps({kind: response.json["diagnostic"] for kind, response in responses.items()})
+    assert token not in diagnostic_json and ACTIVE_TOKEN not in diagnostic_json
+    assert "private SMTP host" not in diagnostic_json and str(root) not in diagnostic_json
+
+
+def test_admin_diagnostic_classification_fails_closed_for_new_fields(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    _use_runtime(monkeypatch, temporary_directory)
+    from app.services import admin_diagnostics
+    activity = admin_diagnostics.persisted_model(ActivityRepository().get_by_id(ACTIVITY_ACTIVE))
+    assert activity["id"] == ACTIVITY_ACTIVE
+    monkeypatch.setitem(admin_diagnostics.SAFE_FIELDS, StoredActivity, admin_diagnostics.SAFE_FIELDS[StoredActivity] - {"center_lat"})
+    with pytest.raises(ValueError, match="classification requires review"):
+        admin_diagnostics.persisted_model(ActivityRepository().get_by_id(ACTIVITY_ACTIVE))
+    record = IngestionHistory().create("ovh", "new-field", "active@example.com", "track.gpx", "b" * 64)
+    with pytest.raises(ValueError, match="classification requires review"):
+        persisted_ingestion({**record, "new_sensitive_field": "secret"})
+
+
+def test_admin_diagnostic_paths_are_fail_closed(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    activity = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    activity[0]["track_file"] = "C:/private/tracks/secret.csv.gz"
+    _write_json(root / "activities.json", activity)
+    detail = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    assert detail.status_code == 200
+    assert detail.json["diagnostic"]["persisted_record"]["track_file"] == REDACTED
+    assert "C:/private" not in json.dumps(detail.json["diagnostic"])
+    ingestion = IngestionHistory(root / "ingestion_history.json").create("ovh", "unsafe-path", "active@example.com", "track.gpx", "c" * 64)
+    ingestion["original_file"] = "C:/private/originals/track.gpx"
+    ingestion["last_error"] = "private server at C:/private/originals"
+    projected = persisted_ingestion(ingestion)
+    assert projected["original_file"] == REDACTED
+    assert projected["last_error"] == "Processing failed"
+    assert "C:/private" not in json.dumps(projected)
+
+
+def test_admin_activity_diagnostic_reads_current_persisted_record(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    path = root / "activities.json"
+    first = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    records = json.loads(path.read_text(encoding="utf-8"))
+    records[0]["center_lat"] = 38.125
+    _write_json(path, records)
+    second = _request("GET", f"/api/admin/activities/{ACTIVITY_ACTIVE}")
+    assert first.status_code == second.status_code == 200
+    assert first.json["diagnostic"]["persisted_record"]["center_lat"] == 0.15
+    assert second.json["diagnostic"]["persisted_record"]["center_lat"] == 38.125
+
+
+def test_admin_diagnostic_preserves_legacy_naive_sailor_time_without_claiming_utc(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    path = root / "sailors.json"
+    sailors = json.loads(path.read_text(encoding="utf-8"))
+    next(item for item in sailors if item["id"] == ACTIVE)["consent_granted_at"] = "2026-08-02T12:00:00"
+    _write_json(path, sailors)
+    response = _request("GET", f"/api/admin/sailors/{ACTIVE}")
+    assert response.status_code == 200
+    assert response.json["diagnostic"]["persisted_record"]["consent_granted_at"] == "2026-08-02T12:00:00.000"
 
 
 @pytest.mark.parametrize("original", [None, b"bad gzip"])

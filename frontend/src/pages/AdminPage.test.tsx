@@ -772,6 +772,18 @@ describe('minimal Admin UI', () => {
     expect(markup).not.toContain('Map'); expect(markup).not.toContain('Metrics')
   })
 
+  it('renders persisted and operational diagnostic sections without transforming their safe values', () => {
+    const diagnostic = {
+      persisted_record: { track_file: 'tracks/activity-1.csv.gz', race_timer_events: [{ timestamp: '2031-06-10T10:00:00.123+00:00', event_type: 3 }] },
+      operational_context: { track_available: true },
+    }
+    const markup = renderToStaticMarkup(<ActivityAdminDetail activity={{ ...activity, diagnostic }} onFollow={() => undefined} />)
+    expect(markup).toContain('persisted_record')
+    expect(markup).toContain('operational_context')
+    expect(markup).toContain('tracks/activity-1.csv.gz')
+    expect(markup).toContain('2031-06-10T10:00:00.123+00:00')
+  })
+
   it('keeps non-VKX Activity detail free of a VKX summary', () => {
     const markup = renderToStaticMarkup(<ActivityAdminDetail activity={activity} onFollow={() => undefined} />)
     expect(markup).not.toContain('VKX Record Summary')

@@ -26,6 +26,7 @@ from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services.admin_reader import AdminDataIntegrityError, AdminReader
+from app.services.admin_diagnostics import persisted_ingestion
 from app.services.admin_activities import AdminActivityReader
 from app.services.admin_consent_requests import (
     AdminConsentRequestEligibilityError,
@@ -592,27 +593,9 @@ def _ingestion_detail_response(record: dict, *, resolve_context: bool = True) ->
         raise AdminDataIntegrityError("Activity references unknown Sailor")
     notification = record["session_result_notification"]
     diagnostic = {
-        "id": record["id"],
-        "provider": record["provider"],
-        "provider_message_id": record["provider_message_id"],
-        "sender_email": record["sender_email"],
-        "received_at": record["received_at"],
-        "attachment_name": record["attachment_name"],
-        "attachment_sha256": record["attachment_sha256"],
-        "status": record["status"],
-        "disposition": record["disposition"],
-        "attempts": record["attempts"],
-        "last_attempt_at": record["last_attempt_at"],
-        "last_error": record["last_error"],
-        "activity_id": record["activity_id"],
-        "session_id": record["session_id"],
-        "activity_created_by_ingestion": record["activity_created_by_ingestion"],
-        "session_result_notification_candidate": record["session_result_notification_candidate"],
-        "session_result_notification": notification,
-        "original_available": summary.original_available,
+        "persisted_record": persisted_ingestion(record),
+        "operational_context": {"original_available": summary.original_available},
     }
-    if record["provider"] == ADMIN_UPLOAD:
-        diagnostic.update({key: record[key] for key in ("operation_id", "owner_sailor_id", "accepted_at")})
     return AdminIngestionDetailResponse(
         **summary.model_dump(),
         session_result_notification_candidate=record["session_result_notification_candidate"],
