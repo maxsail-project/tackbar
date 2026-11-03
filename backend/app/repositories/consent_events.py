@@ -5,6 +5,7 @@ from pathlib import Path
 
 from app.identity import require_uuid
 from app.models import ConsentEvent, ConsentEventType
+from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
 
 
@@ -13,10 +14,11 @@ class ConsentEventRepository:
         self.path = runtime_paths().consent_events if path is None else Path(path)
 
     def all(self) -> list[ConsentEvent]:
-        if not self.path.exists():
+        content = read_collection_text(self.path)
+        if content is None:
             return []
 
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(content)
         if not isinstance(data, list):
             raise ValueError("Consent event storage must contain a JSON list")
         events = [_deserialize_event(item) for item in data]
@@ -45,11 +47,7 @@ class ConsentEventRepository:
             record["event_type"] = event.event_type.value
             record["timestamp"] = event.timestamp.isoformat()
             records.append(record)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(records, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        write_collection_text(self.path, json.dumps(records, indent=2, ensure_ascii=False) + "\n")
 
 
 def _deserialize_event(item: dict[str, object]) -> ConsentEvent:

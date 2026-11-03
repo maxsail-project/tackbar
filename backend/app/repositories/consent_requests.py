@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.identity import require_uuid
 from app.models import ConsentRequest
+from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
 
 
@@ -23,10 +24,11 @@ class ConsentRequestRepository:
         self.path = runtime_paths().consent_requests if path is None else Path(path)
 
     def all(self) -> list[ConsentRequest]:
-        if not self.path.exists():
+        content = read_collection_text(self.path)
+        if content is None:
             return []
 
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(content)
         if not isinstance(data, list):
             raise ValueError("Consent request storage must contain a JSON list")
         requests = [_deserialize_request(item) for item in data]
@@ -83,11 +85,7 @@ class ConsentRequestRepository:
                 value = getattr(request, field_name)
                 record[field_name] = value.isoformat() if value is not None else None
             records.append(record)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(records, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        write_collection_text(self.path, json.dumps(records, indent=2, ensure_ascii=False) + "\n")
 
 
 def is_consent_request_token(value: object) -> bool:

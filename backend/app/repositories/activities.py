@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.models import Activity, LinePosition, RaceTimerEvent, ShiftAngleObservation, StoredActivity
+from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
 
 
@@ -151,10 +152,11 @@ class ActivityRepository:
         raise ValueError(f"Activity not found: {activity_id}")
 
     def _load(self) -> list[StoredActivity]:
-        if not self.path.exists():
+        content = read_collection_text(self.path)
+        if content is None:
             return []
 
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(content)
         if not isinstance(data, list):
             raise ValueError("Activity storage must contain a JSON list")
 
@@ -204,10 +206,11 @@ class ActivityRepository:
 
     def _save(self, activities: list[StoredActivity]) -> None:
         existing_by_id = {}
-        if self.path.exists():
+        existing_content = read_collection_text(self.path)
+        if existing_content is not None:
             existing_by_id = {
                 item["id"]: item
-                for item in json.loads(self.path.read_text(encoding="utf-8"))
+                for item in json.loads(existing_content)
             }
         records = []
         for activity in activities:
@@ -226,11 +229,7 @@ class ActivityRepository:
                     del record[collection]
             records.append(record)
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(records, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        write_collection_text(self.path, json.dumps(records, indent=2, ensure_ascii=False) + "\n")
 
 
 def _parse_datetime(value: str) -> datetime:

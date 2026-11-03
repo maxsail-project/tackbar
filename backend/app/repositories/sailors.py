@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from app.identity import normalize_email, require_uuid
 from app.models import ConsentStatus, Sailor
+from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
 
 
@@ -15,10 +16,11 @@ class SailorRepository:
         self.path = runtime_paths().sailors if path is None else Path(path)
 
     def all(self) -> list[Sailor]:
-        if not self.path.exists():
+        content = read_collection_text(self.path)
+        if content is None:
             return []
 
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(content)
         if not isinstance(data, list):
             raise ValueError("Sailor storage must contain a JSON list")
         sailors = [_deserialize_sailor(item) for item in data]
@@ -72,15 +74,13 @@ class SailorRepository:
 
     def _save(self, sailors: list[Sailor]) -> None:
         _validate_sailors(sailors)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
+        write_collection_text(self.path,
             json.dumps(
                 [_serialize_sailor(sailor) for sailor in sailors],
                 indent=2,
                 ensure_ascii=False,
             )
             + "\n",
-            encoding="utf-8",
         )
 
 

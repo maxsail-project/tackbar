@@ -11,6 +11,7 @@ from app.models import (
     HistoricalConditionsSource,
     Session,
 )
+from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
 
 
@@ -24,10 +25,11 @@ class SessionRepository:
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def all(self) -> list[Session]:
-        if not self.path.exists():
+        content = read_collection_text(self.path)
+        if content is None:
             return []
 
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(content)
         if not isinstance(data, list):
             raise ValueError("Session storage must contain a JSON list")
         migrated = False
@@ -133,15 +135,13 @@ class SessionRepository:
         raise ValueError(f"Session not found: {replacement.id}")
 
     def _save(self, sessions: list[Session]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
+        write_collection_text(self.path,
             json.dumps(
                 [_serialize_session(session) for session in sessions],
                 indent=2,
                 ensure_ascii=False,
             )
             + "\n",
-            encoding="utf-8",
         )
 
 

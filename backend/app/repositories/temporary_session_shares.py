@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.identity import require_uuid
 from app.models import TemporarySessionShare
+from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
 
 
@@ -22,9 +23,10 @@ class TemporarySessionShareRepository:
         )
 
     def all(self) -> list[TemporarySessionShare]:
-        if not self.path.exists():
+        content = read_collection_text(self.path)
+        if content is None:
             return []
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(content)
         if not isinstance(data, list):
             raise ValueError(
                 "Temporary Session share storage must contain a JSON list"
@@ -50,11 +52,7 @@ class TemporarySessionShareRepository:
             record["created_at"] = share.created_at.isoformat()
             record["expires_at"] = share.expires_at.isoformat()
             records.append(record)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(records, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        write_collection_text(self.path, json.dumps(records, indent=2, ensure_ascii=False) + "\n")
 
 
 def is_temporary_session_share_token(value: object) -> bool:

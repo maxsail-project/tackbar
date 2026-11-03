@@ -4,6 +4,7 @@ from pathlib import Path
 
 from app.identity import require_uuid
 from app.models import Boat
+from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
 
 
@@ -12,10 +13,11 @@ class BoatRepository:
         self.path = runtime_paths().boats if path is None else Path(path)
 
     def all(self) -> list[Boat]:
-        if not self.path.exists():
+        content = read_collection_text(self.path)
+        if content is None:
             return []
 
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(content)
         if not isinstance(data, list):
             raise ValueError("Boat storage must contain a JSON list")
         boats = [Boat(**item) for item in data]
@@ -65,15 +67,13 @@ class BoatRepository:
 
     def _save(self, boats: list[Boat]) -> None:
         _validate_boats(boats)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
+        write_collection_text(self.path,
             json.dumps(
                 [asdict(boat) for boat in boats],
                 indent=2,
                 ensure_ascii=False,
             )
             + "\n",
-            encoding="utf-8",
         )
 
 
