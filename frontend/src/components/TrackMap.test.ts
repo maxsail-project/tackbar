@@ -52,6 +52,23 @@ describe('weather detail map dismissal', () => {
 
     expect(onDismiss).toHaveBeenCalledOnce()
   })
+
+  it('keeps programmatic bearing move events from dismissing TWD details', () => {
+    const onWeatherDismiss = vi.fn()
+    const onTwdDismiss = vi.fn()
+    const handlers = mapWeatherDetailDismissHandlers(onWeatherDismiss, onTwdDismiss)
+
+    handlers.onRotateStart()
+    handlers.onMoveStart()
+    expect(onWeatherDismiss).toHaveBeenCalledTimes(2)
+    expect(onTwdDismiss).not.toHaveBeenCalled()
+
+    handlers.onClick()
+    handlers.onDragStart()
+    handlers.onZoomStart()
+    expect(onWeatherDismiss).toHaveBeenCalledTimes(5)
+    expect(onTwdDismiss).toHaveBeenCalledTimes(3)
+  })
 })
 
 function renderTelemetry(hasComparison: boolean) {

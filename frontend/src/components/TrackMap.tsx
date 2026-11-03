@@ -363,11 +363,15 @@ export function MapTelemetryOverlay({
   )
 }
 
-export function mapWeatherDetailDismissHandlers(onDismiss: () => void) {
+export function mapWeatherDetailDismissHandlers(onDismiss: () => void, onTwdDismiss?: () => void) {
+  const dismissOnMapInteraction = () => {
+    onDismiss()
+    onTwdDismiss?.()
+  }
   return {
-    onClick: onDismiss,
-    onDragStart: onDismiss,
-    onZoomStart: onDismiss,
+    onClick: dismissOnMapInteraction,
+    onDragStart: dismissOnMapInteraction,
+    onZoomStart: dismissOnMapInteraction,
     onRotateStart: onDismiss,
     onMoveStart: onDismiss,
   }
@@ -407,6 +411,7 @@ export default function TrackMap({
   const mapRef = useRef<MapRef>(null)
   const mapBearing = twdPresentation.bearing
   const [weatherDetailExpanded, setWeatherDetailExpanded] = useState(false)
+  const [twdDetailExpanded, setTwdDetailExpanded] = useState(false)
   const [inspectedContextualActivityId, setInspectedContextualActivityId] = useState<string | null>(null)
   const fittedContextKeyRef = useRef<string | null>(null)
   const handledFocusRequestIdRef = useRef<number | null>(null)
@@ -414,6 +419,7 @@ export default function TrackMap({
     () => setWeatherDetailExpanded(false),
     [],
   )
+  const dismissTwdDetail = useCallback(() => setTwdDetailExpanded(false), [])
   const primaryGeometry = useMemo(
     () => primaryVisibleSamples.length >= 2
       ? buildTrackGeometry(primaryVisibleSamples)
@@ -544,7 +550,7 @@ export default function TrackMap({
     : primaryLayerExists ? 'primary-activity-track-line' : undefined
 
   return (
-    <section className="map-panel" aria-label="Session track map">
+    <section className="map-panel" aria-label="Session track map" onClick={dismissTwdDetail}>
       <Map
         ref={mapRef}
         initialViewState={combinedBounds
@@ -562,7 +568,7 @@ export default function TrackMap({
         mapStyle={MAP_STYLE_URL}
         attributionControl={{ compact: true }}
         dragRotate={false}
-        {...mapWeatherDetailDismissHandlers(dismissWeatherDetail)}
+        {...mapWeatherDetailDismissHandlers(dismissWeatherDetail, dismissTwdDetail)}
         onLoad={handleMapLoad}
       >
         {sessionStartLines.filter((line) => line.pin && line.boat).map((line) => (
@@ -733,7 +739,7 @@ export default function TrackMap({
           </Popup>
         )}
       </Map>
-      <TwdControl reference={twdReference} presentation={twdPresentation} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
+      <TwdControl reference={twdReference} presentation={twdPresentation} expanded={twdDetailExpanded} onExpandedChange={setTwdDetailExpanded} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
       <HistoricalConditionsControl
         sample={historicalConditionsSample}
         weatherProvider={historicalConditionsWeatherProvider}

@@ -544,9 +544,37 @@ input:focus-visible {
 }
 
 .map-twd__manual {
-  padding: 0 8px 5px;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 4px 0 8px;
   font-size: 0.58rem;
-  text-align: center;
+  white-space: nowrap;
+}
+
+.map-twd__manual button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  color: #174e68;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.map-twd__manual button:hover {
+  background: #eef4f5;
+}
+
+.map-twd__manual button:focus-visible {
+  outline: 2px solid #174e68;
+  outline-offset: -2px;
 }
 
 .map-twd__detail {
@@ -579,23 +607,6 @@ input:focus-visible {
 
 .map-twd__detail p {
   margin: 8px 0 0;
-}
-
-.map-twd__automatic {
-  min-height: 44px;
-  margin-top: 5px;
-  padding: 0 8px;
-  border: 1px solid #80949b;
-  border-radius: 4px;
-  color: inherit;
-  background: #eef4f5;
-  font: inherit;
-  cursor: pointer;
-}
-
-.map-twd__automatic:focus-visible {
-  outline: 2px solid #174e68;
-  outline-offset: 2px;
 }
 
 .map-navigation-group__direction button {
