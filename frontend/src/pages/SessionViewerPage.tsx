@@ -50,6 +50,7 @@ import type {
   TemporarySessionDetail,
   TemporarySessionShare,
 } from '../types/session'
+import { initialPrimaryActivityId } from '../utils/initialPrimaryActivity'
 import type { ActivityTrack, TrackSample } from '../types/track'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import {
@@ -502,7 +503,7 @@ export function SessionViewer({
   session: SessionDetail
 }) {
   const [primaryActivityId, setPrimaryActivityId] = useState(
-    session.activities[0]?.id ?? '',
+    () => initialPrimaryActivityId(session.activities),
   )
   const [comparisonActivityId, setComparisonActivityId] = useState<string | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<ViewerMetricView>(

@@ -220,6 +220,35 @@ function mapHighlights() {
 const marker = (seconds: number) => `[data-marker="${start + seconds * 1_000}"]`
 
 describe('Viewer selected maneuver interactions', () => {
+  it.each(['original', 'temporary'] as const)('selects ranked initial P and empty C with %s access', async (accessKind) => {
+    const visibleSession = { ...session, activities: session.activities.map((activity) => ({
+      ...activity,
+      start_time: new Date(start + (activity.id === 'c' ? 12_000 : 0)).toISOString(),
+      end_time: new Date(start + (activity.id === 'b' || activity.id === 'c' ? 20_000 : 10_000)).toISOString(),
+    })) }
+    await mountViewer(accessKind, visibleSession)
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.value).toBe('b')
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('')
+    expect([...container.querySelectorAll<HTMLOptionElement>('select[aria-label="My track"] option')].map((option) => option.value)).toEqual(['a', 'b', 'c'])
+    expect(vi.mocked(api.getActivityTrackForAccess).mock.calls.some(([access, activityId]) => access.kind === accessKind && activityId === 'b')).toBe(true)
+  })
+
+  it('keeps manual P/C through metadata refresh and ordinary rerender', async () => {
+    await mountViewer()
+    await choose('My track', 'c')
+    await choose('Compare', 'b')
+    const refreshed = { ...session, activities: session.activities.map((activity) => ({
+      ...activity,
+      end_time: new Date(start + (activity.id === 'a' ? 100_000 : 10_000)).toISOString(),
+    })) }
+    await act(async () => root.render(<SessionViewer access={{ kind: 'original', token: 'test' }} session={refreshed} />))
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.value).toBe('c')
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('b')
+    await click('[data-reset-window]')
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.value).toBe('c')
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('b')
+  })
+
   it.each(['original', 'temporary'] as const)('infers Starts from every visible Activity regardless of P/C with %s access', async (accessKind) => {
     await mountViewer(accessKind)
     expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
@@ -300,19 +329,19 @@ describe('Viewer selected maneuver interactions', () => {
       ['a', '123 · 10:00–10:00 #1'],
     ]
     expect(options('My track')).toEqual(expected)
-    expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'c'))
-    expect(summaryLabels()).toEqual(['123 #3'])
-    await choose('Compare', 'a')
-    expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'c'))
-    expect(summaryLabels()).toEqual(['123 #3', '123 #1'])
-    await choose('My track', 'a')
-    expect(options('My track')).toEqual(expected)
     expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'a'))
     expect(summaryLabels()).toEqual(['123 #1'])
     await choose('Compare', 'c')
-    expect(options('Compare').find(([id]) => id === 'c')?.[1]).toBe('123 · 10:00–10:00 #3')
-    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('c')
+    expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'a'))
     expect(summaryLabels()).toEqual(['123 #1', '123 #3'])
+    await choose('My track', 'c')
+    expect(options('My track')).toEqual(expected)
+    expect(options('Compare')).toEqual(expected.filter(([id]) => id !== 'c'))
+    expect(summaryLabels()).toEqual(['123 #3'])
+    await choose('Compare', 'a')
+    expect(options('Compare').find(([id]) => id === 'a')?.[1]).toBe('123 · 10:00–10:00 #1')
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('a')
+    expect(summaryLabels()).toEqual(['123 #3', '123 #1'])
   })
 
   it('shows Boat, Device and Sailor identities without hours in Summary', async () => {
