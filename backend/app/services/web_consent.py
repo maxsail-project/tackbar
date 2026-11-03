@@ -5,6 +5,7 @@ from typing import Callable
 
 from app.models import ConsentRequest, ConsentRequestState, ConsentStatus
 from app.repositories.sailors import SailorRepository
+from app.services.ingestion_lock import locked_sailor_write
 from app.services.consent_requests import (
     ConsentRequestOperationError,
     ConsentRequestService,
@@ -52,6 +53,16 @@ class WebConsentService:
         if resolution.state != ConsentRequestState.ACCEPTED:
             raise WebConsentUnavailableError("Consent request unavailable")
 
+        return self._get_accepted(token)
+
+    @locked_sailor_write
+    def _get_accepted(self, token: str) -> PublicConsent:
+        # Recheck under the write lock before an accepted read can finish activation.
+        resolution = self.requests.resolve(token)
+        request = resolution.request
+        if resolution.state != ConsentRequestState.ACCEPTED or request is None:
+            raise WebConsentUnavailableError("Consent request unavailable")
+
         sailor = self.sailors.get_by_id(request.sailor_id)
         if sailor is None or sailor.consent_status == ConsentStatus.REVOKED:
             raise WebConsentUnavailableError("Consent request unavailable")
@@ -66,6 +77,7 @@ class WebConsentService:
         )
         return _public_consent(PublicConsentState.CONFIRMED, request)
 
+    @locked_sailor_write
     def accept(self, token: str) -> PublicConsent:
         resolution = self.requests.resolve(token)
         if resolution.state == ConsentRequestState.VALID:

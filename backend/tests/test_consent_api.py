@@ -1,7 +1,7 @@
 import asyncio
 import importlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
@@ -9,7 +9,7 @@ from typing import Callable
 import pytest
 
 from app.main import app
-from app.models import ConsentEventType, ConsentRequestState, ConsentStatus
+from app.models import ConsentEvent, ConsentEventType, ConsentRequestState, ConsentStatus
 from app.repositories.activities import ActivityRepository
 from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.consent_requests import ConsentRequestRepository
@@ -177,6 +177,34 @@ def _context(
         set_now=lambda value: current_time.__setitem__(0, value),
         web=web,
     )
+
+
+def _prepare_usable_shared_session(
+    root: Path, context: ConsentApiContext, monkeypatch: pytest.MonkeyPatch,
+) -> str:
+    other_sailor = "30000000-0000-4000-8000-000000000002"
+    other_activity = "10000000-0000-4000-8000-000000000002"
+    sailors = json.loads((root / "sailors.json").read_text(encoding="utf-8"))
+    sailors.append({
+        "id": other_sailor, "email": "other@example.com", "name": "Other",
+        "default_boat_id": None, "consent_status": "ACTIVE",
+    })
+    _write_json(root / "sailors.json", sailors)
+    activities = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    other = dict(activities[0])
+    other.update(id=other_activity, sailor_id=other_sailor,
+                 track_file=f"tracks/{other_activity}.csv.gz")
+    activities.append(other)
+    _write_json(root / "activities.json", activities)
+    _write_json(root / "boats.json", [])
+    session = context.sessions.get_by_id(SESSION_ID)
+    assert session is not None
+    context.sessions.replace(replace(
+        session, activity_ids=[ACTIVITY_ID, other_activity],
+        capability_token=SESSION_TOKEN,
+    ))
+    monkeypatch.setenv(DATA_DIR_ENVIRONMENT_VARIABLE, str(root))
+    return other_activity
 
 
 def _request(method: str, path: str) -> ApiResponse:
@@ -434,6 +462,129 @@ def test_post_retry_recovers_when_acceptance_persisted_before_activation(
     assert active is not None and active.consent_status == ConsentStatus.ACTIVE
     assert len(context.events.for_sailor(SAILOR_ID)) == 1
     assert len(context.sent) == 1
+
+
+def test_failed_grant_event_keeps_web_sailor_hidden_until_retry(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    other_activity = _prepare_usable_shared_session(
+        temporary_directory / "consent-api", context, monkeypatch,
+    )
+    original_append = context.events.append
+    def fail(_event):
+        sailor = context.sailors.get_by_id(SAILOR_ID)
+        assert sailor is not None and sailor.consent_status == ConsentStatus.PENDING
+        raise ValueError("synthetic event write failure")
+    monkeypatch.setattr(context.events, "append", fail)
+
+    interrupted = _accept(REQUEST_TOKEN)
+    assert interrupted.status_code == 500
+    assert interrupted.json == {"detail": "Persisted consent data is inconsistent"}
+    assert context.request_repository.get_by_token(REQUEST_TOKEN).accepted_at == NOW
+    assert context.sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+    assert context.events.for_sailor(SAILOR_ID) == []
+    hidden = _request("GET", f"/api/shared/sessions/{SESSION_TOKEN}")
+    assert [activity["id"] for activity in hidden.json["activities"]] == [other_activity]
+
+    monkeypatch.setattr(context.events, "append", original_append)
+    recovered = _accept(REQUEST_TOKEN)
+    assert recovered.status_code == 200 and recovered.json["status"] == "confirmed"
+    assert len(context.events.for_sailor(SAILOR_ID)) == 1
+    assert len(context.sent) == 1
+    visible = _request("GET", f"/api/shared/sessions/{SESSION_TOKEN}")
+    assert [activity["id"] for activity in visible.json["activities"]] == [
+        ACTIVITY_ID, other_activity,
+    ]
+
+
+def test_event_only_web_grant_retries_with_original_event_once(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    other_activity = _prepare_usable_shared_session(
+        temporary_directory / "consent-api", context, monkeypatch,
+    )
+    original_replace = context.sailors.replace
+    def fail(sailor):
+        if sailor.consent_status == ConsentStatus.ACTIVE:
+            assert context.sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+            assert len(context.events.for_sailor(SAILOR_ID)) == 1
+            raise ValueError("synthetic activation write failure")
+        return original_replace(sailor)
+    monkeypatch.setattr(context.sailors, "replace", fail)
+
+    interrupted = _accept(REQUEST_TOKEN)
+    assert interrupted.status_code == 500
+    original_grant = context.events.for_sailor(SAILOR_ID)[0]
+    assert original_grant.timestamp == NOW
+    assert original_grant.source == "web_consent"
+    assert original_grant.agreement_version == "agreement-issued-v1"
+    assert context.sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+    assert _get(REQUEST_TOKEN).json["status"] == "ready"
+    hidden = _request("GET", f"/api/shared/sessions/{SESSION_TOKEN}")
+    assert [activity["id"] for activity in hidden.json["activities"]] == [other_activity]
+
+    monkeypatch.setattr(context.sailors, "replace", original_replace)
+    recovered = _accept(REQUEST_TOKEN)
+    repeated = _accept(REQUEST_TOKEN)
+    assert recovered.status_code == repeated.status_code == 200
+    assert recovered.json["status"] == repeated.json["status"] == "confirmed"
+    assert context.events.for_sailor(SAILOR_ID) == [original_grant]
+    assert context.sailors.get_by_id(SAILOR_ID).consent_granted_at == NOW
+    assert len(context.sent) == 1
+    visible = _request("GET", f"/api/shared/sessions/{SESSION_TOKEN}")
+    assert [activity["id"] for activity in visible.json["activities"]] == [
+        ACTIVITY_ID, other_activity,
+    ]
+
+
+def test_legacy_active_without_grant_event_fails_closed_even_with_accepted_request(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    context.requests.mark_accepted(REQUEST_TOKEN)
+    pending = context.sailors.get_by_id(SAILOR_ID)
+    assert pending is not None
+    active = context.sailors.replace(replace(
+        pending, consent_status=ConsentStatus.ACTIVE, consent_granted_at=NOW,
+    ))
+    request_before = context.request_repository.get_by_token(REQUEST_TOKEN)
+    session_before = context.sessions.get_by_id(SESSION_ID)
+    get_response, post_response = _get(REQUEST_TOKEN), _accept(REQUEST_TOKEN)
+    assert get_response.status_code == post_response.status_code == 500
+    assert get_response.json == post_response.json == {
+        "detail": "Persisted consent data is inconsistent",
+    }
+    assert context.sailors.get_by_id(SAILOR_ID) == active
+    assert context.request_repository.get_by_token(REQUEST_TOKEN) == request_before
+    assert context.sessions.get_by_id(SESSION_ID) == session_before
+    assert context.events.for_sailor(SAILOR_ID) == []
+    assert context.sent == []
+
+
+def test_event_only_web_grant_with_conflicting_agreement_fails_closed(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(temporary_directory, monkeypatch)
+    context.requests.mark_accepted(REQUEST_TOKEN)
+    conflicting = ConsentEvent(
+        ConsentEventType.CONSENT_GRANTED, NOW, "web_consent", SAILOR_ID,
+        "different-agreement",
+    )
+    context.events.append(conflicting)
+    request_before = context.request_repository.get_by_token(REQUEST_TOKEN)
+    response = _accept(REQUEST_TOKEN)
+    assert response.status_code == 500
+    assert response.json == {"detail": "Persisted consent data is inconsistent"}
+    assert context.sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+    assert context.request_repository.get_by_token(REQUEST_TOKEN) == request_before
+    assert context.events.for_sailor(SAILOR_ID) == [conflicting]
+    assert context.sent == []
 
 
 def test_get_recovery_completes_activation_interrupted_before_session_capability(

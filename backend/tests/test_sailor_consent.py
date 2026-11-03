@@ -6,7 +6,7 @@ from typing import Callable
 import pytest
 
 from app.config import CURRENT_CONSENT_AGREEMENT_VERSION
-from app.models import ConsentEventType, ConsentStatus
+from app.models import ConsentEvent, ConsentEventType, ConsentStatus
 from app.repositories.consent_events import ConsentEventRepository
 from app.repositories.sailors import SailorRepository
 from app.services.sailor_consent import SailorConsentService
@@ -121,6 +121,157 @@ def test_confirm_consent_activates_and_uses_configured_agreement_version(
     event = events.for_sailor(SAILOR_ID)[0]
     assert event.event_type == ConsentEventType.CONSENT_GRANTED
     assert event.agreement_version == CURRENT_CONSENT_AGREEMENT_VERSION
+
+
+def test_grant_append_failure_keeps_sailor_pending(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, sailors, events = _service(temporary_json_file)
+    def fail(_event):
+        assert sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+        raise ValueError("synthetic append failure")
+    monkeypatch.setattr(events, "append", fail)
+
+    with pytest.raises(ValueError, match="synthetic append failure"):
+        service.confirm_consent(SAILOR_ID, source="admin_confirmed_email")
+
+    assert sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+    assert events.for_sailor(SAILOR_ID) == []
+
+
+def test_admin_retry_completes_event_only_grant_once_with_original_evidence(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, sailors, events = _service(temporary_json_file)
+    original_replace = sailors.replace
+    def fail(_sailor):
+        assert sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+        assert len(events.for_sailor(SAILOR_ID)) == 1
+        raise ValueError("synthetic activation failure")
+    monkeypatch.setattr(sailors, "replace", fail)
+    with pytest.raises(ValueError, match="synthetic activation failure"):
+        service.confirm_consent(
+            SAILOR_ID, source="admin_confirmed_email",
+            timestamp=datetime(2031, 6, 18, 11, tzinfo=timezone.utc),
+        )
+    monkeypatch.setattr(sailors, "replace", original_replace)
+
+    original_event = events.for_sailor(SAILOR_ID)[0]
+    recovered = service.confirm_consent(SAILOR_ID, source="admin_confirmed_email")
+    assert recovered.consent_status == ConsentStatus.ACTIVE
+    assert recovered.consent_granted_at == original_event.timestamp
+    assert events.for_sailor(SAILOR_ID) == [original_event]
+    with pytest.raises(ValueError, match="expected PENDING"):
+        service.confirm_consent(SAILOR_ID, source="admin_confirmed_email")
+    assert events.for_sailor(SAILOR_ID) == [original_event]
+
+
+@pytest.mark.parametrize("source,version,when", [
+    ("unrelated_admin", CURRENT_CONSENT_AGREEMENT_VERSION, None),
+    ("admin_confirmed_email", CURRENT_CONSENT_AGREEMENT_VERSION,
+     datetime(2031, 6, 18, 12, tzinfo=timezone.utc)),
+])
+def test_event_only_grant_rejects_conflicting_retry(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+    version: str,
+    when: datetime | None,
+) -> None:
+    service, sailors, events = _service(temporary_json_file)
+    original_replace = sailors.replace
+    monkeypatch.setattr(sailors, "replace", lambda _sailor: (_ for _ in ()).throw(ValueError("synthetic")))
+    with pytest.raises(ValueError, match="synthetic"):
+        service.confirm_consent(
+            SAILOR_ID, source="admin_confirmed_email",
+            timestamp=datetime(2031, 6, 18, 11, tzinfo=timezone.utc),
+        )
+    monkeypatch.setattr(sailors, "replace", original_replace)
+    before = events.for_sailor(SAILOR_ID)
+    retry = SailorConsentService(sailors, events, agreement_version=version)
+    with pytest.raises(ValueError, match="evidence conflicts"):
+        retry.confirm_consent(SAILOR_ID, source=source, timestamp=when)
+    assert sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+    assert events.for_sailor(SAILOR_ID) == before
+
+
+def test_admin_event_only_retry_preserves_agreement_after_version_change(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, sailors, events = _service(temporary_json_file)
+    original_replace = sailors.replace
+    def fail(_sailor):
+        raise ValueError("synthetic")
+    monkeypatch.setattr(sailors, "replace", fail)
+    with pytest.raises(ValueError, match="synthetic"):
+        service.confirm_consent(SAILOR_ID, source="admin_confirmed_email")
+    monkeypatch.setattr(sailors, "replace", original_replace)
+    original_grant = events.for_sailor(SAILOR_ID)[0]
+
+    retry = SailorConsentService(sailors, events, agreement_version="next-agreement")
+    active = retry.confirm_consent(SAILOR_ID, source="admin_confirmed_email")
+    assert active.consent_granted_at == original_grant.timestamp
+    assert events.for_sailor(SAILOR_ID) == [original_grant]
+    assert original_grant.agreement_version == CURRENT_CONSENT_AGREEMENT_VERSION
+
+
+def test_duplicate_current_cycle_grants_fail_closed(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    service, sailors, events = _service(temporary_json_file)
+    at = datetime(2031, 6, 18, 11, tzinfo=timezone.utc)
+    grant = ConsentEvent(
+        ConsentEventType.CONSENT_GRANTED, at, "admin_confirmed_email",
+        SAILOR_ID, CURRENT_CONSENT_AGREEMENT_VERSION,
+    )
+    events.append(grant)
+    events.append(grant)
+    with pytest.raises(ValueError, match="evidence conflicts"):
+        service.confirm_consent(SAILOR_ID, source="admin_confirmed_email")
+    assert sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.PENDING
+    assert events.for_sailor(SAILOR_ID) == [grant, grant]
+
+
+def test_prior_cycle_event_only_grant_is_not_reused(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    service, sailors, events = _service(temporary_json_file)
+    old_time = datetime(2031, 6, 18, 11, tzinfo=timezone.utc)
+    events.append(ConsentEvent(
+        ConsentEventType.CONSENT_GRANTED, old_time, "admin_confirmed_email",
+        SAILOR_ID, CURRENT_CONSENT_AGREEMENT_VERSION,
+    ))
+    service.revoke_consent(SAILOR_ID, source="declined")
+    service.start_new_consent_cycle(SAILOR_ID, source="new_track")
+    new_time = datetime(2031, 6, 19, 11, tzinfo=timezone.utc)
+    active = service.confirm_consent(
+        SAILOR_ID, source="admin_confirmed_email", timestamp=new_time,
+    )
+    grants = [event for event in events.for_sailor(SAILOR_ID)
+              if event.event_type == ConsentEventType.CONSENT_GRANTED]
+    assert active.consent_status == ConsentStatus.ACTIVE
+    assert active.consent_granted_at == new_time
+    assert [event.timestamp for event in grants] == [old_time, new_time]
+
+
+def test_active_grant_with_conflicting_cycle_event_cannot_complete(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    service, sailors, events = _service(temporary_json_file)
+    at = datetime(2031, 6, 18, 11, tzinfo=timezone.utc)
+    service.confirm_consent(SAILOR_ID, source="web_consent", timestamp=at)
+    events.append(ConsentEvent(
+        ConsentEventType.CONSENT_DECLINED, at, "unrelated", SAILOR_ID,
+    ))
+    before = sailors.get_by_id(SAILOR_ID)
+    with pytest.raises(ValueError, match="does not match"):
+        service.complete_activation(
+            SAILOR_ID, source="web_consent", timestamp=at,
+        )
+    assert sailors.get_by_id(SAILOR_ID) == before
 
 
 def test_active_sailor_revocation_appends_revoked_event(

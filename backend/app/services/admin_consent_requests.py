@@ -8,6 +8,7 @@ from app.services.consent_request_delivery import (
 )
 from app.services.consent_requests import ConsentRequestService
 from app.services.ingestion_history import IngestionHistory
+from app.services.ingestion_lock import locked_sailor_write
 from app.services.sailor_consent import SailorConsentService
 
 
@@ -37,6 +38,7 @@ class AdminConsentRequestService:
             send_consent_request_email if sender is None else sender
         )
 
+    @locked_sailor_write
     def send(self, sailor_id: str) -> ConsentRequest:
         sailor = self.sailors.get_by_id(sailor_id)
         if sailor is None:

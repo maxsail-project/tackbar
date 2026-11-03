@@ -829,6 +829,43 @@ def test_mark_request_and_confirm_use_semantic_service(monkeypatch: pytest.Monke
     assert session.json["capability_state"] == "active"
 
 
+def test_admin_confirmation_retries_event_only_grant_without_duplicate(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    delivered = []
+    monkeypatch.setattr(
+        "app.services.sailor_consent.send_welcome_email",
+        lambda email, path: delivered.append((email, path)),
+    )
+    original_replace = SailorRepository.replace
+    failed = False
+    def fail_once(repository, sailor):
+        nonlocal failed
+        if sailor.id == PENDING_NEEDS and sailor.consent_status == ConsentStatus.ACTIVE and not failed:
+            failed = True
+            assert SailorRepository(root / "sailors.json").get_by_id(PENDING_NEEDS).consent_status == ConsentStatus.PENDING
+            assert len(ConsentEventRepository(root / "consent_events.json").for_sailor(PENDING_NEEDS)) == 1
+            raise ValueError("synthetic activation interruption")
+        return original_replace(repository, sailor)
+    monkeypatch.setattr(SailorRepository, "replace", fail_once)
+
+    interrupted = _request("POST", f"/api/admin/sailors/{PENDING_NEEDS}/consent/confirm")
+    original_grant = ConsentEventRepository(root / "consent_events.json").for_sailor(PENDING_NEEDS)[0]
+    assert interrupted.status_code == 500
+    assert SailorRepository(root / "sailors.json").get_by_id(PENDING_NEEDS).consent_status == ConsentStatus.PENDING
+    assert delivered == []
+
+    recovered = _request("POST", f"/api/admin/sailors/{PENDING_NEEDS}/consent/confirm")
+    repeated = _request("POST", f"/api/admin/sailors/{PENDING_NEEDS}/consent/confirm")
+    assert recovered.status_code == 200
+    assert recovered.json["consent_status"] == "ACTIVE"
+    assert repeated.status_code == 409
+    assert ConsentEventRepository(root / "consent_events.json").for_sailor(PENDING_NEEDS) == [original_grant]
+    assert SailorRepository(root / "sailors.json").get_by_id(PENDING_NEEDS).consent_granted_at == original_grant.timestamp
+    assert len(delivered) == 1
+
+
 def test_admin_manual_confirmation_without_consent_request_keeps_activation_effects(
     monkeypatch: pytest.MonkeyPatch,
     temporary_directory: Path,

@@ -77,23 +77,50 @@ class SailorConsentService:
         timestamp: datetime | None = None,
     ) -> Sailor:
         sailor = self._require_status(sailor_id, ConsentStatus.PENDING)
-        occurred_at = timestamp or datetime.now(timezone.utc)
+        current_events = self._current_cycle_events(sailor_id)
+        grants = [
+            event for event in current_events
+            if event.event_type == ConsentEventType.CONSENT_GRANTED
+        ]
+        if len(grants) > 1 or any(
+            event.event_type in (
+                ConsentEventType.CONSENT_DECLINED,
+                ConsentEventType.CONSENT_REVOKED,
+            ) for event in current_events
+        ):
+            raise ConsentTransitionError("Current consent grant evidence conflicts")
+        if grants:
+            grant = grants[0]
+            if (
+                current_events[-1] != grant
+                or sailor.consent_granted_at is not None
+                or grant.source != source
+                or (
+                    source != "admin_confirmed_email"
+                    and grant.agreement_version != self.agreement_version
+                )
+                or (timestamp is not None and grant.timestamp != timestamp)
+            ):
+                raise ConsentTransitionError("Current consent grant evidence conflicts")
+            occurred_at = grant.timestamp
+        else:
+            occurred_at = timestamp or datetime.now(timezone.utc)
+            grant = ConsentEvent(
+                event_type=ConsentEventType.CONSENT_GRANTED,
+                timestamp=occurred_at,
+                source=source,
+                sailor_id=sailor_id,
+                agreement_version=self.agreement_version,
+            )
+            self.events.validate(grant)
+            self.events.append(grant)
         updated = replace(
             sailor,
             consent_status=ConsentStatus.ACTIVE,
             consent_granted_at=occurred_at,
             consent_revoked_at=None,
         )
-        self._persist_transition(
-            updated,
-            ConsentEvent(
-                event_type=ConsentEventType.CONSENT_GRANTED,
-                timestamp=occurred_at,
-                source=source,
-                sailor_id=sailor_id,
-                agreement_version=self.agreement_version,
-            ),
-        )
+        self.sailors.replace(updated)
         return self._complete_activation(sailor_id, attempt_welcome=True)
 
     @locked_sailor_write
@@ -104,15 +131,24 @@ class SailorConsentService:
         timestamp: datetime,
     ) -> Sailor:
         sailor = self._require_status(sailor_id, ConsentStatus.ACTIVE)
+        current_events = self._current_cycle_events(sailor_id)
         matching_events = [
             event
-            for event in self.events.for_sailor(sailor_id)
+            for event in current_events
             if event.event_type == ConsentEventType.CONSENT_GRANTED
-            and event.timestamp == timestamp
-            and event.source == source
-            and event.agreement_version == self.agreement_version
         ]
-        if sailor.consent_granted_at != timestamp or len(matching_events) != 1:
+        if (
+            sailor.consent_granted_at != timestamp
+            or len(matching_events) != 1
+            or current_events[-1] != matching_events[0]
+            or any(event.event_type in (
+                ConsentEventType.CONSENT_DECLINED,
+                ConsentEventType.CONSENT_REVOKED,
+            ) for event in current_events)
+            or matching_events[0].timestamp != timestamp
+            or matching_events[0].source != source
+            or matching_events[0].agreement_version != self.agreement_version
+        ):
             raise ConsentTransitionError(
                 "ACTIVE Sailor does not match the accepted consent grant"
             )
@@ -266,6 +302,13 @@ class SailorConsentService:
         self.sailors.replace(sailor)
         self.events.append(event)
         return sailor
+
+    def _current_cycle_events(self, sailor_id: str) -> list[ConsentEvent]:
+        events = self.events.for_sailor(sailor_id)
+        for index in range(len(events) - 1, -1, -1):
+            if events[index].event_type == ConsentEventType.CONSENT_CYCLE_STARTED:
+                return events[index + 1:]
+        return events
 
     @staticmethod
     def _personal_capability_path(sailor: Sailor) -> str:
