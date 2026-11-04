@@ -324,7 +324,8 @@ def _process_acquired_messages(
                     and notice_recipients.get(message_id) is not None
                 ):
                     notice_store.attempt_once(
-                        message_id, notice_recipients[message_id], "invalid_track"
+                        message_id, notice_recipients[message_id], "invalid_track",
+                        feedback=existing["technical_notice_feedback"],
                     )
             if provider_key == "ovh":
                 logger.info(
@@ -346,7 +347,8 @@ def _process_acquired_messages(
                     and failed_record["technical_notice_reason"] == "invalid_track"
                 ):
                     notice_store.attempt_once(
-                        message_id, notice_recipients[message_id], "invalid_track"
+                        message_id, notice_recipients[message_id], "invalid_track",
+                        feedback=failed_record["technical_notice_feedback"],
                     )
             if provider_key == "ovh":
                 logger.error(

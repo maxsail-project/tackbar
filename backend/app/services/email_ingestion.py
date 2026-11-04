@@ -6,6 +6,7 @@ from app.parsers.track import (
 from app.parsers.gpx import GPXParseError
 from app.parsers.vakaros_vkx import VKXParseError
 from app.parsers.vakaros_csv import VakarosCSVParseError
+from app.services.gpx_notice_feedback import classify_gpx_error
 
 
 class InboundEmailRejected(ValueError):
@@ -14,6 +15,10 @@ class InboundEmailRejected(ValueError):
 
 class ActionableTrackRejected(InboundEmailRejected):
     """A supported attachment failed a known input parsing/validation rule."""
+
+    def __init__(self, message: str, feedback: dict | None = None) -> None:
+        super().__init__(message)
+        self.feedback = feedback
 
 
 def process_inbound_email(email: InboundEmail) -> IngestionResult:
@@ -31,7 +36,9 @@ def process_inbound_email(email: InboundEmail) -> IngestionResult:
             original_filename=email.attachment_filename,
         )
     except GPXParseError as error:
-        raise ActionableTrackRejected(str(error)) from error
+        raise ActionableTrackRejected(
+            str(error), classify_gpx_error(str(error), error.feedback_category)
+        ) from error
     except VKXParseError as error:
         raise ActionableTrackRejected(
             "Inbound email attachment is not a valid Vakaros VKX file"

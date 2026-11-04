@@ -296,6 +296,7 @@ def _attempt_record(
                 and record["attempts"] == 1
                 and isinstance(error, ActionableTrackRejected)):
             record["technical_notice_reason"] = "invalid_track"
+            record["technical_notice_feedback"] = error.feedback
         if manual:
             last_error = (
                 str(error) if isinstance(error, GPXParseError)

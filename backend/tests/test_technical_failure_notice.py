@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.email_providers.ovh import OVHAdapter, OVHMessageOutcome
+from app.parsers.gpx import GPXParseError
 from app.models import ConsentStatus
 from app.repositories.sailors import SailorRepository
 from app.services.ingestion_history import IngestionHistory
@@ -12,6 +13,8 @@ from app.services.mailbox_review import review_mailbox_now
 from app.services.ovh_mailbox_cursor import OVHMailboxCursor, OVHMailboxCursorStore
 from app.services.outbound_mail import CONTACT_FOOTER
 from app.services.technical_failure_notice import TechnicalNoticeStore
+from app.services.technical_failure_notice import _body
+from test_gpx import gpx_bytes
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "vakaros-demo.csv.gz"
@@ -73,7 +76,7 @@ def test_real_mime_zero_multi_and_later_healthy_mail(monkeypatch, tmp_path):
     })
     sent = []
     monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
-                        lambda recipient, reason: sent.append((recipient, reason)))
+                        lambda recipient, reason, *feedback: sent.append((recipient, reason, *feedback)))
     batch = adapter.acquire_messages()
     assert [item.outcome for item in batch.examined_messages] == [
         OVHMessageOutcome.UNSUPPORTED, OVHMessageOutcome.UNSUPPORTED,
@@ -107,12 +110,13 @@ def test_invalid_single_track_notice_is_consent_independent(
         sailors.replace(sailor)
     sent = []
     monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
-                        lambda recipient, reason: sent.append((recipient, reason)))
+                        lambda recipient, reason, *feedback: sent.append((recipient, reason, *feedback)))
     assert review_mailbox_now(provider=adapter).failed == 1
     record = IngestionHistory().records()[0]
     assert record["status"] == "failed"
     assert record["technical_notice_reason"] == "invalid_track"
-    assert sent == [("sailor@example.test", "invalid_track")]
+    expected_feedback = ({"category": "structure"},) if filename.endswith(".gpx") else ()
+    assert sent == [("sailor@example.test", "invalid_track", *expected_feedback)]
     assert len(SailorRepository().all()) == (0 if consent is None else 1)
     review_mailbox_now(provider=adapter)
     assert len(sent) == 1
@@ -170,6 +174,23 @@ def test_attempt_claim_precedes_smtp_and_uncertain_delivery_is_terminal(tmp_path
     assert store.records()["456:2"]["status"] == "failed"
 
 
+def test_classified_notice_uncertain_send_is_at_most_once(tmp_path):
+    store = TechnicalNoticeStore(tmp_path)
+    feedback = {"category": "quality", "metrics": {"median": "3"}}
+    observed = []
+
+    def interrupt(recipient, reason, safe_context):
+        observed.append((store.records()["456:1"]["status"], recipient, reason, safe_context))
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        store.attempt_once("456:1", "sailor@example.test", "invalid_track", interrupt, feedback)
+    assert observed == [("attempted", "sailor@example.test", "invalid_track", feedback)]
+    assert not TechnicalNoticeStore(tmp_path).attempt_once(
+        "456:1", "sailor@example.test", "invalid_track",
+        lambda *_: pytest.fail("classified notice resent"), feedback)
+
+
 def test_failed_reservation_write_prevents_smtp_and_allows_one_safe_later_attempt(
     monkeypatch, tmp_path,
 ):
@@ -223,7 +244,7 @@ def test_failed_ingestion_recovers_notice_after_interruption(monkeypatch, tmp_pa
     monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
                         lambda *args: sent.append(args))
     assert review_mailbox_now(provider=adapter).known_failed == 1
-    assert sent == [("sailor@example.test", "invalid_track")]
+    assert sent == [("sailor@example.test", "invalid_track", {"category": "structure"})]
     assert OVHMailboxCursorStore().load() == OVHMailboxCursor(456, 1)
 
 
@@ -264,9 +285,77 @@ def test_invalid_track_notice_does_not_block_later_healthy_track(monkeypatch, tm
                         lambda *args: sent.append(args))
     summary = review_mailbox_now(provider=adapter)
     assert (summary.failed, summary.processed) == (1, 1)
-    assert sent == [("sailor@example.test", "invalid_track")]
+    assert sent == [("sailor@example.test", "invalid_track", {"category": "structure"})]
     assert [record["status"] for record in IngestionHistory().records()] == ["failed", "processed"]
     assert OVHMailboxCursorStore().load() == OVHMailboxCursor(456, 2)
+
+
+@pytest.mark.parametrize("content,category", [
+    (gpx_bytes((0, 3)), "quality"),
+    (gpx_bytes().replace(b"+00:00", b"", 1), "timezone"),
+    (gpx_bytes().replace(b"2031-06-15T08:00:00+00:00", b"not-a-time", 1), "chronology"),
+    (gpx_bytes((0, 1, 1, 3)), "chronology"),
+    (b"<gpx/>", "structure"),
+    (gpx_bytes().replace(b'lat="0"', b'lat="999"', 1), "coordinates"),
+])
+def test_ovh_persists_and_sends_each_gpx_feedback_category(monkeypatch, tmp_path, content, category):
+    adapter = _runtime(monkeypatch, tmp_path, {1: _mail([("private-name.gpx", content)])})
+    sent = []
+    monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
+                        lambda *args: sent.append(args))
+    assert review_mailbox_now(provider=adapter).failed == 1
+    record = IngestionHistory().records()[0]
+    assert record["technical_notice_feedback"]["category"] == category
+    assert sent == [("sailor@example.test", "invalid_track", record["technical_notice_feedback"])]
+    body = _body("invalid_track", record["technical_notice_feedback"])
+    assert "Hola" in body and "Hi" in body
+    assert "private-name.gpx" not in body and record["last_error"] not in body
+    assert TechnicalNoticeStore(tmp_path).records()["456:1"]["status"] == "sent"
+
+
+def test_interrupted_quality_decision_uses_persisted_safe_metrics_without_reparse(monkeypatch, tmp_path):
+    adapter = _runtime(monkeypatch, tmp_path, {1: _mail([("bad.gpx", gpx_bytes((0, 3)))])})
+    original = TechnicalNoticeStore.attempt_once
+    interrupted = []
+
+    def interrupt_once(self, *args, **kwargs):
+        if not interrupted:
+            interrupted.append(True)
+            raise KeyboardInterrupt
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(TechnicalNoticeStore, "attempt_once", interrupt_once)
+    with pytest.raises(KeyboardInterrupt):
+        review_mailbox_now(provider=adapter)
+    record = IngestionHistory().records()[0]
+    assert record["technical_notice_feedback"] == {"category": "quality", "metrics": {"median": "3"}}
+    sent = []
+    monkeypatch.setattr("app.services.email_ingestion.parse_track_attachment",
+                        lambda *_args, **_kwargs: pytest.fail("track reparsed"))
+    monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
+                        lambda *args: sent.append(args))
+    assert review_mailbox_now(provider=adapter).known_failed == 1
+    assert sent == [("sailor@example.test", "invalid_track", record["technical_notice_feedback"])]
+    assert not TechnicalNoticeStore(tmp_path).attempt_once(
+        "456:1", "sailor@example.test", "invalid_track", lambda *_: pytest.fail("resent"))
+    assert review_mailbox_now(provider=adapter).discovered_candidates == 0
+    assert len(sent) == 1
+
+
+def test_unclassified_gpx_exception_never_enters_notice(monkeypatch, tmp_path):
+    adapter = _runtime(monkeypatch, tmp_path, {1: _mail([("private-file.gpx", b"<secret>private XML</secret>")])})
+    monkeypatch.setattr("app.services.email_ingestion.parse_track_attachment",
+                        lambda *_args, **_kwargs: (_ for _ in ()).throw(GPXParseError("C:/private/path <secret>private XML</secret>")))
+    sent = []
+    monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
+                        lambda *args: sent.append(args))
+    assert review_mailbox_now(provider=adapter).failed == 1
+    record = IngestionHistory().records()[0]
+    assert record["technical_notice_feedback"] is None
+    assert sent == [("sailor@example.test", "invalid_track")]
+    body = _body("invalid_track", record["technical_notice_feedback"])
+    assert "C:/private/path" not in body and "private XML" not in body
+    assert "private-file.gpx" not in body
 
 
 def test_configured_owned_from_address_is_suppressed(monkeypatch, tmp_path):
@@ -322,10 +411,33 @@ def test_historical_record_without_notice_classification_reads_without_rewrite(
     history.create("ovh", "456:9", "sailor@example.test", "old.gpx", None)
     records = json.loads(history.path.read_text(encoding="utf-8"))
     del records[0]["technical_notice_reason"]
+    del records[0]["technical_notice_feedback"]
     old_bytes = (json.dumps(records, indent=2, ensure_ascii=False) + "\n").encode()
     history.path.write_bytes(old_bytes)
     assert history.records()[0]["technical_notice_reason"] is None
+    assert history.records()[0]["technical_notice_feedback"] is None
     assert history.path.read_bytes() == old_bytes
+
+
+@pytest.mark.parametrize("feedback", [None, {"category": ["quality"]}, {"category": "quality", "metrics": {"median": "C:/secret"}}])
+def test_interrupted_historical_or_malformed_feedback_uses_generic_notice(monkeypatch, tmp_path, feedback):
+    adapter = _runtime(monkeypatch, tmp_path, {1: _mail([("bad.gpx", b"<gpx/>")])})
+    history = IngestionHistory()
+    record = history.create("ovh", "456:1", "sailor@example.test", "bad.gpx", None)
+    record.update(status="failed", technical_notice_reason="invalid_track")
+    history.replace(record)
+    raw = json.loads(history.path.read_text(encoding="utf-8"))
+    if feedback is None:
+        del raw[0]["technical_notice_feedback"]
+    else:
+        raw[0]["technical_notice_feedback"] = feedback
+    history.path.write_text(json.dumps(raw), encoding="utf-8")
+    sent = []
+    monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
+                        lambda *args: sent.append(args))
+    assert review_mailbox_now(provider=adapter).known_failed == 1
+    assert sent == [("sailor@example.test", "invalid_track")]
+    assert TechnicalNoticeStore(tmp_path).records()["456:1"]["status"] == "sent"
 
 
 def test_failure_notice_copy_has_common_footer_and_no_private_data():

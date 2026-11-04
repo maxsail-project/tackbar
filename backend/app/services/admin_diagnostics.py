@@ -113,7 +113,7 @@ INGESTION_FIELDS = {
 INGESTION_MANUAL_FIELDS = INGESTION_FIELDS | {
     "operation_id", "owner_sailor_id", "accepted_at",
 }
-INGESTION_EMAIL_FIELDS = INGESTION_FIELDS | {"technical_notice_reason"}
+INGESTION_EMAIL_FIELDS = INGESTION_FIELDS | {"technical_notice_reason", "technical_notice_feedback"}
 NOTIFICATION_FIELDS = {"status", "attempted_at", "sent_at", "last_error"}
 RESERVATION_FIELDS = {"sailor_id", "consent_cycle_sequence", "activity_id", "session_id"}
 
