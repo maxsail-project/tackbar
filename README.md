@@ -54,8 +54,9 @@ one file up to 16 MiB and an explicitly selected existing `ACTIVE` Sailor.
 Accepted uploads process independently of the browser and send no automatic
 emails. Email remains the normal Sailor sharing path.
 
-GPX requires one track and one nonempty segment, strictly increasing UTC and
-no adjacent gap over 10 seconds. Compressed GPX and extension telemetry mapping
+GPX requires one track and one nonempty segment, strictly increasing UTC,
+median sample interval at most 2 seconds, nearest-rank P95 at most 5 seconds,
+and no adjacent gap over 10 seconds. Compressed GPX and extension telemetry mapping
 are unsupported. FIT and generalized multi-provider ingestion remain future
 work. See [Ingestion and Data](docs/current/ingestion-and-data.md).
 
@@ -186,8 +187,8 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. Latest published release: v0.7.17 Californian
-— The Shape of a Turn.**
+**Controlled real-sailing pilot. Latest published release: v0.7.18 Californian
+— On the Line.**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
@@ -221,11 +222,12 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ## Published release and next direction
 
-### v0.7.17 Californian — The Shape of a Turn
+### v0.7.18 Californian — On the Line
 
-v0.7.17 separates individual Maneuver Analysis from typical Maneuver Profiles,
-adds Selected Maneuvers near the map and a compact whole-window P/C metrics
-table. Analytical comparison remains limited to two Activities.
+v0.7.18 preserves Activity-owned Vakaros start observations and supports
+bounded Session Start interpretation in the Viewer. Personal TackBar adds
+Sailor-owned Boats and per-Activity Boat and Device context. Analytical
+comparison remains limited to two Activities.
 
 The accepted scope for **v0.7.14 Californian — GPX & Maneuver Analytics** is
 recorded in the [CHANGELOG](CHANGELOG.md). The
@@ -314,8 +316,9 @@ un archivo de hasta 16 MiB y un Sailor existente `ACTIVE` seleccionado
 explícitamente. La carga aceptada se procesa independientemente del navegador
 y no envía emails automáticos. El email sigue siendo el canal habitual.
 
-GPX exige un track y un segmento no vacío, UTC estrictamente creciente y
-ningún salto entre muestras superior a 10 segundos. GPX comprimido y el mapeo
+GPX exige un track y un segmento no vacío, UTC estrictamente creciente,
+intervalo mediano entre muestras de como máximo 2 segundos, P95 de rango más cercano
+de como máximo 5 segundos y ningún salto superior a 10 segundos. GPX comprimido y el mapeo
 de telemetría de extensiones no están soportados. FIT y proveedores adicionales
 siguen siendo trabajo futuro. Consulta
 [Ingestion and Data](docs/current/ingestion-and-data.md).
@@ -450,7 +453,7 @@ El foco pasa a estar en:
 ## Estado del proyecto
 
 **Piloto controlado con navegaciones reales. Última release publicada:
-v0.7.17 Californian — The Shape of a Turn.**
+v0.7.18 Californian — On the Line.**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
@@ -484,11 +487,12 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ## Release publicada y próxima dirección
 
-### v0.7.17 Californian — The Shape of a Turn
+### v0.7.18 Californian — On the Line
 
-v0.7.17 separa Maneuver Analysis individual de Maneuver Profiles típicos,
-añade Selected Maneuvers junto al mapa y una tabla compacta P/C de métricas de
-toda la ventana. La comparación analítica sigue limitada a dos Activities.
+v0.7.18 conserva observaciones Vakaros de salida en cada Activity y permite
+interpretar Session Starts de forma acotada en el Viewer. Personal TackBar añade
+Boats propios del Sailor y contexto Boat y Device por Activity. La comparación
+analítica sigue limitada a dos Activities.
 
 El alcance aceptado de **v0.7.14 Californian — GPX & Maneuver Analytics** queda
 recogido en [CHANGELOG](CHANGELOG.md). El

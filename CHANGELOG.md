@@ -2,6 +2,78 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.19 Californian — Follow the Wind (TWD)
+
+### English
+
+The Session Viewer follows a time-aware modelled wind reference and permits a temporary Viewer correction. This release also improves track admission, personal and Admin presentation, and JSON metadata write safety.
+
+### Added
+
+* The Viewer selects the nearest usable persisted modelled wind direction to the Analysis Window midpoint, retaining source time and provenance. It rounds the map bearing to 5° and shows an explicit unavailable state when no reference exists. ±5° controls, Reset and deliberate map-rotation gestures use one ephemeral Manual · Viewer correction; gestures snap circularly to 5° and preserve the prior mode when the snapped angle is unchanged. This is presentation only: current analytics do not consume TWD or the Viewer correction.
+* Personal TackBar presents Last Session first and collapsible history, Activity and Boat sections. Initial Primary selection favors the Activity with the greatest accumulated temporal overlap with other visible Activities.
+* Plain GPX admission now requires median adjacent UTC interval ≤2 s, nearest-rank P95 ≤5 s and every gap ≤10 s. Controlled manual-upload diagnostics list all failed temporal criteria without exposing private track content.
+
+### Changed
+
+* TWD and Weather details close on outside interaction throughout the Viewer and open mutually exclusively. The selected maneuver map-focus action and compact weather gust presentation were aligned with their existing contracts.
+* Admin refreshes entity details after section navigation and exposes complete, safe persisted-record diagnostics without bearer secrets. Critical JSON metadata collections publish complete individual files through atomic replacement; grant recovery persists consent evidence before `ACTIVE` and remains bounded by the current cycle. This does not provide a transaction across files, tracks or external effects.
+* Linux GitHub Actions workflows now cover full backend and frontend validation with JUnit summaries and a PowerShell launcher.
+
+### Issues
+
+- [#156](https://github.com/maxsail-project/tackbar/issues/156) — [#156] Harden JSON metadata writes against interruption and verify persistence boundaries
+- [#158](https://github.com/maxsail-project/tackbar/issues/158) — [#158] Fix incomplete persisted-record coverage in Admin Diagnostic JSON
+- [#159](https://github.com/maxsail-project/tackbar/issues/159) — [#159] Refresh stale Admin entity details after switching sections
+- [#161](https://github.com/maxsail-project/tackbar/issues/161) — [#161] Select initial Primary by maximum temporal overlap
+- [#163](https://github.com/maxsail-project/tackbar/issues/163) — [#163] Define Session wind-reference sources, precedence and provenance
+- [#164](https://github.com/maxsail-project/tackbar/issues/164) — [#164] Orient Session Viewer by wind reference with modelled weather and manual override
+- [#170](https://github.com/maxsail-project/tackbar/issues/170) — [#170] Reorganize My TackBar with Last Session and collapsed sections
+- [#171](https://github.com/maxsail-project/tackbar/issues/171) — [#171] Enforce minimum temporal quality for plain GPX ingestion
+- [#172](https://github.com/maxsail-project/tackbar/issues/172) — [#172] Unify TWD and weather detail dismissal in Session Viewer
+- [#173](https://github.com/maxsail-project/tackbar/issues/173) — [#173] Enable gesture-based TWD correction with circular 5-degree snap
+
+### Validation
+
+The completed Issues record focused implementation tests and product-owner acceptance. On candidate `a57971f`, GitHub Actions frontend run 41896338228 passed tests, typecheck and production build; backend run 41896324223 passed the full regression. These are prior candidate validation results, not tests rerun during release preparation. Preparation checks Issue completion and commit inclusion, documentation and bilingual entry consistency, publication absence, metadata correspondence and `git diff --check`. Residual limits include no cross-resource transaction or automatic recovery, no verified OVH backup restore, and no separately recorded desktop physical gesture check. Future wind sources and TWD-dependent analytics remain separate work.
+
+---
+
+### Español
+
+Session Viewer sigue una referencia temporal de viento modelado y permite una corrección temporal en el Viewer. Esta release también mejora la admisión de tracks, la presentación personal y de Admin, y la seguridad de escritura de metadatos JSON.
+
+### Añadido
+
+* El Viewer selecciona la dirección de viento modelado persistido válida más cercana al punto medio de la Analysis Window, conservando hora y procedencia. Redondea la orientación del mapa a 5° y muestra un estado no disponible cuando falta la referencia. Los controles ±5°, Reset y los gestos deliberados de rotación comparten una única corrección efímera Manual · Viewer; el gesto se ajusta circularmente a 5° y conserva el modo anterior si el ángulo final no cambia. Es una presentación: la analítica actual no utiliza TWD ni la corrección del Viewer.
+* Personal TackBar muestra primero Last Session y secciones plegables de Sessions, Activities y Boats. La selección inicial de Primary favorece la Activity con mayor solapamiento temporal acumulado con otras Activities visibles.
+* La admisión de GPX sin comprimir exige intervalo UTC adyacente mediano ≤2 s, P95 de rango más cercano ≤5 s y cada salto ≤10 s. Los diagnósticos controlados de carga manual enumeran todos los criterios temporales incumplidos sin exponer el track privado.
+
+### Cambiado
+
+* Los detalles TWD y Weather se cierran al interactuar fuera de ellos en cualquier lugar del Viewer y se abren de forma excluyente. El enfoque del mapa al seleccionar una maniobra y la ráfaga en el resumen meteorológico se ajustaron a sus contratos existentes.
+* Admin actualiza el detalle de entidades tras navegar entre secciones y muestra diagnósticos completos y seguros de los registros persistidos sin secretos bearer. Las colecciones críticas de metadatos JSON publican archivos individuales completos mediante reemplazo atómico; la recuperación del consentimiento persiste la evidencia antes del estado `ACTIVE` y queda limitada al ciclo actual. Esto no ofrece transacciones entre archivos, tracks y efectos externos.
+* Los workflows Linux de GitHub Actions cubren ahora la validación completa de backend y frontend con resúmenes JUnit y un lanzador PowerShell.
+
+### Issues
+
+- [#156](https://github.com/maxsail-project/tackbar/issues/156) — [#156] Harden JSON metadata writes against interruption and verify persistence boundaries
+- [#158](https://github.com/maxsail-project/tackbar/issues/158) — [#158] Fix incomplete persisted-record coverage in Admin Diagnostic JSON
+- [#159](https://github.com/maxsail-project/tackbar/issues/159) — [#159] Refresh stale Admin entity details after switching sections
+- [#161](https://github.com/maxsail-project/tackbar/issues/161) — [#161] Select initial Primary by maximum temporal overlap
+- [#163](https://github.com/maxsail-project/tackbar/issues/163) — [#163] Define Session wind-reference sources, precedence and provenance
+- [#164](https://github.com/maxsail-project/tackbar/issues/164) — [#164] Orient Session Viewer by wind reference with modelled weather and manual override
+- [#170](https://github.com/maxsail-project/tackbar/issues/170) — [#170] Reorganize My TackBar with Last Session and collapsed sections
+- [#171](https://github.com/maxsail-project/tackbar/issues/171) — [#171] Enforce minimum temporal quality for plain GPX ingestion
+- [#172](https://github.com/maxsail-project/tackbar/issues/172) — [#172] Unify TWD and weather detail dismissal in Session Viewer
+- [#173](https://github.com/maxsail-project/tackbar/issues/173) — [#173] Enable gesture-based TWD correction with circular 5-degree snap
+
+### Validación
+
+Los Issues completados registran pruebas focalizadas de implementación y aceptación del propietario del producto. En el candidato `a57971f`, el run frontend 41896338228 de GitHub Actions superó pruebas, typecheck y build de producción; el run backend 41896324223 superó la regresión completa. Son resultados previos del candidato, no pruebas repetidas durante la preparación. La preparación comprueba cierre e inclusión de Issues, coherencia documental y bilingüe, ausencia de publicación, correspondencia de metadatos y `git diff --check`. Los límites residuales incluyen la ausencia de transacción entre recursos y recuperación automática, ninguna restauración de backup OVH verificada y ninguna comprobación física de gesto en escritorio registrada por separado. Las futuras fuentes de viento y la analítica dependiente de TWD son trabajo independiente.
+
+---
+
 ## v0.7.18 Californian — On the Line
 
 ### English
