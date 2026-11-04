@@ -34,6 +34,12 @@ QUATERNION_COLUMNS = {
 class VakarosCSVParseError(ValueError):
     """A Vakaros CSV rejected for known input-format or validation reasons."""
 
+    def __init__(self, message: str, feedback_category: str | None = None,
+                 missing_columns: tuple[str, ...] = ()) -> None:
+        super().__init__(message)
+        self.feedback_category = feedback_category
+        self.missing_columns = missing_columns
+
 
 def has_vakaros_csv_suffix(value: str) -> bool:
     return value.lower().endswith(VAKAROS_CSV_SUFFIXES)
@@ -60,13 +66,18 @@ def parse_vakaros_csv(
             compression=_compression_for_filename(filename),
         )
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeError, gzip.BadGzipFile, EOFError) as error:
-        raise VakarosCSVParseError("Vakaros CSV could not be parsed") from error
+        raise VakarosCSVParseError(
+            "Vakaros CSV could not be parsed",
+            feedback_category="vakaros_incomplete" if isinstance(error, pd.errors.EmptyDataError) else None,
+        ) from error
 
     missing_columns = sorted(REQUIRED_COLUMNS - set(frame.columns))
     if missing_columns:
         raise VakarosCSVParseError(
             "Vakaros CSV is missing required columns: "
-            + ", ".join(missing_columns)
+            + ", ".join(missing_columns),
+            feedback_category="vakaros_incomplete",
+            missing_columns=tuple(missing_columns),
         )
 
     present_quaternion_columns = set(QUATERNION_COLUMNS) & set(frame.columns)

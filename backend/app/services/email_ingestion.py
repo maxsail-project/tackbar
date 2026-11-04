@@ -7,6 +7,9 @@ from app.parsers.gpx import GPXParseError
 from app.parsers.vakaros_vkx import VKXParseError
 from app.parsers.vakaros_csv import VakarosCSVParseError
 from app.services.gpx_notice_feedback import classify_gpx_error
+from app.services.vakaros_notice_feedback import (
+    classify_vakaros_csv_error, classify_vakaros_vkx_error,
+)
 
 
 class InboundEmailRejected(ValueError):
@@ -41,11 +44,13 @@ def process_inbound_email(email: InboundEmail) -> IngestionResult:
         ) from error
     except VKXParseError as error:
         raise ActionableTrackRejected(
-            "Inbound email attachment is not a valid Vakaros VKX file"
+            "Inbound email attachment is not a valid Vakaros VKX file",
+            classify_vakaros_vkx_error(error),
         ) from error
     except VakarosCSVParseError as error:
         raise ActionableTrackRejected(
-            "Inbound email attachment is not a valid Vakaros CSV file"
+            "Inbound email attachment is not a valid Vakaros CSV file",
+            classify_vakaros_csv_error(error),
         ) from error
     except (OSError, EOFError) as error:
         raise InboundEmailRejected(

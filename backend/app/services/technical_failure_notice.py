@@ -68,6 +68,38 @@ FEEDBACK_COPY = {
         "Check the GPS recording setting. If available, choose one-second (1 Hz) recording instead of smart recording. Record a new sailing track and send it in a new email.",
         "Technical detail: intervals between consecutive GPS points (seconds).",
     ),
+    "vakaros_incomplete": (
+        "El archivo no contiene toda la información de navegación necesaria para procesar el track.",
+        "Obtén o exporta el track original completo y envíalo en un correo nuevo.",
+        "Detalle técnico: faltan datos de navegación necesarios.",
+        "The file does not contain all the navigation information needed to process the track.",
+        "Obtain or export the complete original track and send it in a new email.",
+        "Technical detail: required navigation data is missing.",
+    ),
+    "vakaros_format": (
+        "TackBar no puede interpretar la revisión VKX declarada en este archivo.",
+        "Usa una exportación original compatible o consulta con soporte y envía el archivo en un correo nuevo.",
+        "Detalle técnico: la revisión VKX declarada no es compatible actualmente.",
+        "TackBar cannot interpret the VKX revision declared in this file.",
+        "Use an original supported export or contact support, then send the file in a new email.",
+        "Technical detail: the declared VKX revision is not currently supported.",
+    ),
+    "vakaros_gps": (
+        "Las posiciones GPS o las horas de navegación registradas no son válidas o utilizables.",
+        "Revisa la grabación original y su exportación; envía un archivo corregido en un correo nuevo.",
+        "Detalle técnico: se necesitan posiciones y horas de navegación válidas.",
+        "The recorded GPS positions or navigation timestamps are invalid or unusable.",
+        "Review the original recording and its export; send a corrected file in a new email.",
+        "Technical detail: valid navigation positions and timestamps are required.",
+    ),
+    "vakaros_sensor": (
+        "Los datos de sensores u orientación necesarios son incompletos o no válidos.",
+        "Obtén una nueva exportación original completa y envíala en un correo nuevo.",
+        "Detalle técnico: los valores de sensores u orientación no superaron la validación.",
+        "Required sensor or orientation data is incomplete or invalid.",
+        "Obtain a fresh, complete original export and send it in a new email.",
+        "Technical detail: sensor or orientation values did not pass validation.",
+    ),
 }
 
 
@@ -92,6 +124,10 @@ def _body(reason: str, feedback: dict | None = None) -> str:
         if feedback["category"] == "quality":
             es_detail += "\n" + _quality_table(feedback["metrics"], True)
             en_detail += "\n" + _quality_table(feedback["metrics"], False)
+        if "missing_columns" in feedback:
+            names = ", ".join(feedback["missing_columns"])
+            es_detail += "\nColumnas CSV necesarias ausentes: " + names
+            en_detail += "\nMissing required CSV columns: " + names
         return (
             "Hola,\n\nNo pudimos procesar tu envío de track a TackBar. "
             + es_problem + "\n\n" + es_action + "\n\n" + es_detail

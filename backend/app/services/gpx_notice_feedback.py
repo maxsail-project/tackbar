@@ -3,6 +3,8 @@
 import re
 from decimal import Decimal, InvalidOperation
 
+from app.services.vakaros_notice_feedback import safe_vakaros_feedback
+
 
 SIMPLE_ERRORS = {
     "GPX trackpoint has an invalid timezone offset": "chronology",
@@ -60,6 +62,8 @@ def safe_feedback(value: object) -> dict | None:
     category = value.get("category")
     if not isinstance(category, str):
         return None
+    if category.startswith("vakaros_"):
+        return safe_vakaros_feedback(value)
     if category in {"timezone", "chronology", "structure", "coordinates"} and set(value) == {"category"}:
         return {"category": category}
     if category != "quality" or set(value) != {"category", "metrics"}:

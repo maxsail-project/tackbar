@@ -49,6 +49,10 @@ logger = logging.getLogger(__name__)
 class VKXParseError(ValueError):
     """Raised when Vakaros VKX input is structurally or semantically invalid."""
 
+    def __init__(self, message: str, feedback_category: str | None = None) -> None:
+        super().__init__(message)
+        self.feedback_category = feedback_category
+
 
 def parse_vakaros_vkx(
     source: str | Path | bytes | BinaryIO,
@@ -149,7 +153,8 @@ def _parse_rows(
         payload_end = offset + payload_size
         if payload_end > len(data):
             raise VKXParseError(
-                f"Vakaros VKX row 0x{row_key:02X} is truncated"
+                f"Vakaros VKX row 0x{row_key:02X} is truncated",
+                feedback_category="vakaros_incomplete",
             )
         payload = data[offset:payload_end]
         offset = payload_end
@@ -158,7 +163,8 @@ def _parse_rows(
             revision = payload[0]
             if revision != VKX_1_4_REVISION:
                 raise VKXParseError(
-                    f"Unsupported Vakaros VKX revision 0x{revision:02X}"
+                    f"Unsupported Vakaros VKX revision 0x{revision:02X}",
+                    feedback_category="vakaros_format",
                 )
         elif row_key == 0x02:
             samples.append(_parse_position_row(payload))
