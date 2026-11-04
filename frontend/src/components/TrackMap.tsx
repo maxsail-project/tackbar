@@ -5,6 +5,7 @@ import Map, {
   Popup,
   Source,
   type MapRef,
+  type ViewStateChangeEvent,
 } from 'react-map-gl/maplibre'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import HistoricalConditionsControl from './HistoricalConditionsControl'
@@ -21,7 +22,7 @@ import type { ManeuverActivityRole } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import type { SessionStartLine } from '../utils/sessionStartLines'
 import type { TwdReference } from '../utils/twdReference'
-import type { TwdPresentation } from '../utils/twdPresentation'
+import { resolveGestureTwd, type TwdPresentation } from '../utils/twdPresentation'
 import {
   buildTrackGeometry,
   combineTrackBounds,
@@ -71,6 +72,7 @@ interface TrackMapProps {
   twdPresentation?: TwdPresentation
   onTwdStep?: (step: -5 | 5) => void
   onTwdAutomatic?: () => void
+  onTwdGestureCommit?: (degrees: number) => void
 }
 
 interface MapTelemetryOverlayProps {
@@ -407,10 +409,17 @@ export default function TrackMap({
   twdPresentation = { bearing: 0, displayDegrees: null, automaticDegrees: null, manual: false },
   onTwdStep = () => undefined,
   onTwdAutomatic = () => undefined,
+  onTwdGestureCommit = () => undefined,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
   const mapPanelRef = useRef<HTMLElement>(null)
-  const mapBearing = twdPresentation.bearing
+  const committedBearing = twdPresentation.bearing
+  const rotationGestureRef = useRef<{ effectiveBeforeGesture: number } | null>(null)
+  const [gestureBearing, setGestureBearing] = useState<number | null>(null)
+  const mapBearing = gestureBearing ?? committedBearing
+  const liveTwdPresentation = gestureBearing === null
+    ? twdPresentation
+    : { ...twdPresentation, bearing: gestureBearing, displayDegrees: ((Math.round(gestureBearing) % 360) + 360) % 360 }
   const [weatherDetailExpanded, setWeatherDetailExpanded] = useState(false)
   const [twdDetailExpanded, setTwdDetailExpanded] = useState(false)
   const [inspectedContextualActivityId, setInspectedContextualActivityId] = useState<string | null>(null)
@@ -421,6 +430,15 @@ export default function TrackMap({
     [],
   )
   const dismissTwdDetail = useCallback(() => setTwdDetailExpanded(false), [])
+  const cancelRotationGesture = useCallback(() => {
+    if (rotationGestureRef.current === null) return
+    rotationGestureRef.current = null
+    setGestureBearing(null)
+    mapRef.current?.stop()
+    if (mapRef.current && mapRef.current.getBearing() !== committedBearing) {
+      mapRef.current.jumpTo({ bearing: committedBearing })
+    }
+  }, [committedBearing])
   const changeTwdDetail = (expanded: boolean) => {
     setTwdDetailExpanded(expanded)
     if (expanded) setWeatherDetailExpanded(false)
@@ -475,7 +493,7 @@ export default function TrackMap({
     if (combinedBounds) {
       mapRef.current.fitBounds(
         combinedBounds,
-        trackFitOptions(mapBearing),
+        trackFitOptions(committedBearing),
       )
       return
     }
@@ -483,13 +501,12 @@ export default function TrackMap({
     mapRef.current.jumpTo({
       center: [windowFocus.lon, windowFocus.lat],
       zoom: 14,
-      bearing: mapBearing,
+      bearing: committedBearing,
     })
-  }, [combinedBounds, mapBearing, windowFocus])
+  }, [combinedBounds, committedBearing, windowFocus])
 
   const handleMapLoad = () => {
     const map = mapRef.current?.getMap()
-    map?.touchZoomRotate.disableRotation()
     map?.keyboard.disableRotation()
     fitTrack()
   }
@@ -500,15 +517,17 @@ export default function TrackMap({
       fitContextKey,
     )) return
 
+    cancelRotationGesture()
     fittedContextKeyRef.current = fitContextKey
     fitTrack()
-  }, [fitContextKey, fitTrack])
+  }, [fitContextKey, fitTrack, cancelRotationGesture])
 
   useEffect(() => {
-    if (mapRef.current && mapRef.current.getBearing() !== mapBearing) {
-      mapRef.current.jumpTo({ bearing: mapBearing })
+    cancelRotationGesture()
+    if (mapRef.current && mapRef.current.getBearing() !== committedBearing) {
+      mapRef.current.jumpTo({ bearing: committedBearing })
     }
-  }, [mapBearing])
+  }, [committedBearing, cancelRotationGesture])
 
   useEffect(() => {
     if (
@@ -517,6 +536,7 @@ export default function TrackMap({
       || mapRef.current === null
     ) return
 
+    cancelRotationGesture()
     handledFocusRequestIdRef.current = focusRequest.requestId
     const focusPosition = resolveMapFocusPosition(
       focusRequest,
@@ -527,7 +547,7 @@ export default function TrackMap({
 
     const mapHeight = mapRef.current.getContainer().clientHeight
     mapRef.current.easeTo(maneuverFocusCameraOptions(focusPosition, mapHeight))
-  }, [comparisonBoatPosition, focusRequest, primaryBoatPosition])
+  }, [comparisonBoatPosition, focusRequest, primaryBoatPosition, cancelRotationGesture])
 
   useEffect(() => {
     if (
@@ -569,6 +589,41 @@ export default function TrackMap({
     }
   }, [twdDetailExpanded, weatherDetailExpanded, dismissTwdDetail, dismissWeatherDetail])
 
+  useEffect(() => {
+    window.addEventListener('blur', cancelRotationGesture)
+    return () => window.removeEventListener('blur', cancelRotationGesture)
+  }, [cancelRotationGesture])
+
+  const startRotationGesture = (event: ViewStateChangeEvent) => {
+    if (rotationGestureRef.current !== null) return
+    const input = event?.originalEvent
+    if (!(input instanceof MouseEvent)
+      && !(typeof TouchEvent !== 'undefined' && input instanceof TouchEvent)) return
+    rotationGestureRef.current = { effectiveBeforeGesture: committedBearing }
+    setGestureBearing(mapRef.current?.getBearing() ?? committedBearing)
+  }
+  const updateRotationGesture = () => {
+    if (rotationGestureRef.current === null) return
+    const bearing = mapRef.current?.getBearing()
+    if (bearing !== undefined && Number.isFinite(bearing)) setGestureBearing(bearing)
+  }
+  const endRotationGesture = (event: ViewStateChangeEvent) => {
+    const gesture = rotationGestureRef.current
+    if (gesture === null) return
+    if (event?.originalEvent?.type === 'touchcancel') {
+      cancelRotationGesture()
+      return
+    }
+    rotationGestureRef.current = null
+    setGestureBearing(null)
+    const result = resolveGestureTwd(mapRef.current?.getBearing() ?? Number.NaN, gesture.effectiveBeforeGesture)
+    const finalBearing = result?.snappedBearing ?? gesture.effectiveBeforeGesture
+    if (mapRef.current && mapRef.current.getBearing() !== finalBearing) {
+      mapRef.current.jumpTo({ bearing: finalBearing })
+    }
+    if (result?.changed) onTwdGestureCommit(finalBearing)
+  }
+
   if (!windowFocus) return null
 
   // Layers added after the map has loaded must still stay below the selected pair.
@@ -595,8 +650,16 @@ export default function TrackMap({
             }}
         mapStyle={MAP_STYLE_URL}
         attributionControl={{ compact: true }}
-        dragRotate={false}
+        dragRotate
+        pitchWithRotate={false}
         {...mapWeatherDetailDismissHandlers(dismissWeatherDetail, dismissTwdDetail)}
+        onRotateStart={(event) => {
+          dismissWeatherDetail()
+          startRotationGesture(event)
+        }}
+        onRotate={updateRotationGesture}
+        onRotateEnd={endRotationGesture}
+        onTouchCancel={cancelRotationGesture}
         onLoad={handleMapLoad}
       >
         {sessionStartLines.filter((line) => line.pin && line.boat).map((line) => (
@@ -767,7 +830,7 @@ export default function TrackMap({
           </Popup>
         )}
       </Map>
-      <TwdControl reference={twdReference} presentation={twdPresentation} expanded={twdDetailExpanded} onExpandedChange={changeTwdDetail} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
+      <TwdControl reference={twdReference} presentation={liveTwdPresentation} expanded={twdDetailExpanded} onExpandedChange={changeTwdDetail} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
       <HistoricalConditionsControl
         sample={historicalConditionsSample}
         weatherProvider={historicalConditionsWeatherProvider}

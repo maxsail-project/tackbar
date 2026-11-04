@@ -36,3 +36,12 @@ export function resolveTwdPresentation(
 export function stepViewerTwd(currentDegrees: number | null, step: -5 | 5) {
   return normalizeDegrees((currentDegrees ?? 0) + step)
 }
+
+export function resolveGestureTwd(bearing: number, effectiveBeforeGesture: number) {
+  if (!Number.isFinite(bearing)) return null
+  const snappedBearing = normalizeDegrees(Math.round(bearing / 5) * 5)
+  return {
+    snappedBearing,
+    changed: snappedBearing !== normalizeDegrees(effectiveBeforeGesture),
+  }
+}

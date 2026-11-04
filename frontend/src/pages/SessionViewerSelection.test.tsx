@@ -27,14 +27,15 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessUnavailableError: class extends Error {},
 }))
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, twdReference, twdPresentation, onTwdStep, onTwdAutomatic }: {
+  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit }: {
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
     focusRequest: { activityRole: string, requestId: number } | null,
     twdReference: TwdReference, twdPresentation: TwdPresentation,
     onTwdStep: (step: -5 | 5) => void, onTwdAutomatic: () => void,
+    onTwdGestureCommit: (degrees: number) => void,
   }) =>
     <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'}>
-      <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button>
+      <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
       {selectedManeuverHighlights.map((highlight) =>
       <span key={highlight.selectionIndex} data-map-highlight={highlight.selectionIndex} data-role={highlight.activityRole} data-geometry={JSON.stringify(highlight.geoJson.geometry.coordinates)} />
     )}</div>,
@@ -181,6 +182,36 @@ beforeEach(() => {
 })
 
 describe('Viewer TWD state', () => {
+  it('starts a gesture correction from unavailable North-up and restores unavailable on Reset', async () => {
+    await mountViewer('original', session)
+    const mapState = () => container.querySelector('[data-twd]')!
+    await click('[data-twd-gesture]')
+    expect(mapState().getAttribute('data-twd')).toBe('355')
+    expect(mapState().getAttribute('data-twd-bearing')).toBe('355')
+    expect(mapState().getAttribute('data-twd-manual')).toBe('true')
+    expect(mapState().getAttribute('data-twd-original')).toBe('unavailable')
+    await click('[data-twd-auto]')
+    expect(mapState().getAttribute('data-twd')).toBe('unavailable')
+    expect(mapState().getAttribute('data-twd-bearing')).toBe('0')
+  })
+
+  it.each(['original', 'temporary'] as const)('uses the existing manual TWD state for gesture commits on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const mapState = () => container.querySelector('[data-twd]')!
+    await click('[data-twd-gesture]')
+    expect(mapState().getAttribute('data-twd')).toBe('355')
+    expect(mapState().getAttribute('data-twd-bearing')).toBe('355')
+    expect(mapState().getAttribute('data-twd-manual')).toBe('true')
+    expect(mapState().getAttribute('data-twd-original')).toBe('91.6')
+    await click('[data-twd-plus]')
+    expect(mapState().getAttribute('data-twd')).toBe('0')
+    await click('[data-narrow-window]')
+    expect(mapState().getAttribute('data-twd')).toBe('0')
+    await click('[data-twd-auto]')
+    expect(mapState().getAttribute('data-twd')).toBe('180')
+    expect(mapState().getAttribute('data-twd-manual')).toBe('false')
+  })
+
   it.each(['original', 'temporary'] as const)('resolves current-window wind and preserves a manual correction on %s access', async (accessKind) => {
     await mountViewer(accessKind, windSession)
     const mapState = () => container.querySelector('[data-twd]')!

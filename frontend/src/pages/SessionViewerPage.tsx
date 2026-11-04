@@ -1073,6 +1073,7 @@ export function SessionViewer({
             step,
           ))}
           onTwdAutomatic={() => setManualTwdDegrees(null)}
+          onTwdGestureCommit={setManualTwdDegrees}
         />
       ) : (
         <section className="track-unavailable" aria-live="polite">

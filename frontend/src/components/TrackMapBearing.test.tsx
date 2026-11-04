@@ -14,6 +14,7 @@ const map = vi.hoisted(() => ({
   jumpTo: vi.fn(),
   fitBounds: vi.fn(),
   easeTo: vi.fn(),
+  stop: vi.fn(),
   disableTouchRotation: vi.fn(),
   disableKeyboardRotation: vi.fn(),
 }))
@@ -37,6 +38,7 @@ vi.mock('react-map-gl/maplibre', async () => {
         },
         fitBounds: (...args: unknown[]) => map.fitBounds(...args),
         easeTo: (...args: unknown[]) => map.easeTo(...args),
+        stop: () => map.stop(),
       }))
       return <div data-map>{props.children}</div>
     }),
@@ -67,7 +69,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   map.bearing = 0
   map.props = null
-  for (const fn of [map.jumpTo, map.fitBounds, map.easeTo, map.disableTouchRotation, map.disableKeyboardRotation]) fn.mockClear()
+  for (const fn of [map.jumpTo, map.fitBounds, map.easeTo, map.stop, map.disableTouchRotation, map.disableKeyboardRotation]) fn.mockClear()
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -86,6 +88,7 @@ async function renderMap(
   onTwdAutomatic = vi.fn(),
   focusRequest: { activityRole: 'primary', requestId: number } | null = null,
   historicalConditionsSample: HistoricalConditionsSample | null = null,
+  onTwdGestureCommit = vi.fn(),
 ) {
   await act(async () => root.render(<TrackMap
     primaryVisibleSamples={samples}
@@ -110,6 +113,7 @@ async function renderMap(
     twdPresentation={twdPresentation}
     onTwdStep={onTwdStep}
     onTwdAutomatic={onTwdAutomatic}
+    onTwdGestureCommit={onTwdGestureCommit}
     historicalConditionsSample={historicalConditionsSample}
     historicalConditionsWeatherProvider="open-meteo"
   />))
@@ -129,6 +133,103 @@ function expectMarkerRotation(rotation: number) {
 }
 
 describe('wind-oriented map controls', () => {
+  it('previews a desktop rotation continuously, then snaps and commits one manual correction', async () => {
+    const onCommit = vi.fn()
+    await renderMap(reference, resolveTwdPresentation(reference, null), 'full', vi.fn(), vi.fn(), null, weather, onCommit)
+    const startRotation = map.props?.onRotateStart as (event: unknown) => void
+    const rotate = map.props?.onRotate as () => void
+    const endRotation = map.props?.onRotateEnd as (event: unknown) => void
+    await act(async () => startRotation({ originalEvent: new MouseEvent('mousemove', { button: 2, buttons: 2 }) }))
+    map.bearing = 93.4
+    await act(async () => rotate())
+    expect(container.querySelector('.map-bearing__value')?.textContent).toBe('TWD093°')
+    expect(map.bearing).toBe(93.4)
+    expect(onCommit).not.toHaveBeenCalled()
+    await act(async () => endRotation({ originalEvent: new MouseEvent('mouseup', { button: 2 }) }))
+    expect(map.bearing).toBe(95)
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(95)
+    await renderMap(reference, resolveTwdPresentation(reference, 95), 'full', vi.fn(), vi.fn(), null, weather, onCommit)
+    expect(container.querySelector('.map-bearing__value')?.textContent).toBe('TWD095°')
+    expect(container.textContent).toContain('Manual · Viewer')
+    expect(container.querySelector('[aria-label="Reset TWD to automatic"]')).not.toBeNull()
+    expect(map.jumpTo.mock.lastCall?.[0]).toEqual({ bearing: 95 })
+  })
+
+  it('keeps automatic, manual, and unavailable modes when a gesture snaps back to its start', async () => {
+    const onCommit = vi.fn()
+    for (const [source, manual, live, final] of [
+      [reference, null, 91.9, 90],
+      [reference, 95, 96.9, 95],
+      [{ status: 'unavailable' } as TwdReference, null, 1.9, 0],
+    ] as const) {
+      await renderMap(source, resolveTwdPresentation(source, manual), 'full', vi.fn(), vi.fn(), null, null, onCommit)
+      await act(async () => (map.props?.onRotateStart as (event: unknown) => void)({ originalEvent: new TouchEvent('touchmove') }))
+      map.bearing = live
+      await act(async () => (map.props?.onRotate as () => void)())
+      await act(async () => (map.props?.onRotateEnd as (event: unknown) => void)({ originalEvent: new TouchEvent('touchend') }))
+      expect(map.bearing).toBe(final)
+      expect(container.querySelector('.map-bearing__value')?.textContent)
+        .toBe(manual === null && source.status === 'unavailable' ? 'TWD—' : `TWD${String(final).padStart(3, '0')}°`)
+      expect(container.textContent?.includes('Manual · Viewer')).toBe(manual !== null)
+    }
+    expect(onCommit).not.toHaveBeenCalled()
+  })
+
+  it('ignores programmatic rotation and restores a cancelled touch gesture', async () => {
+    const onCommit = vi.fn()
+    await renderMap(reference, resolveTwdPresentation(reference, null), 'full', vi.fn(), vi.fn(), null, null, onCommit)
+    await act(async () => (map.props?.onRotateStart as (event: unknown) => void)({ originalEvent: undefined }))
+    map.bearing = 180
+    await act(async () => (map.props?.onRotateEnd as (event: unknown) => void)({ originalEvent: undefined }))
+    expect(onCommit).not.toHaveBeenCalled()
+    map.bearing = 90
+
+    await act(async () => (map.props?.onRotateStart as (event: unknown) => void)({ originalEvent: new TouchEvent('touchmove') }))
+    map.bearing = 112
+    await act(async () => (map.props?.onRotate as () => void)())
+    await act(async () => (map.props?.onTouchCancel as () => void)())
+    expect(map.stop).toHaveBeenCalledOnce()
+    expect(map.bearing).toBe(90)
+    await act(async () => (map.props?.onRotateEnd as (event: unknown) => void)({ originalEvent: new TouchEvent('touchcancel') }))
+    expect(onCommit).not.toHaveBeenCalled()
+    expect(container.querySelector('.map-bearing__value')?.textContent).toBe('TWD090°')
+  })
+
+  it('cancels an active gesture when the committed TWD changes externally', async () => {
+    const onCommit = vi.fn()
+    await renderMap(reference, resolveTwdPresentation(reference, null), 'full', vi.fn(), vi.fn(), null, null, onCommit)
+    await act(async () => (map.props?.onRotateStart as (event: unknown) => void)({ originalEvent: new MouseEvent('mousemove', { ctrlKey: true }) }))
+    map.bearing = 123
+    await act(async () => (map.props?.onRotate as () => void)())
+    await renderMap(reference, resolveTwdPresentation(reference, 95), 'full', vi.fn(), vi.fn(), null, null, onCommit)
+    expect(map.stop).toHaveBeenCalledOnce()
+    expect(map.bearing).toBe(95)
+    await act(async () => (map.props?.onRotateEnd as (event: unknown) => void)({ originalEvent: new MouseEvent('mouseup') }))
+    expect(onCommit).not.toHaveBeenCalled()
+    expect(container.querySelector('.map-bearing__value')?.textContent).toBe('TWD095°')
+  })
+
+  it('keeps fit and focus programmatic while discarding an active gesture', async () => {
+    const onCommit = vi.fn()
+    const presentation = resolveTwdPresentation(reference, null)
+    await renderMap(reference, presentation, 'full', vi.fn(), vi.fn(), null, null, onCommit)
+    await act(async () => (map.props?.onRotateStart as (event: unknown) => void)({ originalEvent: new MouseEvent('mousemove', { button: 2 }) }))
+    map.bearing = 116
+    await act(async () => (map.props?.onRotate as () => void)())
+    await renderMap(reference, presentation, 'narrow', vi.fn(), vi.fn(), null, null, onCommit)
+    expect(map.stop).toHaveBeenCalledOnce()
+    expect(map.fitBounds).toHaveBeenLastCalledWith(expect.any(Array), expect.objectContaining({ bearing: 90 }))
+
+    await act(async () => (map.props?.onRotateStart as (event: unknown) => void)({ originalEvent: new MouseEvent('mousemove', { ctrlKey: true }) }))
+    map.bearing = 121
+    await act(async () => (map.props?.onRotate as () => void)())
+    await renderMap(reference, presentation, 'narrow', vi.fn(), vi.fn(), { activityRole: 'primary', requestId: 2 }, null, onCommit)
+    expect(map.stop).toHaveBeenCalledTimes(2)
+    expect(map.easeTo).toHaveBeenCalledWith(expect.objectContaining({ center: [-30.72, 0.25] }))
+    await act(async () => (map.props?.onRotateEnd as (event: unknown) => void)({ originalEvent: new MouseEvent('mouseup') }))
+    expect(onCommit).not.toHaveBeenCalled()
+  })
+
   it('uses the free expanded TWD header as an accessible close target without changing wind controls', async () => {
     const onStep = vi.fn()
     const onAutomatic = vi.fn()
@@ -233,7 +334,8 @@ describe('wind-oriented map controls', () => {
   it('uses rounded TWD as the camera bearing, preserving fit and geographic marker rotations', async () => {
     await renderMap()
     expect(container.querySelector('[aria-label="Reset TWD to automatic"]')).toBeNull()
-    expect(map.props?.dragRotate).toBe(false)
+    expect(map.props?.dragRotate).toBe(true)
+    expect(map.props?.pitchWithRotate).toBe(false)
     expect(map.props?.touchZoomRotate).toBeUndefined() // default pinch zoom remains enabled
     expect(map.props?.scrollZoom).toBeUndefined() // default wheel zoom remains enabled
     expect(map.props?.dragPan).toBeUndefined() // default pan remains enabled
@@ -242,7 +344,7 @@ describe('wind-oriented map controls', () => {
     expect(map.jumpTo).toHaveBeenCalledWith({ bearing: 90 })
     expectMarkerRotation(0)
     await act(async () => (map.props?.onLoad as () => void)())
-    expect(map.disableTouchRotation).toHaveBeenCalledOnce()
+    expect(map.disableTouchRotation).not.toHaveBeenCalled()
     expect(map.disableKeyboardRotation).toHaveBeenCalledOnce()
     expect(map.fitBounds).toHaveBeenLastCalledWith(expect.any(Array), expect.objectContaining({ bearing: 90 }))
   })
