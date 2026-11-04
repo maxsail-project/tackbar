@@ -3,6 +3,7 @@ import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TrackSample } from '../types/track'
+import type { HistoricalConditionsSample } from '../types/session'
 import type { TwdReference } from '../utils/twdReference'
 import { resolveTwdPresentation, type TwdPresentation } from '../utils/twdPresentation'
 import TrackMap from './TrackMap'
@@ -45,8 +46,6 @@ vi.mock('react-map-gl/maplibre', async () => {
     Popup: () => null,
   }
 })
-vi.mock('./HistoricalConditionsControl', () => ({ default: () => null }))
-
 const samples: TrackSample[] = [
   { utc: '2031-01-01T10:00:00Z', lat: 0.25, lon: -30.72, dist: 0, sog: 5, cog: 90, hdg: null, heel: null, trim: null },
   { utc: '2031-01-01T10:00:01Z', lat: 0.25, lon: -30.71, dist: 0, sog: 5, cog: 90, hdg: null, heel: null, trim: null },
@@ -54,6 +53,11 @@ const samples: TrackSample[] = [
 const reference: TwdReference = {
   status: 'available', directionDegrees: 91.6, sourceKind: 'modelled_weather',
   sourceTimeUtc: '2031-01-01T09:00:00.000Z', provenance: { provider: 'open-meteo' },
+}
+const weather: HistoricalConditionsSample = {
+  time: '2031-01-01T09:00:00Z', air_temperature_c: 23,
+  wind_speed_10m_kn: 14, wind_gusts_10m_kn: 19, wind_direction_10m_deg: 92,
+  cloud_cover_pct: null, wave_height_m: null, wave_direction_deg: null, wave_period_s: null,
 }
 
 let container: HTMLDivElement
@@ -81,6 +85,7 @@ async function renderMap(
   onTwdStep = vi.fn(),
   onTwdAutomatic = vi.fn(),
   focusRequest: { activityRole: 'primary', requestId: number } | null = null,
+  historicalConditionsSample: HistoricalConditionsSample | null = null,
 ) {
   await act(async () => root.render(<TrackMap
     primaryVisibleSamples={samples}
@@ -105,6 +110,8 @@ async function renderMap(
     twdPresentation={twdPresentation}
     onTwdStep={onTwdStep}
     onTwdAutomatic={onTwdAutomatic}
+    historicalConditionsSample={historicalConditionsSample}
+    historicalConditionsWeatherProvider="open-meteo"
   />))
 }
 
@@ -122,6 +129,64 @@ function expectMarkerRotation(rotation: number) {
 }
 
 describe('wind-oriented map controls', () => {
+  it('uses the free expanded TWD header as an accessible close target without changing wind controls', async () => {
+    const onStep = vi.fn()
+    const onAutomatic = vi.fn()
+    await renderMap(reference, resolveTwdPresentation(reference, 95), 'full', onStep, onAutomatic)
+    await click('TWD 095°')
+    const headerClose = container.querySelector<HTMLButtonElement>('[aria-label="Close TWD reference details"]')
+    expect(headerClose?.getAttribute('type')).toBe('button')
+    expect(headerClose?.className).toBe('map-twd__header-dismiss')
+    await click('Adjust TWD 5 degrees clockwise')
+    await click('Reset TWD to automatic')
+    expect(onStep).toHaveBeenCalledWith(5)
+    expect(onAutomatic).toHaveBeenCalledOnce()
+    expect(container.querySelector('[aria-label="TWD reference details"]')).not.toBeNull()
+    await click('Close TWD reference details')
+    expect(container.querySelector('[aria-label="TWD reference details"]')).toBeNull()
+    expect(map.bearing).toBe(95)
+    expect(onStep).toHaveBeenCalledOnce()
+    expect(onAutomatic).toHaveBeenCalledOnce()
+  })
+
+  it('keeps TWD and Weather mutually exclusive and dismisses either from outside the map', async () => {
+    await renderMap(reference, resolveTwdPresentation(reference, null), 'full', vi.fn(), vi.fn(), null, weather)
+    const twdDetail = () => container.querySelector('[aria-label="TWD reference details"]')
+    const weatherDetail = () => container.querySelector('[aria-label="Historical modelled conditions"]')
+    const weatherChip = () => container.querySelector<HTMLButtonElement>('.map-conditions__chip')!
+    const outside = document.createElement('button')
+    outside.textContent = 'Viewer control outside map'
+    const onOutsideClick = vi.fn()
+    outside.addEventListener('click', onOutsideClick)
+    container.append(outside)
+
+    await click('TWD 090°')
+    expect(twdDetail()).not.toBeNull()
+    await act(async () => twdDetail()!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })))
+    expect(twdDetail()).not.toBeNull()
+    await act(async () => weatherChip().click())
+    expect(twdDetail()).toBeNull()
+    expect(weatherDetail()).not.toBeNull()
+    expect(weatherDetail()?.textContent).toContain('19 kt')
+
+    await act(async () => weatherDetail()!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+    expect(weatherDetail()).not.toBeNull()
+    await act(async () => weatherChip().click())
+    expect(weatherDetail()).toBeNull()
+    await act(async () => weatherChip().click())
+    await click('TWD 090°')
+    expect(weatherDetail()).toBeNull()
+    expect(twdDetail()).not.toBeNull()
+
+    await act(async () => outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })))
+    expect(twdDetail()).toBeNull()
+    await act(async () => weatherChip().click())
+    await act(async () => outside.click())
+    expect(weatherDetail()).toBeNull()
+    expect(onOutsideClick).toHaveBeenCalledOnce()
+    outside.remove()
+  })
+
   it('dismisses TWD details on map taps and map interaction starts, while control interactions stay open', async () => {
     const onStep = vi.fn()
     const onAutomatic = vi.fn()

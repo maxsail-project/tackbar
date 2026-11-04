@@ -409,6 +409,7 @@ export default function TrackMap({
   onTwdAutomatic = () => undefined,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
+  const mapPanelRef = useRef<HTMLElement>(null)
   const mapBearing = twdPresentation.bearing
   const [weatherDetailExpanded, setWeatherDetailExpanded] = useState(false)
   const [twdDetailExpanded, setTwdDetailExpanded] = useState(false)
@@ -420,6 +421,14 @@ export default function TrackMap({
     [],
   )
   const dismissTwdDetail = useCallback(() => setTwdDetailExpanded(false), [])
+  const changeTwdDetail = (expanded: boolean) => {
+    setTwdDetailExpanded(expanded)
+    if (expanded) setWeatherDetailExpanded(false)
+  }
+  const changeWeatherDetail = (expanded: boolean) => {
+    setWeatherDetailExpanded(expanded)
+    if (expanded) setTwdDetailExpanded(false)
+  }
   const primaryGeometry = useMemo(
     () => primaryVisibleSamples.length >= 2
       ? buildTrackGeometry(primaryVisibleSamples)
@@ -541,6 +550,25 @@ export default function TrackMap({
     playbackTime,
   ])
 
+  useEffect(() => {
+    if (!twdDetailExpanded && !weatherDetailExpanded) return
+    const dismissOutside = (event: Event) => {
+      const target = event.target
+      const panel = mapPanelRef.current
+      if (!(target instanceof Node) || panel === null) return
+      if (panel.querySelector('.map-navigation-group')?.contains(target)
+        || panel.querySelector('.map-conditions')?.contains(target)) return
+      dismissTwdDetail()
+      dismissWeatherDetail()
+    }
+    document.addEventListener('pointerdown', dismissOutside, true)
+    document.addEventListener('click', dismissOutside, true)
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside, true)
+      document.removeEventListener('click', dismissOutside, true)
+    }
+  }, [twdDetailExpanded, weatherDetailExpanded, dismissTwdDetail, dismissWeatherDetail])
+
   if (!windowFocus) return null
 
   // Layers added after the map has loaded must still stay below the selected pair.
@@ -550,7 +578,7 @@ export default function TrackMap({
     : primaryLayerExists ? 'primary-activity-track-line' : undefined
 
   return (
-    <section className="map-panel" aria-label="Session track map" onClick={dismissTwdDetail}>
+    <section ref={mapPanelRef} className="map-panel" aria-label="Session track map">
       <Map
         ref={mapRef}
         initialViewState={combinedBounds
@@ -739,13 +767,13 @@ export default function TrackMap({
           </Popup>
         )}
       </Map>
-      <TwdControl reference={twdReference} presentation={twdPresentation} expanded={twdDetailExpanded} onExpandedChange={setTwdDetailExpanded} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
+      <TwdControl reference={twdReference} presentation={twdPresentation} expanded={twdDetailExpanded} onExpandedChange={changeTwdDetail} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
       <HistoricalConditionsControl
         sample={historicalConditionsSample}
         weatherProvider={historicalConditionsWeatherProvider}
         marineProvider={historicalConditionsMarineProvider}
         expanded={weatherDetailExpanded}
-        onExpandedChange={setWeatherDetailExpanded}
+        onExpandedChange={changeWeatherDetail}
       />
       <MapTelemetryOverlay
         hasComparison={hasComparison}

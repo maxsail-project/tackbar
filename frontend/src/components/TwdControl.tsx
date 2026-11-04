@@ -19,6 +19,7 @@ export default function TwdControl({ reference, presentation, expanded, onExpand
 
   return <div className={`map-navigation-group${expanded ? ' map-navigation-group--expanded' : ''}`} role="group" aria-label="True wind direction control" onPointerDown={stopMapInteraction} onClick={(event: MouseEvent) => event.stopPropagation()}>
     <div className="map-navigation-group__direction">
+      {expanded && <button type="button" className="map-twd__header-dismiss" aria-label="Close TWD reference details" onClick={() => onExpandedChange(false)} />}
       <button type="button" aria-label="Adjust TWD 5 degrees counterclockwise" onClick={() => onStep(-5)}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 2 7M4 4v6h6" /></svg>
       </button>
