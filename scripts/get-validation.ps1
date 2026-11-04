@@ -4,11 +4,11 @@
   Resume los workflows de validacion de TackBar para un commit.
   Si el HEAD de main no tiene runs asociados, lo informa como NOT RUN.
 .EXAMPLE
-  .\Get-TackBarValidation.ps1
+  .\get-validation.ps1
 .EXAMPLE
-  .\Get-TackBarValidation.ps1 -Sha a57971f
+  .\get-validation.ps1 -Sha a57971f
 .EXAMPLE
-  .\Get-TackBarValidation.ps1 -Sha a57971f -AsJson
+  .\get-validation.ps1 -Sha a57971f -AsJson
 .NOTES
   Requiere GitHub CLI (gh) autenticado y permiso de lectura de GitHub Actions.
   No lanza tests ni modifica GitHub. Consulta el HEAD remoto de main por defecto.

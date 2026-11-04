@@ -52,7 +52,7 @@ foreach ($which in $selected) {
     $queryArgs = @('run', 'list', '-R', $repo, '-w', $workflow,
                    '-b', 'main', '-e', 'workflow_dispatch', '-L', '50',
                    '--json', 'databaseId,headSha,url,status,conclusion')
-    $prior = @(Invoke-Gh -Arguments $queryArgs | ConvertFrom-Json)
+    $prior = Invoke-Gh -Arguments $queryArgs | ConvertFrom-Json
     $priorIds = @($prior | ForEach-Object { [string] $_.databaseId })
 
     # Exactly one dispatch per selected workflow: never retry automatically.
@@ -61,7 +61,7 @@ foreach ($which in $selected) {
     $newRun = $null
     for ($attempt = 1; $attempt -le 12; $attempt++) {
         Start-Sleep -Seconds 2
-        $current = @(Invoke-Gh -Arguments $queryArgs | ConvertFrom-Json)
+        $current = Invoke-Gh -Arguments $queryArgs | ConvertFrom-Json
         $new = @($current | Where-Object { $priorIds -notcontains [string] $_.databaseId })
         if ($new.Count -gt 1) {
             throw "More than one new $workflow run appeared. Cannot attribute a run safely. Inspect GitHub Actions manually."
