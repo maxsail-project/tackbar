@@ -495,6 +495,39 @@ describe('Viewer selected maneuver interactions', () => {
     expect(mapHighlights()).toEqual([{ index: '1', role: 'primary' }, { index: '2', role: 'primary' }])
   })
 
+  it.each(['original', 'temporary'] as const)('focuses the owning boat from table and timeline on %s access, including repeat selection', async (accessKind) => {
+    await mountViewer(accessKind)
+    await choose('Compare', 'b')
+    const focus = () => container.querySelector('[data-focus-request]')!
+    const playbackTime = () => Number(container.querySelector('output')?.getAttribute('data-playback-time'))
+
+    await click('[data-table-event="' + (start + 2_000) + '"]')
+    expect(playbackTime()).toBe(start + 2_000)
+    expect(focus().getAttribute('data-focus-role')).toBe('primary')
+    const firstRequest = Number(focus().getAttribute('data-focus-request'))
+    expect(selectedTimes()[0]).toBe('10:00:02')
+    expect(mapHighlights()[0].role).toBe('primary')
+
+    await click('[data-table-event="' + (start + 2_000) + '"]')
+    expect(Number(focus().getAttribute('data-focus-request'))).toBeGreaterThan(firstRequest)
+    expect(selectedTimes()[1]).toBe('No previous selection')
+    const repeatedTableRequest = Number(focus().getAttribute('data-focus-request'))
+
+    await click(marker(6))
+    expect(playbackTime()).toBe(start + 6_000)
+    expect(focus().getAttribute('data-focus-role')).toBe('comparison')
+    expect(Number(focus().getAttribute('data-focus-request'))).toBeGreaterThan(repeatedTableRequest)
+    expect(selectedTimes()).toEqual(['10:00:06', '10:00:02'])
+    expect(mapHighlights()).toEqual([{ index: '1', role: 'comparison' }, { index: '2', role: 'primary' }])
+    const markerRequest = Number(focus().getAttribute('data-focus-request'))
+
+    await click('[data-table-event="' + (start + 6_000) + '"]')
+    expect(playbackTime()).toBe(start + 6_000)
+    expect(focus().getAttribute('data-focus-role')).toBe('comparison')
+    expect(Number(focus().getAttribute('data-focus-request'))).toBeGreaterThan(markerRequest)
+    expect(selectedTimes()).toEqual(['10:00:06', '10:00:02'])
+  })
+
   it('clears both records when the Analysis Window changes while both events stay eligible', async () => {
     await mountViewer()
     await click(marker(2))

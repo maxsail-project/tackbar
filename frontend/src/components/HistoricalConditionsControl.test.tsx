@@ -32,8 +32,33 @@ describe('historical conditions map control', () => {
     expect(markup).toContain('class="map-conditions__chip"')
     expect(markup).toContain('type="button"')
     expect(markup).toContain('aria-expanded="false"')
-    expect(markup).toContain('338° · 4.2 kt · 28.8°C')
-    expect(markup).not.toContain('(19)')
+    expect(markup).toContain('338° · 4.2 (19) kt · 28.8°C')
+  })
+
+  it('omits missing or invalid gusts and keeps gust-only context out of the chip', () => {
+    const props = {
+      weatherProvider: 'open-meteo',
+      marineProvider: null,
+      expanded: false,
+      onExpandedChange: () => undefined,
+    }
+    const absent = renderToStaticMarkup(<HistoricalConditionsControl
+      sample={{ ...sample, wind_gusts_10m_kn: null }} {...props}
+    />)
+    const invalid = renderToStaticMarkup(<HistoricalConditionsControl
+      sample={{ ...sample, wind_gusts_10m_kn: Number.NaN }} {...props}
+    />)
+    const partial = renderToStaticMarkup(<HistoricalConditionsControl
+      sample={{ ...sample, wind_speed_10m_kn: null }} {...props}
+    />)
+    expect(absent).toContain('092° · 14 kt · 23°C')
+    expect(invalid).toContain('092° · 14 kt · 23°C')
+    expect(partial).toContain('092° · 23°C')
+    expect(partial).not.toContain('(19)')
+    expect(renderToStaticMarkup(<HistoricalConditionsControl sample={{
+      ...sample, wind_direction_10m_deg: null, wind_speed_10m_kn: null,
+      air_temperature_c: null,
+    }} {...props} />)).toBe('')
   })
 
   it('shows every available persisted field and its UTC sample time in detail', () => {

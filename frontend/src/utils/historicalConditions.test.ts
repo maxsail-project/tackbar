@@ -67,6 +67,18 @@ describe('historical conditions compact presentation', () => {
       wind_speed_10m_kn: 14.04,
       wind_gusts_10m_kn: 18.96,
       air_temperature_c: 23.02,
+    }))).toBe('092° · 14 (19) kt · 23°C')
+  })
+
+  it('omits absent or invalid gusts while retaining wind speed', () => {
+    expect(formatHistoricalConditionsCompact(sample('2031-06-01T09:00:00Z', {
+      wind_gusts_10m_kn: null,
+    }))).toBe('092° · 14 kt · 23°C')
+    expect(formatHistoricalConditionsCompact(sample('2031-06-01T09:00:00Z', {
+      wind_gusts_10m_kn: Number.POSITIVE_INFINITY,
+    }))).toBe('092° · 14 kt · 23°C')
+    expect(formatHistoricalConditionsCompact(sample('2031-06-01T09:00:00Z', {
+      wind_gusts_10m_kn: Number.NaN,
     }))).toBe('092° · 14 kt · 23°C')
   })
 
@@ -74,9 +86,19 @@ describe('historical conditions compact presentation', () => {
     expect(formatHistoricalConditionsCompact(sample('2031-06-01T09:00:00Z', {
       wind_direction_10m_deg: null,
       wind_speed_10m_kn: 14,
-      wind_gusts_10m_kn: null,
+      wind_gusts_10m_kn: 19,
       air_temperature_c: 23,
-    }))).toBe('14 kt · 23°C')
+    }))).toBe('14 (19) kt · 23°C')
+    expect(formatHistoricalConditionsCompact(sample('2031-06-01T09:00:00Z', {
+      wind_direction_10m_deg: null,
+      wind_speed_10m_kn: null,
+      wind_gusts_10m_kn: 19,
+      air_temperature_c: 23,
+    }))).toBe('23°C')
+    expect(formatHistoricalConditionsCompact(sample('2031-06-01T09:00:00Z', {
+      wind_speed_10m_kn: Number.NaN,
+      wind_gusts_10m_kn: 19,
+    }))).toBe('092° · 23°C')
     expect(formatHistoricalConditionsCompact(sample('2031-06-01T09:00:00Z', {
       wind_direction_10m_deg: null,
       wind_speed_10m_kn: null,

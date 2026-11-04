@@ -30,7 +30,7 @@ export function selectHistoricalConditionsSample(
   return selected
 }
 
-function finite(value: number | null) {
+function finite(value: number | null | undefined) {
   return value !== null && Number.isFinite(value)
 }
 
@@ -41,7 +41,8 @@ function compactNumber(value: number) {
 
 export function formatHistoricalConditionsCompact(
   sample: Pick<HistoricalConditionsSample,
-    'air_temperature_c' | 'wind_speed_10m_kn' | 'wind_direction_10m_deg'>,
+    'air_temperature_c' | 'wind_speed_10m_kn' | 'wind_direction_10m_deg'>
+    & Partial<Pick<HistoricalConditionsSample, 'wind_gusts_10m_kn'>>,
 ) {
   const values: string[] = []
   if (finite(sample.wind_direction_10m_deg)) {
@@ -49,7 +50,10 @@ export function formatHistoricalConditionsCompact(
     values.push(`${String(direction).padStart(3, '0')}°`)
   }
   if (finite(sample.wind_speed_10m_kn)) {
-    values.push(`${compactNumber(sample.wind_speed_10m_kn!)} kt`)
+    const gust = finite(sample.wind_gusts_10m_kn)
+      ? ` (${compactNumber(sample.wind_gusts_10m_kn!)})`
+      : ''
+    values.push(`${compactNumber(sample.wind_speed_10m_kn!)}${gust} kt`)
   }
   if (finite(sample.air_temperature_c)) {
     values.push(`${compactNumber(sample.air_temperature_c!)}°C`)

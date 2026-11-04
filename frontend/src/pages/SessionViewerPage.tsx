@@ -888,11 +888,9 @@ export function SessionViewer({
     setPlaybackTime(nextReplay.playbackTime)
   }
 
-  function selectManeuver(event: DisplayManeuver, focusMap: boolean) {
+  function selectManeuver(event: DisplayManeuver) {
     setManeuverSelectionHistory((current) => advanceManeuverSelection(current, event))
     scrubTo(event.centerTimeMs)
-    if (!focusMap) return
-
     mapFocusRequestIdRef.current += 1
     const navigation = createTimelineManeuverNavigation(
       event,
@@ -901,19 +899,11 @@ export function SessionViewer({
     setMapFocusRequest(navigation.focusRequest)
   }
 
-  function selectTimelineManeuver(event: DisplayManeuver) {
-    selectManeuver(event, true)
-  }
-
   function selectSessionStart(start: { time: number }) {
     scrubTo(start.time)
     mapFocusRequestIdRef.current += 1
     const navigation = createSessionStartNavigation(start.time, mapFocusRequestIdRef.current)
     setMapFocusRequest(navigation.focusRequest)
-  }
-
-  function selectTableManeuver(event: DisplayManeuver) {
-    selectManeuver(event, false)
   }
 
   function commitAnalysisWindowRange(requestedRange: AnalysisWindowRange) {
@@ -1126,7 +1116,7 @@ export function SessionViewer({
           setSpeed,
         )}
         onRangeChange={commitAnalysisWindowRange}
-        onManeuverSelect={selectTimelineManeuver}
+        onManeuverSelect={selectManeuver}
       />
       {analysisWindow !== null && (
         <ManeuverEventTable
@@ -1144,7 +1134,7 @@ export function SessionViewer({
                 comparisonActivityId,
               )}
           selectedManeuverKey={maneuverSelectionHistory[0]}
-          onSelect={selectTableManeuver}
+          onSelect={selectManeuver}
         />
       )}
       <ComparisonTable
