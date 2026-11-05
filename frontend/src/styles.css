@@ -577,7 +577,9 @@ input:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  padding: 0 4px 0 8px;
+  margin-top: 4px;
+  padding: 0 4px 0 2px;
+  border-top: 1px solid rgb(31 44 49 / 12%);
   font-size: 0.58rem;
   white-space: nowrap;
 }

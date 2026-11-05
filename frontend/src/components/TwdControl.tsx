@@ -30,10 +30,6 @@ export default function TwdControl({ reference, presentation, expanded, onExpand
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-2 7m2-13v6h-6" /></svg>
       </button>
     </div>
-    {presentation.manual && <div className="map-twd__manual">
-      <span>Manual · Viewer</span>
-      <button type="button" aria-label="Reset TWD to automatic" onClick={onAutomatic}>Reset</button>
-    </div>}
     {expanded && <section id="map-twd-detail" className="map-twd__detail" aria-label="TWD reference details">
       {reference.status === 'available' ? <dl>
         <div><dt>Source</dt><dd>Modelled weather</dd></div>
@@ -46,6 +42,10 @@ export default function TwdControl({ reference, presentation, expanded, onExpand
       {presentation.manual
         ? <p>Viewer correction: {displayed}{reference.status === 'unavailable' ? ' · Manual only' : ''}</p>
         : <p>Displayed TWD: {displayed}</p>}
+      {presentation.manual && <div className="map-twd__manual">
+        <span>Manual · Viewer</span>
+        <button type="button" aria-label="Reset TWD to automatic" onClick={onAutomatic}>Reset</button>
+      </div>}
     </section>}
   </div>
 }
