@@ -472,8 +472,8 @@ input:focus-visible {
 
 .map-panel {
   position: relative;
-  height: clamp(320px, 47vh, 520px);
-  min-height: 320px;
+  height: clamp(360px, 55vh, 600px);
+  min-height: 360px;
   overflow: hidden;
   background: #afc9ce;
 }
@@ -494,7 +494,7 @@ input:focus-visible {
 
 .map-wind-controls {
   position: absolute;
-  top: 10px;
+  top: 5px;
   right: 10px;
   z-index: 3;
   display: flex;
@@ -649,7 +649,7 @@ input:focus-visible {
 .map-tws__footer { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: 4px; padding-left: 2px; border-top: 1px solid rgb(31 44 49 / 12%); white-space: nowrap; }
 
 @media (max-width: 540px) {
-  .map-panel .map-conditions { top: 10px; max-width: min(300px, calc(100% - 20px)); }
+  .map-panel .map-conditions { top: 5px; max-width: min(300px, calc(100% - 20px)); }
 }
 
 .map-twd__detail dl {
@@ -722,7 +722,7 @@ input:focus-visible {
 
 .map-conditions {
   position: absolute;
-  top: 10px;
+  top: 5px;
   left: 10px;
   z-index: 4;
   width: fit-content;
@@ -812,7 +812,7 @@ input:focus-visible {
 .map-status {
   position: absolute;
   right: auto;
-  bottom: 28px;
+  bottom: 5px;
   left: 10px;
   z-index: 3;
   width: min(21.5rem, calc(100% - 20px));
@@ -3065,7 +3065,7 @@ input:focus-visible {
 
   .map-panel {
     width: min(100%, 1040px);
-    height: 520px;
+    height: 600px;
     margin: 0 auto;
   }
 
