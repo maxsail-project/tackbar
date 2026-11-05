@@ -622,19 +622,19 @@ input:focus-visible {
   box-shadow: 0 2px 7px rgb(7 31 37 / 14%);
 }
 
-.map-tws { position: relative; color: #273b41; background: #fff; border: 1px solid rgb(31 44 49 / 16%); border-radius: 7px; box-shadow: 0 2px 7px rgb(7 31 37 / 14%); }
+.map-tws { position: relative; color: #273b41; }
 .map-tws--expanded { z-index: 5; }
-.map-tws__chip { display: flex; min-width: 64px; min-height: 44px; flex-direction: column; align-items: center; justify-content: center; border: 0; border-radius: 4px; color: inherit; background: #fff; font: inherit; font-size: 0.63rem; cursor: pointer; touch-action: manipulation; }
+.map-tws__chip { display: flex; width: 64px; min-width: 64px; min-height: 44px; flex-direction: column; align-items: center; justify-content: center; border: 1px solid rgb(31 44 49 / 16%); border-radius: 7px; color: inherit; background: #fff; box-shadow: 0 2px 7px rgb(7 31 37 / 14%); font: inherit; font-size: 0.63rem; cursor: pointer; touch-action: manipulation; }
 .map-tws__chip strong { font-size: 0.78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.map-tws__chip:hover, .map-tws__manual button:hover, .map-tws__entry button:hover { background: #eef4f5; }
-.map-tws button:focus-visible, .map-tws input:focus-visible { outline: 2px solid #174e68; outline-offset: 2px; }
-.map-tws__manual { display: flex; min-height: 44px; align-items: center; gap: 2px; padding-left: 5px; font-size: 0.58rem; white-space: nowrap; }
-.map-tws__manual button, .map-tws__entry button { min-width: 44px; min-height: 44px; border: 0; color: #174e68; background: transparent; font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation; }
-.map-tws__detail { position: absolute; top: 100%; right: 0; z-index: 5; box-sizing: border-box; width: min(270px, calc(100vw - 20px)); padding: 10px; border: 1px solid rgb(31 44 49 / 16%); border-radius: 0 0 7px 7px; color: #273b41; background: #fff; box-shadow: 0 2px 7px rgb(7 31 37 / 14%); font-size: 0.7rem; }
-.map-tws__detail p { margin: 5px 0 8px; }
-.map-tws__detail label { display: block; margin-bottom: 4px; font-weight: 600; }
-.map-tws__entry { display: flex; align-items: center; gap: 6px; }
-.map-tws__entry input { box-sizing: border-box; width: 100%; min-width: 0; height: 44px; padding: 6px; font: inherit; }
+.map-tws__chip:hover, .map-tws__footer button:hover, .map-tws__adjustment button:hover { background: #eef4f5; }
+.map-tws button:focus-visible { outline: 2px solid #174e68; outline-offset: 2px; }
+.map-tws__footer button, .map-tws__adjustment button { min-width: 44px; min-height: 44px; border: 0; color: #174e68; background: transparent; font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+.map-tws__detail { position: absolute; top: 100%; right: calc(100% - 64px); z-index: 5; box-sizing: border-box; width: min(210px, calc(100vw - 20px)); padding: 10px; border: 1px solid rgb(31 44 49 / 16%); border-radius: 0 0 7px 7px; color: #273b41; background: #fff; box-shadow: 0 2px 7px rgb(7 31 37 / 14%); font-size: 0.7rem; }
+.map-tws__detail p { margin: 8px 0 0; }
+.map-tws__adjustment { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.map-tws__adjustment button { flex: 0 0 44px; border-radius: 4px; color: #273b41; font-size: 1.2rem; }
+.map-tws__adjustment output { min-width: 0; text-align: center; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.map-tws__footer { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: 4px; padding-left: 2px; border-top: 1px solid rgb(31 44 49 / 12%); white-space: nowrap; }
 
 @media (max-width: 540px) {
   .map-panel .map-conditions { top: 104px; max-width: min(300px, calc(100% - 20px)); }

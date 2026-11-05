@@ -81,7 +81,7 @@ import {
 import { selectHistoricalConditionsSample } from '../utils/historicalConditions'
 import { resolveTwdReference } from '../utils/twdReference'
 import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
-import { resolveTwsPresentation, type TwsReference } from '../utils/twsReference'
+import { resolveTwsPresentation, stepViewerTws, type TwsReference } from '../utils/twsReference'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -1080,7 +1080,10 @@ export function SessionViewer({
           onTwdGestureCommit={setManualTwdDegrees}
           twsReference={twsReference}
           twsPresentation={twsPresentation}
-          onTwsApply={setManualTwsKnots}
+          onTwsStep={(step) => setManualTwsKnots((current) => stepViewerTws(
+            current ?? twsPresentation.speedKnots,
+            step,
+          ))}
           onTwsReset={() => setManualTwsKnots(null)}
         />
       ) : (

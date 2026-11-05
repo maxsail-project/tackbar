@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { parseWholeKnotTws, resolveTwsPresentation, type TwsReference } from './twsReference'
+import { resolveTwsPresentation, stepViewerTws, type TwsReference } from './twsReference'
 
 describe('manual TWS reference', () => {
-  it('accepts zero and whole knots while rejecting missing, decimal, negative, invalid and unsafe values', () => {
-    for (const [input, expected] of [['0', '0'], ['14', '14'], [' 21 ', '21'], ['00014', '14'], ['', null], ['-1', null], ['1.5', null], ['abc', null], ['1e3', null], ['9007199254740992', '9007199254740992']] as const) {
-      expect(parseWholeKnotTws(input)).toBe(expected)
-    }
+  it('steps from unavailable, stops at zero and preserves exact whole knots', () => {
+    expect(stepViewerTws(null, 1)).toBe('1')
+    expect(stepViewerTws(null, -1)).toBe('0')
+    expect(stepViewerTws('0', -1)).toBe('0')
+    expect(stepViewerTws('0', 1)).toBe('1')
+    expect(stepViewerTws('14', -1)).toBe('13')
+    expect(stepViewerTws('9007199254740992', 1)).toBe('9007199254740993')
   })
 
   it('keeps manual speed independent of optional read-only gust and restores unavailable', () => {

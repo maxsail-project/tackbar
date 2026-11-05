@@ -89,6 +89,7 @@ async function renderMap(
   focusRequest: { activityRole: 'primary', requestId: number } | null = null,
   historicalConditionsSample: HistoricalConditionsSample | null = null,
   onTwdGestureCommit = vi.fn(),
+  onTwsStep = vi.fn(),
 ) {
   await act(async () => root.render(<TrackMap
     primaryVisibleSamples={samples}
@@ -114,6 +115,7 @@ async function renderMap(
     onTwdStep={onTwdStep}
     onTwdAutomatic={onTwdAutomatic}
     onTwdGestureCommit={onTwdGestureCommit}
+    onTwsStep={onTwsStep}
     historicalConditionsSample={historicalConditionsSample}
     historicalConditionsWeatherProvider="open-meteo"
   />))
@@ -289,11 +291,16 @@ describe('wind-oriented map controls', () => {
   })
 
   it('keeps TWS, TWD and Weather disclosures mutually exclusive through pointer and map interactions', async () => {
-    await renderMap(reference, resolveTwdPresentation(reference, null), 'full', vi.fn(), vi.fn(), null, weather)
+    const onTwsStep = vi.fn()
+    await renderMap(reference, resolveTwdPresentation(reference, null), 'full', vi.fn(), vi.fn(), null, weather, vi.fn(), onTwsStep)
     const tws = () => container.querySelector('[aria-label="TWS reference details"]')
     const twd = () => container.querySelector('[aria-label="TWD reference details"]')
     const weatherDetail = () => container.querySelector('[aria-label="Historical modelled conditions"]')
     await click('TWS --')
+    expect(tws()).not.toBeNull()
+    await click('Increase TWS by 1 knot')
+    await click('Decrease TWS by 1 knot')
+    expect(onTwsStep.mock.calls).toEqual([[1], [-1]])
     expect(tws()).not.toBeNull()
     await act(async () => tws()!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })))
     expect(tws()).not.toBeNull()

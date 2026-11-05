@@ -8,10 +8,9 @@ export interface TwsPresentation {
   manual: boolean
 }
 
-export function parseWholeKnotTws(input: string): string | null {
-  const trimmed = input.trim()
-  if (!/^\d+$/.test(trimmed)) return null
-  return trimmed.replace(/^0+(?=\d)/, '')
+export function stepViewerTws(currentKnots: string | null, step: -1 | 1): string {
+  const stepped = BigInt(currentKnots ?? '0') + BigInt(step)
+  return String(stepped < 0n ? 0n : stepped)
 }
 
 export function resolveTwsPresentation(reference: TwsReference, manualKnots: string | null): TwsPresentation {

@@ -77,7 +77,7 @@ interface TrackMapProps {
   onTwdGestureCommit?: (degrees: number) => void
   twsReference?: TwsReference
   twsPresentation?: TwsPresentation
-  onTwsApply?: (knots: string) => void
+  onTwsStep?: (step: -1 | 1) => void
   onTwsReset?: () => void
 }
 
@@ -418,7 +418,7 @@ export default function TrackMap({
   onTwdGestureCommit = () => undefined,
   twsReference = { status: 'unavailable' },
   twsPresentation = { speedKnots: null, gustKnots: null, manual: false },
-  onTwsApply = () => undefined,
+  onTwsStep = () => undefined,
   onTwsReset = () => undefined,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
@@ -850,7 +850,7 @@ export default function TrackMap({
       </Map>
       <div className={`map-wind-controls${twdDetailExpanded || twsDetailExpanded ? ' map-wind-controls--expanded' : ''}`}>
         <TwdControl reference={twdReference} presentation={liveTwdPresentation} expanded={twdDetailExpanded} onExpandedChange={changeTwdDetail} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
-        <TwsControl reference={twsReference} presentation={twsPresentation} expanded={twsDetailExpanded} onExpandedChange={changeTwsDetail} onApply={onTwsApply} onReset={onTwsReset} />
+        <TwsControl reference={twsReference} presentation={twsPresentation} expanded={twsDetailExpanded} onExpandedChange={changeTwsDetail} onStep={onTwsStep} onReset={onTwsReset} />
       </div>
       <HistoricalConditionsControl
         sample={historicalConditionsSample}
