@@ -240,6 +240,7 @@ def test_capability_session_exposes_active_subset_without_internal_id(monkeypatc
         "hourly": [{
             "time": "2031-06-01T09:00:00Z",
             "air_temperature_c": 23.0,
+            "weather_code": None,
             "wind_speed_10m_kn": 14.0,
             "wind_direction_10m_deg": 92.0,
             "wind_gusts_10m_kn": 19.0,
@@ -253,6 +254,19 @@ def test_capability_session_exposes_active_subset_without_internal_id(monkeypatc
     assert SESSION_ID not in json.dumps(response.json)
     assert TOKEN not in json.dumps(response.json)
     assert ACTIVITY_B not in json.dumps(response.json)
+
+
+def test_capability_session_projects_persisted_weather_code(monkeypatch: pytest.MonkeyPatch, temporary_directory: Path) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    path = root / "sessions.json"
+    records = json.loads(path.read_text(encoding="utf-8"))
+    records[0]["historical_conditions"]["hourly"][0]["weather_code"] = 61
+    _write_json(path, records)
+
+    response = _get(f"/api/shared/sessions/{TOKEN}")
+
+    assert response.status_code == 200
+    assert response.json["historical_conditions"]["hourly"][0]["weather_code"] == 61
 
 
 @pytest.mark.parametrize(

@@ -198,6 +198,7 @@ def _parse_conditions_source(value: object) -> HistoricalConditionsSource | None
 def _parse_conditions_sample(value: object) -> HistoricalConditionsSample:
     if not isinstance(value, dict):
         raise ValueError("Session historical conditions sample must be an object")
+    raw_weather_code = value.get("weather_code")
     fields = {
         field_name: (
             float(value[field_name]) if value.get(field_name) is not None else None
@@ -215,6 +216,7 @@ def _parse_conditions_sample(value: object) -> HistoricalConditionsSample:
     }
     return HistoricalConditionsSample(
         time=_parse_datetime(value.get("time")),
+        weather_code=(raw_weather_code if type(raw_weather_code) is int and raw_weather_code >= 0 else None),
         **fields,
     )
 

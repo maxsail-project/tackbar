@@ -104,6 +104,7 @@ def test_session_persistence_reads_legacy_records_and_round_trips_context(
         hourly=[HistoricalConditionsSample(
             time=_time(10, 17, 10),
             air_temperature_c=23.5,
+            weather_code=3,
             wind_speed_10m_kn=12.0,
         )],
     )
@@ -122,6 +123,15 @@ def test_session_persistence_reads_legacy_records_and_round_trips_context(
     assert restarted.historical_conditions == conditions
     persisted = json.loads(sessions.path.read_text(encoding="utf-8"))[0]
     assert persisted["historical_conditions"]["hourly"][0]["time"].endswith("+00:00")
+    assert persisted["historical_conditions"]["hourly"][0]["weather_code"] == 3
+    del persisted["historical_conditions"]["hourly"][0]["weather_code"]
+    sessions.path.write_text(json.dumps([persisted]), encoding="utf-8")
+    legacy_bytes = sessions.path.read_bytes()
+    legacy_conditions = SessionRepository(sessions.path).get_by_id("session-a")
+    assert legacy_conditions is not None
+    assert legacy_conditions.historical_conditions is not None
+    assert legacy_conditions.historical_conditions.hourly[0].weather_code is None
+    assert sessions.path.read_bytes() == legacy_bytes
     assert activities.get_by_id("activity-a") is not None
 
 
@@ -318,6 +328,7 @@ def _open_meteo_payload(marine: bool = False) -> dict[str, object]:
     else:
         hourly.update({
             "temperature_2m": [22, 23, 24],
+            "weather_code": [0, 3.0, None],
             "wind_speed_10m": [10, 11, None],
             "wind_direction_10m": [20, 25, None],
             "wind_gusts_10m": [14, 15, None],
@@ -346,6 +357,7 @@ def test_open_meteo_routes_recent_requests_and_keeps_hourly_partial_values() -> 
     assert len(calls) == 2
     assert calls[0].startswith("https://api.open-meteo.com/v1/forecast?")
     assert "wind_speed_unit=kn" in calls[0]
+    assert "weather_code" in parse_qs(urlsplit(calls[0]).query)["hourly"][0].split(",")
     assert "timezone=GMT" in calls[0]
     assert "cell_selection=sea" in calls[0]
     assert "models=" not in calls[1]
@@ -357,6 +369,8 @@ def test_open_meteo_routes_recent_requests_and_keeps_hourly_partial_values() -> 
         _time(10, 17, 7), _time(10, 17, 8)
     ]
     assert result.hourly[0].wind_gusts_10m_kn == 15.0
+    assert result.hourly[0].weather_code == 3
+    assert result.hourly[1].weather_code is None
     assert result.hourly[0].cloud_cover_pct == 40.0
     assert result.hourly[1].air_temperature_c == 24.0
     assert result.hourly[1].wave_height_m is None
@@ -387,12 +401,39 @@ def test_open_meteo_routes_older_requests_and_isolates_partial_source_failure() 
 
     assert result is not None
     assert calls[0].startswith("https://archive-api.open-meteo.com/v1/archive?")
+    assert "weather_code" in parse_qs(urlsplit(calls[0]).query)["hourly"][0].split(",")
     assert "models=era5_ocean" in calls[1]
     assert result.weather_source is None
     assert result.marine_source is not None
     assert result.marine_source.route == "marine_era5_ocean"
     assert result.hourly[0].wave_height_m == 0.6
     assert result.hourly[0].air_temperature_c is None
+    assert result.hourly[0].weather_code is None
+
+
+def test_open_meteo_archive_weather_code_and_invalid_codes() -> None:
+    raw_codes: list[object] = [0, 3.0, True, 2.5, "4", float("nan"), float("inf"), -1, None]
+
+    def get(url: str, _timeout: float) -> object:
+        if "marine-api" in url:
+            raise TimeoutError("marine unavailable")
+        payload = _open_meteo_payload()
+        hourly = payload["hourly"]
+        hourly["time"] = [f"2026-05-01T{hour:02d}:00" for hour in range(len(raw_codes))]
+        hourly["temperature_2m"] = [20] * len(raw_codes)
+        hourly["weather_code"] = raw_codes
+        return payload
+
+    result = OpenMeteoHistoricalConditionsProvider(
+        clock=lambda: _time(10, 18, 12), http_get=get,
+    ).fetch(39.4, -0.3, _time(5, 1, 0), _time(5, 1, 8), _time(5, 1, 8))
+
+    assert result is not None
+    assert result.weather_source is not None
+    assert result.weather_source.route == "historical_weather"
+    assert result.marine_source is None
+    assert [sample.weather_code for sample in result.hourly] == [0, 3, None, None, None, None, None, None, None]
+    assert all(sample.air_temperature_c == 20.0 for sample in result.hourly)
 
 
 def test_open_meteo_marine_failure_does_not_prevent_weather() -> None:

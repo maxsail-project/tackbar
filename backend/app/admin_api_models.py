@@ -119,6 +119,7 @@ class AdminHistoricalConditionsSourceResponse(BaseModel):
 class AdminHistoricalConditionsSampleResponse(BaseModel):
     time: datetime
     air_temperature_c: float | None
+    weather_code: int | None = None
     wind_speed_10m_kn: float | None
     wind_direction_10m_deg: float | None
     wind_gusts_10m_kn: float | None

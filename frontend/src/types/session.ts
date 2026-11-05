@@ -40,6 +40,7 @@ export interface SessionListItem {
 export interface HistoricalConditionsSample {
   time: string
   air_temperature_c: number | null
+  weather_code?: number | null
   wind_speed_10m_kn: number | null
   wind_direction_10m_deg: number | null
   wind_gusts_10m_kn: number | null

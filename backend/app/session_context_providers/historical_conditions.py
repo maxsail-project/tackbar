@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 WEATHER_FIELDS = {
     "temperature_2m": "air_temperature_c",
+    "weather_code": "weather_code",
     "wind_speed_10m": "wind_speed_10m_kn",
     "wind_direction_10m": "wind_direction_10m_deg",
     "wind_gusts_10m": "wind_gusts_10m_kn",
@@ -102,7 +103,7 @@ class OpenMeteoHistoricalConditionsProvider:
         if weather_source is None and marine_source is None:
             return None
 
-        combined: dict[datetime, dict[str, float]] = {}
+        combined: dict[datetime, dict[str, float | int]] = {}
         for timestamp, values in (*weather_samples.items(), *marine_samples.items()):
             combined.setdefault(timestamp, {}).update(values)
         hourly = [
@@ -127,7 +128,7 @@ class OpenMeteoHistoricalConditionsProvider:
         coverage_start: datetime,
         coverage_end: datetime,
         retrieved_at: datetime,
-    ) -> tuple[HistoricalConditionsSource | None, dict[datetime, dict[str, float]]]:
+    ) -> tuple[HistoricalConditionsSource | None, dict[datetime, dict[str, float | int]]]:
         try:
             payload = self._http_get(url, self._timeout_seconds)
             source, samples = _normalize_source(
@@ -201,7 +202,7 @@ def _normalize_source(
     coverage_start: datetime,
     coverage_end: datetime,
     retrieved_at: datetime,
-) -> tuple[HistoricalConditionsSource | None, dict[datetime, dict[str, float]]]:
+) -> tuple[HistoricalConditionsSource | None, dict[datetime, dict[str, float | int]]]:
     if not isinstance(payload, dict):
         return None, {}
     hourly = payload.get("hourly")
@@ -212,16 +213,16 @@ def _normalize_source(
     if grid_latitude is None or grid_longitude is None:
         return None, {}
 
-    normalized: dict[datetime, dict[str, float]] = {}
+    normalized: dict[datetime, dict[str, float | int]] = {}
     for index, raw_time in enumerate(hourly["time"]):
         timestamp = _provider_time(raw_time)
         if timestamp is None or not coverage_start <= timestamp <= coverage_end:
             continue
-        values: dict[str, float] = {}
+        values: dict[str, float | int] = {}
         for provider_name, normalized_name in field_map.items():
             series = hourly.get(provider_name)
             raw_value = series[index] if isinstance(series, list) and index < len(series) else None
-            value = _finite(raw_value)
+            value = _weather_code(raw_value) if provider_name == "weather_code" else _finite(raw_value)
             if value is not None:
                 values[normalized_name] = value
         if values:
@@ -257,6 +258,16 @@ def _finite(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _weather_code(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if not isinstance(value, float) or not math.isfinite(value) or not value.is_integer() or value < 0:
+        return None
+    return int(value)
 
 
 def _utc(value: datetime) -> datetime:

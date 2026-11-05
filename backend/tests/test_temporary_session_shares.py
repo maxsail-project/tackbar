@@ -310,8 +310,14 @@ def test_public_api_returns_only_temporary_path_and_distinguishes_unavailable_st
     assert loaded.historical_conditions.weather_source is not None
     assert loaded.historical_conditions.weather_source.provider == "open-meteo"
     assert loaded.historical_conditions.hourly[0].wind_speed_10m_kn == 14.0
+    assert loaded.historical_conditions.hourly[0].weather_code is None
 
     records = json.loads((temporary_directory / "sessions.json").read_text(encoding="utf-8"))
+    records[0]["historical_conditions"]["hourly"][0]["weather_code"] = 61
+    _write_json(temporary_directory / "sessions.json", records)
+    with_code = get_temporary_shared_session(TEMPORARY_TOKEN, Response())
+    assert with_code.historical_conditions is not None
+    assert with_code.historical_conditions.hourly[0].weather_code == 61
     records[0]["location_label"] = None
     _write_json(temporary_directory / "sessions.json", records)
     country_only = get_temporary_shared_session(TEMPORARY_TOKEN, Response())

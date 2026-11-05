@@ -42,7 +42,7 @@ SAFE_FIELDS: dict[type, set[str]] = {
     },
     HistoricalConditions: {"coverage_start", "coverage_end", "requested_latitude", "requested_longitude", "weather_source", "marine_source", "hourly"},
     HistoricalConditionsSource: {"provider", "route", "retrieved_at", "grid_latitude", "grid_longitude"},
-    HistoricalConditionsSample: {"time", "air_temperature_c", "wind_speed_10m_kn", "wind_direction_10m_deg", "wind_gusts_10m_kn", "cloud_cover_pct", "wave_height_m", "wave_direction_deg", "wave_period_s"},
+    HistoricalConditionsSample: {"time", "air_temperature_c", "weather_code", "wind_speed_10m_kn", "wind_direction_10m_deg", "wind_gusts_10m_kn", "cloud_cover_pct", "wave_height_m", "wave_direction_deg", "wave_period_s"},
 }
 SPECIAL_FIELDS: dict[type, set[str]] = {
     StoredActivity: {"track_file"},

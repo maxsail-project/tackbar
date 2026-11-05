@@ -1270,6 +1270,7 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
                 hourly=[HistoricalConditionsSample(
                     time=datetime(2026, 8, 10, 9, tzinfo=timezone.utc),
                     air_temperature_c=24,
+                    weather_code=2,
                     wind_speed_10m_kn=12,
                     cloud_cover_pct=30,
                 )],
@@ -1314,6 +1315,7 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
     assert first.json["historical_conditions"]["weather_source"]["route"] == "forecast"
     assert first.json["historical_conditions"]["marine_source"] is None
     assert first.json["historical_conditions"]["hourly"][0]["wind_speed_10m_kn"] == 12
+    assert first.json["historical_conditions"]["hourly"][0]["weather_code"] == 2
     assert geo_calls == [(0.1, -30.1)]
     assert len(conditions_calls) == 2
     assert conditions_calls[0] == (
@@ -1324,6 +1326,7 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
     record = next(item for item in persisted if item["id"] == SESSION_ACTIVE)
     assert record["location_label"] == "Valencia"
     assert record["historical_conditions"]["hourly"][0]["air_temperature_c"] == 24
+    assert record["historical_conditions"]["hourly"][0]["weather_code"] == 2
 
 
 def test_admin_session_detail_summarizes_temporary_shares_using_existing_states(
