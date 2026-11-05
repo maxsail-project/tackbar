@@ -1,5 +1,6 @@
 import type { MouseEvent, PointerEvent } from 'react'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
+import { formatHistoricalConditionsTime } from '../utils/historicalConditions'
 
 export default function TwsControl({ reference, presentation, expanded, onExpandedChange, onStep, onReset }: {
   reference: TwsReference
@@ -21,8 +22,12 @@ export default function TwsControl({ reference, presentation, expanded, onExpand
         <output aria-live="polite">TWS <strong>{displayed}</strong></output>
         <button type="button" aria-label="Increase TWS by 1 knot" onClick={() => onStep(1)}>+</button>
       </div>
-      {reference.status === 'available' && <p>Automatic TWS: {reference.speedKnots} kt · {reference.source}</p>}
-      {presentation.gustKnots !== null && <p>Gust: {presentation.gustKnots} kt</p>}
+      {reference.status === 'available' && <dl className="map-tws__source">
+        <div><dt>Source</dt><dd>Modelled Weather</dd></div>
+        <div><dt>Sample time</dt><dd>{formatHistoricalConditionsTime(reference.sourceTimeUtc)}</dd></div>
+        <div><dt>Provider</dt><dd>{reference.provenance.provider ?? 'Unavailable'}</dd></div>
+        <div><dt>Original TWS</dt><dd>{reference.speedKnots} kt</dd></div>
+      </dl>}
       {presentation.manual && <div className="map-tws__footer"><span>Manual · Viewer</span><button type="button" aria-label="Reset TWS to automatic" onClick={onReset}>Reset</button></div>}
     </section>}
   </div>

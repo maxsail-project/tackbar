@@ -417,7 +417,7 @@ export default function TrackMap({
   onTwdAutomatic = () => undefined,
   onTwdGestureCommit = () => undefined,
   twsReference = { status: 'unavailable' },
-  twsPresentation = { speedKnots: null, gustKnots: null, manual: false },
+  twsPresentation = { speedKnots: null, manual: false },
   onTwsStep = () => undefined,
   onTwsReset = () => undefined,
 }: TrackMapProps) {

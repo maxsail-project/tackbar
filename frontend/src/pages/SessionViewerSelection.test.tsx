@@ -10,7 +10,7 @@ import type { DisplayManeuver } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import type { TwdReference } from '../utils/twdReference'
 import type { TwdPresentation } from '../utils/twdPresentation'
-import type { TwsPresentation } from '../utils/twsReference'
+import type { TwsPresentation, TwsReference } from '../utils/twsReference'
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../utils/replay'
 import { SessionViewer } from './SessionViewerPage'
 
@@ -28,15 +28,15 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessUnavailableError: class extends Error {},
 }))
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsPresentation, onTwsStep, onTwsReset }: {
+  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset }: {
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
     focusRequest: { activityRole: string, requestId: number } | null,
     twdReference: TwdReference, twdPresentation: TwdPresentation,
     onTwdStep: (step: -5 | 5) => void, onTwdAutomatic: () => void,
     onTwdGestureCommit: (degrees: number) => void,
-    twsPresentation: TwsPresentation, onTwsStep: (step: -1 | 1) => void, onTwsReset: () => void,
+    twsReference: TwsReference, twsPresentation: TwsPresentation, onTwsStep: (step: -1 | 1) => void, onTwsReset: () => void,
   }) =>
-    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual}>
+    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
       <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
       <button data-tws-minus onClick={() => onTwsStep(-1)}>−1 kt</button><button data-tws-plus onClick={() => onTwsStep(1)}>+1 kt</button><button data-tws-reset onClick={onTwsReset}>Reset TWS</button>
       {selectedManeuverHighlights.map((highlight) =>
@@ -112,6 +112,17 @@ const windSession: SharedSessionDetail = {
       wind_direction_10m_deg: index === 0 ? 91.6 : 180,
       air_temperature_c: null, wind_speed_10m_kn: null, wind_gusts_10m_kn: null,
       cloud_cover_pct: null, wave_height_m: null, wave_direction_deg: null, wave_period_s: null,
+    })),
+  },
+}
+
+const speedSession: SharedSessionDetail = {
+  ...windSession,
+  historical_conditions: {
+    ...windSession.historical_conditions!,
+    hourly: windSession.historical_conditions!.hourly.map((sample, index) => ({
+      ...sample, wind_speed_10m_kn: index === 0 ? 12.5 : 20.5,
+      wind_gusts_10m_kn: index === 0 ? 18 : 27,
     })),
   },
 }
@@ -254,6 +265,32 @@ describe('Viewer TWD state', () => {
     expect(mapState().getAttribute('data-tws-manual')).toBe('false')
     await click('[data-tws-plus]')
     expect(mapState().getAttribute('data-tws')).toBe('1')
+    expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
+  })
+
+  it.each(['original', 'temporary'] as const)('resolves automatic TWS and restores current-window speed after manual adjustment on %s access', async (accessKind) => {
+    await mountViewer(accessKind, speedSession)
+    const mapState = () => container.querySelector('[data-tws]')!
+    expect(mapState().getAttribute('data-tws')).toBe('13')
+    expect(mapState().getAttribute('data-tws-original')).toBe('12.5')
+    expect(mapState().getAttribute('data-twd')).toBe('90')
+    await click('[data-tws-plus]')
+    expect(mapState().getAttribute('data-tws')).toBe('14')
+    expect(mapState().getAttribute('data-tws-manual')).toBe('true')
+    await click('[data-narrow-window]')
+    expect(mapState().getAttribute('data-tws-original')).toBe('20.5')
+    expect(mapState().getAttribute('data-tws')).toBe('14')
+    await click('[data-tws-reset]')
+    expect(mapState().getAttribute('data-tws')).toBe('21')
+    expect(mapState().getAttribute('data-tws-manual')).toBe('false')
+    await click('[data-tws-minus]')
+    expect(mapState().getAttribute('data-tws')).toBe('20')
+    await click('[data-tws-reset]')
+    await click('[data-reset-window]')
+    expect(mapState().getAttribute('data-tws')).toBe('13')
+    await click('[data-play-replay]')
+    await act(async () => nextFrame!(performance.now() + 500))
+    expect(mapState().getAttribute('data-tws')).toBe('13')
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
   })
 

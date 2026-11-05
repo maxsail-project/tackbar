@@ -81,7 +81,7 @@ import {
 import { selectHistoricalConditionsSample } from '../utils/historicalConditions'
 import { resolveTwdReference } from '../utils/twdReference'
 import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
-import { resolveTwsPresentation, stepViewerTws, type TwsReference } from '../utils/twsReference'
+import { resolveTwsPresentation, resolveTwsReference, stepViewerTws } from '../utils/twsReference'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -768,7 +768,15 @@ export function SessionViewer({
     [analysisWindow, session.historical_conditions],
   )
   const twdPresentation = resolveTwdPresentation(twdReference, manualTwdDegrees)
-  const twsReference: TwsReference = { status: 'unavailable' }
+  const twsReference = useMemo(
+    () => resolveTwsReference(
+      analysisWindow === null
+        ? Number.NaN
+        : analysisWindow.start + (analysisWindow.end - analysisWindow.start) / 2,
+      session.historical_conditions,
+    ),
+    [analysisWindow, session.historical_conditions],
+  )
   const twsPresentation = resolveTwsPresentation(twsReference, manualTwsKnots)
   useEffect(() => {
     speedRef.current = speed

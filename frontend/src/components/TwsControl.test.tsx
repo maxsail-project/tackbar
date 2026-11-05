@@ -71,10 +71,23 @@ describe('TWS control', () => {
     expect(reset).toHaveBeenCalledOnce()
   })
 
-  it('keeps Gust read-only and out of the compact value', async () => {
-    await render(null, true, vi.fn(), vi.fn(), { status: 'available', speedKnots: 12, gustKnots: 19, source: 'future source' })
-    expect(container.querySelector('.map-tws__chip')?.textContent).toBe('TWS12 kt')
-    expect(container.querySelector('.map-tws__detail')?.textContent).toContain('Gust: 19 kt')
+  it('shows original modelled speed and provenance separately from the manual correction, without Gust', async () => {
+    const reference: TwsReference = {
+      status: 'available', speedKnots: 12.5, sourceKind: 'modelled_weather',
+      sourceTimeUtc: '2031-06-01T09:00:00.000Z', provenance: { provider: 'open-meteo' },
+    }
+    await render(null, true, vi.fn(), vi.fn(), reference)
+    expect(container.querySelector('.map-tws__chip')?.textContent).toBe('TWS13 kt')
+    expect(container.querySelector('.map-tws__adjustment')?.textContent).toBe('−TWS 13 kt+')
+    expect(container.querySelector('.map-tws__source')?.textContent).toContain('Modelled Weather')
+    expect(container.querySelector('.map-tws__source')?.textContent).toContain('Original TWS12.5 kt')
+    expect(container.querySelector('.map-tws__source')?.textContent).toContain('open-meteo')
+    expect(container.querySelector('.map-tws__source')?.textContent).toContain('01 Jun 2031')
+    await render('14', true, vi.fn(), vi.fn(), reference)
+    expect(container.querySelector('.map-tws__adjustment')?.textContent).toBe('−TWS 14 kt+')
+    expect(container.querySelector('.map-tws__source')?.textContent).toContain('Original TWS12.5 kt')
+    expect(container.querySelector('.map-tws__footer')?.textContent).toBe('Manual · ViewerReset')
+    expect(container.textContent).not.toContain('Gust')
     expect(container.querySelectorAll('input')).toHaveLength(0)
   })
 })
