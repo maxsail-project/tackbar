@@ -10,6 +10,7 @@ import type { DisplayManeuver } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import type { TwdReference } from '../utils/twdReference'
 import type { TwdPresentation } from '../utils/twdPresentation'
+import type { TwsPresentation } from '../utils/twsReference'
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../utils/replay'
 import { SessionViewer } from './SessionViewerPage'
 
@@ -27,15 +28,17 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessUnavailableError: class extends Error {},
 }))
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit }: {
+  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsPresentation, onTwsApply, onTwsReset }: {
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
     focusRequest: { activityRole: string, requestId: number } | null,
     twdReference: TwdReference, twdPresentation: TwdPresentation,
     onTwdStep: (step: -5 | 5) => void, onTwdAutomatic: () => void,
     onTwdGestureCommit: (degrees: number) => void,
+    twsPresentation: TwsPresentation, onTwsApply: (knots: string) => void, onTwsReset: () => void,
   }) =>
-    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'}>
+    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual}>
       <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
+      <button data-tws-zero onClick={() => onTwsApply('0')}>Set zero TWS</button><button data-tws-set onClick={() => onTwsApply('14')}>Set TWS</button><button data-tws-reset onClick={onTwsReset}>Reset TWS</button>
       {selectedManeuverHighlights.map((highlight) =>
       <span key={highlight.selectionIndex} data-map-highlight={highlight.selectionIndex} data-role={highlight.activityRole} data-geometry={JSON.stringify(highlight.geoJson.geometry.coordinates)} />
     )}</div>,
@@ -231,6 +234,23 @@ describe('Viewer TWD state', () => {
     await click('[data-play-replay]')
     await act(async () => nextFrame!(performance.now() + 500))
     expect(mapState().getAttribute('data-twd')).toBe('90')
+  })
+
+  it.each(['original', 'temporary'] as const)('keeps manual TWS through Analysis Window changes without persistence on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const mapState = () => container.querySelector('[data-tws]')!
+    expect(mapState().getAttribute('data-tws')).toBe('unavailable')
+    await click('[data-tws-zero]')
+    expect(mapState().getAttribute('data-tws')).toBe('0')
+    await click('[data-tws-set]')
+    expect(mapState().getAttribute('data-tws')).toBe('14')
+    expect(mapState().getAttribute('data-tws-manual')).toBe('true')
+    await click('[data-change-window]')
+    expect(mapState().getAttribute('data-tws')).toBe('14')
+    await click('[data-tws-reset]')
+    expect(mapState().getAttribute('data-tws')).toBe('unavailable')
+    expect(mapState().getAttribute('data-tws-manual')).toBe('false')
+    expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
   })
 
   it('keeps unavailable North-up distinct from manual-only ±5° and returns to unavailable', async () => {

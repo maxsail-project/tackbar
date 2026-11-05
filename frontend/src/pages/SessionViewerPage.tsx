@@ -81,6 +81,7 @@ import {
 import { selectHistoricalConditionsSample } from '../utils/historicalConditions'
 import { resolveTwdReference } from '../utils/twdReference'
 import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
+import { resolveTwsPresentation, type TwsReference } from '../utils/twsReference'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -513,6 +514,7 @@ export function SessionViewer({
   )
   const [isPlaying, setIsPlaying] = useState(false)
   const [manualTwdDegrees, setManualTwdDegrees] = useState<number | null>(null)
+  const [manualTwsKnots, setManualTwsKnots] = useState<string | null>(null)
   const [speed, setSpeed] = useState<PlaybackSpeed>(5)
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
   const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
@@ -766,6 +768,8 @@ export function SessionViewer({
     [analysisWindow, session.historical_conditions],
   )
   const twdPresentation = resolveTwdPresentation(twdReference, manualTwdDegrees)
+  const twsReference: TwsReference = { status: 'unavailable' }
+  const twsPresentation = resolveTwsPresentation(twsReference, manualTwsKnots)
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
@@ -1074,6 +1078,10 @@ export function SessionViewer({
           ))}
           onTwdAutomatic={() => setManualTwdDegrees(null)}
           onTwdGestureCommit={setManualTwdDegrees}
+          twsReference={twsReference}
+          twsPresentation={twsPresentation}
+          onTwsApply={setManualTwsKnots}
+          onTwsReset={() => setManualTwsKnots(null)}
         />
       ) : (
         <section className="track-unavailable" aria-live="polite">

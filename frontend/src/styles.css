@@ -492,16 +492,25 @@ input:focus-visible {
   pointer-events: none;
 }
 
-.map-navigation-group {
+.map-wind-controls {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 3;
   display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: calc(100% - 20px);
+}
+
+.map-wind-controls--expanded { z-index: 5; }
+
+.map-navigation-group {
+  position: relative;
+  z-index: 3;
+  display: flex;
   flex-direction: column;
   align-items: stretch;
-  max-width: calc(100% - 20px);
-  overflow: hidden;
   border: 1px solid rgb(31 44 49 / 16%);
   border-radius: 7px;
   color: #273b41;
@@ -597,11 +606,38 @@ input:focus-visible {
 }
 
 .map-twd__detail {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 5;
   width: min(270px, calc(100vw - 20px));
   box-sizing: border-box;
   padding: 10px;
   border-top: 1px solid rgb(31 44 49 / 16%);
   font-size: 0.7rem;
+  color: #273b41;
+  background: #fff;
+  border: 1px solid rgb(31 44 49 / 16%);
+  border-radius: 0 0 7px 7px;
+  box-shadow: 0 2px 7px rgb(7 31 37 / 14%);
+}
+
+.map-tws { position: relative; color: #273b41; background: #fff; border: 1px solid rgb(31 44 49 / 16%); border-radius: 7px; box-shadow: 0 2px 7px rgb(7 31 37 / 14%); }
+.map-tws--expanded { z-index: 5; }
+.map-tws__chip { display: flex; min-width: 64px; min-height: 44px; flex-direction: column; align-items: center; justify-content: center; border: 0; border-radius: 4px; color: inherit; background: #fff; font: inherit; font-size: 0.63rem; cursor: pointer; touch-action: manipulation; }
+.map-tws__chip strong { font-size: 0.78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.map-tws__chip:hover, .map-tws__manual button:hover, .map-tws__entry button:hover { background: #eef4f5; }
+.map-tws button:focus-visible, .map-tws input:focus-visible { outline: 2px solid #174e68; outline-offset: 2px; }
+.map-tws__manual { display: flex; min-height: 44px; align-items: center; gap: 2px; padding-left: 5px; font-size: 0.58rem; white-space: nowrap; }
+.map-tws__manual button, .map-tws__entry button { min-width: 44px; min-height: 44px; border: 0; color: #174e68; background: transparent; font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+.map-tws__detail { position: absolute; top: 100%; right: 0; z-index: 5; box-sizing: border-box; width: min(270px, calc(100vw - 20px)); padding: 10px; border: 1px solid rgb(31 44 49 / 16%); border-radius: 0 0 7px 7px; color: #273b41; background: #fff; box-shadow: 0 2px 7px rgb(7 31 37 / 14%); font-size: 0.7rem; }
+.map-tws__detail p { margin: 5px 0 8px; }
+.map-tws__detail label { display: block; margin-bottom: 4px; font-weight: 600; }
+.map-tws__entry { display: flex; align-items: center; gap: 6px; }
+.map-tws__entry input { box-sizing: border-box; width: 100%; min-width: 0; height: 44px; padding: 6px; font: inherit; }
+
+@media (max-width: 540px) {
+  .map-panel .map-conditions { top: 104px; max-width: min(300px, calc(100% - 20px)); }
 }
 
 .map-twd__detail dl {

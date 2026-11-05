@@ -10,6 +10,7 @@ import Map, {
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import HistoricalConditionsControl from './HistoricalConditionsControl'
 import TwdControl from './TwdControl'
+import TwsControl from './TwsControl'
 import { MAP_STYLE_URL } from '../config/map'
 import type { TrackSample } from '../types/track'
 import type { HistoricalConditionsSample } from '../types/session'
@@ -23,6 +24,7 @@ import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometr
 import type { SessionStartLine } from '../utils/sessionStartLines'
 import type { TwdReference } from '../utils/twdReference'
 import { resolveGestureTwd, type TwdPresentation } from '../utils/twdPresentation'
+import type { TwsPresentation, TwsReference } from '../utils/twsReference'
 import {
   buildTrackGeometry,
   combineTrackBounds,
@@ -73,6 +75,10 @@ interface TrackMapProps {
   onTwdStep?: (step: -5 | 5) => void
   onTwdAutomatic?: () => void
   onTwdGestureCommit?: (degrees: number) => void
+  twsReference?: TwsReference
+  twsPresentation?: TwsPresentation
+  onTwsApply?: (knots: string) => void
+  onTwsReset?: () => void
 }
 
 interface MapTelemetryOverlayProps {
@@ -410,6 +416,10 @@ export default function TrackMap({
   onTwdStep = () => undefined,
   onTwdAutomatic = () => undefined,
   onTwdGestureCommit = () => undefined,
+  twsReference = { status: 'unavailable' },
+  twsPresentation = { speedKnots: null, gustKnots: null, manual: false },
+  onTwsApply = () => undefined,
+  onTwsReset = () => undefined,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
   const mapPanelRef = useRef<HTMLElement>(null)
@@ -422,6 +432,7 @@ export default function TrackMap({
     : { ...twdPresentation, bearing: gestureBearing, displayDegrees: ((Math.round(gestureBearing) % 360) + 360) % 360 }
   const [weatherDetailExpanded, setWeatherDetailExpanded] = useState(false)
   const [twdDetailExpanded, setTwdDetailExpanded] = useState(false)
+  const [twsDetailExpanded, setTwsDetailExpanded] = useState(false)
   const [inspectedContextualActivityId, setInspectedContextualActivityId] = useState<string | null>(null)
   const fittedContextKeyRef = useRef<string | null>(null)
   const handledFocusRequestIdRef = useRef<number | null>(null)
@@ -430,6 +441,7 @@ export default function TrackMap({
     [],
   )
   const dismissTwdDetail = useCallback(() => setTwdDetailExpanded(false), [])
+  const dismissTwsDetail = useCallback(() => setTwsDetailExpanded(false), [])
   const cancelRotationGesture = useCallback(() => {
     if (rotationGestureRef.current === null) return
     rotationGestureRef.current = null
@@ -441,11 +453,15 @@ export default function TrackMap({
   }, [committedBearing])
   const changeTwdDetail = (expanded: boolean) => {
     setTwdDetailExpanded(expanded)
-    if (expanded) setWeatherDetailExpanded(false)
+    if (expanded) { setWeatherDetailExpanded(false); setTwsDetailExpanded(false) }
+  }
+  const changeTwsDetail = (expanded: boolean) => {
+    setTwsDetailExpanded(expanded)
+    if (expanded) { setTwdDetailExpanded(false); setWeatherDetailExpanded(false) }
   }
   const changeWeatherDetail = (expanded: boolean) => {
     setWeatherDetailExpanded(expanded)
-    if (expanded) setTwdDetailExpanded(false)
+    if (expanded) { setTwdDetailExpanded(false); setTwsDetailExpanded(false) }
   }
   const primaryGeometry = useMemo(
     () => primaryVisibleSamples.length >= 2
@@ -571,14 +587,15 @@ export default function TrackMap({
   ])
 
   useEffect(() => {
-    if (!twdDetailExpanded && !weatherDetailExpanded) return
+    if (!twdDetailExpanded && !twsDetailExpanded && !weatherDetailExpanded) return
     const dismissOutside = (event: Event) => {
       const target = event.target
       const panel = mapPanelRef.current
       if (!(target instanceof Node) || panel === null) return
-      if (panel.querySelector('.map-navigation-group')?.contains(target)
+      if (panel.querySelector('.map-wind-controls')?.contains(target)
         || panel.querySelector('.map-conditions')?.contains(target)) return
       dismissTwdDetail()
+      dismissTwsDetail()
       dismissWeatherDetail()
     }
     document.addEventListener('pointerdown', dismissOutside, true)
@@ -587,7 +604,7 @@ export default function TrackMap({
       document.removeEventListener('pointerdown', dismissOutside, true)
       document.removeEventListener('click', dismissOutside, true)
     }
-  }, [twdDetailExpanded, weatherDetailExpanded, dismissTwdDetail, dismissWeatherDetail])
+  }, [twdDetailExpanded, twsDetailExpanded, weatherDetailExpanded, dismissTwdDetail, dismissTwsDetail, dismissWeatherDetail])
 
   useEffect(() => {
     window.addEventListener('blur', cancelRotationGesture)
@@ -652,9 +669,10 @@ export default function TrackMap({
         attributionControl={{ compact: true }}
         dragRotate
         pitchWithRotate={false}
-        {...mapWeatherDetailDismissHandlers(dismissWeatherDetail, dismissTwdDetail)}
+        {...mapWeatherDetailDismissHandlers(dismissWeatherDetail, () => { dismissTwdDetail(); dismissTwsDetail() })}
         onRotateStart={(event) => {
           dismissWeatherDetail()
+          dismissTwsDetail()
           startRotationGesture(event)
         }}
         onRotate={updateRotationGesture}
@@ -830,7 +848,10 @@ export default function TrackMap({
           </Popup>
         )}
       </Map>
-      <TwdControl reference={twdReference} presentation={liveTwdPresentation} expanded={twdDetailExpanded} onExpandedChange={changeTwdDetail} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
+      <div className={`map-wind-controls${twdDetailExpanded || twsDetailExpanded ? ' map-wind-controls--expanded' : ''}`}>
+        <TwdControl reference={twdReference} presentation={liveTwdPresentation} expanded={twdDetailExpanded} onExpandedChange={changeTwdDetail} onStep={onTwdStep} onAutomatic={onTwdAutomatic} />
+        <TwsControl reference={twsReference} presentation={twsPresentation} expanded={twsDetailExpanded} onExpandedChange={changeTwsDetail} onApply={onTwsApply} onReset={onTwsReset} />
+      </div>
       <HistoricalConditionsControl
         sample={historicalConditionsSample}
         weatherProvider={historicalConditionsWeatherProvider}
