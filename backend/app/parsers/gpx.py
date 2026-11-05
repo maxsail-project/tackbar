@@ -45,6 +45,10 @@ TIMESTAMP = re.compile(
 class GPXParseError(ValueError):
     """A controlled rejection that never includes private XML content."""
 
+    def __init__(self, message: str, feedback_category: str | None = None) -> None:
+        super().__init__(message)
+        self.feedback_category = feedback_category
+
 
 def _seconds_text(twice_nanoseconds: int) -> str:
     """Format an exact interval, including an even median's possible half-ns."""
@@ -115,7 +119,10 @@ def parse_gpx(
     if len(points) != len(list(root.iter(f"{namespace}trkpt"))):
         raise GPXParseError("GPX contains misplaced trackpoints")
     if not 2 <= len(points) <= MAX_GPX_SAMPLES:
-        raise GPXParseError("GPX requires 2 to 100000 trackpoints")
+        raise GPXParseError(
+            "GPX requires 2 to 100000 trackpoints",
+            feedback_category="structure" if len(points) < 2 else None,
+        )
 
     samples = []
     gaps_ns = []
@@ -133,7 +140,12 @@ def parse_gpx(
         text = (times[0].text or "").strip() if len(times) == 1 else ""
         if not TIMESTAMP.fullmatch(text):
             raise GPXParseError(
-                "GPX trackpoint requires an explicit timezone-aware timestamp"
+                "GPX trackpoint requires an explicit timezone-aware timestamp",
+                feedback_category=(
+                    "timezone" if re.fullmatch(
+                        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?", text
+                    ) else "chronology"
+                ),
             )
         if not text.endswith("Z") and (
             int(text[-5:-3]) > 23 or int(text[-2:]) > 59

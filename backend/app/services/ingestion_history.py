@@ -9,6 +9,7 @@ from app.identity import require_uuid
 from app.models import ConsentRequest
 from app.runtime_paths import PUBLIC_TEST_DATA_ROOT, runtime_paths
 from app.services.ingestion_lock import file_access_lock, ingestion_lock
+from app.services.gpx_notice_feedback import safe_feedback
 
 DEFAULT_HISTORY_PATH = PUBLIC_TEST_DATA_ROOT / "ingestion_history.json"
 FIELDS = {"id", "provider", "provider_message_id", "sender_email", "received_at", "attachment_name", "attachment_sha256", "original_file", "status", "disposition", "attempts", "last_attempt_at", "last_error", "activity_id", "session_id"}
@@ -135,6 +136,7 @@ class IngestionHistory:
         record["session_result_notification"] = None
         record["pending_onboarding_reservation"] = None
         record["technical_notice_reason"] = None
+        record["technical_notice_feedback"] = None
         records.append(record); self._write(records); return record
 
     def replace(self, replacement: dict[str, Any]) -> dict[str, Any]:
@@ -208,6 +210,10 @@ class IngestionHistory:
                         and record["technical_notice_reason"] is not None
                         and replacement["technical_notice_reason"] != record["technical_notice_reason"]):
                     raise ValueError("Ingestion technical notice classification is immutable")
+                if (record["provider"] != ADMIN_UPLOAD
+                        and record["technical_notice_reason"] is not None
+                        and replacement["technical_notice_feedback"] != record["technical_notice_feedback"]):
+                    raise ValueError("Ingestion technical notice feedback is immutable")
                 records[i] = replacement; self._write(records); return replacement
         raise ValueError(f"Ingestion not found: {replacement['id']}")
 
@@ -297,6 +303,7 @@ def _canonical(item: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     technical_notice_reason = item.get("technical_notice_reason")
     if technical_notice_reason not in TECHNICAL_NOTICE_REASONS:
         raise ValueError("Malformed ingestion technical notice classification")
+    technical_notice_feedback = safe_feedback(item.get("technical_notice_feedback"))
     onboarding_reservation = item.get("pending_onboarding_reservation")
     _validate_onboarding_reservation(onboarding_reservation)
     item = {
@@ -307,17 +314,18 @@ def _canonical(item: dict[str, Any]) -> tuple[dict[str, Any], bool]:
             "session_result_notification",
             "pending_onboarding_reservation",
             "technical_notice_reason",
+            "technical_notice_feedback",
         )
     }
     if not {"provider", "provider_message_id", "status"}.issubset(item) or item["status"] not in ("processed", "failed"): raise ValueError("Malformed ingestion record")
     if "id" in item:
         if set(item) == FIELDS - {"disposition"}:
             item = {**item, "disposition": "active"}
-            return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation, "technical_notice_reason": technical_notice_reason}, True
+            return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation, "technical_notice_reason": technical_notice_reason, "technical_notice_feedback": technical_notice_feedback}, True
         if set(item) != FIELDS or item.get("disposition") not in ("active", "discarded") or not isinstance(item["attempts"], int) or item["attempts"] < 0: raise ValueError("Malformed ingestion record")
-        return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation, "technical_notice_reason": technical_notice_reason}, False
+        return {**item, "activity_created_by_ingestion": activity_created, "session_result_notification_candidate": notification_candidate, "session_result_notification": notification, "pending_onboarding_reservation": onboarding_reservation, "technical_notice_reason": technical_notice_reason, "technical_notice_feedback": technical_notice_feedback}, False
     attempted = item.get("processed_at")
-    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "activity_created_by_ingestion": None, "session_result_notification_candidate": None, "session_result_notification": notification, "pending_onboarding_reservation": None, "technical_notice_reason": None}, True
+    return {"id": str(uuid4()), "provider": item["provider"], "provider_message_id": item["provider_message_id"], "sender_email": None, "received_at": None, "attachment_name": None, "attachment_sha256": None, "original_file": None, "status": item["status"], "disposition": "active", "attempts": 1 if attempted else 0, "last_attempt_at": attempted, "last_error": None, "activity_id": item.get("activity_id"), "session_id": None, "activity_created_by_ingestion": None, "session_result_notification_candidate": None, "session_result_notification": notification, "pending_onboarding_reservation": None, "technical_notice_reason": None, "technical_notice_feedback": None}, True
 
 
 def _validate_manual(record: dict[str, Any]) -> None:
