@@ -39,6 +39,52 @@ function compactNumber(value: number) {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
 
+export type WeatherConditionIcon = 'sun' | 'cloud-sun' | 'cloud' | 'cloud-rain'
+
+export function classifyWeatherCode(code: number | null | undefined): WeatherConditionIcon | null {
+  if (code === null || code === undefined || !Number.isInteger(code) || code < 0) return null
+  if (code <= 1) return 'sun'
+  if (code === 2) return 'cloud-sun'
+  if (code === 3) return 'cloud'
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'cloud-rain'
+  return null
+}
+
+export function classifyCloudCover(cover: number | null | undefined): Exclude<WeatherConditionIcon, 'cloud-rain'> | null {
+  if (!finite(cover) || cover! < 0 || cover! > 100) return null
+  if (cover! <= 20) return 'sun'
+  if (cover! < 80) return 'cloud-sun'
+  return 'cloud'
+}
+
+export function resolveHistoricalConditionsCompact(sample: HistoricalConditionsSample | null): {
+  label: string
+  icon: WeatherConditionIcon | null
+  accessibleLabel: string
+} | null {
+  if (sample === null) return null
+  const code = sample.weather_code
+  const validCode = code !== null && code !== undefined && Number.isInteger(code) && code >= 0
+  const icon = validCode ? classifyWeatherCode(code) : classifyCloudCover(sample.cloud_cover_pct)
+  const hasDetail = validCode || classifyCloudCover(sample.cloud_cover_pct) !== null || [
+    sample.air_temperature_c, sample.wind_direction_10m_deg, sample.wind_speed_10m_kn,
+    sample.wind_gusts_10m_kn, sample.wave_height_m,
+    sample.wave_direction_deg, sample.wave_period_s,
+  ].some(finite)
+  if (!hasDetail) return null
+
+  const label = finite(sample.air_temperature_c) ? `${Math.round(sample.air_temperature_c!)}°C` : 'Weather'
+  const condition = icon === 'sun' ? (validCode ? 'clear or mainly clear' : 'clear sky cover')
+    : icon === 'cloud-sun' ? (validCode ? 'partly cloudy' : 'partly cloudy sky cover')
+      : icon === 'cloud' ? (validCode ? 'overcast' : 'overcast sky cover')
+        : icon === 'cloud-rain' ? 'drizzle, rain or showers' : null
+  return {
+    label,
+    icon,
+    accessibleLabel: `Historical modelled weather: ${label}${condition ? `, ${condition}` : ''}. Show details`,
+  }
+}
+
 export function formatHistoricalConditionsCompact(
   sample: Pick<HistoricalConditionsSample,
     'air_temperature_c' | 'wind_speed_10m_kn' | 'wind_direction_10m_deg'>

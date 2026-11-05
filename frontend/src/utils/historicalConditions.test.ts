@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { HistoricalConditionsSample } from '../types/session'
 import {
+  classifyCloudCover,
+  classifyWeatherCode,
   formatHistoricalConditionsCompact,
   formatHistoricalConditionsSource,
+  resolveHistoricalConditionsCompact,
   selectHistoricalConditionsSample,
 } from './historicalConditions'
 
@@ -114,6 +117,69 @@ describe('historical conditions compact presentation', () => {
       air_temperature_c: null,
       wind_gusts_10m_kn: 19,
     }))).toBeNull()
+  })
+})
+
+describe('Viewer Weather compact presentation', () => {
+  const at = '2031-06-01T09:00:00Z'
+
+  it.each([
+    [0, 'sun'], [1, 'sun'], [2, 'cloud-sun'], [3, 'cloud'],
+    [51, 'cloud-rain'], [53, 'cloud-rain'], [55, 'cloud-rain'], [56, 'cloud-rain'],
+    [57, 'cloud-rain'], [61, 'cloud-rain'], [63, 'cloud-rain'], [65, 'cloud-rain'],
+    [66, 'cloud-rain'], [67, 'cloud-rain'], [80, 'cloud-rain'], [81, 'cloud-rain'], [82, 'cloud-rain'],
+  ] as const)('maps WMO %i to %s', (code, icon) => {
+    expect(classifyWeatherCode(code)).toBe(icon)
+    expect(resolveHistoricalConditionsCompact(sample(at, { weather_code: code, cloud_cover_pct: 0 }))?.icon).toBe(icon)
+  })
+
+  it('does not fall back to cloud cover for a present unsupported code', () => {
+    for (const code of [45, 71, 95, 999]) {
+      expect(classifyWeatherCode(code)).toBeNull()
+      expect(resolveHistoricalConditionsCompact(sample(at, { weather_code: code, cloud_cover_pct: 100 }))?.icon).toBeNull()
+    }
+  })
+
+  it.each([
+    [0, 'sun'], [20, 'sun'], [20.1, 'cloud-sun'],
+    [79.9, 'cloud-sun'], [80, 'cloud'], [100, 'cloud'],
+  ] as const)('uses %s%% cloud cover for sky icon %s when code is absent', (cover, icon) => {
+    expect(classifyCloudCover(cover)).toBe(icon)
+    expect(resolveHistoricalConditionsCompact(sample(at, { weather_code: null, cloud_cover_pct: cover }))?.icon).toBe(icon)
+  })
+
+  it('ignores invalid codes and cloud cover without inventing rain', () => {
+    for (const code of [null, undefined, Number.NaN, Number.POSITIVE_INFINITY, 2.5, -1]) {
+      expect(resolveHistoricalConditionsCompact(sample(at, { weather_code: code, cloud_cover_pct: 80 }))?.icon).toBe('cloud')
+    }
+    for (const cover of [null, Number.NaN, Number.POSITIVE_INFINITY, -0.1, 100.1]) {
+      expect(classifyCloudCover(cover)).toBeNull()
+      const compact = resolveHistoricalConditionsCompact(sample(at, { weather_code: null, cloud_cover_pct: cover }))
+      expect(compact?.label).toBe('23°C')
+      expect(compact?.icon).toBeNull()
+    }
+  })
+
+  it('rounds compact temperature without changing the original sample', () => {
+    const original = sample(at, { air_temperature_c: 19.6, weather_code: 80 })
+    expect(resolveHistoricalConditionsCompact(original)).toMatchObject({ label: '20°C', icon: 'cloud-rain' })
+    expect(original.air_temperature_c).toBe(19.6)
+    expect(resolveHistoricalConditionsCompact(sample(at, { air_temperature_c: 19.5, weather_code: 3 }))?.label).toBe('20°C')
+  })
+
+  it('retains Weather access for meaningful weather or marine data without temperature', () => {
+    const empty = sample(at, {
+      air_temperature_c: null, weather_code: null, wind_direction_10m_deg: null,
+      wind_speed_10m_kn: null, wind_gusts_10m_kn: null, cloud_cover_pct: null,
+      wave_height_m: null, wave_direction_deg: null, wave_period_s: null,
+    })
+    expect(resolveHistoricalConditionsCompact(null)).toBeNull()
+    expect(resolveHistoricalConditionsCompact(empty)).toBeNull()
+    expect(resolveHistoricalConditionsCompact({ ...empty, wind_gusts_10m_kn: 19 })).toMatchObject({ label: 'Weather', icon: null })
+    expect(resolveHistoricalConditionsCompact({ ...empty, wave_height_m: 0.6 })).toMatchObject({ label: 'Weather', icon: null })
+    expect(resolveHistoricalConditionsCompact({ ...empty, weather_code: 2 })).toMatchObject({ label: 'Weather', icon: 'cloud-sun' })
+    expect(resolveHistoricalConditionsCompact({ ...empty, weather_code: 45 })).toMatchObject({ label: 'Weather', icon: null })
+    expect(resolveHistoricalConditionsCompact({ ...empty, cloud_cover_pct: 150 })).toBeNull()
   })
 })
 

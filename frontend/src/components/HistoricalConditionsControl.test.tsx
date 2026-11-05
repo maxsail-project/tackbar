@@ -16,7 +16,7 @@ const sample: HistoricalConditionsSample = {
 }
 
 describe('historical conditions map control', () => {
-  it('renders the exact compact ordering as a keyboard-operable button', () => {
+  it('renders whole-degree temperature and a monochrome icon in a keyboard-operable button', () => {
     const markup = renderToStaticMarkup(<HistoricalConditionsControl
       sample={{
         ...sample,
@@ -32,10 +32,16 @@ describe('historical conditions map control', () => {
     expect(markup).toContain('class="map-conditions__chip"')
     expect(markup).toContain('type="button"')
     expect(markup).toContain('aria-expanded="false"')
-    expect(markup).toContain('338° · 4.2 (19) kt · 28.8°C')
+    expect(markup).toContain('29°C')
+    expect(markup).toContain('data-weather-icon="cloud-sun"')
+    expect(markup).toContain('stroke="currentColor"')
+    expect(markup).toContain('aria-label="Historical modelled weather: 29°C, partly cloudy sky cover. Show details"')
+    expect(markup).not.toContain('338°')
+    expect(markup).not.toContain('4.2')
+    expect(markup).not.toContain('19 kt')
   })
 
-  it('omits missing or invalid gusts and keeps gust-only context out of the chip', () => {
+  it('keeps wind and Gust out of the chip and uses the same sample for temperature and icon', () => {
     const props = {
       weatherProvider: 'open-meteo',
       marineProvider: null,
@@ -51,19 +57,24 @@ describe('historical conditions map control', () => {
     const partial = renderToStaticMarkup(<HistoricalConditionsControl
       sample={{ ...sample, wind_speed_10m_kn: null }} {...props}
     />)
-    expect(absent).toContain('092° · 14 kt · 23°C')
-    expect(invalid).toContain('092° · 14 kt · 23°C')
-    expect(partial).toContain('092° · 23°C')
-    expect(partial).not.toContain('(19)')
-    expect(renderToStaticMarkup(<HistoricalConditionsControl sample={{
+    for (const markup of [absent, invalid, partial]) {
+      expect(markup).toContain('23°C')
+      expect(markup).toContain('data-weather-icon="cloud-sun"')
+      expect(markup).not.toContain('14 kt')
+      expect(markup).not.toContain('Gust')
+    }
+    const gustOnly = renderToStaticMarkup(<HistoricalConditionsControl sample={{
       ...sample, wind_direction_10m_deg: null, wind_speed_10m_kn: null,
-      air_temperature_c: null,
-    }} {...props} />)).toBe('')
+      air_temperature_c: null, cloud_cover_pct: null, wave_height_m: null,
+      wave_direction_deg: null, wave_period_s: null,
+    }} {...props} />)
+    expect(gustOnly).toContain('Weather')
+    expect(gustOnly).not.toContain('19')
   })
 
   it('shows every available persisted field and its UTC sample time in detail', () => {
     const markup = renderToStaticMarkup(<HistoricalConditionsDetail
-      sample={sample}
+      sample={{ ...sample, weather_code: 80 }}
       weatherProvider="open-meteo"
       marineProvider="open-meteo"
     />)
@@ -76,6 +87,7 @@ describe('historical conditions map control', () => {
     expect(markup).toContain('Source: Open-Meteo')
     expect(markup).toContain('01 Jun 2031')
     expect(markup).toContain('09:00 UTC')
+    expect(markup).not.toContain('weather_code')
   })
 
   it('presents differing weather and marine provenance without diagnostic detail', () => {
@@ -129,8 +141,8 @@ describe('historical conditions map control', () => {
     expect(onExpandedChange).toHaveBeenLastCalledWith(false)
   })
 
-  it('renders nothing for unavailable or marine-only compact context', () => {
-    const marineOnly = { ...sample, air_temperature_c: null, wind_speed_10m_kn: null, wind_direction_10m_deg: null, wind_gusts_10m_kn: null }
+  it('keeps marine-only detail accessible and hides only unavailable context', () => {
+    const marineOnly = { ...sample, air_temperature_c: null, wind_speed_10m_kn: null, wind_direction_10m_deg: null, wind_gusts_10m_kn: null, cloud_cover_pct: null }
     const props = {
       weatherProvider: 'open-meteo',
       marineProvider: null,
@@ -138,6 +150,9 @@ describe('historical conditions map control', () => {
       onExpandedChange: () => undefined,
     }
     expect(renderToStaticMarkup(<HistoricalConditionsControl sample={null} {...props} />)).toBe('')
-    expect(renderToStaticMarkup(<HistoricalConditionsControl sample={marineOnly} {...props} />)).toBe('')
+    const marine = renderToStaticMarkup(<HistoricalConditionsControl sample={marineOnly} {...props} />)
+    expect(marine).toContain('>Weather</span>')
+    expect(marine).not.toContain('data-weather-icon')
+    expect(renderToStaticMarkup(<HistoricalConditionsControl sample={{ ...marineOnly, wave_height_m: null, wave_direction_deg: null, wave_period_s: null }} {...props} />)).toBe('')
   })
 })

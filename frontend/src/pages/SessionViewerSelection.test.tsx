@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../api/tackbarApi'
 import type { ActivityManeuverAnalytics, Maneuver } from '../types/maneuver'
-import type { SharedSessionDetail } from '../types/session'
+import type { HistoricalConditionsSample, SharedSessionDetail } from '../types/session'
 import type { ActivityTrack } from '../types/track'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
@@ -28,15 +28,16 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessUnavailableError: class extends Error {},
 }))
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset }: {
+  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset }: {
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
     focusRequest: { activityRole: string, requestId: number } | null,
+    historicalConditionsSample: HistoricalConditionsSample | null,
     twdReference: TwdReference, twdPresentation: TwdPresentation,
     onTwdStep: (step: -5 | 5) => void, onTwdAutomatic: () => void,
     onTwdGestureCommit: (degrees: number) => void,
     twsReference: TwsReference, twsPresentation: TwsPresentation, onTwsStep: (step: -1 | 1) => void, onTwsReset: () => void,
   }) =>
-    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
+    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
       <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
       <button data-tws-minus onClick={() => onTwsStep(-1)}>−1 kt</button><button data-tws-plus onClick={() => onTwsStep(1)}>+1 kt</button><button data-tws-reset onClick={onTwsReset}>Reset TWS</button>
       {selectedManeuverHighlights.map((highlight) =>
@@ -292,6 +293,17 @@ describe('Viewer TWD state', () => {
     await act(async () => nextFrame!(performance.now() + 500))
     expect(mapState().getAttribute('data-tws')).toBe('13')
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
+  })
+
+  it.each(['original', 'temporary'] as const)('retains the Weather sample selection across window and replay changes on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const weatherTime = () => container.querySelector('[data-weather-time]')!.getAttribute('data-weather-time')
+    expect(weatherTime()).toBe(new Date(start + 4_000).toISOString())
+    await click('[data-narrow-window]')
+    expect(weatherTime()).toBe(new Date(start + 9_000).toISOString())
+    await click('[data-play-replay]')
+    await act(async () => nextFrame!(performance.now() + 500))
+    expect(weatherTime()).toBe(new Date(start + 9_000).toISOString())
   })
 
   it('keeps unavailable North-up distinct from manual-only ±5° and returns to unavailable', async () => {

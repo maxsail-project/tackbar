@@ -1,11 +1,12 @@
 import type { PointerEvent } from 'react'
 import type { HistoricalConditionsSample } from '../types/session'
 import {
-  formatHistoricalConditionsCompact,
   formatHistoricalConditionsSource,
   formatHistoricalConditionsTime,
   formatHistoricalConditionsValue,
+  resolveHistoricalConditionsCompact,
 } from '../utils/historicalConditions'
+import WeatherConditionIcon from './WeatherConditionIcon'
 
 function stopMapInteraction(event: PointerEvent) {
   event.stopPropagation()
@@ -25,7 +26,7 @@ export default function HistoricalConditionsControl({
   onExpandedChange: (expanded: boolean) => void
 }) {
   if (sample === null) return null
-  const compact = formatHistoricalConditionsCompact(sample)
+  const compact = resolveHistoricalConditionsCompact(sample)
   if (compact === null) return null
 
   return (
@@ -33,11 +34,13 @@ export default function HistoricalConditionsControl({
       <button
         type="button"
         className="map-conditions__chip"
+        aria-label={compact.accessibleLabel}
         aria-expanded={expanded}
         aria-controls="map-conditions-detail"
         onClick={() => onExpandedChange(!expanded)}
       >
-        {compact}
+        <span>{compact.label}</span>
+        {compact.icon && <WeatherConditionIcon name={compact.icon} />}
       </button>
       {expanded && <HistoricalConditionsDetail
         sample={sample}
