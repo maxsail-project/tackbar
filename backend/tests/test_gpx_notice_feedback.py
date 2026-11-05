@@ -3,13 +3,13 @@
 import pytest
 
 from app.services.gpx_notice_feedback import classify_gpx_error, safe_feedback
-from app.services.technical_failure_notice import _body
+from app.services.technical_failure_notice import CLOSING_EN, CLOSING_ES, OPENING_EN, OPENING_ES, _body, _quality_table
 
 
 @pytest.mark.parametrize("error,category,spanish,english", [
-    ("GPX trackpoint has an invalid timezone offset", "chronology", "secuencia cronológica", "chronological sequence"),
-    ("GPX timestamps must be strictly increasing in source order", "chronology", "secuencia cronológica", "chronological sequence"),
-    ("GPX requires exactly one track", "structure", "una sola navegación", "one navigation track"),
+    ("GPX trackpoint has an invalid timezone offset", "chronology", "secuencia válida", "valid sequence"),
+    ("GPX timestamps must be strictly increasing in source order", "chronology", "secuencia válida", "valid sequence"),
+    ("GPX requires exactly one track", "structure", "una sola navegación", "single sailing activity"),
     ("GPX requires exactly one nonempty segment", "structure", "un segmento", "one nonempty segment"),
     ("GPX trackpoint requires valid coordinates", "coordinates", "coordenadas no válidas", "invalid coordinates"),
     ("GPX trackpoint requires finite WGS84 coordinates", "coordinates", "coordenadas no válidas", "invalid coordinates"),
@@ -22,6 +22,10 @@ def test_known_simple_gpx_errors_have_bilingual_safe_messages(error, category, s
     assert "Detalle técnico:" in body and "Technical detail:" in body
     assert "correo nuevo" in body and "new email" in body
     assert error not in body
+    assert body.startswith(OPENING_ES + "\n\n")
+    assert "\n\n---\n\n" + OPENING_EN + "\n\n" in body
+    assert "\n\n" + CLOSING_ES + "\n\n---\n\n" + OPENING_EN in body
+    assert body.endswith(CLOSING_EN)
 
 
 @pytest.mark.parametrize("error,hint,expected", [
@@ -36,25 +40,51 @@ def test_ambiguous_parser_text_needs_a_specific_safe_hint(error, hint, expected)
     assert feedback == ({"category": expected} if expected else None)
 
 
-@pytest.mark.parametrize("error,rows", [
-    ("GPX temporal quality failed: median 2.0000000005 s > 2 s", ["Median | 2.0000000005 s | ≤2 s"]),
-    ("GPX temporal quality failed: P95 5.000000001 s > 5 s", ["95th percentile", "5.000000001 s | ≤5 s"]),
-    ("GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s", ["Maximum interval | 10.000000001 s | ≤10 s"]),
-    ("GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; maximum adjacent gap 12 s > 10 s", ["Median | 5 s | ≤2 s", "11 s | ≤5 s", "Maximum interval | 12 s | ≤10 s"]),
+@pytest.mark.parametrize("error,rows,absent", [
+    ("GPX temporal quality failed: median 2.0000000005 s > 2 s", ["Median interval\n  Your track: 2.0000000005 s\n  TackBar requirement: ≤2 s"], ["95th percentile\n", "Maximum interval\n"]),
+    ("GPX temporal quality failed: P95 5.000000001 s > 5 s", ["95th percentile\n  Your track: 5.000000001 s\n  TackBar requirement: ≤5 s"], ["Median interval\n", "Maximum interval\n"]),
+    ("GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s", ["Maximum interval\n  Your track: 10.000000001 s\n  TackBar requirement: ≤10 s"], ["Median interval\n", "95th percentile\n"]),
+    ("GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; maximum adjacent gap 12 s > 10 s", ["Median interval\n  Your track: 5 s\n  TackBar requirement: ≤2 s", "95th percentile\n  Your track: 11 s\n  TackBar requirement: ≤5 s", "Maximum interval\n  Your track: 12 s\n  TackBar requirement: ≤10 s"], []),
 ])
-def test_quality_message_compares_validated_violations(error, rows):
+def test_quality_message_compares_validated_violations(error, rows, absent):
     feedback = classify_gpx_error(error)
     assert feedback["category"] == "quality"
     body = _body("invalid_track", feedback)
     assert "calidad de los datos GPS" in body and "GPS data quality" in body
     assert "navegación nueva" in body and "new sailing track" in body
     assert "1 Hz" in body and "grabación inteligente" in body and "smart recording" in body
-    assert "Tu track | Requisito de TackBar" in body
-    assert "Your track | TackBar requirement" in body
+    assert "Tu track:" in body and "Requisito de TackBar:" in body
+    assert "Your track:" in body and "TackBar requirement:" in body
+    assert " | " not in body
     if "P95" in feedback["metrics"]:
-        assert "95% of intervals are no longer than this" in body
+        assert "at least 95% of intervals do not exceed" in body
     for row in rows:
         assert row in body
+    for row in absent:
+        assert row not in body
+
+
+def test_timezone_message_explains_missing_context_without_blaming_device():
+    body = _body("invalid_track", {"category": "timezone"})
+    assert "a qué zona horaria corresponden" in body
+    assert "which time zone" in body
+    assert "Z o +01:00" in body and "Z or +01:00" in body
+    assert "device configuration" not in body
+
+
+def test_metric_blocks_fit_plain_text_mobile_width():
+    metrics = {"median": "2.0000000005", "P95": "5.000000001", "maximum adjacent gap": "10.000000001"}
+    for spanish in (True, False):
+        lines = _quality_table(metrics, spanish).splitlines()
+        assert max(map(len, lines)) <= 80
+        assert all(" | " not in line for line in lines)
+
+
+def test_approved_classified_opening_and_closing_are_exact():
+    assert OPENING_ES == "Hola,\n\nNo hemos podido procesar tu track en TackBar."
+    assert OPENING_EN == "Hi,\n\nWe couldn't process your track in TackBar."
+    assert CLOSING_ES == "Gracias por compartir tu navegación con TackBar. Si necesitas ayuda con el archivo, puedes escribirnos a hello@tackbar.eu."
+    assert CLOSING_EN == "Thank you for sharing your sailing activity with TackBar. If you need help with your file, you can contact us at hello@tackbar.eu."
 
 
 @pytest.mark.parametrize("error", [

@@ -367,8 +367,13 @@ def test_ambiguous_vakaros_rejection_keeps_generic_ovh_notice(monkeypatch, tmp_p
     assert sent == [("sailor@example.test", "invalid_track")]
 
 
-def test_vakaros_interrupted_notice_recovers_without_reparse(monkeypatch, tmp_path):
-    adapter = _runtime(monkeypatch, tmp_path, {1: _mail([("track.vkx", _vkx(_position(), revision=0x04))])})
+@pytest.mark.parametrize("content,expected", [
+    (_vkx(_position(), revision=0x04), {"category": "vakaros_format"}),
+    (_vkx(_position()) + bytes([0x04]) + bytes(12),
+     {"category": "vakaros_incomplete", "subtype": "vkx_truncated"}),
+])
+def test_vakaros_interrupted_notice_recovers_without_reparse(monkeypatch, tmp_path, content, expected):
+    adapter = _runtime(monkeypatch, tmp_path, {1: _mail([("track.vkx", content)])})
     original = TechnicalNoticeStore.attempt_once
     interrupted = []
 
@@ -383,14 +388,14 @@ def test_vakaros_interrupted_notice_recovers_without_reparse(monkeypatch, tmp_pa
         review_mailbox_now(provider=adapter)
     assert OVHMailboxCursorStore().load() is None
     record = IngestionHistory().records()[0]
-    assert record["technical_notice_feedback"] == {"category": "vakaros_format"}
+    assert record["technical_notice_feedback"] == expected
     monkeypatch.setattr("app.services.email_ingestion.parse_track_attachment",
                         lambda *_args, **_kwargs: pytest.fail("track reparsed"))
     sent = []
     monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
                         lambda *args: sent.append(args))
     assert review_mailbox_now(provider=adapter).known_failed == 1
-    assert sent == [("sailor@example.test", "invalid_track", {"category": "vakaros_format"})]
+    assert sent == [("sailor@example.test", "invalid_track", expected)]
     assert OVHMailboxCursorStore().load() == OVHMailboxCursor(456, 1)
     assert not TechnicalNoticeStore(tmp_path).attempt_once(
         "456:1", "sailor@example.test", "invalid_track", lambda *_: pytest.fail("resent"))
@@ -536,22 +541,26 @@ def test_interrupted_historical_or_malformed_feedback_uses_generic_notice(monkey
     assert TechnicalNoticeStore(tmp_path).records()["456:1"]["status"] == "sent"
 
 
-def test_malformed_persisted_vakaros_feedback_recovers_with_generic_notice(monkeypatch, tmp_path):
+@pytest.mark.parametrize("feedback,expected", [
+    ({"category": "vakaros_incomplete"}, {"category": "vakaros_incomplete"}),
+    ({"category": "vakaros_incomplete", "missing_columns": ["C:/private/secret"]}, None),
+    ({"category": "vakaros_incomplete", "subtype": "private_subtype"}, None),
+])
+def test_historical_or_malformed_vakaros_feedback_recovers_safely(monkeypatch, tmp_path, feedback, expected):
     adapter = _runtime(monkeypatch, tmp_path, {1: _mail([("old.vkx", b"not a vkx")])})
     history = IngestionHistory()
     record = history.create("ovh", "456:1", "sailor@example.test", "old.vkx", None)
     record.update(status="failed", technical_notice_reason="invalid_track")
     history.replace(record)
     raw = json.loads(history.path.read_text(encoding="utf-8"))
-    raw[0]["technical_notice_feedback"] = {
-        "category": "vakaros_incomplete", "missing_columns": ["C:/private/secret"],
-    }
+    raw[0]["technical_notice_feedback"] = feedback
     history.path.write_text(json.dumps(raw), encoding="utf-8")
     sent = []
     monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
                         lambda *args: sent.append(args))
     assert review_mailbox_now(provider=adapter).known_failed == 1
-    assert sent == [("sailor@example.test", "invalid_track")]
+    expected_args = ("sailor@example.test", "invalid_track", expected) if expected else ("sailor@example.test", "invalid_track")
+    assert sent == [expected_args]
     assert TechnicalNoticeStore(tmp_path).records()["456:1"]["status"] == "sent"
 
 
@@ -565,6 +574,21 @@ def test_failure_notice_copy_has_common_footer_and_no_private_data():
         assert "Hola" in message.body and "Hi" in message.body
         assert "https://" not in message.body
         assert "/me/" not in message.body and "/s/" not in message.body
+
+
+def test_generic_and_multiple_supported_copy_is_unchanged():
+    assert _body("invalid_track") == (
+        "Hola,\n\nNo pudimos procesar tu envío de track a TackBar. "
+        "Revisa el archivo del track y vuelve a enviarlo en un correo nuevo."
+        "\n\n---\n\nHi,\n\nWe could not process your TackBar track submission. "
+        "Check the track file and send it again in a new email."
+    )
+    assert _body("multiple_supported") == (
+        "Hola,\n\nNo pudimos procesar tu envío de track a TackBar. "
+        "Envía cada track compatible en un correo separado."
+        "\n\n---\n\nHi,\n\nWe could not process your TackBar track submission. "
+        "Send each supported track in a separate email."
+    )
 
 
 def test_all_automated_templates_have_exactly_one_shared_footer():
