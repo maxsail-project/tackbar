@@ -6,21 +6,38 @@ set -euo pipefail
 repo='maxsail-project/tackbar'
 sha=''
 as_json=false
-usage() { printf 'Usage: %s [--sha SHA] [--repo OWNER/REPO] [--json]\n' "$0" >&2; }
+usage() {
+  cat <<EOF
+Inspect TackBar validation for remote main or a selected commit (read-only).
+Usage: ${0##*/} [SHA] [--sha|-s SHA] [--repo|-r OWNER/REPO] [--json]
+       ${0##*/} --help|-h
+Options:
+  --sha, -s   Resolve and inspect a commit SHA (abbreviated SHA accepted).
+  --repo, -r  Repository (default: maxsail-project/tackbar).
+  --json      Print machine-readable results.
+  --help, -h  Show this help without contacting GitHub.
+Dependencies: authenticated gh, jq.
+Examples:
+  ${0##*/}
+  ${0##*/} --sha a57971f --json
+For workflow dispatch, use validate-tackbar.sh.
+EOF
+}
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
 
 while (( $# )); do
   case "$1" in
-    --sha|-s) (( $# >= 2 )) || { usage; exit 2; }; sha=$2; shift 2 ;;
-    --repo|-r) (( $# >= 2 )) || { usage; exit 2; }; repo=$2; shift 2 ;;
+    --sha|-s) (( $# >= 2 )) || { usage >&2; exit 2; }; sha=$2; shift 2 ;;
+    --repo|-r) (( $# >= 2 )) || { usage >&2; exit 2; }; repo=$2; shift 2 ;;
     --json) as_json=true; shift ;;
     -h|--help) usage; exit 0 ;;
-    -*) usage; exit 2 ;;
-    *) if [[ -z "$sha" ]]; then sha=$1; shift; else usage; exit 2; fi ;;
+    -*) usage >&2; exit 2 ;;
+    *) if [[ -z "$sha" ]]; then sha=$1; shift; else usage >&2; exit 2; fi ;;
   esac
 done
 [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail 'Invalid OWNER/REPO.'
+[[ -z "$sha" || "$sha" =~ ^[a-fA-F0-9]{1,40}$ ]] || fail 'Invalid requested SHA.'
 for cmd in gh jq; do command -v "$cmd" >/dev/null 2>&1 || fail "Missing dependency: $cmd"; done
 
 if [[ -z "$sha" ]]; then
@@ -32,6 +49,7 @@ else
 fi
 [[ "$sha" =~ ^[a-fA-F0-9]{40}$ ]] || fail 'Invalid resolved SHA.'
 api=$(gh api "repos/$repo/actions/runs?head_sha=$sha&per_page=100") || fail 'Cannot read workflow runs.'
+jq -e '(.workflow_runs | type) == "array"' <<<"$api" >/dev/null || fail 'Invalid workflows JSON.'
 
 # Print one tab-separated record: passed, failed, skipped. Missing counts => no record.
 extract_counts() {
@@ -45,13 +63,14 @@ extract_counts() {
     [[ -n "$line" ]] || return 1
     if [[ "$line" =~ Tests[[:space:]]*:?[[:space:]]*([0-9]+)[[:space:]]+passed ]]; then p=${BASH_REMATCH[1]}; else return 1; fi
   else
-    line=$(printf '%s\n' "$log" | grep -E '[0-9]+[[:space:]]+(passed|failed|errors?)[^\n]*in[[:space:]]+[0-9.]+s' | tail -n 1 || true)
+    line=$(printf '%s\n' "$log" | grep -E '[0-9]+[[:space:]]+(passed|failed|errors?).*in[[:space:]]+[0-9.]+s' | tail -n 1 || true)
     [[ -n "$line" ]] || return 1
   fi
   if [[ "$kind" == backend && "$line" =~ ([0-9]+)[[:space:]]+passed ]]; then p=${BASH_REMATCH[1]}; fi
   if [[ "$line" =~ ([0-9]+)[[:space:]]+failed ]]; then f=${BASH_REMATCH[1]}; fi
   if [[ "$line" =~ ([0-9]+)[[:space:]]+skipped ]]; then s=${BASH_REMATCH[1]}; fi
-  if [[ "$kind" == backend && "$line" =~ ([0-9]+)[[:space:]]+errors? ]]; then n=${BASH_REMATCH[1]}; f=$((f+n)); fi
+  if [[ "$kind" == backend && "$line" =~ ([0-9]+)[[:space:]]+error([^[:alpha:]]|$) ]]; then n=${BASH_REMATCH[1]}; f=$((f+n)); fi
+  if [[ "$kind" == backend && "$line" =~ ([0-9]+)[[:space:]]+errors([^[:alpha:]]|$) ]]; then n=${BASH_REMATCH[1]}; f=$((f+n)); fi
   printf '%s\t%s\t%s\n' "$p" "$f" "$s"
 }
 
@@ -75,12 +94,14 @@ for kind in frontend backend; do
   run=$(jq -c --arg name "$name" --arg sha "$sha" '[.workflow_runs[] | select(.name == $name and .head_sha == $sha)] | sort_by(.created_at) | reverse | .[0] // null' <<<"$api") || fail 'Invalid workflows JSON.'
   status='NOT RUN' run_id='' url='' passed='' failed='' skipped='' typecheck='' build='' note='Sin ejecucion para este SHA'
   if [[ "$run" != null ]]; then
+    jq -e '(.id | type) == "number" and (.status | type) == "string"' <<<"$run" >/dev/null || fail 'Invalid workflow run JSON.'
     run_id=$(jq -r '.id' <<<"$run")
     url=$(jq -r '.html_url // ""' <<<"$run")
     run_status=$(jq -r '.status' <<<"$run")
     status=$run_status
     if [[ "$run_status" == completed ]]; then status=$(jq -r '.conclusion // ""' <<<"$run"); fi
     jobs_json=$(gh api "repos/$repo/actions/runs/$run_id/jobs?per_page=100") || fail 'Cannot read workflow jobs.'
+    jq -e '(.jobs | type) == "array"' <<<"$jobs_json" >/dev/null || fail 'Invalid workflow jobs JSON.'
     if [[ "$kind" == frontend ]]; then
       typecheck=$(jq -r '[.jobs[].steps[]? | select(.name == "Typecheck frontend") | .conclusion] | last // ""' <<<"$jobs_json")
       build=$(jq -r '[.jobs[].steps[]? | select(.name == "Build production frontend") | .conclusion] | last // ""' <<<"$jobs_json")

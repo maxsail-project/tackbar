@@ -5,16 +5,31 @@
 set -euo pipefail
 
 repo='maxsail-project/tackbar'
-usage() { printf 'Usage: %s frontend|backend|both [--wait]\n' "$0" >&2; }
+usage() {
+  cat <<EOF
+Dispatch TackBar validation for the remote main commit (writes GitHub Actions runs).
+Usage: ${0##*/} frontend|backend|both [--wait|-w]
+       ${0##*/} --help|-h
+Options:
+  --wait, -w  Wait for completion and fail if a workflow fails.
+  --help, -h  Show this help without contacting GitHub.
+Dependencies: authenticated gh, jq.
+Examples:
+  ${0##*/} frontend
+  ${0##*/} both --wait
+For read-only inspection, use get-validation.sh.
+EOF
+}
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
 
-[[ $# -ge 1 && $# -le 2 ]] || { usage; exit 2; }
+if [[ ${1-} == --help || ${1-} == -h ]]; then usage; exit 0; fi
+[[ $# -ge 1 && $# -le 2 ]] || { usage >&2; exit 2; }
 target=$1
-case "$target" in frontend|backend|both) ;; *) usage; exit 2 ;; esac
+case "$target" in frontend|backend|both) ;; *) usage >&2; exit 2 ;; esac
 wait_flag=false
 if (( $# == 2 )); then
-  case "$2" in --wait|-w) wait_flag=true ;; *) usage; exit 2 ;; esac
+  case "$2" in --wait|-w) wait_flag=true ;; *) usage >&2; exit 2 ;; esac
 fi
 for cmd in gh jq; do command -v "$cmd" >/dev/null 2>&1 || fail "Missing dependency: $cmd"; done
 
@@ -34,7 +49,7 @@ for which in "${selected[@]}"; do
   printf '\nPreparing %s validation: %s\n' "$which" "$workflow"
   query=(run list -R "$repo" -w "$workflow" -b main -e workflow_dispatch -L 50 --json databaseId,headSha,url,status,conclusion)
   prior=$(gh "${query[@]}") || fail "Cannot list previous $workflow runs."
-  prior_ids=$(jq -c '[.[].databaseId | tostring]' <<<"$prior") || fail 'Invalid previous runs JSON.'
+  prior_ids=$(jq -ec 'if type == "array" and all(.[]; (.databaseId | type) == "number") then [.[].databaseId | tostring] else error("invalid run list") end' <<<"$prior") || fail 'Invalid previous runs JSON.'
 
   # No automatic dispatch retry. A failure is reported, not silently repeated.
   if ! gh workflow run "$workflow" --ref main -R "$repo"; then
@@ -45,13 +60,23 @@ for which in "${selected[@]}"; do
 
   new_run=''
   ambiguous=false
+  candidate_id=''
   for ((attempt=1; attempt<=12; attempt++)); do
     sleep 2
     current=$(gh "${query[@]}") || fail "Cannot identify new $workflow run."
-    new=$(jq -c --argjson ids "$prior_ids" '[.[] | select((.databaseId | tostring) as $id | ($ids | index($id) | not))]' <<<"$current") || fail 'Invalid runs JSON.'
+    new=$(jq -ec --argjson ids "$prior_ids" 'if type == "array" and all(.[]; (.databaseId | type) == "number" and (.headSha | type) == "string" and (.url | type) == "string") then [.[] | select((.databaseId | tostring) as $id | ($ids | index($id) | not))] else error("invalid run list") end' <<<"$current") || fail 'Invalid runs JSON.'
     new_count=$(jq 'length' <<<"$new")
     if (( new_count > 1 )); then ambiguous=true; break; fi
-    if (( new_count == 1 )); then new_run=$(jq -c '.[0]' <<<"$new"); break; fi
+    if (( new_count == 1 )); then
+      new_run=$(jq -c '.[0]' <<<"$new")
+      run_id=$(jq -r '.databaseId' <<<"$new_run")
+      # Observe the same sole new run twice; a second dispatch may be arriving.
+      if [[ "$candidate_id" == "$run_id" ]]; then break; fi
+      candidate_id=$run_id
+      new_run=''
+    else
+      candidate_id=''
+    fi
   done
   if [[ "$ambiguous" == true ]]; then
     warn "More than one new $workflow run appeared; cannot attribute safely."
@@ -78,6 +103,7 @@ for which in "${selected[@]}"; do
     gh run watch "$run_id" --exit-status -R "$repo" || watch_exit=$?
   fi
   details=$(gh run view "$run_id" -R "$repo" --json status,conclusion,headSha,url) || fail 'Cannot view workflow run.'
+  jq -e '(.status | type) == "string" and (.headSha | type) == "string" and (.url | type) == "string"' <<<"$details" >/dev/null || fail 'Invalid workflow details JSON.'
   status=$(jq -r '.status // ""' <<<"$details")
   conclusion=$(jq -r '.conclusion // ""' <<<"$details")
   detail_sha=$(jq -r '.headSha // ""' <<<"$details")
