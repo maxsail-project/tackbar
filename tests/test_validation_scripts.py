@@ -3,13 +3,20 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASH = r"C:\Program Files\Git\bin\bash.exe" if os.name == "nt" else "bash"
+if os.name == "nt":
+    BASH = r"C:\Program Files\Git\bin\bash.exe"
+else:
+    bash = shutil.which("bash")
+    if bash is None:
+        raise RuntimeError("Bash is required to run validation script tests")
+    BASH = os.path.abspath(bash)
 SHA = "a" * 40
 
 
