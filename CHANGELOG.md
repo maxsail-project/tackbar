@@ -2,6 +2,70 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.20 Californian — Blowin' in the Wind (TWS)
+
+### English
+
+The Session Viewer gains a source-aware true wind speed (TWS) reference beside TWD. Historical Weather becomes more compact, and rejected track emails give safer, more actionable feedback.
+
+### Added
+
+* A narrow TWS chip shows whole-knot speed from the persisted modelled-weather sample nearest the Analysis Window midpoint, with the original value, UTC sample time and provider in its detail. Missing or invalid speed remains unavailable; no Gust is shown in TWS.
+* The expanded TWS detail provides immediate ±1 kt manual adjustment and Reset. This Viewer-only correction survives Analysis Window changes and detail dismissal; Reset restores the current automatic reference or unavailable state. TWS does not rotate the map or change Activity telemetry.
+* Optional hourly Open-Meteo WMO weather codes are preserved through Session persistence and authorized APIs. Existing Sessions without a code remain readable without migration or automatic refresh.
+
+### Changed
+
+* The collapsed Weather cue now shows whole-degree temperature and a justified monochrome condition icon instead of wind and Gust. A missing code can use cloud cover for sky condition only; the expanded historical/modelled Weather detail, including Gust and provenance, remains available.
+* Manual TWD status and Reset appear only in expanded detail, keeping the collapsed map controls compact. Map height and overlay spacing were refined.
+* Eligible rejected GPX and Vakaros track emails explain controlled validation reasons and corrective actions in English and Spanish, while unclassified failures keep a generic safe notice. Notice eligibility, recipient filtering and at-most-once delivery remain unchanged.
+* Validation utilities gained Bash entry points and GitHub Actions summary support.
+
+### Issues
+
+- [#146](https://github.com/maxsail-project/tackbar/issues/146) — [#146] Provide actionable validation reasons in track failure emails
+- [#177](https://github.com/maxsail-project/tackbar/issues/177) — [#177] Add ephemeral manual TWS reference beside TWD in Session Viewer
+- [#178](https://github.com/maxsail-project/tackbar/issues/178) — [#178] Use modelled weather TWS as Session Viewer wind reference
+- [#179](https://github.com/maxsail-project/tackbar/issues/179) — [#179] Compact Session Viewer Weather cue to temperature and sky conditions
+- [#180](https://github.com/maxsail-project/tackbar/issues/180) — [#180] Move TWD manual status and Reset into expanded detail
+
+### Validation
+
+The completed Issues record accepted implementation work and focused checks. At `46ca4b1`, GitHub Actions [frontend run 42140269901](https://github.com/maxsail-project/tackbar/actions/runs/42140269901) passed the complete test suite, typecheck and production build; [backend run 42140258290](https://github.com/maxsail-project/tackbar/actions/runs/42140258290) passed the full regression. Those full runs precede the test-only fix at `9451250`. During release preparation, all seven focused validation-script tests passed at `9451250` under WSL Ubuntu. Preparation also checks Issue completion and commit inclusion, documentation and bilingual consistency, publication absence, exact release-body correspondence and `git diff --check`. Future wind sources, persistent manual Session observations and wind-dependent analytics remain separate work. Existing Sessions are not automatically backfilled with weather codes.
+
+---
+
+### Español
+
+Session Viewer incorpora una referencia de velocidad del viento real (TWS) con procedencia junto a TWD. El resumen de Weather histórico ocupa menos espacio y los correos de rechazo de tracks ofrecen información más útil y segura.
+
+### Añadido
+
+* Un control TWS compacto muestra la velocidad en nudos enteros de la muestra meteorológica modelada persistida más cercana al punto medio de la Analysis Window; el detalle conserva el valor original, la hora UTC y el proveedor. Una velocidad ausente o inválida sigue sin estar disponible; TWS no muestra Gust.
+* El detalle expandido de TWS permite ajustes manuales inmediatos de ±1 kt y Reset. Esta corrección exclusiva del Viewer persiste al cambiar la Analysis Window o cerrar el detalle; Reset restaura la referencia automática actual o el estado no disponible. TWS no gira el mapa ni modifica la telemetría de la Activity.
+* Los códigos meteorológicos WMO horarios y opcionales de Open-Meteo se conservan en la persistencia de Session y las API autorizadas. Las Sessions existentes sin código siguen siendo legibles sin migración ni actualización automática.
+
+### Cambiado
+
+* El resumen plegado de Weather muestra ahora la temperatura en grados enteros y un icono monocromo justificado en lugar de viento y Gust. Si falta el código, la nubosidad solo puede indicar el estado del cielo; el detalle histórico/modelado expandido, incluidos Gust y procedencia, sigue disponible.
+* El estado manual y Reset de TWD aparecen solo en el detalle expandido, manteniendo compactos los controles del mapa. Se ajustaron la altura del mapa y el espacio entre controles.
+* Los correos de rechazo de GPX y Vakaros elegibles explican motivos de validación controlados y acciones correctivas en español e inglés; los fallos sin clasificar mantienen un aviso genérico seguro. La elegibilidad, el filtrado de destinatarios y el envío con un máximo de un intento no cambian.
+* Las utilidades de validación incorporan puntos de entrada Bash y resúmenes de GitHub Actions.
+
+### Issues
+
+- [#146](https://github.com/maxsail-project/tackbar/issues/146) — [#146] Provide actionable validation reasons in track failure emails
+- [#177](https://github.com/maxsail-project/tackbar/issues/177) — [#177] Add ephemeral manual TWS reference beside TWD in Session Viewer
+- [#178](https://github.com/maxsail-project/tackbar/issues/178) — [#178] Use modelled weather TWS as Session Viewer wind reference
+- [#179](https://github.com/maxsail-project/tackbar/issues/179) — [#179] Compact Session Viewer Weather cue to temperature and sky conditions
+- [#180](https://github.com/maxsail-project/tackbar/issues/180) — [#180] Move TWD manual status and Reset into expanded detail
+
+### Validación
+
+Los Issues completados registran trabajo de implementación aceptado y comprobaciones focalizadas. En `46ca4b1`, el [run frontend 42140269901](https://github.com/maxsail-project/tackbar/actions/runs/42140269901) de GitHub Actions superó la suite completa de pruebas, typecheck y build de producción; el [run backend 42140258290](https://github.com/maxsail-project/tackbar/actions/runs/42140258290) superó la regresión completa. Esos runs completos preceden a la corrección exclusiva de tests en `9451250`. Durante la preparación de la release, las siete pruebas focalizadas de los scripts de validación pasaron en `9451250` bajo WSL Ubuntu. La preparación también comprueba cierre e inclusión de Issues, coherencia documental y bilingüe, ausencia de publicación, correspondencia exacta del cuerpo de la release y `git diff --check`. Las futuras fuentes de viento, observaciones manuales persistentes de Session y la analítica dependiente del viento son trabajo independiente. Las Sessions existentes no reciben códigos meteorológicos mediante actualización automática.
+
+---
+
 ## v0.7.19 Californian — Follow the Wind (TWD)
 
 ### English

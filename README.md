@@ -187,22 +187,18 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. Latest published release: v0.7.18 Californian
-— On the Line.**
+**Controlled real-sailing pilot. Latest published release: v0.7.19 Californian
+— Follow the Wind (TWD).**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
 TackBar, capability-based shared Session access and neutral maneuver analytics
 integrated into the collaborative Viewer. It also includes richer native-SVG
 signal and distribution comparison plus per-Activity Individual Analysis.
-Accepted increments for v0.7.14 add plain GPX, protected Admin upload and
-HIGH/LOW maneuver evidence. v0.7.15 adds safe notices for actionable
-track-email failures and directs replies to `hello@tackbar.eu`. The current
-delivered Viewer increment adds one chart comparing typical maneuver profiles
-for Primary and Comparison across SOG, relative COG and absolute-magnitude
-HEEL, with signal-specific Insights. Accepted follow-up Viewer work separates
-individual Maneuver Analysis from typical Maneuver Profiles and adds compact
-Selected Maneuvers near the map. Publication is established by
+Accepted increments add plain GPX, protected Admin upload, HIGH/LOW maneuver
+evidence, source-aware Viewer wind references and controlled feedback for
+actionable track-email failures. Human questions go to `hello@tackbar.eu`.
+Publication is established by
 immutable tags and GitHub Releases; production deployment is established by
 successful execution of the exact-release deployment workflow, as described
 in the [production runbook](docs/production-runbook.md).
@@ -222,12 +218,14 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ## Published release and next direction
 
-### v0.7.18 Californian — On the Line
+### v0.7.19 Californian — Follow the Wind (TWD)
 
-v0.7.18 preserves Activity-owned Vakaros start observations and supports
-bounded Session Start interpretation in the Viewer. Personal TackBar adds
-Sailor-owned Boats and per-Activity Boat and Device context. Analytical
-comparison remains limited to two Activities.
+v0.7.19 adds a time-aware modelled-wind TWD map reference and an ephemeral
+Viewer correction. It also improves GPX track admission, personal and Admin
+presentation, and JSON metadata write safety. Analytical comparison remains
+limited to two Activities. The current candidate on `main` additionally
+includes accepted TWS, compact Weather-cue and actionable track-failure email
+increments; publication is recorded separately in GitHub Releases.
 
 The accepted scope for **v0.7.14 Californian — GPX & Maneuver Analytics** is
 recorded in the [CHANGELOG](CHANGELOG.md). The
@@ -453,21 +451,18 @@ El foco pasa a estar en:
 ## Estado del proyecto
 
 **Piloto controlado con navegaciones reales. Última release publicada:
-v0.7.18 Californian — On the Line.**
+v0.7.19 Californian — Follow the Wind (TWD).**
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
 Personal TackBar, acceso compartido a Sessions mediante capability y analítica
 neutral de maniobras integrada en el Viewer colaborativo. También incluye una
 comparación más rica de señales y distribuciones en SVG nativo e Individual
-Analysis por Activity. Los incrementos aceptados para v0.7.14 añaden GPX sin
-comprimir, carga protegida en Admin y evidencia HIGH/LOW de maniobras. v0.7.15
-añade avisos seguros ante fallos accionables de correo con tracks y dirige las
-respuestas a `hello@tackbar.eu`. El incremento actual del Viewer añade un único
-gráfico comparativo P/C de perfiles típicos de maniobras para SOG, COG relativo
-y magnitud absoluta de HEEL, con Insights específicos por señal. El trabajo
-posterior aceptado del Viewer separa Maneuver Analysis individual de Maneuver
-Profiles típicos y añade Selected Maneuvers junto al mapa. Los tags
+Analysis por Activity. Los incrementos aceptados añaden GPX sin comprimir,
+carga protegida en Admin, evidencia HIGH/LOW de maniobras, referencias de viento
+del Viewer con procedencia y respuestas controladas ante fallos accionables de
+tracks enviados por correo. Las consultas humanas van a `hello@tackbar.eu`.
+Los tags
 inmutables y GitHub Releases establecen la publicación; la ejecución correcta
 del workflow para esa release establece el despliegue técnico, según el
 [runbook de producción](docs/production-runbook.md).
@@ -487,12 +482,15 @@ Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni n
 
 ## Release publicada y próxima dirección
 
-### v0.7.18 Californian — On the Line
+### v0.7.19 Californian — Follow the Wind (TWD)
 
-v0.7.18 conserva observaciones Vakaros de salida en cada Activity y permite
-interpretar Session Starts de forma acotada en el Viewer. Personal TackBar añade
-Boats propios del Sailor y contexto Boat y Device por Activity. La comparación
-analítica sigue limitada a dos Activities.
+v0.7.19 añade una referencia TWD temporal de viento modelado para orientar el
+mapa y una corrección efímera en el Viewer. También mejora la admisión de GPX,
+la presentación personal y de Admin, y la seguridad de escritura de metadatos
+JSON. La comparación analítica sigue limitada a dos Activities. El candidato
+actual de `main` también incluye incrementos aceptados de TWS, resumen compacto
+de Weather y correos accionables ante fallos de tracks; la publicación se
+registra por separado en GitHub Releases.
 
 El alcance aceptado de **v0.7.14 Californian — GPX & Maneuver Analytics** queda
 recogido en [CHANGELOG](CHANGELOG.md). El
