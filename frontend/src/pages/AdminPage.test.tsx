@@ -2,7 +2,7 @@ import { type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminActivity, AdminIngestion, AdminIngestionDetail, AdminSailorDetail, AdminSession } from '../types/admin'
-import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminHeader, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, IngestionUploadResult, RelationButton, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
+import { ActivityAdminDetail, ActivityCard, ADMIN_SECTION_ORDER, AdminAccessForm, AdminHeader, AdminSearch, adminNavigationTarget, capabilityLabels, confirmConsentRequestSend, confirmNewConsentCycle, ConsentRequestStatus, consentLabels, DEFAULT_ADMIN_SECTION, filterAdminActivities, filterAdminIngestions, filterAdminSailors, filterAdminSessions, HistoricalConditionsInspection, IngestionCard, IngestionFilters, ingestionSailorOptions, IngestionOperationalDetail, IngestionSectionHeader, IngestionUploadResult, RelationButton, PersonalCapabilityControls, SailorCard, SailorDetail, sailorIdentity, sessionLifetimePresentation, SessionCard, UNRESOLVED_SAILOR_FILTER, WelcomeEmailStatus } from './AdminPage'
 
 const sailor = (group: AdminSailorDetail['operational_group']): AdminSailorDetail => ({
   id: 'sailor-1', email: 'sailor@example.test', name: 'Test Sailor', consent_status: group === 'active' ? 'ACTIVE' : group === 'revoked' ? 'REVOKED' : 'PENDING',
@@ -411,6 +411,34 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('Enrich Session')
     expect(markup).toContain('<h4>Geographic context</h4>')
     expect(markup).toContain('Comunitat Valenciana')
+  })
+
+  it('aligns WMO codes after Cloud, including zero and unavailable legacy values', () => {
+    const sample = { time: '2026-08-01T08:00:00Z', air_temperature_c: 23, wind_speed_10m_kn: 14, wind_direction_10m_deg: 45, wind_gusts_10m_kn: 18, cloud_cover_pct: 30, wave_height_m: 1, wave_direction_deg: 90, wave_period_s: 5 }
+    const conditions: NonNullable<AdminSession['historical_conditions']> = {
+      coverage_start: '2026-08-01T08:00:00Z', coverage_end: '2026-08-01T11:00:00Z', requested_latitude: 39.41, requested_longitude: -0.29,
+      weather_source: null, marine_source: null,
+      hourly: [
+        { ...sample, weather_code: 61 },
+        { ...sample, time: '2026-08-01T09:00:00Z', weather_code: 0 },
+        { ...sample, time: '2026-08-01T10:00:00Z', weather_code: null },
+        { ...sample, time: '2026-08-01T11:00:00Z' },
+      ],
+    }
+    const markup = renderToStaticMarkup(<HistoricalConditionsInspection conditions={conditions} />)
+    const headers = [...markup.matchAll(/<th>(.*?)<\/th>/g)].map((match) => match[1])
+    const rows = [...markup.matchAll(/<tr>(.*?)<\/tr>/g)].slice(1).map((match) => [...match[1].matchAll(/<td>(.*?)<\/td>/g)].map((cell) => cell[1]))
+
+    expect(headers).toEqual(['UTC', 'Air', 'Wind', 'Dir', 'Gust', 'Cloud', 'WMO', 'Wave', 'Wave dir', 'Period'])
+    expect(rows).toHaveLength(4)
+    expect(rows.map((row) => row.length)).toEqual([headers.length, headers.length, headers.length, headers.length])
+    expect(rows.map((row) => row.slice(5, 8))).toEqual([
+      ['30%', '61', '1 m'],
+      ['30%', '0', '1 m'],
+      ['30%', '—', '1 m'],
+      ['30%', '—', '1 m'],
+    ])
+    expect(markup).toContain('class="admin-session-conditions__table"')
   })
 
   it('uses country without region when a persisted Admin location has no city', () => {
