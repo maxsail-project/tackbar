@@ -1,6 +1,5 @@
 name: Product / Engineering Increment
 description: Propose a focused TackBar product, UX, bug, research, analytics, operational, or engineering increment.
-title: ""
 labels: []
 assignees: []
 body:
@@ -141,7 +140,7 @@ body:
       label: Documentation impact — release-facing documentation
       description: Classify README, ROADMAP, CHANGELOG, release-note, or similar release-facing review.
       options:
-        - None
+        - No impact
         - Review during Release Preparation
     validations:
       required: true
@@ -152,7 +151,7 @@ body:
       label: Documentation impact — post-deployment documentation
       description: Classify documentation that depends on actual production deployment evidence.
       options:
-        - None
+        - No impact
         - Review after production deployment
     validations:
       required: true
@@ -184,4 +183,3 @@ body:
     attributes:
       label: References / related Issues
       description: Link relevant requirements, decisions, implementation evidence, completed Issues, pending related Issues, and affected documents, without promoting them. Listing a document here does not authorize edits.
-      
