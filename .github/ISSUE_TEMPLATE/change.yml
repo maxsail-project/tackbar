@@ -1,5 +1,5 @@
 name: Product / Engineering Increment
-description: Propose a focused TackBar product, bug, UX, analytics, operational, or engineering increment.
+description: Propose a focused TackBar product, UX, bug, research, analytics, operational, or engineering increment.
 title: ""
 labels: []
 assignees: []
@@ -7,7 +7,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this form to normalize a proposed increment for review. Completing it does not promote the Issue, approve product behavior, or make the work ready for implementation.
+        Use this form, or these same section headings in Markdown when creating the Issue through a connector or API, to record a proposed increment. The form registers work; the preparation gate determines whether an increment is sufficiently defined to implement.
+
+        Issue status describes definition maturity, not implementation authorization. Implementation requires explicit product-owner approval of the applicable delta or increment.
+
+        Declare uncertainty rather than inventing facts: `Current baseline` may state `Not yet verified` and `Open decisions` may state `Not yet assessed`. Neither value is compatible with `Ready for implementation`. Leave non-applicable optional fields empty in the GitHub form. When creating Issues through a connector or API, omit non-applicable optional sections instead of filling them with `None`.
+
+        Do not include private pilot data, credentials, access tokens, personal information, or sensitive operational details in public Issues.
 
         Issue conventions (apply after creation):
         - Rename ordinary Issues to `[#ID] Short English title` once GitHub assigns the Issue number.
@@ -20,89 +26,100 @@ body:
     id: status
     attributes:
       label: Status
-      description: Select the current proposal state. This selection does not itself approve or promote the Issue.
+      description: |
+        Select the definition maturity. This selection does not approve or authorize implementation.
+        - Pending / proposed exploration: problem or investigation recorded; scope still being defined.
+        - Pending product decision: relevant decisions remain open.
+        - Ready for implementation: baseline verified, delta defined, essential decisions closed and acceptance criteria verifiable. For research, Ready means the question, scope and expected findings are defined; it does not authorize the investigation.
       options:
         - Pending / proposed exploration
         - Pending product decision
-        - Pending final visual decision
         - Ready for implementation
     validations:
       required: true
 
   - type: textarea
-    id: context_evidence
+    id: problem_evidence
     attributes:
-      label: Context / evidence
-      description: Describe the real-sailing feedback, product evidence, operational evidence, defect report, or implementation finding that motivates this Issue.
-      placeholder: Include concrete observations, examples, screenshots, logs, or links where available. Keep private pilot data out of public Issues.
+      label: Problem and evidence
+      description: |
+        State the focused problem and the real-sailing feedback, product or operational evidence, defect report, or implementation finding that motivates it. Distinguish observations from assumptions.
+        - Bug: reproduction steps, observed behavior, and the violated contract, if confirmed.
+        - Research: the question to answer and the evidence needed to answer it.
+      placeholder: Include concrete observations, examples, screenshots, logs, or links where available.
     validations:
       required: true
 
   - type: textarea
-    id: problem
+    id: goal
     attributes:
-      label: Problem
-      description: State the focused problem to solve without prescribing unrelated scope.
+      label: Goal
+      description: Explain the user, pilot, operational, or collaborative-debrief outcome sought, separately from the proposed scope. For a bug, state the expected behavior here.
     validations:
       required: true
 
   - type: textarea
     id: current_baseline
     attributes:
-      label: Current implementation baseline
-      description: Record the delivered behavior, relevant implementation, and release baseline from which this proposal starts.
-    validations:
-      required: true
-
-  - type: textarea
-    id: product_goal
-    attributes:
-      label: Product / debrief goal
-      description: Explain the user, pilot, operational, or collaborative-debrief outcome this increment should enable.
+      label: Current baseline
+      description: Record the relevant delivered behavior, current specifications, implementation, and tests where known. One line is enough for a small change.
+      placeholder: Use "Not yet verified" when the baseline has not been checked.
     validations:
       required: true
 
   - type: textarea
     id: scope
     attributes:
-      label: Scope
-      description: Define the smallest coherent increment proposed by this Issue.
+      label: Scope and non-goals
+      description: Define the smallest coherent increment and the adjacent work it excludes. Scope may be provisional while decisions remain open. Related work mentioned elsewhere is not included unless it is listed under In scope.
+      placeholder: |
+        In scope:
+        - First included change
+
+        Out of scope:
+        - First excluded item
     validations:
       required: true
 
   - type: textarea
-    id: compatibility_constraints
+    id: constraints
     attributes:
-      label: Existing behavior / compatibility constraints
-      description: Identify delivered behavior, APIs, persistence, consent, capability, ingestion, Session, Viewer, or operational semantics that must remain unchanged.
-      placeholder: Use "None identified" only after checking the applicable baseline.
-    validations:
-      required: true
-
-  - type: textarea
-    id: confirmed_semantics
-    attributes:
-      label: Confirmed semantics and constraints
-      description: Record behavior and boundaries that are already established for this proposal.
-      placeholder: Do not use this field to invent unresolved product semantics.
-    validations:
-      required: true
+      label: Constraints to preserve
+      description: Record behavior, contracts, and semantics established before this Issue that must remain unchanged, such as APIs, persistence, consent, privacy, security, capability, ingestion, Session, Viewer, or operational semantics. Expected for Medium and High impact.
 
   - type: textarea
     id: closed_decisions
     attributes:
       label: Closed decisions
-      description: List the product, UX, domain, technical, or operational decisions already resolved.
-      placeholder: Use "None" when no decision has yet been closed.
-    validations:
-      required: true
+      description: List the product, UX, domain, technical, or operational decisions closed specifically for this Issue. Do not repeat existing contracts listed under Constraints to preserve.
 
   - type: textarea
     id: open_decisions
     attributes:
       label: Open decisions
-      description: List decisions that must be resolved before the Issue can be promoted or implemented safely.
-      placeholder: Use "None" only when all implementation-blocking decisions are closed.
+      description: List the decisions that must be resolved before the Issue can be implemented safely. Use "Not yet assessed" during initial registration only. Resolve material decisions before marking Ready for implementation.
+      placeholder: |
+        Concrete pending decisions, or one of:
+        None identified — reviewed against current baseline
+        Not yet assessed
+    validations:
+      required: true
+
+  - type: textarea
+    id: preferred_direction
+    attributes:
+      label: Technical direction
+      description: Describe a bounded implementation direction only when it is a real constraint on the solution. Do not turn the Issue into a Codex prompt.
+      placeholder: Leave product decisions in Open decisions rather than resolving them through an implementation preference.
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: List observable, testable conditions for accepting the increment. For research, state the expected verdict and deliverable. Criteria may be refined before the increment is approved.
+      placeholder: |
+        - [ ] First acceptance criterion
+        - [ ] Second acceptance criterion
     validations:
       required: true
 
@@ -140,37 +157,11 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: documentation_rationale
-    attributes:
-      label: Documentation impact — affected documents / rationale
-      description: Optionally identify affected files and explain the classification above. This does not authorize edits.
-
-  - type: textarea
-    id: preferred_direction
-    attributes:
-      label: Preferred technical direction
-      description: Describe a bounded implementation direction consistent with the current repository architecture.
-      placeholder: Leave product decisions in Open decisions rather than resolving them through an implementation preference.
-    validations:
-      required: true
-
-  - type: textarea
-    id: acceptance_criteria
-    attributes:
-      label: Acceptance criteria
-      description: List observable, testable conditions for accepting the increment.
-      placeholder: |
-        - [ ] First acceptance criterion
-        - [ ] Second acceptance criterion
-    validations:
-      required: true
-
   - type: dropdown
     id: impact
     attributes:
-      label: Impact and validation — impact
-      description: Classify the expected implementation risk and review depth.
+      label: Impact
+      description: Provisional estimate of implementation risk and review depth. If it falls between two levels, select the higher one. The implementation prompt sets the final impact of each increment.
       options:
         - Low
         - Medium
@@ -181,22 +172,15 @@ body:
   - type: textarea
     id: validation
     attributes:
-      label: Impact and validation — strategy
-      description: Define the focused automated, manual, documentation, or operational validation expected for this increment.
-      placeholder: State whether a full regression is required and why.
-    validations:
-      required: true
-
-  - type: textarea
-    id: non_goals
-    attributes:
-      label: Non-goals
-      description: List adjacent work and interpretations that this Issue explicitly excludes.
-    validations:
-      required: true
+      label: Validation
+      description: Describe the overall automated, manual, documentation, or operational validation expected. Expected for Medium and High impact; the implementation prompt specifies each increment.
+      placeholder: |
+        Describe risk-proportionate validation when known.
+        Full regression only when justified; otherwise determined
+        during increment preparation.
 
   - type: textarea
     id: references
     attributes:
       label: References / related Issues
-      description: Link relevant requirements, decisions, implementation evidence, completed Issues, or pending related Issues without promoting them.
+      description: Link relevant requirements, decisions, implementation evidence, completed Issues, pending related Issues, and affected documents, without promoting them. Listing a document here does not authorize edits.
