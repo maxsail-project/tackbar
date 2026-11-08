@@ -744,12 +744,15 @@ export function SessionViewer({
     maneuverSelectionHistory[1],
     displayManeuvers,
   )
-  const selectedManeuverHighlights = createSelectedManeuverHighlights(
-    selectedManeuver,
-    previousManeuver,
-    primaryTrack,
-    comparisonTrack,
-    analysisWindow,
+  const selectedManeuverHighlights = useMemo(
+    () => createSelectedManeuverHighlights(
+      selectedManeuver,
+      previousManeuver,
+      primaryTrack,
+      comparisonTrack,
+      analysisWindow,
+    ),
+    [selectedManeuver, previousManeuver, primaryTrack, comparisonTrack, analysisWindow],
   )
   const historicalConditionsSample = useMemo(
     () => selectHistoricalConditionsSample(

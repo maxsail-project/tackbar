@@ -27,6 +27,7 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessNotFoundError: class extends Error {},
   TemporaryAccessUnavailableError: class extends Error {},
 }))
+let latestHighlights: SelectedManeuverHighlight[] | null = null
 vi.mock('../components/TrackMap', () => ({
   default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset }: {
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
@@ -36,13 +37,16 @@ vi.mock('../components/TrackMap', () => ({
     onTwdStep: (step: -5 | 5) => void, onTwdAutomatic: () => void,
     onTwdGestureCommit: (degrees: number) => void,
     twsReference: TwsReference, twsPresentation: TwsPresentation, onTwsStep: (step: -1 | 1) => void, onTwsReset: () => void,
-  }) =>
+  }) => {
+    latestHighlights = selectedManeuverHighlights
+    return (
     <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
       <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
       <button data-tws-minus onClick={() => onTwsStep(-1)}>−1 kt</button><button data-tws-plus onClick={() => onTwsStep(1)}>+1 kt</button><button data-tws-reset onClick={onTwsReset}>Reset TWS</button>
       {selectedManeuverHighlights.map((highlight) =>
       <span key={highlight.selectionIndex} data-map-highlight={highlight.selectionIndex} data-role={highlight.activityRole} data-geometry={JSON.stringify(highlight.geoJson.geometry.coordinates)} />
-    )}</div>,
+    )}</div>)
+  },
   createMapFitContextKey: () => 'test-map',
 }))
 vi.mock('../components/SessionShare', () => ({
@@ -677,5 +681,44 @@ describe('Viewer selected maneuver interactions', () => {
     expect(after).toBeGreaterThan(before)
     expect(selectedTimes()).toEqual(['10:00:04', '10:00:02'])
     expect(mapHighlightData()).toEqual(highlightsBeforeReplay)
+  })
+
+  it('retains the same highlight geometry reference during playback-only updates', async () => {
+    await mountViewer()
+    await click(marker(2))
+    await click(marker(4))
+    const beforeReplay = latestHighlights
+    expect(beforeReplay).toHaveLength(2)
+    const before = Number(container.querySelector('output')?.getAttribute('data-playback-time'))
+    await click('[data-play-replay]')
+    await act(async () => nextFrame!(performance.now() + 500))
+    expect(Number(container.querySelector('output')?.getAttribute('data-playback-time'))).toBeGreaterThan(before)
+    expect(latestHighlights).toBe(beforeReplay)
+    expect(latestHighlights![0].geoJson).toBe(beforeReplay![0].geoJson)
+  })
+
+  it('recomputes highlight geometry when the selected maneuvers change', async () => {
+    await mountViewer()
+    await click(marker(2))
+    const one = latestHighlights
+    expect(one).toHaveLength(1)
+    await click(marker(4))
+    const two = latestHighlights
+    expect(two).not.toBe(one)
+    expect(two).toHaveLength(2)
+    expect(two![0].geoJson).not.toBe(one![0].geoJson)
+  })
+
+  it('recomputes highlight geometry when Primary, Comparison or the Analysis Window change', async () => {
+    await mountViewer()
+    const initial = latestHighlights
+    await choose('Compare', 'b')
+    const afterComparison = latestHighlights
+    expect(afterComparison).not.toBe(initial)
+    await choose('My track', 'c')
+    const afterPrimary = latestHighlights
+    expect(afterPrimary).not.toBe(afterComparison)
+    await click('[data-change-window]')
+    expect(latestHighlights).not.toBe(afterPrimary)
   })
 })
