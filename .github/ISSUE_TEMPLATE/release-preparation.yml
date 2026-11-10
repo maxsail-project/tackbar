@@ -1,7 +1,9 @@
 name: Release Preparation
 description: Prepare one already-decided TackBar release for publication handoff.
 title: "Prepare "
-labels: []
+labels:
+  - release-preparation
+  - group:operations
 assignees: []
 body:
   - type: markdown
