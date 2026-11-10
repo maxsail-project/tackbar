@@ -6,6 +6,7 @@ from app.parsers.track import (
 from app.parsers.gpx import GPXParseError
 from app.parsers.vakaros_vkx import VKXParseError
 from app.parsers.vakaros_csv import VakarosCSVParseError
+from app.parsers.size_limits import TrackAttachmentTooLarge
 from app.services.gpx_notice_feedback import classify_gpx_error
 from app.services.vakaros_notice_feedback import (
     classify_vakaros_csv_error, classify_vakaros_vkx_error,
@@ -38,6 +39,10 @@ def process_inbound_email(email: InboundEmail) -> IngestionResult:
             email.attachment_bytes,
             original_filename=email.attachment_filename,
         )
+    except TrackAttachmentTooLarge as error:
+        raise ActionableTrackRejected(
+            "Inbound email attachment exceeds 16 MiB", {"category": "file_too_large"}
+        ) from error
     except GPXParseError as error:
         raise ActionableTrackRejected(
             str(error), classify_gpx_error(str(error), error.feedback_category)

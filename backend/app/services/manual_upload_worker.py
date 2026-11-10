@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from uuid import UUID
 
+from app.parsers.size_limits import MAX_ATTACHMENT_BYTES
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.sailors import SailorRepository
@@ -18,7 +19,7 @@ from app.services.ingestion_lock import FileLease, ingestion_lock
 from app.services.ingestion_processing import accept_admin_upload, process_admin_upload
 
 
-MAX_UPLOAD_BYTES = 16 * 1024 * 1024
+MAX_UPLOAD_BYTES = MAX_ATTACHMENT_BYTES
 ACTIVATION_FAILURE = "Manual ingestion worker could not be activated; explicit Reprocess is required"
 
 

@@ -32,6 +32,14 @@ def _valid_recipient(recipient: str) -> bool:
 
 
 FEEDBACK_COPY = {
+    "file_too_large": (
+        "El archivo supera el límite de tamaño que admite TackBar.",
+        "Exporta un track más pequeño y envíalo en un correo nuevo.",
+        "Detalle técnico: el archivo recibido debe tener como máximo 16 MiB; un CSV.GZ o VKX.GZ debe expandirse como máximo a 160 MiB.",
+        "The file exceeds TackBar's size limit.",
+        "Export a smaller track and send it in a new email.",
+        "Technical detail: the received file must be at most 16 MiB; a CSV.GZ or VKX.GZ must expand to at most 160 MiB.",
+    ),
     "timezone": (
         "El GPX no indica a qué zona horaria corresponden las horas de sus puntos. Sin ese dato, no podemos situarlos correctamente en el tiempo.",
         "Revisa las opciones de exportación GPX. Si puedes incluir la zona horaria, exporta el archivo de nuevo y envíalo en un correo nuevo.",

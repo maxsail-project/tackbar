@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import logging
 import os
 from threading import Lock
@@ -222,7 +223,7 @@ def review_mailbox_now(provider: Any | None = None) -> MailboxReviewSummary:
             candidates = [
                 item.candidate
                 for item in ovh_batch.examined_messages
-                if item.candidate is not None
+                if item.outcome == OVHMessageOutcome.SUPPORTED and item.candidate is not None
             ]
         except Exception as error:
             _cycle_failure_logs.record_failure(
@@ -288,6 +289,33 @@ def _process_acquired_messages(
                     notice_store.attempt_once(
                         provider_message_id, examined.notice_recipient,
                         "multiple_supported",
+                    )
+            elif examined.outcome == OVHMessageOutcome.TOO_LARGE:
+                rejected = examined.rejected_email
+                if rejected is None:
+                    raise ValueError("Oversized OVH attachment lacks rejection metadata")
+                record = history.find_provider_message(provider_key, provider_message_id)
+                if record is None:
+                    record = history.create(
+                        provider_key, provider_message_id, rejected.sender_email,
+                        rejected.attachment_filename, None,
+                    )
+                    record.update(
+                        received_at=(rejected.received_at.isoformat() if rejected.received_at else None),
+                        attempts=1,
+                        last_attempt_at=datetime.now(timezone.utc).isoformat(),
+                        last_error="Track attachment exceeds 16 MiB",
+                        technical_notice_reason="invalid_track",
+                        technical_notice_feedback={"category": "file_too_large"},
+                    )
+                    history.replace(record)
+                    failed += 1
+                else:
+                    known_failed += 1
+                if examined.notice_recipient is not None:
+                    notice_store.attempt_once(
+                        provider_message_id, examined.notice_recipient,
+                        "invalid_track", feedback={"category": "file_too_large"},
                     )
             if examined.candidate is not None:
                 notice_recipients[provider_message_id] = examined.notice_recipient

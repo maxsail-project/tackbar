@@ -8,6 +8,7 @@ import pytest
 from app.email_providers.ovh import OVHAdapter, OVHMessageOutcome
 from app.parsers.gpx import GPXParseError
 from app.models import ConsentStatus
+from app.repositories.activities import ActivityRepository
 from app.repositories.sailors import SailorRepository
 from app.services.ingestion_history import IngestionHistory
 from app.services.mailbox_review import review_mailbox_now
@@ -302,6 +303,100 @@ def test_invalid_track_notice_does_not_block_later_healthy_track(monkeypatch, tm
     assert OVHMailboxCursorStore().load() == OVHMailboxCursor(456, 2)
 
 
+@pytest.mark.parametrize("sender,notified", [
+    ("Sailor <sailor@example.test>", True),
+    ("TackBar <share@tackbar.eu>", False),
+    (None, False),
+])
+def test_oversized_ovh_attachment_is_traceable_and_cursor_continues(
+    monkeypatch, tmp_path, sender, notified,
+):
+    monkeypatch.setattr("app.email_providers.ovh.MAX_ATTACHMENT_BYTES", len(FIXTURE.read_bytes()))
+    adapter = _runtime(monkeypatch, tmp_path, {
+        1: _mail([("private.csv.gz", FIXTURE.read_bytes() + b"x")], sender=sender),
+        2: _mail([("track.csv.gz", FIXTURE.read_bytes())]),
+    })
+    sent = []
+    monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
+                        lambda *args: sent.append(args))
+    summary = review_mailbox_now(provider=adapter)
+    assert (summary.failed, summary.processed) == (1, 1)
+    rejected, accepted = IngestionHistory().records()
+    assert rejected["status"] == "failed"
+    assert rejected["provider_message_id"] == "456:1"
+    assert rejected["original_file"] is None and rejected["attachment_sha256"] is None
+    assert rejected["activity_id"] is None and rejected["session_id"] is None
+    assert rejected["technical_notice_feedback"] == {"category": "file_too_large"}
+    assert accepted["status"] == "processed"
+    assert OVHMailboxCursorStore().load() == OVHMailboxCursor(456, 2)
+    assert len(sent) == int(notified)
+    if notified:
+        assert sent == [("sailor@example.test", "invalid_track", {"category": "file_too_large"})]
+        assert TechnicalNoticeStore(tmp_path).records()["456:1"]["status"] == "sent"
+    assert "16 MiB" in _body("invalid_track", rejected["technical_notice_feedback"])
+    assert "160 MiB" in _body("invalid_track", rejected["technical_notice_feedback"])
+
+    OVHMailboxCursorStore().write(OVHMailboxCursor(456, 0))
+    review_mailbox_now(provider=adapter)
+    assert len(sent) == int(notified)
+    assert len(IngestionHistory().records()) == 2
+
+
+def test_oversized_ovh_rejection_creates_no_sailor_or_activity(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.email_providers.ovh.MAX_ATTACHMENT_BYTES", 4)
+    adapter = _runtime(monkeypatch, tmp_path, {
+        1: _mail([("track.gpx", b"12345")]),
+    })
+    sent = []
+    monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
+                        lambda *args: sent.append(args))
+    assert review_mailbox_now(provider=adapter).failed == 1
+    assert SailorRepository().all() == []
+    assert ActivityRepository().all() == []
+    assert not (tmp_path / "originals").exists()
+    assert sent == [("sailor@example.test", "invalid_track", {"category": "file_too_large"})]
+
+
+def test_oversized_notice_write_failure_preserves_cursor_for_retry(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.email_providers.ovh.MAX_ATTACHMENT_BYTES", 4)
+    adapter = _runtime(monkeypatch, tmp_path, {
+        1: _mail([("track.gpx", b"12345")]),
+    })
+    sent = []
+    monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
+                        lambda *args: sent.append(args))
+    def fail_write(*_args):
+        raise OSError("notice write failed")
+    with monkeypatch.context() as patch:
+        patch.setattr(TechnicalNoticeStore, "_write", fail_write)
+        with pytest.raises(OSError, match="notice write failed"):
+            review_mailbox_now(provider=adapter)
+    assert OVHMailboxCursorStore().load() is None
+    assert IngestionHistory().records()[0]["status"] == "failed"
+    assert sent == []
+    review_mailbox_now(provider=adapter)
+    assert OVHMailboxCursorStore().load() == OVHMailboxCursor(456, 1)
+    assert len(IngestionHistory().records()) == 1
+    assert sent == [("sailor@example.test", "invalid_track", {"category": "file_too_large"})]
+
+
+def test_expanded_gzip_ovh_notice_uses_size_feedback(monkeypatch, tmp_path):
+    import app.parsers.size_limits as size_limits
+
+    monkeypatch.setattr(size_limits, "MAX_EXPANDED_BYTES", 32)
+    adapter = _runtime(monkeypatch, tmp_path, {
+        1: _mail([("track.csv.gz", gzip.compress(b"x" * 33))]),
+    })
+    sent = []
+    monkeypatch.setattr("app.services.technical_failure_notice.send_technical_failure_notice",
+                        lambda *args: sent.append(args))
+    assert review_mailbox_now(provider=adapter).failed == 1
+    record = IngestionHistory().records()[0]
+    assert record["technical_notice_feedback"] == {"category": "file_too_large"}
+    assert record["original_file"] is not None
+    assert sent == [("sailor@example.test", "invalid_track", {"category": "file_too_large"})]
+
+
 @pytest.mark.parametrize("content,category", [
     (gpx_bytes((0, 3)), "quality"),
     (gpx_bytes().replace(b"+00:00", b"", 1), "timezone"),
@@ -355,7 +450,9 @@ def test_ovh_persists_and_sends_vakaros_feedback(monkeypatch, tmp_path, filename
 
 @pytest.mark.parametrize("filename,content", [
     ("track.csv", b"\xff"),
+    ("track.csv.gz", gzip.compress(b"x")[:-3]),
     ("track.vkx", _vkx(_position()) + bytes([0x99])),
+    ("track.vkx.gz", gzip.compress(_vkx(_position()))[:-3]),
     ("track.vkx.gz", b"not gzip"),
 ])
 def test_ambiguous_vakaros_rejection_keeps_generic_ovh_notice(monkeypatch, tmp_path, filename, content):

@@ -10,6 +10,7 @@ import pytest
 
 from app.models import Boat, ConsentStatus, InboundEmail
 from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
+from app.parsers import size_limits
 from app.repositories.activities import ActivityRepository
 from app.repositories.boats import BoatRepository
 from app.repositories.consent_events import ConsentEventRepository
@@ -261,6 +262,29 @@ def test_invalid_files_are_preserved_failed_and_never_automatically_retried(runt
     repeated = process(runtime, failed, reprocess=True)
     assert repeated["status"] == "failed" and repeated["attempts"] == 2
     assert repeated["last_error"] == expected_error
+    assert_silent(runtime, repeated)
+
+
+@pytest.mark.parametrize("filename", ["track.csv.gz", "track.vkx.gz"])
+def test_expanded_gzip_limit_applies_to_manual_processing_and_reprocess(
+    runtime, monkeypatch, filename, vakaros_vkx_bytes,
+):
+    raw = (
+        b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim\n"
+        b"2031-06-10T10:00:00Z,38.1,-0.2,5.2,359,1,-8,2\n"
+        if filename.endswith("csv.gz") else vakaros_vkx_bytes
+    )
+    content = gzip.compress(raw)
+    monkeypatch.setattr(size_limits, "MAX_EXPANDED_BYTES", len(raw) - 1)
+    pending = accept(runtime, content, filename)
+    failed = process(runtime, pending)
+    assert failed["status"] == "failed"
+    assert failed["last_error"] == "Manual track processing failed"
+    assert (runtime.root / failed["original_file"]).read_bytes() == content
+    assert runtime.activities.all() == []
+    repeated = process(runtime, failed, reprocess=True)
+    assert repeated["status"] == "failed" and repeated["attempts"] == 2
+    assert runtime.activities.all() == []
     assert_silent(runtime, repeated)
 
 

@@ -10,6 +10,7 @@ from enum import Enum
 import re
 
 from app.models import InboundEmail
+from app.parsers.size_limits import MAX_ATTACHMENT_BYTES
 from app.parsers.track import is_supported_track_attachment
 
 
@@ -18,6 +19,7 @@ class OVHMessageOutcome(str, Enum):
     UNSUPPORTED = "unsupported"
     MALFORMED = "malformed"
     MULTIPLE_SUPPORTED = "multiple_supported"
+    TOO_LARGE = "too_large"
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,7 @@ class OVHExaminedMessage:
     outcome: OVHMessageOutcome
     error_class: str | None = None
     notice_recipient: str | None = None
+    rejected_email: InboundEmail | None = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,13 @@ class OVHMultipleSupportedAttachments(ValueError):
         self.notice_recipient = notice_recipient
 
 
+class OVHAttachmentTooLarge(ValueError):
+    def __init__(self, email: InboundEmail, notice_recipient: str | None) -> None:
+        super().__init__("OVH supported attachment exceeds 16 MiB")
+        self.email = email
+        self.notice_recipient = notice_recipient
+
+
 class OVHAdapter:
     def __init__(self, host: str, port: int, username: str, password: str) -> None:
         self.host = host
@@ -60,7 +70,7 @@ class OVHAdapter:
         return [
             item.candidate
             for item in batch.examined_messages
-            if item.candidate is not None
+            if item.outcome == OVHMessageOutcome.SUPPORTED and item.candidate is not None
         ]
 
     def acquire_messages(
@@ -137,6 +147,13 @@ class OVHAdapter:
                     examined.append(OVHExaminedMessage(
                         uid, None, OVHMessageOutcome.MULTIPLE_SUPPORTED,
                         notice_recipient=error.notice_recipient,
+                    ))
+                    continue
+                except OVHAttachmentTooLarge as error:
+                    examined.append(OVHExaminedMessage(
+                        uid, None, OVHMessageOutcome.TOO_LARGE,
+                        notice_recipient=error.notice_recipient,
+                        rejected_email=error.email,
                     ))
                     continue
                 except Exception as error:
@@ -241,4 +258,7 @@ def _extract_email(raw: bytes, provider_message_id: str, mailbox_address: str) -
     if attachments[0][1] is None:
         raise ValueError("OVH supported attachment body is unavailable")
     filename, content = attachments[0]
+    if len(content) > MAX_ATTACHMENT_BYTES:
+        rejected = InboundEmail(sender_email, subject, filename, None, provider_message_id, received_at)
+        raise OVHAttachmentTooLarge(rejected, notice_recipient)
     return InboundEmail(sender_email, subject, filename, content, provider_message_id, received_at), notice_recipient

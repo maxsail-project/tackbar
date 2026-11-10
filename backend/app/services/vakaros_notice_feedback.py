@@ -17,11 +17,13 @@ INCOMPLETE_SUBTYPES = frozenset({
     "empty_csv", "csv_no_samples", "vkx_no_navigation", "vkx_truncated",
 })
 CSV_ERRORS = {
+    "Vakaros CSV.GZ exceeds 160 MiB": "file_too_large",
     "Vakaros CSV contains invalid timestamps": "vakaros_gps",
     "Vakaros CSV contains no valid GPS samples": "vakaros_gps",
     "Vakaros CSV contains invalid quaternion values": "vakaros_sensor",
 }
 VKX_ERRORS = {
+    "Vakaros VKX.GZ exceeds 160 MiB": "file_too_large",
     "Vakaros VKX contains invalid latitude": "vakaros_gps",
     "Vakaros VKX contains invalid longitude": "vakaros_gps",
     "Vakaros VKX contains invalid timestamp": "vakaros_gps",

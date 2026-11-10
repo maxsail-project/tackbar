@@ -1,4 +1,3 @@
-import gzip
 import logging
 import math
 import struct
@@ -8,6 +7,9 @@ from statistics import median
 from typing import BinaryIO
 
 from app.models import Activity, LinePosition, RaceTimerEvent, ShiftAngleObservation
+from app.parsers.size_limits import (
+    ExpandedTrackTooLarge, InvalidTrackGzip, decompress_vakaros_gzip,
+)
 from app.parsers.vakaros import (
     VAKAROS_VKX_SUFFIXES,
     extract_vakaros_device_name,
@@ -61,8 +63,10 @@ def parse_vakaros_vkx(
     data, filename = _read_source(source, original_filename)
     if filename.lower().endswith(".vkx.gz"):
         try:
-            data = gzip.decompress(data)
-        except (OSError, EOFError) as error:
+            data = decompress_vakaros_gzip(data)
+        except ExpandedTrackTooLarge as error:
+            raise VKXParseError("Vakaros VKX.GZ exceeds 160 MiB") from error
+        except InvalidTrackGzip as error:
             raise VKXParseError("Vakaros VKX.GZ data is not valid gzip") from error
     elif not filename.lower().endswith(".vkx"):
         raise VKXParseError(

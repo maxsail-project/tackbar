@@ -1,5 +1,4 @@
 from io import BytesIO
-import gzip
 from math import isfinite
 from pathlib import Path
 from typing import BinaryIO
@@ -7,6 +6,9 @@ from typing import BinaryIO
 import pandas as pd
 
 from app.models import Activity
+from app.parsers.size_limits import (
+    ExpandedTrackTooLarge, InvalidTrackGzip, decompress_vakaros_gzip,
+)
 from app.parsers.vakaros import (
     VAKAROS_CSV_SUFFIXES,
     extract_vakaros_device_name,
@@ -60,12 +62,22 @@ def parse_vakaros_csv(
         csv_source = BytesIO(source) if isinstance(source, bytes) else source
         filename = original_filename
 
+    _compression_for_filename(filename)
+    if filename.lower().endswith(".csv.gz"):
+        compressed = Path(csv_source).read_bytes() if isinstance(csv_source, (str, Path)) else csv_source.read()
+        try:
+            csv_source = BytesIO(decompress_vakaros_gzip(compressed))
+        except ExpandedTrackTooLarge as error:
+            raise VakarosCSVParseError("Vakaros CSV.GZ exceeds 160 MiB") from error
+        except InvalidTrackGzip as error:
+            raise VakarosCSVParseError("Vakaros CSV.GZ data is not valid gzip") from error
+
     try:
         frame = pd.read_csv(
             csv_source,
-            compression=_compression_for_filename(filename),
+            compression=None,
         )
-    except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeError, gzip.BadGzipFile, EOFError) as error:
+    except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeError, EOFError) as error:
         raise VakarosCSVParseError(
             "Vakaros CSV could not be parsed",
             feedback_category="vakaros_incomplete" if isinstance(error, pd.errors.EmptyDataError) else None,

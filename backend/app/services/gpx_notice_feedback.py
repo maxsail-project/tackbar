@@ -62,6 +62,8 @@ def safe_feedback(value: object) -> dict | None:
     category = value.get("category")
     if not isinstance(category, str):
         return None
+    if category == "file_too_large" and set(value) == {"category"}:
+        return {"category": category}
     if category.startswith("vakaros_"):
         return safe_vakaros_feedback(value)
     if category in {"timezone", "chronology", "structure", "coordinates"} and set(value) == {"category"}:

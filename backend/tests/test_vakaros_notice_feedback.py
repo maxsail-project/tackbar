@@ -34,6 +34,8 @@ def vkx_feedback(content: bytes, filename: str = "track.vkx") -> dict | None:
 
 def test_required_column_allowlist_matches_parser():
     assert SAFE_REQUIRED_COLUMNS == REQUIRED_COLUMNS
+    assert safe_feedback({"category": "file_too_large"}) == {"category": "file_too_large"}
+    assert safe_feedback({"category": "file_too_large", "private": "data"}) is None
 
 
 @pytest.mark.parametrize("content,expected", [

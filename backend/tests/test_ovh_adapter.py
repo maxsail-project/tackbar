@@ -111,6 +111,24 @@ def test_ovh_extracts_one_message_using_read_only_uid_fetch(monkeypatch):
     assert email.received_at.astimezone(timezone.utc).isoformat() == "2026-09-12T07:30:00+00:00"
 
 
+@pytest.mark.parametrize("filename", ["track.csv", "track.csv.gz", "track.vkx", "track.vkx.gz", "track.gpx"])
+def test_ovh_received_attachment_boundary(monkeypatch, filename):
+    monkeypatch.setattr("app.email_providers.ovh.MAX_ATTACHMENT_BYTES", 5)
+    adapter, _, _ = _adapter(monkeypatch, {
+        b"1": _message(attachments=[(filename, b"12345")]),
+        b"2": _message(attachments=[(filename, b"123456")]),
+    })
+    batch = adapter.acquire_messages()
+    accepted, rejected = batch.examined_messages
+    assert accepted.outcome == OVHMessageOutcome.SUPPORTED
+    assert accepted.candidate.attachment_bytes == b"12345"
+    assert rejected.outcome == OVHMessageOutcome.TOO_LARGE
+    assert rejected.candidate is None
+    assert rejected.rejected_email.attachment_bytes is None
+    assert rejected.rejected_email.provider_message_id == "456:2"
+    assert rejected.notice_recipient == "sailor-a@example.com"
+
+
 def test_ovh_candidate_eligibility_depends_only_on_supported_attachments(monkeypatch):
     csv = gzip.decompress(FIXTURE.read_bytes())
     messages = {
