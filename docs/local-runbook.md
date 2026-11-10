@@ -1,8 +1,8 @@
-# TackBar Local Development Workflow
+# TackBar Local Runbook
 
 ## Purpose
 
-This workflow defines the repeatable procedure for preparing, starting, validating and stopping a local TackBar development environment.
+This runbook defines the repeatable procedure for preparing, starting, validating and stopping a local TackBar development environment.
 
 It is intended to be usable:
 
@@ -16,7 +16,7 @@ This document describes **how to run TackBar locally**. It does not define produ
 
 ## 1. Sources of truth
 
-Before changing this workflow or troubleshooting behavior that depends on product semantics, review:
+Before changing this runbook or troubleshooting behavior that depends on product semantics, review:
 
 - `AGENTS.md`
 - `docs/ai-development-guidelines.md`
@@ -44,6 +44,10 @@ scripts/start-local-frontend.ps1
 
 A local workflow agent SHOULD prefer these scripts over reconstructing equivalent commands manually.
 
+The backend script runs `python` from `PATH`. If you use a project virtual environment, activate it in the same terminal first (for example `.\.venv\Scripts\Activate.ps1`).
+
+If PowerShell blocks the scripts, allow them for the current process only with `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, and use `Unblock-File` on a script that Windows marked as downloaded. Do not change the machine-wide execution policy for this.
+
 If a script fails, inspect the script and report the concrete precondition or runtime error. Do not silently bypass a repository safety check.
 
 ---
@@ -67,6 +71,21 @@ $env:TACKBAR_DATA_DIR = "C:\private\tackbar-data"
 The backend startup script creates the configured data directory if it does not already exist.
 
 Do not copy private runtime data into `backend/test-data` or another repository path.
+
+### Public TEST data mode
+
+When `TACKBAR_DATA_DIR` is not defined, the backend reads the public, sanitized dataset in `backend/test-data`. This mode needs no private data and lets you exercise the Viewer and Admin without real pilot information. Real ingestion is not available in it: that requires a private data root outside the repository.
+
+The repository start script requires `TACKBAR_DATA_DIR` and stops without it. To use this mode, start the backend directly from `backend/`:
+
+```powershell
+cd backend
+Remove-Item Env:TACKBAR_DATA_DIR -ErrorAction SilentlyContinue
+$env:TACKBAR_ADMIN_KEY = "change-me-local-only"
+python -m uvicorn app.main:app --reload
+```
+
+Start the frontend as usual.
 
 ---
 
@@ -92,6 +111,11 @@ Do not:
 
 A Local Development Agent may verify that the variable is configured, but SHOULD report only whether it is present, never its value.
 
+### Optional local configuration
+
+- `TACKBAR_GEOAPIFY_API_KEY` (backend): enables reverse geocoding for the Session location label. It is a secret: apply the same rules as the Admin key. When it is not set, the geocoding provider raises a configuration error; this runbook does not cover how the rest of the backend handles that.
+- `VITE_APP_RELEASE_FAMILY` and `VITE_APP_VERSION` (frontend): shown as release identity in the public header and Admin header. Set them in the frontend terminal before `start-local-frontend.ps1` if you want to see that identity locally; they are not required.
+
 ---
 
 ## 5. Pre-flight
@@ -107,6 +131,8 @@ Python available
 Node.js/npm available
 ```
 
+The CI validation workflows use Python 3.13 and Node.js 24; prefer compatible versions locally.
+
 Do not install or upgrade dependencies automatically unless the user explicitly asks for environment setup and the repository dependency state has been inspected first.
 
 ### Existing pre-flight script
@@ -117,9 +143,9 @@ The repository currently contains:
 scripts/check-local-pilot.ps1
 ```
 
-It checks the optional local-pilot mailbox configuration against the current
-OVH-only runtime, as well as the backend and frontend endpoints. It does not
-contact the mailbox or start ingestion.
+It checks the local-pilot configuration, including the OVH mailbox provider and
+IMAP credentials (the script treats them as required), as well as the backend
+and frontend endpoints. It does not contact the mailbox or start ingestion.
 
 The authoritative startup preconditions are the current startup scripts and applicable repository documentation.
 
@@ -228,6 +254,8 @@ npm.cmd run typecheck
 npm.cmd run build
 ```
 
+Remote validation on GitHub Actions: `scripts/validate-tackbar.ps1` and `scripts/validate-tackbar.sh` dispatch the Linux frontend and backend validation workflows for the remote `main` commit, and `scripts/get-validation.ps1` and `scripts/get-validation.sh` read the results without changing anything. They need an authenticated `gh`.
+
 Use focused tests during implementation when appropriate. Treat broader/full regression as a separate validation gate when required by change risk.
 
 ---
@@ -263,7 +291,7 @@ It MUST NOT terminate unrelated Python, Node.js or browser processes.
 
 ## 12. Safety boundaries
 
-A local-development workflow MUST preserve these boundaries:
+Local development MUST preserve these boundaries:
 
 - private runtime data stays outside the repository;
 - secrets are never echoed or committed;
@@ -281,12 +309,12 @@ If a required value is missing, stop and report what the operator must provide.
 
 ## 13. Agent/Skill execution contract
 
-A future Local Development Skill / Agent should implement this workflow in the following order:
+A future Local Development Skill / Agent should implement this runbook in the following order:
 
 ```text
 inspect repository state
         ↓
-read this workflow
+read this runbook
         ↓
 check local prerequisites
         ↓
@@ -335,7 +363,7 @@ Do not claim the application is running if readiness checks did not pass.
 
 ## 14. Out of scope
 
-This workflow does not cover:
+This runbook does not cover:
 
 - production deployment;
 - release preparation;
