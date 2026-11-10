@@ -10,6 +10,13 @@ The core idea is simple:
 
 Instead of manually collecting GPS files from several sailors and trying to align them afterwards, TackBar aims to automatically group tracks that belong to the same sailing session and make them available for collaborative review.
 
+<p align="center">
+  <img src="docs/images/viewer-overview.png" alt="TackBar Session Viewer: two Activities compared on the map with replay and Analysis Window, speed, course, heel and trim distributions, and Individual Analysis (demo data)" width="720"><br>
+  <sub>Session Viewer with demo data</sub>
+</p>
+
+**Links:** [Website](https://tackbar.eu) · [Latest release](https://github.com/maxsail-project/tackbar/releases/latest) · [CHANGELOG](CHANGELOG.md) · [Open Issues](https://github.com/maxsail-project/tackbar/issues) · [ROADMAP](ROADMAP.md) · [Español](#versión-en-español)
+
 ---
 
 ## Why TackBar?
@@ -65,6 +72,15 @@ and no adjacent gap over 10 seconds. Compressed GPX and extension telemetry mapp
 are unsupported. FIT and generalized multi-provider ingestion remain future
 work. See [Ingestion and Data](docs/current/ingestion-and-data.md).
 
+| Input | Files | What TackBar reads |
+| --- | --- | --- |
+| Vakaros CSV | `.csv`, `.csv.gz` | Time, position, speed, course, true heading, heel and trim |
+| Vakaros VKX | `.vkx`, `.vkx.gz` | Time, position, speed and course; heading, heel and trim only when the device orientation evidence allows |
+| Plain GPX | `.gpx` | Time and position; speed and course are derived from positions; no heading, heel or trim |
+
+Other devices and formats (FIT, compressed GPX, other providers) are not
+supported yet.
+
 ---
 
 ## Sailor, Boat and Activity identity
@@ -111,9 +127,6 @@ The current supported Vakaros exports provide data such as:
 * heel;
 * trim.
 
-Plain GPX provides positions and UTC time; SOG and COG are derived from those
-positions, and HDG, HEEL and TRIM remain absent.
-
 Current format support is described in the pilot workflow above.
 
 TackBar is intended to remain device-independent.
@@ -134,25 +147,27 @@ Current technology and persistence:
 * **Activity ingestion:** OVH IMAP adapter with provider-independent downstream processing
 * **Target experience:** mobile-first web application that also works naturally on tablets
 
-The current pilot connects the Viewer to Sessions, Activities and canonical tracks
-actually persisted by the backend. It provides one/two-Activity comparison, a
-shared GPS/UTC Analysis Window, fixed map telemetry, synchronized replay, the
-refined Summary, native-SVG SOG/COG/HEEL/TRIM signal charts, represented-time
-VS distributions, and Individual Analysis with a per-Activity SOG + COG chart
-and HEEL × SOG density map. Public sanitized TEST data validates the same
-runtime/API path without becoming a frontend fixture fallback. SQLite is not a
-prerequisite for this PoC.
-Additional visible Activities can provide passive fleet context on the map
-while analysis remains limited to two. Session-owned location and optional
-historical conditions support Viewer and Personal TackBar recognition; public
-headers offer About and release identity from available build metadata.
+The Session Viewer reads Sessions, Activities and tracks actually persisted by
+the backend; public sanitized TEST data exercises the same runtime and API
+path. SQLite is not a prerequisite for this PoC.
 
-Maneuver analytics prefers HIGH detection from canonical HDG; otherwise usable
-canonical COG/SOG can support LOW. The Viewer identifies P/C maneuver evidence
-and distinguishes heading change (ΔHDG) from course change (ΔCOG). Evidence is
-not an overall track-quality rating or an accuracy guarantee. Version-6
-artifacts regenerate lazily as version 7 through authorized analytics paths.
-See [Analytics](docs/current/analytics.md) for availability and limitations.
+The Viewer offers:
+
+* comparison of one or two Activities over a shared GPS/UTC Analysis Window,
+  with synchronized replay on the map;
+* SOG, COG, HEEL and TRIM signal charts and distributions;
+* Individual Analysis per Activity (SOG + COG over time, HEEL × SOG density);
+* neutral maneuver evidence: HIGH when heading is available, LOW from course
+  and speed;
+* source-aware wind references, Session location and, when available,
+  historical conditions;
+* other visible Activities as passive fleet context on the map, while analysis
+  stays limited to two.
+
+Maneuver evidence is not a track-quality rating or an accuracy guarantee. See
+[Session Viewer](docs/current/session-viewer.md) and
+[Analytics](docs/current/analytics.md) for behavior, availability and
+limitations.
 
 The ingestion layer is intended to remain independent from the analytics layer.
 
@@ -275,6 +290,13 @@ La idea central es sencilla:
 
 En lugar de recopilar manualmente archivos GPS de distintos regatistas e intentar alinearlos posteriormente, TackBar busca agrupar automáticamente los tracks que pertenecen a una misma sesión de navegación y ponerlos a disposición de los participantes para analizarlos conjuntamente.
 
+<p align="center">
+  <img src="docs/images/viewer-overview.png" alt="Session Viewer de TackBar: dos Activities comparadas en el mapa con replay y Analysis Window, distribuciones de velocidad, rumbo, escora y trimado, e Individual Analysis (datos de demostración)" width="720"><br>
+  <sub>Session Viewer con datos de demostración</sub>
+</p>
+
+**Enlaces:** [Web](https://tackbar.eu) · [Última release](https://github.com/maxsail-project/tackbar/releases/latest) · [CHANGELOG](CHANGELOG.md) · [Issues abiertos](https://github.com/maxsail-project/tackbar/issues) · [ROADMAP](ROADMAP.md) · [English](#tackbar)
+
 ---
 
 ## ¿Por qué TackBar?
@@ -333,6 +355,15 @@ de telemetría de extensiones no están soportados. FIT y proveedores adicionale
 siguen siendo trabajo futuro. Consulta
 [Ingestion and Data](docs/current/ingestion-and-data.md).
 
+| Entrada | Archivos | Qué lee TackBar |
+| --- | --- | --- |
+| Vakaros CSV | `.csv`, `.csv.gz` | Hora, posición, velocidad, rumbo, heading verdadero, escora y trimado |
+| Vakaros VKX | `.vkx`, `.vkx.gz` | Hora, posición, velocidad y rumbo; heading, escora y trimado solo cuando la evidencia de orientación del dispositivo lo permite |
+| GPX sin comprimir | `.gpx` | Hora y posición; velocidad y rumbo se derivan de las posiciones; sin heading, escora ni trimado |
+
+Otros dispositivos y formatos (FIT, GPX comprimido, otros proveedores) todavía
+no están soportados.
+
 ---
 
 ## Identidad de Sailor, Boat y Activity
@@ -379,9 +410,6 @@ Las exportaciones Vakaros admitidas actualmente proporcionan información como:
 * escora;
 * trimado.
 
-El GPX sin comprimir aporta posiciones y hora UTC; SOG y COG se derivan de esas
-posiciones, y HDG, HEEL y TRIM permanecen ausentes.
-
 El soporte actual de formatos se describe en el flujo del piloto anterior.
 
 TackBar pretende ser independiente del dispositivo utilizado.
@@ -402,27 +430,27 @@ Tecnología y persistencia actuales:
 * **Ingesta de Activity:** adaptador IMAP OVH con procesamiento posterior independiente del proveedor
 * **Experiencia objetivo:** aplicación web mobile-first que también funciona de forma natural en tablet
 
-El piloto actual conecta el Viewer con Sessions, Activities y tracks canónicos realmente
-persistidos por el backend. Incluye comparación de una/dos Activities, Analysis
-Window GPS/UTC compartida, telemetría fija en el mapa, replay sincronizado,
-Summary refinado, charts de señal SOG/COG/HEEL/TRIM en SVG nativo,
-distribuciones VS por tiempo representado e Individual Analysis con chart SOG +
-COG y mapa de densidad HEEL × SOG por Activity. Los datos TEST públicos y
-sanitizados validan la misma ruta runtime/API sin actuar como fallback de
-fixtures frontend. SQLite no es un requisito previo para esta PoC.
-Otras Activities visibles pueden aportar contexto pasivo de flota en el mapa,
-mientras el análisis sigue limitado a dos. La ubicación de la Session y sus
-condiciones históricas opcionales ayudan a reconocerla en Viewer y Personal
-TackBar; las cabeceras públicas ofrecen About y la identidad de release según
-los metadatos de build disponibles.
+El Session Viewer lee Sessions, Activities y tracks realmente persistidos por
+el backend; los datos TEST públicos y sanitizados ejercitan la misma ruta
+runtime/API. SQLite no es un requisito previo para esta PoC.
 
-La analítica de maniobras prefiere HIGH con HDG canónico; si no está disponible,
-COG/SOG canónicos utilizables pueden permitir LOW. El Viewer identifica la
-evidencia P/C y distingue cambio de heading (ΔHDG) de cambio de rumbo sobre el
-fondo (ΔCOG). La evidencia no califica la calidad global del track ni garantiza
-precisión. Los artefactos v6 se regeneran bajo demanda como v7 mediante las
-rutas analíticas autorizadas. Consulta [Analytics](docs/current/analytics.md)
-para disponibilidad y limitaciones.
+El Viewer ofrece:
+
+* comparación de una o dos Activities sobre una Analysis Window GPS/UTC
+  compartida, con replay sincronizado en el mapa;
+* charts y distribuciones de señal SOG, COG, HEEL y TRIM;
+* Individual Analysis por Activity (SOG + COG en el tiempo, densidad HEEL × SOG);
+* evidencia neutral de maniobras: HIGH cuando hay heading, LOW a partir de
+  rumbo y velocidad;
+* referencias de viento con procedencia, ubicación de la Session y, cuando
+  existan, condiciones históricas;
+* otras Activities visibles como contexto pasivo de flota en el mapa, mientras
+  el análisis sigue limitado a dos.
+
+La evidencia de maniobras no califica la calidad global del track ni garantiza
+precisión. Consulta [Session Viewer](docs/current/session-viewer.md) y
+[Analytics](docs/current/analytics.md) para comportamiento, disponibilidad y
+limitaciones.
 
 La capa de ingesta permanecerá separada de la capa analítica.
 
@@ -593,8 +621,8 @@ El código fuente de TackBar se publica bajo la **Mozilla Public License 2.0 (MP
 
 Contributions, suggestions and forks are welcome.
 
-If you'd like to report a bug, suggest an enhancement or contribute to TackBar, please open an **issue** or **pull request** in this repository.
+If you'd like to report a bug, suggest an enhancement or contribute to TackBar, please read [CONTRIBUTING](CONTRIBUTING.md) and open an **issue** or **pull request** in this repository.
 
 Las mejoras, sugerencias y forks son bienvenidos.
 
-Si quieres reportar un error, proponer una mejora o colaborar con TackBar, abre un **issue** o un **pull request** en este repositorio.
+Si quieres reportar un error, proponer una mejora o colaborar con TackBar, lee antes [CONTRIBUTING](CONTRIBUTING.md) y abre un **issue** o un **pull request** en este repositorio.
