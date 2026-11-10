@@ -24,7 +24,7 @@ Never put private pilot data in a public Issue or pull request: no participant n
 
 ### Questions
 
-Product questions: [hello@tackbar.eu](mailto:hello@tackbar.eu).
+Project questions: [maxsail.project@gmail.com](mailto:maxsail.project@gmail.com).
 
 ---
 
@@ -48,4 +48,4 @@ No publiques datos privados del piloto en un Issue o pull request público: ni n
 
 ### Preguntas
 
-Consultas de producto: [hello@tackbar.eu](mailto:hello@tackbar.eu).
+Consultas sobre el proyecto: [maxsail.project@gmail.com](mailto:maxsail.project@gmail.com).
