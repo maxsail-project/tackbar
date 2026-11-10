@@ -329,6 +329,7 @@ def test_ovh_persists_and_sends_each_gpx_feedback_category(monkeypatch, tmp_path
     ("track.csv", b"", "vakaros_incomplete"),
     ("track.csv.gz", gzip.compress(b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim\n"), "vakaros_incomplete"),
     ("track.csv", b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim\nbad-time,38,-0.2,5,90,90,0,0\n", "vakaros_gps"),
+    ("track.csv", b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim\n,38,-0.2,5,90,90,0,0\n", "vakaros_gps"),
     ("track.csv", b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim,q_w\n2031-06-10T10:00:00Z,38,-0.2,5,90,90,0,0,1\n", "vakaros_sensor"),
     ("track.vkx", _vkx(_position()) + bytes([0x04]) + bytes(12), "vakaros_incomplete"),
     ("track.vkx.gz", gzip.compress(_vkx(_position(), revision=0x04)), "vakaros_format"),

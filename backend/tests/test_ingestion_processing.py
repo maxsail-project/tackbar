@@ -1053,6 +1053,45 @@ def test_failed_attachment_is_not_processed(
     assert sessions.all() == []
 
 
+def test_empty_csv_timestamp_rejects_before_sailor_and_activity_then_valid_ingestion_succeeds(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(temporary_json_file)
+    sender = "new@example.com"
+    header = b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim\n"
+    invalid = header + (
+        b"2031-06-10T10:00:00Z,38.1,-0.2,5.2,359,1,-8,2\n"
+        b",38.2,-0.3,5.2,359,1,-8,2\n"
+    )
+    previous_activities = activities.path.read_bytes()
+
+    with pytest.raises(ValueError, match="not a valid Vakaros CSV file"):
+        process_provider_email(
+            "ovh", _email(invalid, sender, "456:invalid", "track.csv"),
+            sailors, boats, activities, sessions, history,
+        )
+
+    rejected = history.records()[0]
+    assert rejected["status"] == "failed"
+    assert rejected["technical_notice_reason"] == "invalid_track"
+    assert rejected["technical_notice_feedback"] == {"category": "vakaros_gps"}
+    assert sailors.find_by_email(sender) is None
+    assert activities.path.read_bytes() == previous_activities
+    assert activities.all() == []
+    assert sessions.all() == []
+
+    valid = process_provider_email(
+        "ovh", _email(FIXTURE_PATH.read_bytes(), sender, "456:valid"),
+        sailors, boats, activities, sessions, history,
+    )
+    assert valid is not None
+    assert valid.sailor_created is True
+    assert valid.activity_created is True
+    assert sailors.find_by_email(sender) is not None
+    assert len(activities.all()) == 1
+    assert history.records()[0]["technical_notice_feedback"] == {"category": "vakaros_gps"}
+
+
 def test_historical_gmail_record_reprocesses_from_preserved_original(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:

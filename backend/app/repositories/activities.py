@@ -2,6 +2,7 @@ import hashlib
 import json
 from dataclasses import asdict, replace
 from datetime import datetime
+from math import isfinite
 from pathlib import Path
 from uuid import uuid4
 
@@ -214,6 +215,7 @@ class ActivityRepository:
             }
         records = []
         for activity in activities:
+            _validate_activity_metadata(activity)
             record = asdict(activity)
             record["start_time"] = activity.start_time.isoformat()
             record["end_time"] = activity.end_time.isoformat()
@@ -234,6 +236,28 @@ class ActivityRepository:
 
 def _parse_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value)
+
+
+def _validate_activity_metadata(activity: StoredActivity) -> None:
+    for field_name in ("start_time", "end_time"):
+        value = getattr(activity, field_name)
+        if not isinstance(value, datetime) or value != value:
+            raise ValueError(f"Activity {field_name} must be a valid datetime")
+    for field_name in (
+        "start_lat", "start_lon", "end_lat", "end_lon", "center_lat",
+        "center_lon", "min_lat", "max_lat", "min_lon", "max_lon",
+    ):
+        value = getattr(activity, field_name)
+        if value is None and field_name not in (
+            "start_lat", "start_lon", "end_lat", "end_lon",
+        ):
+            continue
+        try:
+            valid = isfinite(value)
+        except (TypeError, ValueError, OverflowError):
+            valid = False
+        if not valid:
+            raise ValueError(f"Activity {field_name} must be finite")
 
 
 def _enrich_spatial_metadata(

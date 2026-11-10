@@ -5,7 +5,7 @@ from statistics import median
 
 import pytest
 
-from app.parsers.vakaros_csv import parse_vakaros_csv
+from app.parsers.vakaros_csv import VakarosCSVParseError, parse_vakaros_csv
 
 
 FIXTURE_PATH = (
@@ -71,6 +71,30 @@ def test_parse_equivalent_uncompressed_vakaros_csv() -> None:
     assert len(activity.samples) == 3613
     assert activity.start_time == activity.samples[0]["utc"]
     assert activity.end_time == activity.samples[-1]["utc"]
+
+
+@pytest.mark.parametrize("missing_row", [0, 1, 2])
+@pytest.mark.parametrize("compressed", [False, True])
+def test_parse_vakaros_csv_rejects_empty_timestamp(
+    missing_row: int, compressed: bool,
+) -> None:
+    rows = [
+        f"2031-06-10T10:00:0{index}Z,38.1,-0.2,5.2,359,1,-8,2"
+        for index in range(3)
+    ]
+    rows[missing_row] = rows[missing_row].replace(
+        f"2031-06-10T10:00:0{missing_row}Z", "",
+    )
+    content = (
+        "timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim\n"
+        + "\n".join(rows) + "\n"
+    ).encode()
+
+    with pytest.raises(VakarosCSVParseError, match="invalid timestamps"):
+        parse_vakaros_csv(
+            gzip.compress(content) if compressed else content,
+            original_filename="track.csv.gz" if compressed else "track.csv",
+        )
 
 
 def test_parse_vakaros_csv_preserves_complete_quaternion_group() -> None:

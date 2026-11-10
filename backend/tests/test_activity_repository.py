@@ -1,9 +1,12 @@
 import hashlib
 import json
-from dataclasses import fields
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import Callable
 from uuid import UUID
+
+import pandas as pd
+import pytest
 
 from app.models import Activity, StoredActivity
 from app.parsers.vakaros_csv import parse_vakaros_csv
@@ -57,6 +60,39 @@ def test_first_activity_creates_uuid_backed_record(
     assert activity.max_lat == parsed.max_lat
     assert activity.min_lon == parsed.min_lon
     assert activity.max_lon == parsed.max_lon
+
+
+@pytest.mark.parametrize("field_name,value", [
+    ("start_time", None),
+    ("end_time", pd.NaT),
+    ("end_time", float("inf")),
+    ("start_lat", None),
+    ("end_lon", float("nan")),
+    ("center_lat", float("inf")),
+    ("max_lon", float("-inf")),
+])
+@pytest.mark.parametrize("write_path", ["create", "refresh"])
+def test_invalid_metadata_does_not_replace_activity_collection(
+    temporary_json_file: Callable[[str, object], Path],
+    field_name: str, value: object, write_path: str,
+) -> None:
+    path = temporary_json_file("activities", [])
+    repository = ActivityRepository(path)
+    content = FIXTURE_PATH.read_bytes()
+    parsed = parse_vakaros_csv(FIXTURE_PATH)
+    existing, _ = repository.find_or_create(SAILOR_A, BOAT_A, parsed, content)
+    previous = path.read_bytes()
+    invalid = replace(parsed, **{field_name: value})
+
+    with pytest.raises(ValueError, match=f"Activity {field_name} must be"):
+        if write_path == "create":
+            repository.find_or_create(SAILOR_A, BOAT_A, invalid, content + b"new")
+        else:
+            repository.refresh_track_metadata(existing.id, invalid, "tracks/invalid.csv.gz")
+
+    assert path.read_bytes() == previous
+    assert repository.get_by_id(existing.id) == existing
+    assert len(repository.all()) == 1
 
 
 def test_same_sailor_and_attachment_returns_existing_activity(
@@ -187,6 +223,28 @@ def test_existing_activity_is_enriched_with_spatial_metadata(
     assert persisted["max_lat"] == parsed.max_lat
     assert persisted["min_lon"] == parsed.min_lon
     assert persisted["max_lon"] == parsed.max_lon
+
+
+def test_invalid_duplicate_enrichment_preserves_activity_collection(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    path = temporary_json_file("activities", [])
+    repository = ActivityRepository(path)
+    content = FIXTURE_PATH.read_bytes()
+    parsed = parse_vakaros_csv(FIXTURE_PATH)
+    original, _ = repository.find_or_create(SAILOR_A, None, parsed, content)
+    records = json.loads(path.read_text(encoding="utf-8"))
+    records[0].pop("center_lat")
+    path.write_text(json.dumps(records), encoding="utf-8")
+    previous = path.read_bytes()
+
+    with pytest.raises(ValueError, match="Activity center_lat must be finite"):
+        repository.find_or_create(
+            SAILOR_A, None, replace(parsed, center_lat=float("nan")), content,
+        )
+
+    assert path.read_bytes() == previous
+    assert repository.get_by_id(original.id).center_lat is None
 
 
 def test_personal_context_survives_duplicate_and_track_refresh(

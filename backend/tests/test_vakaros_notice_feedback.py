@@ -41,6 +41,7 @@ def test_required_column_allowlist_matches_parser():
     (b" \n", {"category": "vakaros_incomplete", "subtype": "empty_csv"}),
     (CSV_HEADER, {"category": "vakaros_incomplete", "subtype": "csv_no_samples"}),
     (CSV_HEADER + b"bad-time,38.1,-0.2,5.2,359,1,-8,2\n", {"category": "vakaros_gps"}),
+    (CSV_HEADER + b",38.1,-0.2,5.2,359,1,-8,2\n", {"category": "vakaros_gps"}),
     (CSV_HEADER + b"2031-06-10T10:00:00Z,999,999,5.2,359,1,-8,2\n", {"category": "vakaros_gps"}),
     (CSV_HEADER.replace(b"\n", b",q_w\n") + CSV_ROW.rstrip(b"\n") + b",0.5\n", {"category": "vakaros_sensor"}),
     (CSV_HEADER.replace(b"\n", b",q_w,q_x,q_y,q_z\n") + CSV_ROW.rstrip(b"\n") + b",bad,0,0,1\n", {"category": "vakaros_sensor"}),
