@@ -5,9 +5,8 @@ export type SailingMetric = (typeof SAILING_METRICS)[number]
 export type EnabledReplayMetric = Extract<SailingMetric, 'SOG' | 'COG'>
 
 export interface SailorContext {
-  id: string
   name: string | null
-  email: string
+  display_label: string
 }
 
 export interface BoatContext {
@@ -63,6 +62,7 @@ export interface HistoricalConditions {
 export interface SessionDetail {
   start_time: string
   end_time: string
+  sailor_count: number
   activities: SessionActivity[]
   location_label: string | null
   location_country: string | null

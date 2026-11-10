@@ -224,6 +224,7 @@ def test_capability_session_exposes_active_subset_without_internal_id(monkeypatc
         "start_time",
         "end_time",
         "activities",
+        "sailor_count",
         "location_label",
         "location_country",
         "historical_conditions",
@@ -251,6 +252,12 @@ def test_capability_session_exposes_active_subset_without_internal_id(monkeypatc
         }],
     }
     assert [item["id"] for item in response.json["activities"]] == [ACTIVITY_A]
+    assert response.json["sailor_count"] == 1
+    assert response.json["activities"][0]["sailor"] == {
+        "name": "Active", "display_label": "active@",
+    }
+    assert SAILOR_A not in json.dumps(response.json)
+    assert "active@example.com" not in json.dumps(response.json)
     assert SESSION_ID not in json.dumps(response.json)
     assert TOKEN not in json.dumps(response.json)
     assert ACTIVITY_B not in json.dumps(response.json)
@@ -267,6 +274,30 @@ def test_capability_session_projects_persisted_weather_code(monkeypatch: pytest.
 
     assert response.status_code == 200
     assert response.json["historical_conditions"]["hourly"][0]["weather_code"] == 61
+
+
+def test_shared_session_fallback_and_distinct_sailor_count_without_exposing_identity(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path,
+) -> None:
+    root = _use_runtime(monkeypatch, temporary_directory)
+    sailors_path = root / "sailors.json"
+    sailors = json.loads(sailors_path.read_text(encoding="utf-8"))
+    sailors[0]["name"] = None
+    _write_json(sailors_path, sailors)
+    sessions_path = root / "sessions.json"
+    sessions = json.loads(sessions_path.read_text(encoding="utf-8"))
+    sessions[0]["activity_ids"].append(ACTIVITY_OTHER)
+    _write_json(sessions_path, sessions)
+
+    response = _get(f"/api/shared/sessions/{TOKEN}")
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json["activities"]] == [ACTIVITY_A, ACTIVITY_OTHER]
+    assert response.json["sailor_count"] == 1
+    assert all(item["sailor"] == {"name": None, "display_label": "active@"}
+               for item in response.json["activities"])
+    assert SAILOR_A not in json.dumps(response.json)
+    assert "active@example.com" not in json.dumps(response.json)
 
 
 @pytest.mark.parametrize(
@@ -368,7 +399,10 @@ def test_visibility_changes_on_next_capability_read_without_membership_change(mo
     _set_status(root, SAILOR_A, "REVOKED")
     revoked = _get(f"/api/shared/sessions/{TOKEN}")
     assert [item["id"] for item in active.json["activities"]] == [ACTIVITY_B, ACTIVITY_A]
+    assert active.json["sailor_count"] == 2
+    assert {tuple(item["sailor"].keys()) for item in active.json["activities"]} == {("name", "display_label")}
     assert [item["id"] for item in revoked.json["activities"]] == [ACTIVITY_B]
+    assert revoked.json["sailor_count"] == 1
     assert (root / "sessions.json").read_bytes() == before
 
 

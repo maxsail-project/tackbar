@@ -30,6 +30,24 @@ class ActivityContextResponse(BaseModel):
     boat: BoatContextResponse | None
 
 
+class SharedSailorContextResponse(BaseModel):
+    name: str | None
+    display_label: str
+
+
+class SharedActivityContextResponse(BaseModel):
+    id: str
+    source: str
+    device_name: str
+    device_label: str | None = None
+    original_filename: str
+    start_time: datetime
+    end_time: datetime
+    sample_count: int
+    sailor: SharedSailorContextResponse
+    boat: BoatContextResponse | None
+
+
 class SessionSummaryResponse(BaseModel):
     id: str
     start_time: datetime
@@ -70,7 +88,8 @@ class HistoricalConditionsResponse(BaseModel):
 class SharedSessionContentResponse(BaseModel):
     start_time: datetime
     end_time: datetime
-    activities: list[ActivityContextResponse]
+    sailor_count: int
+    activities: list[SharedActivityContextResponse]
     location_label: str | None
     location_country: str | None
     historical_conditions: HistoricalConditionsResponse | None

@@ -370,6 +370,28 @@ def test_first_post_activates_once_using_persisted_agreement_version(
     ]
 
 
+def test_historical_pending_request_grants_v065_after_current_version_changes(
+    temporary_directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(
+        temporary_directory, monkeypatch, agreement_version="v0.6.5",
+    )
+    context.requests.agreement_version = "v0.7.21"
+
+    pending = _get(REQUEST_TOKEN)
+    assert pending.status_code == 200
+    assert pending.json["agreement_version"] == "v0.6.5"
+    assert context.request_repository.get_by_token(REQUEST_TOKEN).agreement_version == "v0.6.5"
+
+    granted = _accept(REQUEST_TOKEN)
+    assert granted.status_code == 200
+    assert granted.json["agreement_version"] == "v0.6.5"
+    assert context.sailors.get_by_id(SAILOR_ID).consent_status == ConsentStatus.ACTIVE
+    assert [event.agreement_version for event in context.events.for_sailor(SAILOR_ID)] == ["v0.6.5"]
+    assert _get(REQUEST_TOKEN).json["status"] == "confirmed"
+
+
 def test_get_after_activation_returns_truthful_confirmed_state(
     temporary_directory: Path,
     monkeypatch: pytest.MonkeyPatch,

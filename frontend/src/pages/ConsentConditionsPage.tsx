@@ -6,7 +6,7 @@ export default function ConsentConditionsPage() {
     <main className="conditions-page">
       <header className="conditions-title">
         <h1>TackBar Pilot Participation Conditions<br /><span>Condiciones de Participación en el Piloto TackBar</span></h1>
-        <p><strong>Agreement version / Versión del acuerdo: v0.6.5</strong></p>
+        <p><strong>Agreement version / Versión del acuerdo: v0.7.21</strong></p>
       </header>
 
       <article className="conditions-language" lang="en" aria-labelledby="conditions-en">
@@ -26,6 +26,7 @@ export default function ConsentConditionsPage() {
 
         <h3>Shared Sessions</h3>
         <p>Shared Sessions are opened through private capability links; they are not user accounts and do not require Sailor login. In the current PoC, shared access has an initial lifetime of 60 days. When a Session expires, its stored Activities are not automatically deleted.</p>
+        <p>Shared Sessions show sailing tracks alongside sporting identifiers such as a Sailor name, Boat name or sail number, and relevant Activity labels. When those details are unavailable, a label may use the part of your email address before @ followed by @. Shared Session responses do not expose full contact email addresses.</p>
         <p>Activities may remain stored internally while your consent status is ACTIVE. If you withdraw consent, your Activities immediately stop being visible in shared Sessions. Withdrawal does not imply immediate physical deletion in the current PoC.</p>
 
         <h3>Administrative access</h3>
@@ -55,6 +56,7 @@ export default function ConsentConditionsPage() {
 
         <h3>Sessions compartidas</h3>
         <p>Las Sessions compartidas se abren mediante enlaces privados de capability; no son cuentas de usuario ni requieren un login de Sailor. En la PoC actual, el acceso compartido tiene una duración inicial de 60 días. Cuando una Session expira, sus Activities almacenadas no se eliminan automáticamente.</p>
+        <p>Las Sessions compartidas muestran tracks de navegación junto con identificadores deportivos, como el nombre del Sailor, el nombre o número de vela del Boat y etiquetas relevantes de las Activities. Si faltan esos datos, una etiqueta puede usar la parte de tu dirección de email anterior a @ seguida de @. Las respuestas de Sessions compartidas no exponen direcciones de email de contacto completas.</p>
         <p>Las Activities pueden permanecer almacenadas internamente mientras tu estado de consentimiento sea ACTIVE. Si retiras el consentimiento, tus Activities dejan inmediatamente de ser visibles en Sessions compartidas. La retirada no implica el borrado físico inmediato en la PoC actual.</p>
 
         <h3>Acceso administrativo</h3>

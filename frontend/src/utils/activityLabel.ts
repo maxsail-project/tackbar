@@ -19,13 +19,7 @@ export function formatActivityIdentity(activity: SessionActivity) {
   const sailorName = firstNonEmpty(activity.sailor.name)
   if (sailorName) return sailorName
 
-  const sailorEmail = firstNonEmpty(activity.sailor.email)
-  if (sailorEmail) {
-    const atIndex = sailorEmail.indexOf('@')
-    return atIndex >= 0 ? sailorEmail.slice(0, atIndex + 1) : sailorEmail
-  }
-
-  return firstNonEmpty(activity.sailor.id) ?? 'Activity'
+  return firstNonEmpty(activity.sailor.display_label) ?? 'Activity'
 }
 
 export function formatActivityLabel(activity: SessionActivity) {

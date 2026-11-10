@@ -98,7 +98,7 @@ def test_issues_persisted_request_for_pending_sailor_with_fixed_lifetime(
     issued = service.issue_for_pending_sailor(SAILOR_ID)
     persisted = requests.get_by_id(issued.id)
 
-    assert CURRENT_CONSENT_AGREEMENT_VERSION == "v0.6.5"
+    assert CURRENT_CONSENT_AGREEMENT_VERSION == "v0.7.21"
     assert issued == persisted
     assert issued.sailor_id == SAILOR_ID
     assert issued.created_at == NOW
@@ -181,6 +181,27 @@ def test_agreement_version_is_captured_at_issuance(
 
     assert replacement_service.find_current_for_sailor(SAILOR_ID) == issued
     assert requests.get_by_id(issued.id).agreement_version == "agreement-v1"
+
+
+def test_pending_v065_request_keeps_its_terms_after_v0721_switch(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    service, requests, _, _ = _service(
+        temporary_json_file,
+        tokens=iter([FIRST_TOKEN, SECOND_TOKEN]),
+        agreement_version="v0.6.5",
+    )
+    historical = service.issue_for_pending_sailor(SAILOR_ID)
+    service.agreement_version = CURRENT_CONSENT_AGREEMENT_VERSION
+
+    assert service.issue_for_pending_sailor(SAILOR_ID) == historical
+    assert service.resolve(historical.token).request.agreement_version == "v0.6.5"
+    assert requests.get_by_id(historical.id).agreement_version == "v0.6.5"
+
+    service.clock = lambda: historical.expires_at
+    current = service.reissue_expired_for_pending_sailor(SAILOR_ID)
+    assert current.agreement_version == "v0.7.21"
+    assert requests.get_by_id(historical.id).agreement_version == "v0.6.5"
 
 
 def test_generated_token_has_256_bit_urlsafe_entropy(

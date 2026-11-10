@@ -132,7 +132,11 @@ def test_both_channels_have_equivalent_canonical_results_and_distinct_policy(
     base = f"/api/shared/sessions/{session.capability_token}"
     shared = _get(base)
     assert shared.status_code == 200
-    assert {item["sailor"]["id"] for item in shared.json["activities"]} == {runtime.sailor.id, mail_owner.id}
+    assert shared.json["sailor_count"] == 2
+    assert {item["sailor"]["display_label"] for item in shared.json["activities"]} == {
+        runtime.sailor.email.partition("@")[0] + "@",
+        mail_owner.email.partition("@")[0] + "@",
+    }
     tracks = [_get(f"{base}/activities/{identity}/track") for identity in session.activity_ids]
     assert all(track.status_code == 200 for track in tracks)
     assert tracks[0].json["samples"] == tracks[1].json["samples"]

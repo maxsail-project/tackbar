@@ -118,7 +118,8 @@ def test_profile_name_set_edit_clear_and_downstream_reads(monkeypatch, temporary
         assert personal["name"] == admin_sailor["name"] == expected
         shared_sailor = next(item for item in shared["activities"] if item["id"] == ACTIVITY)["sailor"]
         assert shared_sailor["name"] == expected
-        assert shared_sailor["email"] == "one@example.com"
+        assert shared_sailor == {"name": expected, "display_label": "one@"}
+        assert admin_sailor["email"] == "one@example.com"
         assert admin_activity["sailor_label"] == (expected or "one@example.com")
 
     after_sailor = SailorRepository(root / "sailors.json").get_by_id(SAILOR)

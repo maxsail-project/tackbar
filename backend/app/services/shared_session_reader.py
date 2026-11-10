@@ -6,6 +6,8 @@ from app.api_models import (
     ManeuverResponse,
     HistoricalConditionsResponse,
     SharedSessionDetailResponse,
+    SharedActivityContextResponse,
+    SharedSailorContextResponse,
     SharedSessionRaceTimerEventsResponse,
     SharedActivityRaceTimerEventsResponse,
     SharedRaceTimerEventResponse,
@@ -55,7 +57,17 @@ class SharedSessionReader:
         return SharedSessionDetailResponse(
             start_time=detail.start_time,
             end_time=detail.end_time,
-            activities=detail.activities,
+            sailor_count=len({activity.sailor.id for activity in detail.activities}),
+            activities=[
+                SharedActivityContextResponse(
+                    **activity.model_dump(exclude={"sailor"}),
+                    sailor=SharedSailorContextResponse(
+                        name=activity.sailor.name,
+                        display_label=activity.sailor.email.partition("@")[0] + "@",
+                    ),
+                )
+                for activity in detail.activities
+            ],
             location_label=resolved.location_label,
             location_country=resolved.location_country,
             historical_conditions=(

@@ -9,7 +9,7 @@ function activity(id: string, startSeconds: number, endSeconds: number): Session
     start_time: new Date(base + startSeconds * 1_000).toISOString(),
     end_time: new Date(base + endSeconds * 1_000).toISOString(),
     source: 'test', device_name: 'Device', original_filename: `${id}.gpx`, sample_count: 2,
-    sailor: { id, name: id, email: `${id}@example.test` }, boat: null,
+    sailor: { name: id, display_label: `${id}@` }, boat: null,
   }
 }
 

@@ -11,12 +11,12 @@ const emailActivity: SessionActivity = {
   start_time: '2031-06-15T08:03:00Z',
   end_time: '2031-06-15T10:42:00Z',
   sample_count: 100,
-  sailor: { id: 'sailor-1', name: null, email: 'maxi+vakaros@example.com' },
+  sailor: { name: null, display_label: 'maxi+vakaros@' },
   boat: null,
 }
 
 describe('ActivitySelector', () => {
-  it('shortens email-derived labels without changing the Activity option value or time range', () => {
+  it('uses the backend-derived fallback without changing the Activity option value or time range', () => {
     const markup = renderToStaticMarkup(
       <ActivitySelector
         label="My track"

@@ -52,7 +52,7 @@ describe('public consent decision page', () => {
     expect(markup).toContain('TackBar ha recibido una actividad de navegación asociada a esta solicitud de participación.')
     expect(markup).toContain('Tu participación todavía está pendiente.')
     expect(markup).toContain('Agreement version / Versión del acuerdo: <strong>v0.6.5</strong>')
-    expect(markup).toContain('href="/consent/conditions"')
+    expect(markup).toContain('href="/consent/conditions/v0.6.5"')
     expect(markup).toContain('Participation conditions / Condiciones de participación')
     expect(markup).toContain('Confirm participation / Confirmar participación')
     expect(markup.match(/<button/g)).toHaveLength(1)
@@ -63,6 +63,12 @@ describe('public consent decision page', () => {
       'request-capability',
     ]) expect(markup).not.toContain(privateValue)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('links a new request to its matching conditions version', () => {
+    const markup = render({ status: 'ready', data: { ...consent, agreement_version: 'v0.7.21' } })
+    expect(markup).toContain('href="/consent/conditions/v0.7.21"')
+    expect(markup).not.toContain('href="/consent/conditions/v0.6.5"')
   })
 
   it('disables the affirmative action and shows bilingual submission progress', () => {

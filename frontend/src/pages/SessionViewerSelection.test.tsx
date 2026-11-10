@@ -95,6 +95,7 @@ const session: SharedSessionDetail = {
   location_label: null,
   location_country: null,
   historical_conditions: null,
+  sailor_count: 3,
   activities: ['a', 'b', 'c'].map((id) => ({
     id,
     source: 'test',
@@ -103,7 +104,7 @@ const session: SharedSessionDetail = {
     start_time: new Date(start).toISOString(),
     end_time: new Date(start + 10_000).toISOString(),
     sample_count: 11,
-    sailor: { id, name: id.toUpperCase(), email: `${id}@example.test` },
+    sailor: { name: id.toUpperCase(), display_label: `${id}@` },
     boat: null,
   })),
 }
@@ -393,6 +394,7 @@ describe('Viewer selected maneuver interactions', () => {
       end_time: new Date(start + (activity.id === 'b' || activity.id === 'c' ? 20_000 : 10_000)).toISOString(),
     })) }
     await mountViewer(accessKind, visibleSession)
+    expect(container.textContent).toContain('3 sailors')
     expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.value).toBe('b')
     expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('')
     expect([...container.querySelectorAll<HTMLOptionElement>('select[aria-label="My track"] option')].map((option) => option.value)).toEqual(['a', 'b', 'c'])

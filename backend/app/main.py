@@ -243,6 +243,7 @@ def get_temporary_shared_session(
     return TemporarySharedSessionDetailResponse(
         start_time=detail.start_time,
         end_time=detail.end_time,
+        sailor_count=detail.sailor_count,
         activities=detail.activities,
         location_label=detail.location_label,
         location_country=detail.location_country,

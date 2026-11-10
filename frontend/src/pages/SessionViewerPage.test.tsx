@@ -49,7 +49,7 @@ function sessionActivity(id: string, identity: string): SessionActivity {
     start_time: '2031-01-01T10:00:00Z',
     end_time: '2031-01-01T10:00:04Z',
     sample_count: 3,
-    sailor: { id: `sailor-${id}`, name: identity, email: `${id}@example.test` },
+    sailor: { name: identity, display_label: `${id}@` },
     boat: null,
   }
 }
@@ -118,14 +118,6 @@ describe('Session summary presentation', () => {
       .toBe('16 Sep 2026')
   })
 
-  it('counts unique Sailors rather than Activities', () => {
-    const activities = [
-      { sailor: { id: 'sailor-a' } },
-      { sailor: { id: 'sailor-a' } },
-      { sailor: { id: 'sailor-b' } },
-    ]
-    expect(new Set(activities.map((activity) => activity.sailor.id)).size).toBe(2)
-  })
 })
 
 describe('fleet context map state', () => {

@@ -983,7 +983,7 @@ export function SessionViewer({
       || (comparisonTrackState.status === 'ready' && comparisonRange === null)
     )
 
-  const uniqueSailorCount = new Set(session.activities.map((activity) => activity.sailor.id)).size
+  const uniqueSailorCount = session.sailor_count
 
   return (
     <main className="page-shell viewer-page">

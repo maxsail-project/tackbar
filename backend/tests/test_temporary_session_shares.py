@@ -297,6 +297,7 @@ def test_public_api_returns_only_temporary_path_and_distinguishes_unavailable_st
         "start_time",
         "end_time",
         "activities",
+        "sailor_count",
         "location_label",
         "location_country",
         "historical_conditions",
@@ -304,6 +305,12 @@ def test_public_api_returns_only_temporary_path_and_distinguishes_unavailable_st
     }
     assert "session_access_expires_at" not in loaded.model_dump()
     assert loaded.activities[0].id == ACTIVITY_ID
+    assert loaded.sailor_count == 1
+    assert loaded.activities[0].sailor.model_dump() == {
+        "name": "Sailor", "display_label": "sailor@",
+    }
+    assert SAILOR_ID not in json.dumps(loaded.model_dump(), default=str)
+    assert "@example.com" not in json.dumps(loaded.model_dump(), default=str)
     assert loaded.location_label == "Mahón"
     assert loaded.location_country == "Spain"
     assert loaded.historical_conditions is not None

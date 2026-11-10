@@ -152,7 +152,7 @@ export function ConsentDecisionContent({
             </section>
           </div>
           <p className="consent-version">Agreement version / Versión del acuerdo: <strong>{state.data.agreement_version}</strong></p>
-          <Link className="consent-conditions-link" to="/consent/conditions">
+          <Link className="consent-conditions-link" to={`/consent/conditions/${encodeURIComponent(state.data.agreement_version)}`}>
             Participation conditions / Condiciones de participación
           </Link>
           <button
