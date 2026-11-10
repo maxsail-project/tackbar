@@ -2,6 +2,62 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.21 Californian — Sailing Is the Limit
+
+### English
+
+This release tightens track intake and shared Session identity disclosure while refining Viewer and Admin presentation.
+
+### Changed
+
+* Original and temporary shared Session details omit full Sailor email and internal Sailor ID. A backend-derived `local-part@` fallback and visible-Sailor count preserve Activity identification without changing capability or `ACTIVE`-only visibility rules. Bilingual v0.7.21 participation conditions clarify sporting identity disclosure; version-bound v0.6.5 requests retain their archived conditions and existing `ACTIVE` consent remains valid. The new conditions and agreement version become current when v0.7.21 is deployed.
+* Supported track attachments are limited to 16 MiB of received bytes. Vakaros CSV.GZ and VKX.GZ expansion stops at 160 MiB across email, Admin and Reprocess. Oversized supported email attachments receive a controlled, inspectable rejection and eligible senders receive safe, bilingual `file_too_large` feedback. Corrupt or truncated gzip is rejected predictably. The limits do not bound full MIME message fetch memory or guarantee pandas peak RAM use.
+* Empty Vakaros CSV timestamps are rejected before Sailor or Activity creation; Activity persistence refuses non-finite or null temporal/spatial metadata without replacing the prior collection.
+* TWD and TWS map controls stack at the right edge. Admin historical conditions show the original numeric WMO code, including zero, or unavailable for absent data. Selected-maneuver highlight geometry is reused during playback-only renders; no measured device speedup is claimed.
+* GitHub Issue templates were simplified and corrected for release-preparation labels.
+
+### Issues
+
+- [#182](https://github.com/maxsail-project/tackbar/issues/182) — [#182] Expose numeric WMO weather code in Admin historical conditions
+- [#183](https://github.com/maxsail-project/tackbar/issues/183) — [#183] Evaluate stacked right-edge TWD and TWS map controls
+- [#184](https://github.com/maxsail-project/tackbar/issues/184) — [#184] Investigate redundant selected-maneuver geometry recomputation during replay
+- [#187](https://github.com/maxsail-project/tackbar/issues/187) — [#187] Reject null timestamps in Vakaros CSV before persisting an Activity
+- [#188](https://github.com/maxsail-project/tackbar/issues/188) — [#188] Bound gzip decompression and inbound attachment size
+- [#189](https://github.com/maxsail-project/tackbar/issues/189) — [#189] Minimize Sailor identity exposure in shared Session responses
+
+### Validation
+
+Completed Issues record focused implementation checks and acceptance. At `01e38237`, [frontend CI](https://github.com/maxsail-project/tackbar/actions/runs/42891316322) passed 1,005 tests with 2 skipped, typecheck and production build; [backend CI](https://github.com/maxsail-project/tackbar/actions/runs/42891576995) passed 1,315 tests with 1 skipped. Release preparation checks documentation, Issue completion and commit inclusion, bilingual consistency, publication absence, exact release-body correspondence and `git diff --check`. Earlier pending consent requests beyond v0.6.5 and v0.7.21, if still usable, require terms verification before production activation. The approved `local-part@` fallback may identify a person.
+
+---
+
+### Español
+
+Esta versión refuerza la recepción de tracks y limita los datos de identidad en las Sessions compartidas, además de ajustar la presentación del Viewer y Admin.
+
+### Cambiado
+
+* Las respuestas de Sessions compartidas con acceso original o temporal omiten el correo completo y el ID interno de Sailor. Un identificador abreviado `local-part@` calculado por el backend y el recuento de Sailors visibles mantienen la identificación de Activities sin cambiar las capacidades ni la visibilidad exclusiva de `ACTIVE`. Las condiciones bilingües v0.7.21 aclaran los identificadores deportivos; las solicitudes v0.6.5 conservan sus condiciones archivadas y el consentimiento `ACTIVE` sigue siendo válido. Las nuevas condiciones y la versión del acuerdo pasan a ser actuales al desplegar v0.7.21.
+* Los adjuntos de tracks admitidos tienen un límite de 16 MiB recibidos. La expansión de Vakaros CSV.GZ y VKX.GZ se detiene a 160 MiB en correo, Admin y Reprocess. Un adjunto admitido demasiado grande deja un rechazo controlado e inspeccionable y el remitente apto recibe un aviso bilingüe y seguro `file_too_large`. Los gzip dañados o truncados se rechazan de forma controlada. Los límites no acotan la memoria de descarga del mensaje MIME completo ni garantizan la memoria máxima de pandas.
+* Los CSV de Vakaros con marcas de tiempo vacías se rechazan antes de crear Sailor o Activity; la persistencia de Activities rechaza metadatos temporales o espaciales nulos o no finitos sin sustituir la colección anterior.
+* Los controles TWD y TWS se apilan en el borde derecho del mapa. Las condiciones históricas de Admin muestran el código numérico WMO original, incluido cero, o indisponible si falta. La geometría de la maniobra seleccionada se reutiliza durante renders causados solo por replay; no se afirma una mejora de velocidad medida en dispositivo.
+* Se simplificaron las plantillas de Issues de GitHub y se corrigieron las etiquetas de preparación de release.
+
+### Issues
+
+- [#182](https://github.com/maxsail-project/tackbar/issues/182) — [#182] Expose numeric WMO weather code in Admin historical conditions
+- [#183](https://github.com/maxsail-project/tackbar/issues/183) — [#183] Evaluate stacked right-edge TWD and TWS map controls
+- [#184](https://github.com/maxsail-project/tackbar/issues/184) — [#184] Investigate redundant selected-maneuver geometry recomputation during replay
+- [#187](https://github.com/maxsail-project/tackbar/issues/187) — [#187] Reject null timestamps in Vakaros CSV before persisting an Activity
+- [#188](https://github.com/maxsail-project/tackbar/issues/188) — [#188] Bound gzip decompression and inbound attachment size
+- [#189](https://github.com/maxsail-project/tackbar/issues/189) — [#189] Minimize Sailor identity exposure in shared Session responses
+
+### Validación
+
+Los Issues completados registran pruebas focalizadas de implementación y aceptación. En `01e38237`, [CI frontend](https://github.com/maxsail-project/tackbar/actions/runs/42891316322) superó 1.005 pruebas con 2 omitidas, typecheck y build de producción; [CI backend](https://github.com/maxsail-project/tackbar/actions/runs/42891576995) superó 1.315 pruebas con 1 omitida. La preparación comprueba documentación, cierre e inclusión de Issues, coherencia bilingüe, ausencia de publicación, correspondencia exacta del cuerpo de la release y `git diff --check`. Las solicitudes pendientes de versiones anteriores distintas de v0.6.5 y v0.7.21, si siguen utilizables, requieren comprobar sus condiciones antes de activar en producción. El identificador abreviado `local-part@` aprobado puede identificar a una persona.
+
+---
+
 ## v0.7.20 Californian — Blowin' in the Wind (TWS)
 
 ### English

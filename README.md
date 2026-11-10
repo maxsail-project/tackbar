@@ -187,8 +187,8 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. Latest published release: v0.7.19 Californian
-— Follow the Wind (TWD).**
+**Controlled real-sailing pilot. Latest published release: v0.7.20 Californian
+— Blowin' in the Wind (TWS).**
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
@@ -218,14 +218,15 @@ The project is not currently affiliated with or endorsed by Garmin, Vakaros or a
 
 ## Published release and next direction
 
-### v0.7.19 Californian — Follow the Wind (TWD)
+### v0.7.20 Californian — Blowin' in the Wind (TWS)
 
-v0.7.19 adds a time-aware modelled-wind TWD map reference and an ephemeral
-Viewer correction. It also improves GPX track admission, personal and Admin
-presentation, and JSON metadata write safety. Analytical comparison remains
-limited to two Activities. The current candidate on `main` additionally
-includes accepted TWS, compact Weather-cue and actionable track-failure email
-increments; publication is recorded separately in GitHub Releases.
+v0.7.20 adds a source-aware modelled-weather TWS reference and ephemeral
+Viewer correction. It also makes the Weather cue more compact and gives
+eligible rejected track emails actionable feedback. Analytical comparison
+remains limited to two Activities. The current candidate on `main`
+additionally includes accepted shared-identity minimization, track-size
+bounds, safer CSV timestamp handling and presentation refinements;
+publication is recorded separately in GitHub Releases.
 
 The accepted scope for **v0.7.14 Californian — GPX & Maneuver Analytics** is
 recorded in the [CHANGELOG](CHANGELOG.md). The
