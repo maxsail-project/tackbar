@@ -20,7 +20,7 @@ Please open or comment on an Issue before starting work, so the scope can be agr
 
 ### Running locally
 
-The local development workflow is described in [`docs/workflows/local-development.md`](docs/workflows/local-development.md). The supported setup is Windows with PowerShell, and it uses a runtime data directory outside the repository.
+The local development workflow is described in [`docs/local-runbook.md`](docs/local-runbook.md). The supported setup is Windows with PowerShell, and it uses a runtime data directory outside the repository.
 
 ### Privacy and security
 
@@ -48,7 +48,7 @@ Abre o comenta un Issue antes de empezar, para acordar primero el alcance. Un pu
 
 ### Ejecución local
 
-El flujo de desarrollo local se describe en [`docs/workflows/local-development.md`](docs/workflows/local-development.md) (en inglés). El entorno soportado es Windows con PowerShell, y usa un directorio de datos de ejecución fuera del repositorio.
+El flujo de desarrollo local se describe en [`docs/local-runbook.md`](docs/local-runbook.md) (en inglés). El entorno soportado es Windows con PowerShell, y usa un directorio de datos de ejecución fuera del repositorio.
 
 ### Privacidad y seguridad
 
