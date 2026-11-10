@@ -171,9 +171,10 @@ preparation report:
 
 Apply every `UPDATE` as part of preparation without requesting separate
 per-file approval. Examples include an affected current specification that
-omits an accepted delivered change, an obsolete current release in `README.md`,
-stale operational guidance or a roadmap that still presents delivered evolution
-as pending. Preserve accurate historical requirements and decisions.
+omits an accepted delivered change, release-specific wording in `README.md` or
+`ROADMAP.md` (both are intentionally version-independent and point to GitHub
+Releases), stale operational guidance or a roadmap that still presents delivered
+evolution as pending. Preserve accurate historical requirements and decisions.
 
 For `HISTORICAL — PRESERVE`, keep the accurate historical source unchanged and,
 when necessary, update the affected current specification. Old
