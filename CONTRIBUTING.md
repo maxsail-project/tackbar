@@ -18,6 +18,10 @@ An Issue's **Status** describes how well defined the work is. It does not mean t
 
 Please open or comment on an Issue before starting work, so the scope can be agreed first. A pull request should reference its Issue and stay within the approved scope. Behavior is specified in [`docs/current`](docs/current/index.md); changes that alter it should update the matching document.
 
+### Running locally
+
+The local development workflow is described in [`docs/workflows/local-development.md`](docs/workflows/local-development.md). The supported setup is Windows with PowerShell, and it uses a runtime data directory outside the repository.
+
 ### Privacy and security
 
 Never put private pilot data in a public Issue or pull request: no participant names or emails, GPS tracks, access links, credentials or tokens. If something could expose participant data or disrupt the service, email [hello@tackbar.eu](mailto:hello@tackbar.eu) instead of opening a public Issue.
@@ -41,6 +45,10 @@ El **Status** de un Issue describe lo bien definido que está el trabajo. No sig
 ### Pull requests
 
 Abre o comenta un Issue antes de empezar, para acordar primero el alcance. Un pull request debe referenciar su Issue y ceñirse al alcance aprobado. El comportamiento se especifica en [`docs/current`](docs/current/index.md); los cambios que lo alteren deben actualizar el documento correspondiente.
+
+### Ejecución local
+
+El flujo de desarrollo local se describe en [`docs/workflows/local-development.md`](docs/workflows/local-development.md) (en inglés). El entorno soportado es Windows con PowerShell, y usa un directorio de datos de ejecución fuera del repositorio.
 
 ### Privacidad y seguridad
 
