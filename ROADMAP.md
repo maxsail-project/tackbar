@@ -4,6 +4,15 @@ This is TackBar's canonical high-level roadmap. It describes product evolution
 and direction, not detailed release history, committed requirements or backlog
 ordering.
 
+**Links:** [Latest release](https://github.com/maxsail-project/tackbar/releases/latest) · [CHANGELOG](CHANGELOG.md) · [Open Issues](https://github.com/maxsail-project/tackbar/issues) · [README](README.md) · [Español](#versión-en-español)
+
+<!--
+For the Release Preparer: this roadmap is deliberately generic. "Delivered
+evolution" lists release families only; do not add per-release increments,
+issue numbers or feature names, and do not turn "Future directions" into a
+commitment. Release detail belongs in CHANGELOG.md and GitHub Releases.
+-->
+
 ## Product direction
 
 ```text
@@ -33,13 +42,8 @@ with real sailors before adding complexity.
   Session access and matured onboarding, mailbox, Admin and Viewer operation.
 - **v0.7.x Californian — Collaborative Debrief Analytics:** added
   maneuver-oriented collaborative debrief analytics, richer signal and
-  distribution comparison, and per-Activity Individual Analysis. Accepted
-  increments also add plain GPX ingestion, protected Admin track upload and
-  HIGH/LOW maneuver detection with explicit evidence in the Viewer, plus safe
-  feedback for actionable track-email failures and a clear human support contact.
-  The accepted Viewer increments also add a unified typical maneuver profile
-  chart for Primary and Comparison across SOG, relative COG and
-  absolute-magnitude HEEL, with signal-specific Insights.
+  distribution comparison, per-Activity analysis, and wider input and
+  operational support.
 
 See [CHANGELOG.md](CHANGELOG.md) and
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) for
@@ -47,22 +51,21 @@ delivered release detail.
 
 ## Current product direction
 
-Build on TackBar's validated post-sailing workflow and delivered collaborative debrief capabilities. Track ingestion, consent-aware Session sharing, personal Sailor/Boat/Activity context, synchronized replay, comparative analytics, historical weather context, and recorded race-start evidence now provide a substantial foundation for real sailing debriefs.
+Build on TackBar's validated post-sailing workflow and delivered collaborative debrief capabilities. Track ingestion, consent-aware Session sharing, personal context, synchronized replay, comparative analytics and contextual information provide a substantial foundation for real sailing debriefs.
 
 The next product focus is to make this evidence easier to explore, interpret and discuss together. TackBar should help sailors identify meaningful situations, compare observations and ask better questions, without automatically judging tactical decisions or presenting unsupported inferences as facts.
 
-Continue evolving the tablet-first experience through small, focused increments validated with real sailors. Prioritize clarity, traceability, reliable operations and reuse of existing capabilities over unnecessary complexity. Specific features and releases remain subject to explicit product decisions.
+Continue evolving the mobile-first experience, which also works well on tablets, through small, focused increments validated with real sailors. Prioritize clarity, traceability, reliable operations and reuse of existing capabilities over unnecessary complexity. Specific features and releases remain subject to explicit product decisions.
 
 ## Future directions
 
 Broad, non-committed areas for exploration include:
 
-- **Evidence-led collaborative debrief:** contextual Session Moments, meaningful comparisons, neutral sailing questions and guided exploration of tracks, replay and analytics, building on the [Debrief Experiences family (#149)](https://github.com/maxsail-project/tackbar/issues/149).
-- **Wind-aware sailing context:** build on delivered wind-relative map orientation and transparent modelled-source provenance; explore separately approved manual Session references and validated estimates or measurements, following the [Wind Reference family (#163)](https://github.com/maxsail-project/tackbar/issues/163) and related sensor feasibility research.
-- **Race and course context:** further use of recorded start-line and device observations, exploration of race-course references and wind-dependent analysis only where supported by reliable evidence.
-- **Additional Activity sources and formats:** broader compatibility with sailing instruments and navigation platforms, including Garmin-related integrations and other formats when technically and operationally viable.
-- **Debrief continuity and collaboration:** saved analysis windows, selected moments, focused sharing and personal follow-up experiences that extend the usefulness of a Session beyond the initial debrief.
-- **Operational maturity:** incremental improvements to ingestion automation, diagnostics, security, reliability and production operations, preserving the simplicity of the pilot workflow.
+- **Collaborative debrief:** easier exploration, interpretation and discussion of Session evidence by sailors together.
+- **Sailing context:** additional environmental and course context, only where supported by reliable evidence.
+- **Activity sources and formats:** broader compatibility with sailing instruments and navigation platforms, when technically and operationally viable.
+- **Debrief continuity:** ways to extend the usefulness of a Session beyond the initial debrief.
+- **Operational maturity:** incremental improvements to ingestion, diagnostics, security, reliability and production operations, preserving the simplicity of the pilot workflow.
 
 These directions are opportunities for independent, evidence-driven increments, not a fixed implementation sequence or a commitment to additional features.
 
@@ -75,6 +78,8 @@ Completed functionality is documented in the authoritative `docs/current/` speci
 Este es el roadmap canónico de alto nivel de TackBar. Describe la evolución y
 dirección del producto, no el historial detallado de releases, los requisitos
 comprometidos ni el orden del backlog.
+
+**Enlaces:** [Última release](https://github.com/maxsail-project/tackbar/releases/latest) · [CHANGELOG](CHANGELOG.md) · [Issues abiertos](https://github.com/maxsail-project/tackbar/issues) · [README](README.md) · [English](#tackbar-roadmap)
 
 ## Dirección del producto
 
@@ -106,13 +111,8 @@ completo posterior a la navegación antes de añadir complejidad.
   personal a Sessions y maduró onboarding, correo, Admin y operación del Viewer.
 - **v0.7.x Californian — Collaborative Debrief Analytics:** añadió análisis
   colaborativo orientado a maniobras, comparación más rica de señales y
-  distribuciones, e Individual Analysis por Activity. Los incrementos aceptados
-  también añaden ingesta GPX sin comprimir, carga protegida de tracks en Admin y
-  detección HIGH/LOW de maniobras con evidencia explícita en el Viewer. Además,
-  se añaden avisos seguros para fallos accionables de correo con tracks y un
-  contacto humano claro. Los incrementos aceptados del Viewer añaden también
-  un único gráfico comparativo P/C de perfiles típicos de maniobras para SOG,
-  COG relativo y magnitud absoluta de HEEL, con Insights específicos por señal.
+  distribuciones, análisis por Activity y mayor soporte de entradas y de
+  operación.
 
 Consulta [CHANGELOG.md](CHANGELOG.md) y
 [GitHub Releases](https://github.com/maxsail-project/tackbar/releases) para el
@@ -120,22 +120,21 @@ detalle de las releases entregadas.
 
 ## Dirección actual del producto
 
-Consolidar el flujo de trabajo validado de TackBar y las capacidades de debriefing colaborativo ya entregadas. La ingesta de tracks, las Sessions compartidas con control de consentimiento, el contexto personal de Sailor/Boat/Activity, el replay sincronizado, la analítica comparativa, el contexto meteorológico histórico y las evidencias registradas de las salidas de regata constituyen una base funcional sólida para analizar navegaciones reales.
+Consolidar el flujo de trabajo validado de TackBar y las capacidades de debriefing colaborativo ya entregadas. La ingesta de tracks, las Sessions compartidas con control de consentimiento, el contexto personal, el replay sincronizado, la analítica comparativa y la información contextual constituyen una base funcional sólida para analizar navegaciones reales.
 
 La siguiente prioridad de producto es facilitar la exploración, interpretación y discusión conjunta de esas evidencias. TackBar debe ayudar a los regatistas a identificar situaciones relevantes, comparar observaciones y plantear mejores preguntas, sin evaluar automáticamente decisiones tácticas ni presentar inferencias insuficientemente respaldadas como hechos.
 
-Continuar evolucionando la experiencia *tablet-first* mediante incrementos pequeños y focalizados, validados con regatistas reales. Priorizar claridad, trazabilidad, fiabilidad operativa y reutilización de las capacidades existentes frente a complejidad innecesaria. Las funcionalidades y releases concretas requieren decisiones explícitas de producto.
+Continuar evolucionando la experiencia *mobile-first*, que también funciona bien en tablet, mediante incrementos pequeños y focalizados, validados con regatistas reales. Priorizar claridad, trazabilidad, fiabilidad operativa y reutilización de las capacidades existentes frente a complejidad innecesaria. Las funcionalidades y releases concretas requieren decisiones explícitas de producto.
 
 ## Direcciones futuras
 
 Las principales áreas de exploración, todavía no comprometidas, incluyen:
 
-- **Debriefing colaborativo basado en evidencias:** Contextual Session Moments, comparaciones significativas, preguntas neutrales de navegación y exploración guiada de tracks, replay y analítica, siguiendo la [familia Debrief Experiences (#149)](https://github.com/maxsail-project/tackbar/issues/149).
-- **Contexto de navegación respecto al viento:** partir de la orientación del mapa y la procedencia transparente del modelo meteorológico ya entregadas; explorar por separado referencias manuales de Session y estimaciones o mediciones validadas, conforme a la [familia Wind Reference (#163)](https://github.com/maxsail-project/tackbar/issues/163) y las investigaciones instrumentales relacionadas.
-- **Contexto de regata y recorrido:** aprovechamiento de los registros de salida y observaciones de los dispositivos, exploración de referencias del campo de regatas y análisis dependientes del viento únicamente cuando existan evidencias suficientes.
-- **Nuevas fuentes y formatos de Activities:** ampliación de la compatibilidad con instrumentos de navegación y plataformas como Garmin, así como otros formatos cuya viabilidad técnica y operativa quede demostrada.
-- **Continuidad y colaboración en el debriefing:** ventanas de análisis guardadas, momentos seleccionados, compartición focalizada y experiencias personales que permitan aprovechar una Session más allá del debriefing inicial.
-- **Madurez operativa:** mejoras incrementales en automatización de ingesta, diagnóstico, seguridad, fiabilidad y operación en producción, preservando la sencillez del flujo validado durante el piloto.
+- **Debriefing colaborativo:** exploración, interpretación y discusión conjunta de las evidencias de una Session por parte de los regatistas.
+- **Contexto de navegación:** contexto ambiental y de recorrido adicional, únicamente cuando existan evidencias fiables.
+- **Fuentes y formatos de Activities:** ampliación de la compatibilidad con instrumentos de navegación y plataformas, cuando sea viable técnica y operativamente.
+- **Continuidad del debriefing:** formas de ampliar la utilidad de una Session más allá del debriefing inicial.
+- **Madurez operativa:** mejoras incrementales en ingesta, diagnóstico, seguridad, fiabilidad y operación en producción, preservando la sencillez del flujo validado durante el piloto.
 
 Estas direcciones representan oportunidades de evolución mediante incrementos independientes y respaldados por evidencias. No constituyen una secuencia fija de implementación ni un compromiso de nuevas funcionalidades.
 
