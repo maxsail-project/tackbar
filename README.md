@@ -54,6 +54,11 @@ one file up to 16 MiB and an explicitly selected existing `ACTIVE` Sailor.
 Accepted uploads process independently of the browser and send no automatic
 emails. Email remains the normal Sailor sharing path.
 
+Each supported track is limited to 16 MiB as received; Vakaros CSV.GZ and
+VKX.GZ may expand to at most 160 MiB. Shared Session responses identify
+Activities by sporting context and do not expose the full Sailor email or the
+internal Sailor ID.
+
 GPX requires one track and one nonempty segment, strictly increasing UTC,
 median sample interval at most 2 seconds, nearest-rank P95 at most 5 seconds,
 and no adjacent gap over 10 seconds. Compressed GPX and extension telemetry mapping
@@ -105,6 +110,9 @@ The current supported Vakaros exports provide data such as:
 * true heading;
 * heel;
 * trim.
+
+Plain GPX provides positions and UTC time; SOG and COG are derived from those
+positions, and HDG, HEEL and TRIM remain absent.
 
 Current format support is described in the pilot workflow above.
 
@@ -171,8 +179,7 @@ It does not inherit the Streamlit application architecture of MaxSail Analytics.
 
 Reusable TackBar sailing-analysis logic may evolve as an independent Python
 analytics/domain layer or library when needed. This direction does not claim a
-mature standalone analytics library is already delivered, and it does not turn
-v0.4 into an advanced analytics release.
+mature standalone analytics library is already delivered.
 
 The focus is instead on:
 
@@ -187,8 +194,15 @@ The focus is instead on:
 
 ## Project status
 
-**Controlled real-sailing pilot. Latest published release: v0.7.20 Californian
-— Blowin' in the Wind (TWS).**
+<!--
+For the Release Preparer: "Project status", "Releases and next direction" and their
+Spanish counterparts ("Estado del proyecto", "Releases y próxima dirección") are
+version-independent by design. Do not add release numbers, release summaries or
+"candidate" wording; the latest published release is shown in GitHub Releases.
+-->
+
+**Controlled real-sailing pilot.** The current published release is shown under
+[Releases → Latest](https://github.com/maxsail-project/tackbar/releases/latest).
 
 The delivered baseline includes OVH mailbox ingestion through
 `share@tackbar.eu`, track-first onboarding and explicit consent, Personal
@@ -216,29 +230,21 @@ See the [CHANGELOG](CHANGELOG.md) for delivered changes and the
 
 The project is not currently affiliated with or endorsed by Garmin, Vakaros or any other device manufacturer.
 
-## Published release and next direction
+## Releases and next direction
 
-### v0.7.20 Californian — Blowin' in the Wind (TWS)
-
-v0.7.20 adds a source-aware modelled-weather TWS reference and ephemeral
-Viewer correction. It also makes the Weather cue more compact and gives
-eligible rejected track emails actionable feedback. Analytical comparison
-remains limited to two Activities. The current candidate on `main`
-additionally includes accepted shared-identity minimization, track-size
-bounds, safer CSV timestamp handling and presentation refinements;
-publication is recorded separately in GitHub Releases.
-
-The accepted scope for **v0.7.14 Californian — GPX & Maneuver Analytics** is
-recorded in the [CHANGELOG](CHANGELOG.md). The
+The latest published release is always shown under
+[Releases → Latest](https://github.com/maxsail-project/tackbar/releases/latest).
+Delivered changes are recorded in the [CHANGELOG](CHANGELOG.md); the
 [current specification index](docs/current/index.md) owns functional behavior.
 
-Open GitHub Issues are the canonical pending-work inventory, and the GitHub
-Project provides its physical ordering without assigning release scope.
+Open [GitHub Issues](https://github.com/maxsail-project/tackbar/issues) are the
+canonical pending-work inventory, and the GitHub Project provides its physical
+ordering without assigning release scope. See also the [ROADMAP](ROADMAP.md).
 
-See the [v0.7 requirements](docs/v0.7-collaborative-debrief-analytics-requirements.md),
-[analytics decisions](docs/v0.7-decisions.md),
-[current mailbox operations decisions](docs/mailbox-operations-decisions.md),
-[CHANGELOG](CHANGELOG.md) and [ROADMAP](ROADMAP.md).
+Historical requirements and decisions:
+[v0.7 requirements](docs/v0.7-collaborative-debrief-analytics-requirements.md),
+[analytics decisions](docs/v0.7-decisions.md) and
+[mailbox operations decisions](docs/mailbox-operations-decisions.md).
 
 ## Public website
 
@@ -315,6 +321,11 @@ un archivo de hasta 16 MiB y un Sailor existente `ACTIVE` seleccionado
 explícitamente. La carga aceptada se procesa independientemente del navegador
 y no envía emails automáticos. El email sigue siendo el canal habitual.
 
+Cada track admitido tiene un límite de 16 MiB recibidos; Vakaros CSV.GZ y
+VKX.GZ pueden expandirse como máximo a 160 MiB. Las respuestas de Sessions
+compartidas identifican las Activities por contexto deportivo y no exponen el
+email completo del Sailor ni su ID interno.
+
 GPX exige un track y un segmento no vacío, UTC estrictamente creciente,
 intervalo mediano entre muestras de como máximo 2 segundos, P95 de rango más cercano
 de como máximo 5 segundos y ningún salto superior a 10 segundos. GPX comprimido y el mapeo
@@ -368,6 +379,9 @@ Las exportaciones Vakaros admitidas actualmente proporcionan información como:
 * escora;
 * trimado.
 
+El GPX sin comprimir aporta posiciones y hora UTC; SOG y COG se derivan de esas
+posiciones, y HDG, HEEL y TRIM permanecen ausentes.
+
 El soporte actual de formatos se describe en el flujo del piloto anterior.
 
 TackBar pretende ser independiente del dispositivo utilizado.
@@ -410,7 +424,7 @@ precisión. Los artefactos v6 se regeneran bajo demanda como v7 mediante las
 rutas analíticas autorizadas. Consulta [Analytics](docs/current/analytics.md)
 para disponibilidad y limitaciones.
 
-La capa de ingestión permanecerá separada de la capa analítica.
+La capa de ingesta permanecerá separada de la capa analítica.
 
 De esta forma podrán incorporarse nuevas fuentes de actividad sin modificar el núcleo de análisis de navegación.
 
@@ -436,12 +450,12 @@ No hereda la arquitectura de aplicación Streamlit de MaxSail Analytics.
 La lógica reutilizable de análisis de vela de TackBar podrá evolucionar como
 una capa o librería independiente de analítica/dominio en Python cuando sea
 necesario. Esta dirección no afirma que ya exista una librería independiente
-madura ni convierte v0.4 en una release de analítica avanzada.
+madura.
 
 El foco pasa a estar en:
 
 * debriefing colaborativo;
-* ingestión automática de actividades;
+* ingesta automática de actividades;
 * uso desde móvil y tablet;
 * análisis basado en sesiones;
 * simplicidad del flujo posterior a la navegación;
@@ -451,8 +465,8 @@ El foco pasa a estar en:
 
 ## Estado del proyecto
 
-**Piloto controlado con navegaciones reales. Última release publicada:
-v0.7.19 Californian — Follow the Wind (TWD).**
+**Piloto controlado con navegaciones reales.** La release publicada actual figura en
+[Releases → Latest](https://github.com/maxsail-project/tackbar/releases/latest).
 
 La baseline entregada incluye ingesta del buzón OVH mediante
 `share@tackbar.eu`, onboarding iniciado por track y consentimiento explícito,
@@ -481,30 +495,22 @@ Consulta el [CHANGELOG](CHANGELOG.md) para los cambios entregados y las
 
 Actualmente el proyecto no está afiliado ni respaldado por Garmin, Vakaros ni ningún otro fabricante de dispositivos.
 
-## Release publicada y próxima dirección
+## Releases y próxima dirección
 
-### v0.7.19 Californian — Follow the Wind (TWD)
-
-v0.7.19 añade una referencia TWD temporal de viento modelado para orientar el
-mapa y una corrección efímera en el Viewer. También mejora la admisión de GPX,
-la presentación personal y de Admin, y la seguridad de escritura de metadatos
-JSON. La comparación analítica sigue limitada a dos Activities. El candidato
-actual de `main` también incluye incrementos aceptados de TWS, resumen compacto
-de Weather y correos accionables ante fallos de tracks; la publicación se
-registra por separado en GitHub Releases.
-
-El alcance aceptado de **v0.7.14 Californian — GPX & Maneuver Analytics** queda
-recogido en [CHANGELOG](CHANGELOG.md). El
+La última release publicada figura siempre en
+[Releases → Latest](https://github.com/maxsail-project/tackbar/releases/latest).
+Los cambios entregados se registran en el [CHANGELOG](CHANGELOG.md); el
 [índice de especificaciones actuales](docs/current/index.md) define el
 comportamiento funcional.
 
-Los Issues abiertos de GitHub son el inventario canónico de trabajo pendiente y
-GitHub Project aporta su orden físico sin asignar alcance de release.
+Los [Issues](https://github.com/maxsail-project/tackbar/issues) abiertos son el
+inventario canónico de trabajo pendiente y GitHub Project aporta su orden
+físico sin asignar alcance de release. Consulta también el [ROADMAP](ROADMAP.md).
 
-Consulta los [requisitos v0.7](docs/v0.7-collaborative-debrief-analytics-requirements.md),
-las [decisiones de analítica](docs/v0.7-decisions.md), las
-[decisiones operativas actuales del buzón](docs/mailbox-operations-decisions.md),
-el [CHANGELOG](CHANGELOG.md) y el [ROADMAP](ROADMAP.md).
+Requisitos y decisiones históricos:
+[requisitos v0.7](docs/v0.7-collaborative-debrief-analytics-requirements.md),
+[decisiones de analítica](docs/v0.7-decisions.md) y
+[decisiones operativas del buzón](docs/mailbox-operations-decisions.md).
 
 ## Web pública
 
@@ -569,7 +575,8 @@ Cualquier colaboración, idea, prueba o feedback por parte de regatistas, entren
 
 * **Author / Autor:** Maximiliano Mannise
 * **LinkedIn:** https://www.linkedin.com/in/mmannise
-* **Email:** [maxsail.project@gmail.com](mailto:maxsail.project@gmail.com)
+* **Product / Producto:** [hello@tackbar.eu](mailto:hello@tackbar.eu)
+* **Author email / Email del autor:** [maxsail.project@gmail.com](mailto:maxsail.project@gmail.com)
 * **GitHub:** maxsail-project
 
 ---
