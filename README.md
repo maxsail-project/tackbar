@@ -2,7 +2,7 @@
 
 **Collaborative post-sailing debriefing for sailors, coaches and racing teams.**
 
-TackBar is an early-stage open-source project focused on making post-sailing analysis simple, collaborative and immediate.
+TackBar is an open-source project running a controlled real-sailing pilot, focused on making post-sailing analysis simple, collaborative and immediate.
 
 The core idea is simple:
 
@@ -96,21 +96,18 @@ received track.
 
 ---
 
-## Automatic session detection
+## Automatic Session detection
 
-TackBar attempts to identify activities that belong to the same sailing session using:
+TackBar matches each new Activity to a compatible Session using when and where
+it was sailed: its sailing time and geographic proximity. The time the email
+arrives does not matter. See [Domain and Sessions](docs/current/domain-and-sessions.md)
+for the current limits.
 
-* activity date;
-* start and end time;
-* temporal overlap;
-* geographic proximity;
-* GPS track location.
+If no compatible Session exists, TackBar creates a new one automatically.
 
-If no compatible session exists, TackBar creates a new session automatically.
+The goal is that sailors do not need to create a Session manually before sailing.
 
-The goal is that sailors do not need to create a session manually before sailing.
-
-The first sailor simply sends a track. Subsequent tracks from nearby sailors are automatically associated with the same session when time and location are compatible.
+The first sailor simply sends a track. Subsequent tracks from nearby sailors are automatically associated with the same Session when time and location are compatible.
 
 ---
 
@@ -149,7 +146,7 @@ Current technology and persistence:
 
 The Session Viewer reads Sessions, Activities and tracks actually persisted by
 the backend; public sanitized TEST data exercises the same runtime and API
-path. SQLite is not a prerequisite for this PoC.
+path.
 
 The Viewer offers:
 
@@ -232,10 +229,6 @@ immutable tags and GitHub Releases; production deployment is established by
 successful execution of the exact-release deployment workflow, as described
 in the [production runbook](docs/production-runbook.md).
 
-The delivered v0.5.x baseline includes Sailor / optional Boat context, automatic
-Session matching, one/two-Activity comparison, a shared GPS/UTC Analysis
-Window, synchronized replay and SOG/COG/HEEL/TRIM analysis.
-
 The debrief is collaborative because sailors inspect and discuss the Session
 together around a phone or tablet; it does not require built-in chat or
 messaging.
@@ -282,7 +275,7 @@ private pilot/runtime data open data.
 
 **Debriefing colaborativo después de navegar para regatistas, entrenadores y equipos.**
 
-TackBar es un proyecto open-source en fase inicial cuyo objetivo es hacer que el análisis posterior a una navegación sea simple, colaborativo e inmediato.
+TackBar es un proyecto open-source con un piloto controlado en navegaciones reales, cuyo objetivo es hacer que el análisis posterior a una navegación sea simple, colaborativo e inmediato.
 
 La idea central es sencilla:
 
@@ -334,7 +327,7 @@ en una Activity con contexto Boat opcional y se asocia automáticamente a una
 Session.
 
 El consentimiento controla la visibilidad compartida, no la ingesta técnica ni
-el Session matching. Sólo las Activities de Sailors actualmente `ACTIVE`
+el Session matching. Solo las Activities de Sailors actualmente `ACTIVE`
 aparecen en Sessions compartidas. El acceso utiliza una capability URL de
 Session válida, sin un sistema general de login de Sailor.
 
@@ -381,19 +374,17 @@ estable de un track recibido.
 
 ## Detección automática de sesiones
 
-TackBar intenta identificar las actividades que pertenecen a una misma sesión utilizando:
+TackBar asocia cada nueva Activity a una Session compatible según cuándo y dónde
+se navegó: su tiempo de navegación y su proximidad geográfica. La hora a la que
+llega el email no influye. Consulta
+[Domain and Sessions](docs/current/domain-and-sessions.md) para los límites
+actuales.
 
-* fecha de la actividad;
-* hora de inicio y finalización;
-* solapamiento temporal;
-* proximidad geográfica;
-* localización del track GPS.
+Si no existe una Session compatible, TackBar crea una nueva automáticamente.
 
-Si no existe una sesión compatible, TackBar crea una nueva automáticamente.
+El objetivo es que los regatistas no tengan que crear previamente una Session antes de salir a navegar.
 
-El objetivo es que los regatistas no tengan que crear previamente una sesión antes de salir a navegar.
-
-El primer regatista simplemente envía su track. Los siguientes tracks se asocian automáticamente a la misma sesión cuando la hora y la ubicación son compatibles.
+El primer regatista simplemente envía su track. Los siguientes tracks se asocian automáticamente a la misma Session cuando la hora y la ubicación son compatibles.
 
 ---
 
@@ -432,7 +423,7 @@ Tecnología y persistencia actuales:
 
 El Session Viewer lee Sessions, Activities y tracks realmente persistidos por
 el backend; los datos TEST públicos y sanitizados ejercitan la misma ruta
-runtime/API. SQLite no es un requisito previo para esta PoC.
+runtime/API.
 
 El Viewer ofrece:
 
@@ -509,10 +500,6 @@ Los tags
 inmutables y GitHub Releases establecen la publicación; la ejecución correcta
 del workflow para esa release establece el despliegue técnico, según el
 [runbook de producción](docs/production-runbook.md).
-
-La baseline v0.5.x entregada incluye Sailor / contexto Boat opcional, Session
-matching automático, comparación de una/dos Activities, Analysis Window GPS/UTC
-compartida, replay sincronizado y análisis SOG/COG/HEEL/TRIM.
 
 El debriefing es colaborativo porque los regatistas inspeccionan y comentan la
 Session juntos alrededor de un móvil o tablet; no requiere chat ni mensajería
