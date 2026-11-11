@@ -6,6 +6,8 @@ from math import isfinite
 from pathlib import Path
 from uuid import uuid4
 
+import pandas as pd
+
 from app.models import Activity, LinePosition, RaceTimerEvent, ShiftAngleObservation, StoredActivity
 from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
@@ -241,7 +243,7 @@ def _parse_datetime(value: str) -> datetime:
 def _validate_activity_metadata(activity: StoredActivity) -> None:
     for field_name in ("start_time", "end_time"):
         value = getattr(activity, field_name)
-        if not isinstance(value, datetime) or value != value:
+        if not isinstance(value, datetime) or value is pd.NaT:
             raise ValueError(f"Activity {field_name} must be a valid datetime")
     for field_name in (
         "start_lat", "start_lon", "end_lat", "end_lon", "center_lat",

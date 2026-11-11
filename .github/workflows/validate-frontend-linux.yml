@@ -31,7 +31,7 @@ jobs:
 
       - name: Install frontend dependencies
         id: install
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run complete frontend test suite
         id: tests

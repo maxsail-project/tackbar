@@ -41,9 +41,9 @@ function Get-TestCounts {
     if ($Kind -eq 'frontend') {
         # Vitest: "Tests  957 passed | 2 skipped (959)".
         # En diferentes versiones puede llevar espacios, barras o separadores.
-        $matches = @($lines | Where-Object { $_ -match '\bTests\s*:?\s*\d+\s+passed\b' })
-        if ($matches.Count -eq 0) { return $null }
-        $matchLine = [string]$matches[-1]
+        $matchingLines = @($lines | Where-Object { $_ -match '\bTests\s*:?\s*\d+\s+passed\b' })
+        if ($matchingLines.Count -eq 0) { return $null }
+        $matchLine = [string]$matchingLines[-1]
         $passedMatch = [regex]::Match($matchLine, '\bTests\s*:?\s*(\d+)\s+passed\b')
         if (-not $passedMatch.Success) { return $null }
         $failedMatch = [regex]::Match($matchLine, '\b(\d+)\s+failed\b')
