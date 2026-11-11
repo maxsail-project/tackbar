@@ -1,0 +1,6 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "maxsail-project-oss-connection",
+        "projectKey": "maxsail-project_tackbar"
+    }
+}
