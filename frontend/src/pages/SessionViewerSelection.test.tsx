@@ -312,14 +312,26 @@ describe('Viewer TWD state', () => {
     expect(weatherTime()).toBe(new Date(start + 9_000).toISOString())
   })
 
-  it.each(['original', 'temporary'] as const)('places the collapsed wind section after Maneuver Analysis and recomputes from effective TWD on %s access', async (accessKind) => {
+  it.each(['original', 'temporary'] as const)('places collapsed Wind Segments (P) then Wind Analysis after Maneuver Analysis and recomputes from effective TWD on %s access', async (accessKind) => {
     await mountViewer(accessKind, windSession)
     const section = () => container.querySelector('.wind-context-section')
+    const segmentsSection = container.querySelector('.wind-segments-section')!
     expect(section()).not.toBeNull()
-    expect(container.querySelector('[data-viewer-section="maneuver-analysis"]')!.compareDocumentPosition(section()!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(section()!.compareDocumentPosition(container.querySelector('[aria-labelledby="comparison-title"]')!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(section()!.querySelector('.maneuver-section__collapse')?.getAttribute('aria-expanded')).toBe('false')
-    expect(section()!.querySelector('[hidden]')).not.toBeNull()
+    const order = [
+      container.querySelector('[data-viewer-section="maneuver-analysis"]')!,
+      segmentsSection,
+      section()!,
+      container.querySelector('[aria-labelledby="comparison-title"]')!,
+    ]
+    for (let index = 1; index < order.length; index += 1) {
+      expect(order[index - 1].compareDocumentPosition(order[index])).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    }
+    for (const collapsible of [segmentsSection, section()!]) {
+      expect(collapsible.querySelector('.maneuver-section__collapse')?.getAttribute('aria-expanded')).toBe('false')
+      expect(collapsible.querySelector('[hidden]')).not.toBeNull()
+    }
+    expect(segmentsSection.querySelector('[data-wind-segments-summary]')!.textContent).toBe('1 segment')
+    expect(section()!.querySelector('[data-wind-context-summary]')!.textContent).toBe('P Upwind')
     const reference = () => section()!.querySelector('.wind-context__reference')!.textContent
     const primaryRow = () => section()!.querySelector('[data-wind-role="primary"]')!.textContent
     // COG 090° vs original modelled 91.6° → upwind, tack indeterminate.
@@ -366,13 +378,32 @@ describe('Viewer TWD state', () => {
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
   })
 
-  it.each(['original', 'temporary'] as const)('lists P wind segments with Pre-start at the inferred Start on %s access', async (accessKind) => {
+  it.each(['original', 'temporary'] as const)('does not split or relabel P wind segments at an inferred Start on %s access', async (accessKind) => {
     await mountViewer(accessKind, windSession)
-    const rows = [...container.querySelectorAll<HTMLTableRowElement>('.wind-context-section [data-wind-segment]')]
-    // Inferred Start S1 at +5.25 s forces a boundary; all time is shorter than 90 s.
-    expect(rows.map((row) => row.dataset.windSegment)).toEqual(['pre-start', 'unclassified'])
-    expect(rows[0].textContent).toBe('Pre-start10:00:00–10:00:055s')
-    expect(container.querySelector('.wind-context-section [data-wind-segment-comparison]')).toBeNull()
+    // Inferred Start S1 at +5.25 s stays on the timeline but does not bound segments; all time is under 90 s.
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
+    const rows = [...container.querySelectorAll<HTMLTableRowElement>('.wind-segments-section [data-wind-segment]')]
+    expect(rows.map((row) => row.dataset.windSegment)).toEqual(['unclassified'])
+    expect(rows[0].textContent).toBe('Unclassified10:00:00–10:00:1010s')
+    expect(container.querySelector('.wind-segments-section [data-wind-segment-comparison]')).toBeNull()
+    expect(container.querySelector('.wind-segments-section .wind-context-table-wrap')).toBeNull()
+  })
+
+  it('syncs the Wind Analysis notes popover state with its native toggle', async () => {
+    await mountViewer('original', windSession)
+    const section = container.querySelector('.wind-context-section')!
+    const info = section.querySelector<HTMLButtonElement>('button[aria-label="About wind analysis"]')!
+    const notes = section.querySelector<HTMLElement>('[data-wind-notes]')!
+    expect(info.getAttribute('popovertarget')).toBe(notes.id)
+    expect(notes.getAttribute('popover')).toBe('auto')
+    expect(info.getAttribute('aria-expanded')).toBe('false')
+    const toggle = async (newState: 'open' | 'closed') => act(async () => {
+      notes.dispatchEvent(Object.assign(new Event('toggle'), { newState, oldState: newState === 'open' ? 'closed' : 'open' }))
+    })
+    await toggle('open')
+    expect(info.getAttribute('aria-expanded')).toBe('true')
+    await toggle('closed')
+    expect(info.getAttribute('aria-expanded')).toBe('false')
   })
 
   describe('with a long track across two modelled wind samples', () => {
@@ -396,7 +427,9 @@ describe('Viewer TWD state', () => {
       },
     }
     const section = () => container.querySelector('.wind-context-section')!
-    const rows = () => [...section().querySelectorAll<HTMLTableRowElement>('[data-wind-segment]')]
+    const segmentsSection = () => container.querySelector('.wind-segments-section')!
+    const rows = () => [...segmentsSection().querySelectorAll<HTMLTableRowElement>('[data-wind-segment]')]
+    const analysisExpanded = () => section().querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')
     const kinds = () => rows().map((row) => row.dataset.windSegment)
     const pressed = () => rows().map((row) => row.querySelector('button')!.getAttribute('aria-pressed'))
     const playbackTime = () => container.querySelector('[data-playback-time]')!.getAttribute('data-playback-time')
@@ -413,7 +446,12 @@ describe('Viewer TWD state', () => {
       expect(rows().map((row) => row.querySelector('td:nth-child(2)')!.textContent)).toEqual(['10:00:00–10:03:21', '10:03:21–10:06:40'])
       expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 000° · Modelled')
       expect(pressed()).toEqual(['false', 'false'])
+      expect(segmentsSection().querySelector('[data-wind-segments-summary]')!.textContent).toBe('2 segments')
+      expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('P Upwind')
       await act(async () => rows()[1].querySelector('button')!.click())
+      // Selection does not auto-expand Wind Analysis.
+      expect(analysisExpanded()).toBe('false')
+      expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('P Reaching')
       // The window result TWD follows the new midpoint; the list does not.
       expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 090° · Modelled')
       expect(kinds()).toEqual(['upwind', 'reaching'])
@@ -438,9 +476,13 @@ describe('Viewer TWD state', () => {
     it('classifies C over each P segment with the per-sample rule and keeps it through selection', async () => {
       await mountViewer('original', longWindSession)
       await choose('Compare', 'b')
-      const comparisonCells = () => [...section().querySelectorAll('[data-wind-segment-comparison]')].map((cell) => cell.textContent)
+      const comparisonCells = () => [...segmentsSection().querySelectorAll('[data-wind-segment-comparison]')].map((cell) => cell.textContent)
       expect(comparisonCells()).toEqual(['Upwind', 'Reaching'])
+      // An expanded Wind Analysis stays expanded through selection.
+      await act(async () => section().querySelector<HTMLButtonElement>('.maneuver-section__collapse')!.click())
+      expect(analysisExpanded()).toBe('true')
       await act(async () => rows()[0].querySelector('button')!.click())
+      expect(analysisExpanded()).toBe('true')
       expect(pressed()).toEqual(['true', 'false'])
       expect(comparisonCells()).toEqual(['Upwind', 'Reaching'])
       expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('b')
@@ -448,15 +490,29 @@ describe('Viewer TWD state', () => {
       expect(section().querySelector('[data-wind-role="primary"]')!.textContent).toBe('P100%0%0%Upwind')
       expect(section().querySelector('[data-wind-role="comparison"]')!.textContent).toBe('C100%0%0%Upwind')
     })
+
+    it('does not split a homogeneous segment at an inferred Start inside it', async () => {
+      vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
+        { activity_id: 'a', race_timer_events: [{ timestamp: new Date(start + 100_000).toISOString(), event_type: 3 }], line_positions: [] },
+        { activity_id: 'b', race_timer_events: [{ timestamp: new Date(start + 100_500).toISOString(), event_type: 3 }], line_positions: [] },
+      ] })
+      await mountViewer('original', longWindSession)
+      expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
+      expect(kinds()).toEqual(['upwind', 'reaching'])
+      expect(rows().map((row) => row.querySelector('td:nth-child(2)')!.textContent)).toEqual(['10:00:00–10:03:21', '10:03:21–10:06:40'])
+    })
   })
 
   it('hides the wind section without effective TWD and shows it for a manual-only correction', async () => {
     await mountViewer('original', session)
     expect(container.querySelector('.wind-context-section')).toBeNull()
+    expect(container.querySelector('.wind-segments-section')).toBeNull()
     await click('[data-twd-minus]')
-    expect(container.querySelector('.wind-context__reference')!.textContent).toBe('TWD 355° · Manual · Viewer')
+    expect(container.querySelector('.wind-context-section .wind-context__reference')!.textContent).toBe('TWD 355° · Manual · Viewer')
+    expect(container.querySelector('.wind-segments-section')).not.toBeNull()
     await click('[data-twd-auto]')
     expect(container.querySelector('.wind-context-section')).toBeNull()
+    expect(container.querySelector('.wind-segments-section')).toBeNull()
   })
 
   it('keeps unavailable North-up distinct from manual-only ±5° and returns to unavailable', async () => {

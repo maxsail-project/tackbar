@@ -172,13 +172,13 @@ describe('wind segment partition', () => {
       { seconds: 120, cog: 180, gapBefore: 20 },
       { seconds: 70, cog: 90 },
     ])
-    const segments = detectWindSegments(samples, range, twd(0), [at(40)])
+    const segments = detectWindSegments(samples, range, twd(0))
     for (let index = 1; index < segments.length; index += 1) {
       expect(segments[index].start).toBeGreaterThanOrEqual(segments[index - 1].end)
       expect(segments[index].end).toBeGreaterThan(segments[index].start)
     }
     expect(summary(segments)).toEqual([
-      ['pre-start', 0, 40],
+      ['unclassified', 0, 40],
       ['upwind', 40, 190],
       ['unclassified', 190, 219],
       ['downwind', 240, 360],
@@ -187,48 +187,32 @@ describe('wind segment partition', () => {
   })
 })
 
-describe('Session Start boundaries and Pre-start', () => {
-  it('labels the Unclassified segment ending at a Start as Pre-start', () => {
-    const { samples, range } = track([{ seconds: 300, cog: 90, sog: 0.5 }, { seconds: 200, cog: 315 }])
-    expect(summary(detectWindSegments(samples, range, twd(0), [at(300)]))).toEqual([
-      ['pre-start', 0, 300],
-      ['upwind', 300, 500],
-    ])
-    expect(summary(detectWindSegments(samples, range, twd(0)))).toEqual([
-      ['unclassified', 0, 300],
-      ['upwind', 300, 500],
-    ])
+describe('no Start-driven segments', () => {
+  it('keeps a homogeneous run whole where an inferred Start would fall, and slow pre-race time is just Unclassified', () => {
+    // Segmentation has no Start input: a Start at +100 s or +300 s cannot split or relabel anything.
+    const homogeneous = track([{ seconds: 200, cog: 315 }])
+    expect(summary(detectWindSegments(homogeneous.samples, homogeneous.range, twd(0)))).toEqual([['upwind', 0, 200]])
+    const slowThenBeat = track([{ seconds: 300, cog: 90, sog: 0.5 }, { seconds: 200, cog: 315 }])
+    const segments = detectWindSegments(slowThenBeat.samples, slowThenBeat.range, twd(0))
+    expect(summary(segments)).toEqual([['unclassified', 0, 300], ['upwind', 300, 500]])
+    expect(segments.map(({ kind }) => formatWindSegmentKind(kind))).toEqual(['Unclassified', 'Upwind'])
   })
 
-  it('forces a boundary at a Start inside a classified run', () => {
-    const { samples, range } = track([{ seconds: 200, cog: 315 }])
-    expect(summary(detectWindSegments(samples, range, twd(0), [at(100)]))).toEqual([
-      ['upwind', 0, 100],
-      ['upwind', 100, 200],
-    ])
-    // A side below 90 s is Unclassified; it ends at the Start, so it is Pre-start.
-    expect(summary(detectWindSegments(samples, range, twd(0), [at(50)]))).toEqual([
-      ['pre-start', 0, 50],
-      ['upwind', 50, 200],
-    ])
-  })
-
-  it('lets each Start close its own Pre-start and ignores Starts outside the range', () => {
-    const { samples, range } = track([{ seconds: 300, cog: 90, sog: 0.5 }, { seconds: 100, cog: 315 }])
-    expect(summary(detectWindSegments(samples, range, twd(0), [at(100), at(250), at(-30), at(900), at(100)]))).toEqual([
-      ['pre-start', 0, 100],
-      ['pre-start', 100, 250],
-      ['unclassified', 250, 300],
-      ['upwind', 300, 400],
-    ])
-  })
-
-  it('does not label Pre-start when a data gap precedes the Start', () => {
-    const { samples, range } = track([{ seconds: 100, cog: 90, sog: 0.5 }, { seconds: 100, cog: 315, gapBefore: 30 }])
-    expect(summary(detectWindSegments(samples, range, twd(0), [at(130)]))).toEqual([
-      ['unclassified', 0, 99],
-      ['upwind', 130, 230],
-    ])
+  it('produces consecutive same-sector segments only across data gaps over 10 s', () => {
+    const tracks = [
+      track([{ seconds: 120, cog: 315 }, { seconds: 30, cog: 90 }, { seconds: 120, cog: 45 }, { seconds: 100, cog: 180 }]),
+      track([{ seconds: 100, cog: 315 }, { seconds: 100, cog: 45, gapBefore: 10 }, { seconds: 100, cog: 45, gapBefore: 30 }]),
+      track([{ seconds: 40, cog: 0, sog: 0.5 }, { seconds: 50, cog: 90 }, { seconds: 59, cog: 315, sog: 1 }, { seconds: 95, cog: 90 }]),
+    ]
+    const pairs: [WindSegment, WindSegment][] = []
+    for (const { samples, range } of tracks) {
+      const segments = detectWindSegments(samples, range, twd(0))
+      for (let index = 1; index < segments.length; index += 1) {
+        if (segments[index].kind === segments[index - 1].kind) pairs.push([segments[index - 1], segments[index]])
+      }
+    }
+    expect(pairs.length).toBeGreaterThan(0)
+    for (const [previous, next] of pairs) expect(next.start - previous.end).toBeGreaterThan(0)
   })
 })
 

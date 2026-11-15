@@ -2,7 +2,6 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { WindContextResult } from '../utils/windContext'
 import type { WindProgress } from '../utils/windProgress'
-import type { WindSegment } from '../utils/windSegments'
 import WindContextSection from './WindContextSection'
 
 const upwind: WindContextResult = {
@@ -214,56 +213,35 @@ describe('WindContextSection', () => {
     expect(upwindOnly).not.toContain('Downwind readings')
   })
 
-  const t0 = Date.UTC(2025, 5, 21, 11, 30)
-  const segments: WindSegment[] = [
-    { kind: 'pre-start', start: t0, end: t0 + 300_000 },
-    { kind: 'upwind', start: t0 + 300_000, end: t0 + 670_000 },
-    { kind: 'unclassified', start: t0 + 670_000, end: t0 + 715_000 },
-    { kind: 'reaching', start: t0 + 715_000, end: t0 + 820_000 },
-  ]
+  it('shows effective TWD, source and P classification in the collapsed header', () => {
+    const markup = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={downwind} comparison={upwind}
+    />)
+    const header = markup.slice(0, markup.indexOf('hidden=""'))
+    expect(text(header)).toContain('TWD 105° · Modelled')
+    expect(text(header)).toContain('P Downwind')
+    expect(text(header)).not.toContain('Upwind')
+    expect(text(renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={unavailable}
+    />).split('hidden=""')[0])).toContain('P Unavailable')
+  })
 
-  it('lists P segments with Segment, Time and Duration, secondary Unclassified/Pre-start rows and the current window highlighted', () => {
+  it('moves explanatory notes into an accessible native info popover', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
-      segments={segments} analysisWindow={{ start: t0 + 300_000, end: t0 + 670_000 }}
+      primaryProgress={{ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }}
     />)
-    const content = text(markup)
-    expect(content).toContain('Segments (P)')
-    expect(content).toContain('Segment Time (UTC) Duration')
-    expect(content).toContain('Pre-start 11:30:00–11:35:00 5m00s')
-    expect(content).toContain('Upwind 11:35:00–11:41:10 6m10s')
-    expect(content).toContain('Unclassified 11:41:10–11:41:55 45s')
-    expect(content).toContain('Reaching 11:41:55–11:43:40 1m45s')
-    expect(content).not.toContain('Reach ')
-    expect(markup.match(/wind-segments__row--secondary/g)).toHaveLength(2)
-    expect(markup.match(/aria-pressed="true"/g)).toHaveLength(1)
-    expect(markup).toContain('aria-pressed="true" aria-label="Set Analysis Window to Upwind segment 11:35:00–11:41:10 UTC"')
-    expect(markup).not.toContain('data-wind-segment-comparison')
-    expect(markup.indexOf('Segments (P)')).toBeLessThan(markup.indexOf('Wind sector composition'))
-  })
-
-  it('shows the isolated C column only when classifications are provided', () => {
-    const markup = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={upwind}
-      segments={segments} comparisonSegmentClassifications={['unavailable', 'upwind', 'mixed', 'reaching']}
-    />)
-    const content = text(markup)
-    expect(content).toContain('Segment Time (UTC) Duration C')
-    expect(content).toContain('Pre-start 11:30:00–11:35:00 5m00s Unavailable')
-    expect(content).toContain('Upwind 11:35:00–11:41:10 6m10s Upwind')
-    expect(content).toContain('Unclassified 11:41:10–11:41:55 45s Mixed')
-    expect(markup.match(/data-wind-segment-comparison/g)).toHaveLength(4)
-    expect(markup).not.toContain('aria-pressed="true"')
-  })
-
-  it('shows an empty segment state and omits the list when segments are not provided', () => {
-    const empty = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={unavailable} segments={[]}
-    />)
-    expect(text(empty)).toContain('No segments for P in the available range.')
-    const omitted = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={unavailable}
-    />)
-    expect(omitted).not.toContain('Segments (P)')
+    const control = markup.match(/<button[^>]*aria-label="About wind analysis"[^>]*>/)![0]
+    const notesId = control.match(/aria-controls="([^"]+)"/)![1]
+    expect(control).toContain('class="maneuver-evidence__info"')
+    expect(control).toContain('aria-expanded="false"')
+    expect(control).toContain(`popoverTarget="${notesId}"`)
+    expect(markup).toContain(`id="${notesId}" class="maneuver-evidence__help" popover="auto" role="note" aria-labelledby="${notesId}-title"`)
+    const popover = markup.slice(markup.indexOf(`id="${notesId}"`))
+    expect(text(popover)).toContain('Wind analysis notes')
+    expect(text(popover)).toContain('Shares of moving time (SOG ≥ 1.5 kn)')
+    expect(text(popover)).toContain('Axis is the estimated bisector of the upwind tacks')
+    expect(text(popover)).toContain('It is not VMG.')
+    expect(markup).not.toContain('class="wind-context__note"')
   })
 })

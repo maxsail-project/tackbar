@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { WIND_CONTEXT_CONFIG } from '../config/windContext'
 import { formatTwdDegrees } from '../utils/twdPresentation'
@@ -11,7 +11,6 @@ import {
   type TackAxis,
   type TackAxisHint,
   type WindContextResult,
-  type WindWindowClassification,
 } from '../utils/windContext'
 import {
   calculateProgressDifference,
@@ -19,14 +18,6 @@ import {
   formatProgressReason,
   type WindProgress,
 } from '../utils/windProgress'
-import { formatGpsTime } from '../utils/replay'
-import type { AnalysisWindowRange } from '../utils/analysisWindow'
-import {
-  formatWindSegmentKind,
-  windSegmentMatchesWindow,
-  type WindSegment,
-} from '../utils/windSegments'
-import { formatAnalysisWindowDuration } from './AnalysisWindow'
 
 type Role = 'primary' | 'comparison'
 
@@ -37,15 +28,6 @@ interface WindContextSectionProps {
   primary: WindContextResult
   comparison?: WindContextResult
   primaryProgress?: WindProgress
-  /** P-referenced wind segments (#192.3); omitted hides the list. */
-  segments?: WindSegment[]
-  analysisWindow?: AnalysisWindowRange | null
-  onSegmentSelect?: (segment: WindSegment) => void
-  /**
-   * Isolated C column: C's classification over each P segment interval, index-aligned with
-   * `segments`. Omit to remove the column.
-   */
-  comparisonSegmentClassifications?: WindWindowClassification[]
   comparisonProgress?: WindProgress
 }
 
@@ -91,13 +73,12 @@ export default function WindContextSection({
   comparison,
   primaryProgress,
   comparisonProgress,
-  segments,
-  analysisWindow = null,
-  onSegmentSelect,
-  comparisonSegmentClassifications,
 }: WindContextSectionProps) {
   const [expanded, setExpanded] = useState(false)
+  const [notesExpanded, setNotesExpanded] = useState(false)
   const contentId = useId()
+  const notesId = useId()
+  const notesRef = useRef<HTMLDivElement>(null)
   const rows: { role: Role, result: WindContextResult }[] = [
     { role: 'primary', result: primary },
     ...(comparison ? [{ role: 'comparison' as const, result: comparison }] : []),
@@ -126,71 +107,40 @@ export default function WindContextSection({
         <span className="wind-context__reference" aria-label={`Effective TWD ${formatTwdDegrees(displayDegrees)}, ${formatTwdSource(effectiveTwd.source)}`}>
           TWD <strong>{formatTwdDegrees(displayDegrees)}</strong> · {formatTwdSource(effectiveTwd.source)}
         </span>
+        <span className="wind-context__summary" data-wind-context-summary>
+          <strong style={{ color: ACTIVITY_COLORS.primary }}>P</strong> {formatWindClassification(primary.classification)}
+        </span>
         <button
           type="button"
           className="maneuver-section__collapse"
           aria-expanded={expanded}
           aria-controls={contentId}
-          onClick={() => setExpanded((current) => !current)}
+          onClick={() => {
+            notesRef.current?.hidePopover?.()
+            setExpanded((current) => !current)
+          }}
         >
           {expanded ? 'Collapse' : 'Expand'}
         </button>
       </div>
 
       <div id={contentId} hidden={!expanded}>
-        {segments !== undefined && (
-          <div className="wind-segments">
-            <p className="wind-segments__title">Segments (P)</p>
-            {segments.length === 0 ? (
-              <p className="wind-context__note">No segments for P in the available range.</p>
-            ) : (
-              <div className="wind-context-table-wrap wind-segments__wrap">
-              <table className="wind-context-table wind-segments__table" aria-label="P wind segments">
-                <thead><tr>
-                  <th scope="col">Segment</th>
-                  <th scope="col">Time (UTC)</th>
-                  <th scope="col">Duration</th>
-                  {comparisonSegmentClassifications !== undefined && <th scope="col">C</th>}
-                </tr></thead>
-                <tbody>
-                  {segments.map((segment, index) => {
-                    const current = windSegmentMatchesWindow(segment, analysisWindow)
-                    const secondary = segment.kind === 'unclassified' || segment.kind === 'pre-start'
-                    const label = formatWindSegmentKind(segment.kind)
-                    const time = `${formatGpsTime(segment.start)}–${formatGpsTime(segment.end)}`
-                    return (
-                      <tr
-                        key={`${segment.start}:${segment.end}`}
-                        className={`wind-segments__row${secondary ? ' wind-segments__row--secondary' : ''}${current ? ' wind-segments__row--current' : ''}`}
-                        data-wind-segment={segment.kind}
-                        onClick={() => onSegmentSelect?.(segment)}
-                      >
-                        <td>
-                          <button
-                            type="button"
-                            className="wind-segments__button"
-                            aria-pressed={current}
-                            aria-label={`Set Analysis Window to ${label} segment ${time} UTC`}
-                          >
-                            {label}
-                          </button>
-                        </td>
-                        <td>{time}</td>
-                        <td>{formatAnalysisWindowDuration(segment.end - segment.start)}</td>
-                        {comparisonSegmentClassifications !== undefined && (
-                          <td data-wind-segment-comparison style={{ color: ACTIVITY_COLORS.comparison }}>
-                            {formatWindClassification(comparisonSegmentClassifications[index] ?? 'unavailable')}
-                          </td>
-                        )}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="wind-context__info-row">
+          <button
+            type="button"
+            className="maneuver-evidence__info"
+            aria-label="About wind analysis"
+            aria-expanded={notesExpanded}
+            aria-controls={notesId}
+            popoverTarget={notesId}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v6" />
+              <circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+        </div>
 
         <table className="wind-context-table" aria-label="Wind sector composition">
           <thead><tr>
@@ -301,24 +251,30 @@ export default function WindContextSection({
           </div>
         )}
 
-        <p className="wind-context__note">
-          Shares of moving time (SOG ≥ {WIND_CONTEXT_CONFIG.movingMinSogKnots} kn) from COG and the effective TWD. Tack split for upwind windows only; HDG/HEEL only check the COG tack.
-        </p>
-        {tackRows.length > 0 && (
-          <p className="wind-context__note" id={axisHelpId}>
-            Axis is the estimated bisector of the upwind tacks, with its signed difference from the effective TWD; it is not applied to TWD. Tack angle is the sum of mean starboard and port |TWA|. Both need at least {WIND_CONTEXT_CONFIG.tackAxisMinTackSeconds} s on each tack and no inconsistent check.
+        <div id={notesId} ref={notesRef} className="maneuver-evidence__help" popover="auto"
+          role="note" aria-labelledby={`${notesId}-title`} data-wind-notes
+          onToggle={(event) => setNotesExpanded(event.newState === 'open')}
+        >
+          <h3 id={`${notesId}-title`}>Wind analysis notes</h3>
+          <p className="maneuver-evidence__secondary">
+            Shares of moving time (SOG ≥ {WIND_CONTEXT_CONFIG.movingMinSogKnots} kn) from COG and the effective TWD. Tack split for upwind windows only; HDG/HEEL only check the COG tack.
           </p>
-        )}
-        {progressRows.length > 0 && (
-          <p className="wind-context__note">
-            Progress is the window's net displacement projected on the effective TWD axis (downwind: TWD + 180°), for upwind or downwind windows with a net course within {WIND_CONTEXT_CONFIG.progressMaxAxisOffsetDegrees}° of that axis. Efficiency is progress divided by distance sailed. It is not VMG.
-          </p>
-        )}
-        {downwindRows.length > 0 && (
-          <p className="wind-context__note">
-            Depth is the mean downwind |TWA|. Gybe angle is the course difference between two COG groups, shown only when each has at least {WIND_CONTEXT_CONFIG.tackAxisMinTackSeconds} s and they differ by at least {WIND_CONTEXT_CONFIG.gybeAngleMinDegrees}°.
-          </p>
-        )}
+          {tackRows.length > 0 && (
+            <p className="maneuver-evidence__secondary" id={axisHelpId}>
+              Axis is the estimated bisector of the upwind tacks, with its signed difference from the effective TWD; it is not applied to TWD. Tack angle is the sum of mean starboard and port |TWA|. Both need at least {WIND_CONTEXT_CONFIG.tackAxisMinTackSeconds} s on each tack and no inconsistent check.
+            </p>
+          )}
+          {progressRows.length > 0 && (
+            <p className="maneuver-evidence__secondary">
+              Progress is the window's net displacement projected on the effective TWD axis (downwind: TWD + 180°), for upwind or downwind windows with a net course within {WIND_CONTEXT_CONFIG.progressMaxAxisOffsetDegrees}° of that axis. Efficiency is progress divided by distance sailed. It is not VMG.
+            </p>
+          )}
+          {downwindRows.length > 0 && (
+            <p className="maneuver-evidence__secondary">
+              Depth is the mean downwind |TWA|. Gybe angle is the course difference between two COG groups, shown only when each has at least {WIND_CONTEXT_CONFIG.tackAxisMinTackSeconds} s and they differ by at least {WIND_CONTEXT_CONFIG.gybeAngleMinDegrees}°.
+            </p>
+          )}
+        </div>
       </div>
     </section>
   )

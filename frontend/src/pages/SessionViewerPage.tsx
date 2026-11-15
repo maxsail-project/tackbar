@@ -32,6 +32,7 @@ import ManeuverEventTable, {
 import ManeuverProfiles from '../components/ManeuverProfiles'
 import SelectedManeuvers from '../components/SelectedManeuvers'
 import WindContextSection from '../components/WindContextSection'
+import WindSegmentsSection from '../components/WindSegmentsSection'
 import TrackMap, {
   type ContextualMapActivity,
   createMapFitContextKey,
@@ -825,9 +826,8 @@ export function SessionViewer({
       primaryTrack?.samples ?? [],
       availableRange,
       segmentTwdAtTime,
-      sessionStarts.map((start) => start.time),
     ),
-    [availableRange, primaryTrack, segmentTwdAtTime, sessionStarts],
+    [availableRange, primaryTrack, segmentTwdAtTime],
   )
   // Isolated C column (#192.3 option C): remove this memo and its prop to drop the column.
   const comparisonSegmentClassifications = useMemo(
@@ -1230,6 +1230,13 @@ export function SessionViewer({
         />
       )}
       {analysisWindow !== null && effectiveTwd !== null && twdPresentation.displayDegrees !== null && (
+        <>
+        <WindSegmentsSection
+          segments={windSegments}
+          analysisWindow={analysisWindow}
+          onSegmentSelect={(segment) => commitAnalysisWindowRange({ start: segment.start, end: segment.end })}
+          comparisonSegmentClassifications={comparisonSegmentClassifications}
+        />
         <WindContextSection
           effectiveTwd={effectiveTwd}
           displayDegrees={twdPresentation.displayDegrees}
@@ -1237,11 +1244,8 @@ export function SessionViewer({
           comparison={comparisonActivityId === null ? undefined : comparisonWindContext}
           primaryProgress={primaryWindProgress}
           comparisonProgress={comparisonActivityId === null ? undefined : comparisonWindProgress}
-          segments={windSegments}
-          analysisWindow={analysisWindow}
-          onSegmentSelect={(segment) => commitAnalysisWindowRange({ start: segment.start, end: segment.end })}
-          comparisonSegmentClassifications={comparisonSegmentClassifications}
         />
+        </>
       )}
       <ComparisonTable
         primaryLabel={summaryLabels.get(primaryActivity.id) ?? ''}

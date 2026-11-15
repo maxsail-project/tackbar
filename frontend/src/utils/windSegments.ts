@@ -10,7 +10,7 @@ import {
 
 type WindContextConfig = typeof WIND_CONTEXT_CONFIG
 
-export type WindSegmentKind = WindSector | 'unclassified' | 'pre-start'
+export type WindSegmentKind = WindSector | 'unclassified'
 
 /**
  * Window-independent segmentation wind reference: TWD for a sample's own UTC time — the
@@ -89,32 +89,6 @@ function labelIntervals(
   return blocks
 }
 
-/** Split blocks at forced boundaries (inferred Session Starts) strictly inside each block. */
-function splitAtBoundaries(blocks: LabelledInterval[][], boundaries: number[]) {
-  const result: LabelledInterval[][] = []
-  for (const block of blocks) {
-    let current: LabelledInterval[] = []
-    for (const interval of block) {
-      // A boundary exactly at an interval start closes the preceding block.
-      if (boundaries.includes(interval.start) && current.length > 0) {
-        result.push(current)
-        current = []
-      }
-      let start = interval.start
-      for (const boundary of boundaries) {
-        if (boundary <= start || boundary >= interval.end) continue
-        current.push({ label: interval.label, start, end: boundary })
-        result.push(current)
-        current = []
-        start = boundary
-      }
-      current.push({ label: interval.label, start, end: interval.end })
-    }
-    if (current.length > 0) result.push(current)
-  }
-  return result
-}
-
 function compressRuns(block: LabelledInterval[]) {
   const runs: LabelledInterval[] = []
   for (const interval of block) {
@@ -179,27 +153,17 @@ function segmentBlock(block: LabelledInterval[], config: WindContextConfig): Win
 
 /**
  * P-referenced wind segments over the available range (#192.3), classified per sample with
- * the window-independent `twdAt` reference.
- * Boundaries are forced at each inferred Session Start inside the range; an Unclassified
- * segment ending exactly at a Start is labelled Pre-start.
+ * the window-independent `twdAt` reference. Only data gaps split blocks; inferred Session
+ * Starts do not bound, split or relabel segments.
  */
 export function detectWindSegments(
   samples: TrackSample[],
   range: AnalysisWindowRange | null,
   twdAt: TwdAtTime | null,
-  sessionStartTimes: number[] = [],
   config: WindContextConfig = WIND_CONTEXT_CONFIG,
 ): WindSegment[] {
   if (range === null || twdAt === null || range.end <= range.start) return []
-  const starts = [...new Set(sessionStartTimes)]
-    .filter((time) => Number.isFinite(time) && time > range.start && time < range.end)
-    .sort((first, second) => first - second)
-  const blocks = splitAtBoundaries(labelIntervals(samples, range, twdAt, config), starts)
-  return blocks.flatMap((block) => segmentBlock(block, config)).map((segment) => (
-    segment.kind === 'unclassified' && starts.includes(segment.end)
-      ? { ...segment, kind: 'pre-start' as const }
-      : segment
-  ))
+  return labelIntervals(samples, range, twdAt, config).flatMap((block) => segmentBlock(block, config))
 }
 
 /**
@@ -231,7 +195,6 @@ export function formatWindSegmentKind(kind: WindSegmentKind) {
     case 'upwind': return 'Upwind'
     case 'reaching': return 'Reaching'
     case 'downwind': return 'Downwind'
-    case 'pre-start': return 'Pre-start'
     default: return 'Unclassified'
   }
 }
