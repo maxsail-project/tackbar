@@ -85,6 +85,7 @@ import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
 import { resolveTwsPresentation, resolveTwsReference, stepViewerTws } from '../utils/twsReference'
 import { calculateWindContext, resolveEffectiveTwd } from '../utils/windContext'
 import { calculateWindProgress } from '../utils/windProgress'
+import { detectWindSegments } from '../utils/windSegments'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -808,6 +809,27 @@ export function SessionViewer({
     ),
     [analysisWindow, comparisonSummaryMetrics, comparisonTrack, comparisonWindContext, effectiveTwd],
   )
+  // P-referenced wind segments are derived only; recomputing them never moves the window.
+  const windSegments = useMemo(
+    () => detectWindSegments(
+      primaryTrack?.samples ?? [],
+      availableRange,
+      effectiveTwd,
+      sessionStarts.map((start) => start.time),
+    ),
+    [availableRange, effectiveTwd, primaryTrack, sessionStarts],
+  )
+  // Isolated C column (#192.3 option C): remove this memo and its prop to drop the column.
+  const comparisonSegmentClassifications = useMemo(
+    () => comparisonActivityId === null
+      ? undefined
+      : windSegments.map((segment) => calculateWindContext(
+          comparisonTrack?.samples ?? [],
+          segment,
+          effectiveTwd,
+        ).classification),
+    [comparisonActivityId, comparisonTrack, effectiveTwd, windSegments],
+  )
   const twsReference = useMemo(
     () => resolveTwsReference(
       analysisWindow === null
@@ -1205,6 +1227,10 @@ export function SessionViewer({
           comparison={comparisonActivityId === null ? undefined : comparisonWindContext}
           primaryProgress={primaryWindProgress}
           comparisonProgress={comparisonActivityId === null ? undefined : comparisonWindProgress}
+          segments={windSegments}
+          analysisWindow={analysisWindow}
+          onSegmentSelect={(segment) => commitAnalysisWindowRange({ start: segment.start, end: segment.end })}
+          comparisonSegmentClassifications={comparisonSegmentClassifications}
         />
       )}
       <ComparisonTable

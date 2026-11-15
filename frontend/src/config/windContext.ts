@@ -31,4 +31,8 @@ export const WIND_CONTEXT_CONFIG = {
   progressSimilarSeconds: 5,
   /** Downwind Gybe angle needs each COG group at least `tackAxisMinTackSeconds` and this minimum angle. */
   gybeAngleMinDegrees: 20,
+  /** Same-sector runs separated by less than this other-sector or non-moving time merge (#192.3). */
+  segmentAbsorbSeconds: 60,
+  /** Merged same-sector runs need at least this span to become an Upwind/Reaching/Downwind segment. */
+  segmentMinSeconds: 90,
 } as const

@@ -11,6 +11,7 @@ import {
   type TackAxis,
   type TackAxisHint,
   type WindContextResult,
+  type WindWindowClassification,
 } from '../utils/windContext'
 import {
   calculateProgressDifference,
@@ -18,6 +19,14 @@ import {
   formatProgressReason,
   type WindProgress,
 } from '../utils/windProgress'
+import { formatGpsTime } from '../utils/replay'
+import type { AnalysisWindowRange } from '../utils/analysisWindow'
+import {
+  formatWindSegmentKind,
+  windSegmentMatchesWindow,
+  type WindSegment,
+} from '../utils/windSegments'
+import { formatAnalysisWindowDuration } from './AnalysisWindow'
 
 type Role = 'primary' | 'comparison'
 
@@ -28,6 +37,15 @@ interface WindContextSectionProps {
   primary: WindContextResult
   comparison?: WindContextResult
   primaryProgress?: WindProgress
+  /** P-referenced wind segments (#192.3); omitted hides the list. */
+  segments?: WindSegment[]
+  analysisWindow?: AnalysisWindowRange | null
+  onSegmentSelect?: (segment: WindSegment) => void
+  /**
+   * Isolated C column: C's classification over each P segment interval, index-aligned with
+   * `segments`. Omit to remove the column.
+   */
+  comparisonSegmentClassifications?: WindWindowClassification[]
   comparisonProgress?: WindProgress
 }
 
@@ -73,6 +91,10 @@ export default function WindContextSection({
   comparison,
   primaryProgress,
   comparisonProgress,
+  segments,
+  analysisWindow = null,
+  onSegmentSelect,
+  comparisonSegmentClassifications,
 }: WindContextSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const contentId = useId()
@@ -116,6 +138,60 @@ export default function WindContextSection({
       </div>
 
       <div id={contentId} hidden={!expanded}>
+        {segments !== undefined && (
+          <div className="wind-segments">
+            <p className="wind-segments__title">Segments (P)</p>
+            {segments.length === 0 ? (
+              <p className="wind-context__note">No segments for P in the available range.</p>
+            ) : (
+              <div className="wind-context-table-wrap wind-segments__wrap">
+              <table className="wind-context-table wind-segments__table" aria-label="P wind segments">
+                <thead><tr>
+                  <th scope="col">Segment</th>
+                  <th scope="col">Time (UTC)</th>
+                  <th scope="col">Duration</th>
+                  {comparisonSegmentClassifications !== undefined && <th scope="col">C</th>}
+                </tr></thead>
+                <tbody>
+                  {segments.map((segment, index) => {
+                    const current = windSegmentMatchesWindow(segment, analysisWindow)
+                    const secondary = segment.kind === 'unclassified' || segment.kind === 'pre-start'
+                    const label = formatWindSegmentKind(segment.kind)
+                    const time = `${formatGpsTime(segment.start)}–${formatGpsTime(segment.end)}`
+                    return (
+                      <tr
+                        key={`${segment.start}:${segment.end}`}
+                        className={`wind-segments__row${secondary ? ' wind-segments__row--secondary' : ''}${current ? ' wind-segments__row--current' : ''}`}
+                        data-wind-segment={segment.kind}
+                        onClick={() => onSegmentSelect?.(segment)}
+                      >
+                        <td>
+                          <button
+                            type="button"
+                            className="wind-segments__button"
+                            aria-pressed={current}
+                            aria-label={`Set Analysis Window to ${label} segment ${time} UTC`}
+                          >
+                            {label}
+                          </button>
+                        </td>
+                        <td>{time}</td>
+                        <td>{formatAnalysisWindowDuration(segment.end - segment.start)}</td>
+                        {comparisonSegmentClassifications !== undefined && (
+                          <td data-wind-segment-comparison style={{ color: ACTIVITY_COLORS.comparison }}>
+                            {formatWindClassification(comparisonSegmentClassifications[index] ?? 'unavailable')}
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              </div>
+            )}
+          </div>
+        )}
+
         <table className="wind-context-table" aria-label="Wind sector composition">
           <thead><tr>
             <th scope="col" aria-label="Activity">P/C</th>

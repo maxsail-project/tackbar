@@ -62,7 +62,8 @@ vi.mock('../components/ManeuverEventTable', () => ({
   default: ({ events, onSelect }: { events: DisplayManeuver[], onSelect: (event: DisplayManeuver) => void }) =>
     <section data-viewer-section="maneuver-analysis">{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</section>,
 }))
-vi.mock('../components/AnalysisWindow', () => ({
+vi.mock('../components/AnalysisWindow', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../components/AnalysisWindow')>()),
   default: ({ maneuvers, sessionStarts, analysisWindow, availableRange, onManeuverSelect, onSessionStartSelect, onRangeChange, replay }: {
     maneuvers: DisplayManeuver[]
     sessionStarts: { label: string, time: number, activityIds: string[] }[]
@@ -363,6 +364,38 @@ describe('Viewer TWD state', () => {
     expect(section().querySelector('[data-wind-progress-difference]')!.textContent).toBe('Δ progress P−C: Similar')
     expect(section().querySelector('[data-wind-downwind-role]')).toBeNull()
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
+  })
+
+  it.each(['original', 'temporary'] as const)('applies a P wind segment to the shared window and keeps it through TWD recomputation on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const section = () => container.querySelector('.wind-context-section')!
+    const rows = () => [...section().querySelectorAll<HTMLTableRowElement>('[data-wind-segment]')]
+    const pressed = () => rows().map((row) => row.querySelector('button')!.getAttribute('aria-pressed'))
+    // Inferred Start S1 at +5.25 s forces a boundary; all time is shorter than 90 s.
+    expect(rows().map((row) => row.dataset.windSegment)).toEqual(['pre-start', 'unclassified'])
+    expect(rows()[0].textContent).toBe('Pre-start10:00:00–10:00:055s')
+    expect(pressed()).toEqual(['false', 'false'])
+    expect(section().querySelector('[data-wind-segment-comparison]')).toBeNull()
+    expect(container.querySelector('[data-playback-time]')!.getAttribute('data-playback-time')).toBe(String(start))
+    await act(async () => rows()[1].querySelector('button')!.click())
+    // Window [+5.25 s, +10 s]: playback clamped into it; modelled TWD now resolves to the 180° sample.
+    expect(container.querySelector('[data-playback-time]')!.getAttribute('data-playback-time')).toBe(String(start + 5_250))
+    expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 180° · Modelled')
+    expect(pressed()).toEqual(['false', 'true'])
+    await click('[data-twd-minus]')
+    expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 175° · Manual · Viewer')
+    expect(pressed()).toEqual(['false', 'true'])
+    expect(container.querySelector('[data-playback-time]')!.getAttribute('data-playback-time')).toBe(String(start + 5_250))
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.value).toBe('a')
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Playback speed test"]')?.value).toBe('5')
+    expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
+  })
+
+  it('shows C classification for each P segment interval when Comparison is selected', async () => {
+    await mountViewer('original', windSession)
+    await choose('Compare', 'b')
+    const cells = [...container.querySelectorAll('.wind-context-section [data-wind-segment-comparison]')].map((cell) => cell.textContent)
+    expect(cells).toEqual(['Upwind', 'Upwind'])
   })
 
   it('hides the wind section without effective TWD and shows it for a manual-only correction', async () => {

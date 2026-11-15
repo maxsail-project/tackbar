@@ -3459,3 +3459,33 @@ input:focus-visible {
   font-size: 0.76rem;
   font-variant-numeric: tabular-nums;
 }
+.wind-segments { margin-top: 8px; }
+.wind-segments__title {
+  margin: 0;
+  color: #526d74;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wind-segments__wrap { max-height: min(50vh, 360px); overflow: auto; }
+.wind-segments__row { cursor: pointer; }
+.wind-segments__row td { vertical-align: middle; }
+.wind-segments__button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 6px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.wind-segments__button:focus-visible {
+  outline: 2px solid #28788a;
+  outline-offset: -2px;
+}
+.wind-segments__row--secondary { color: #71858b; }
+.wind-segments__row--secondary .wind-segments__button { font-weight: 600; }
+.wind-segments__row--current { background: #e3f0f2; }
