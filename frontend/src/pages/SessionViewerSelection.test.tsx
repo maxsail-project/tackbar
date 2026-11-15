@@ -331,7 +331,7 @@ describe('Viewer TWD state', () => {
       expect(collapsible.querySelector('[hidden]')).not.toBeNull()
     }
     expect(segmentsSection.querySelector('[data-wind-segments-summary]')!.textContent).toBe('1 segment')
-    expect(section()!.querySelector('[data-wind-context-summary]')!.textContent).toBe('P Upwind')
+    expect(section()!.querySelector('[data-wind-context-summary]')!.textContent).toBe('TWD 090° · Upwind')
     const reference = () => section()!.querySelector('.wind-context__reference')!.textContent
     const primaryRow = () => section()!.querySelector('[data-wind-role="primary"]')!.textContent
     // COG 090° vs original modelled 91.6° → upwind, tack indeterminate.
@@ -447,15 +447,17 @@ describe('Viewer TWD state', () => {
       expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 000° · Modelled')
       expect(pressed()).toEqual(['false', 'false'])
       expect(segmentsSection().querySelector('[data-wind-segments-summary]')!.textContent).toBe('2 segments')
-      expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('P Upwind')
+      expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('TWD 000° · Upwind')
       await act(async () => rows()[1].querySelector('button')!.click())
       // Selection does not auto-expand Wind Analysis.
       expect(analysisExpanded()).toBe('false')
-      expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('P Reaching')
-      // The window result TWD follows the new midpoint; the list does not.
+      expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('TWD 090° · Reaching')
+      // The window result TWD follows the new midpoint; segment bounds do not. Only segments
+      // overlapping the window are listed, so the selected segment is listed alone and highlighted.
       expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 090° · Modelled')
-      expect(kinds()).toEqual(['upwind', 'reaching'])
-      expect(pressed()).toEqual(['false', 'true'])
+      expect(kinds()).toEqual(['reaching'])
+      expect(pressed()).toEqual(['true'])
+      expect(segmentsSection().querySelector('[data-wind-segments-summary]')!.textContent).toBe('1 segment')
       expect(playbackTime()).toBe(String(start + 201_000))
       expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.value).toBe('a')
       expect(container.querySelector<HTMLSelectElement>('select[aria-label="Playback speed test"]')?.value).toBe('5')
@@ -463,13 +465,23 @@ describe('Viewer TWD state', () => {
       // Manual TWD applies to all samples and re-segments without moving the window.
       await click('[data-twd-minus]')
       expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 085° · Manual · Viewer')
+      expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('TWD 085° Manual · Reaching')
+      // The whole-track Reaching segment extends beyond the window: listed as partial.
       expect(kinds()).toEqual(['reaching'])
+      expect(rows()[0].dataset.windSegmentPartial).toBe('true')
+      expect(rows()[0].querySelector('.wind-segments__partial')!.textContent).toBe('partial')
       expect(pressed()).toEqual(['false'])
       expect(playbackTime()).toBe(String(start + 201_000))
       // Reset returns to per-sample modelled; the unchanged window matches its row again.
       await click('[data-twd-auto]')
+      expect(kinds()).toEqual(['reaching'])
+      expect(rows()[0].dataset.windSegmentPartial).toBeUndefined()
+      expect(pressed()).toEqual(['true'])
+      // Window Reset restores the full, unchanged list.
+      await click('[data-reset-window]')
       expect(kinds()).toEqual(['upwind', 'reaching'])
-      expect(pressed()).toEqual(['false', 'true'])
+      expect(rows().map((row) => row.querySelector('td:nth-child(2)')!.textContent)).toEqual(['10:00:00–10:03:21', '10:03:21–10:06:40'])
+      expect(pressed()).toEqual(['false', 'false'])
       expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
     })
 
@@ -483,12 +495,30 @@ describe('Viewer TWD state', () => {
       expect(analysisExpanded()).toBe('true')
       await act(async () => rows()[0].querySelector('button')!.click())
       expect(analysisExpanded()).toBe('true')
-      expect(pressed()).toEqual(['true', 'false'])
-      expect(comparisonCells()).toEqual(['Upwind', 'Reaching'])
+      expect(pressed()).toEqual(['true'])
+      expect(comparisonCells()).toEqual(['Upwind'])
       expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('b')
       // The shared window now covers the Upwind segment for both Activities.
       expect(section().querySelector('[data-wind-role="primary"]')!.textContent).toBe('P100%0%0%Upwind')
       expect(section().querySelector('[data-wind-role="comparison"]')!.textContent).toBe('C100%0%0%Upwind')
+    })
+
+    it('filters listed segments by type and resets the filter to All when Primary changes', async () => {
+      await mountViewer('original', longWindSession)
+      const option = (filter: string) => segmentsSection().querySelector<HTMLButtonElement>(`[data-wind-segment-filter="${filter}"]`)!
+      expect(['all', 'upwind', 'reaching', 'downwind', 'unclassified'].map((filter) => option(filter).textContent))
+        .toEqual(['All 2', 'Upwind 1', 'Reaching 1', 'Downwind 0', 'Unclassified 0'])
+      expect(option('downwind').disabled).toBe(true)
+      expect(option('unclassified').disabled).toBe(true)
+      expect(option('all').getAttribute('aria-pressed')).toBe('true')
+      await act(async () => option('reaching').click())
+      expect(option('reaching').getAttribute('aria-pressed')).toBe('true')
+      expect(kinds()).toEqual(['reaching'])
+      // The header counts listed segments, independently of the filter.
+      expect(segmentsSection().querySelector('[data-wind-segments-summary]')!.textContent).toBe('2 segments')
+      await choose('My track', 'b')
+      expect(option('all').getAttribute('aria-pressed')).toBe('true')
+      expect(kinds()).toEqual(['upwind', 'reaching'])
     })
 
     it('does not split a homogeneous segment at an inferred Start inside it', async () => {

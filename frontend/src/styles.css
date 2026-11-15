@@ -3389,9 +3389,25 @@ input:focus-visible {
   }
 }
 
-.wind-context-section .maneuver-section__header { flex-wrap: wrap; }
+/* Wind section headers stay on one line; the summary truncates before wrapping. */
+.wind-context-section .maneuver-section__header,
+.wind-segments-section .maneuver-section__header { flex-wrap: nowrap; min-width: 0; }
+.wind-context-section .section-kicker,
+.wind-segments-section .section-kicker,
+.wind-context-section .maneuver-section__collapse,
+.wind-segments-section .maneuver-section__collapse { flex: 0 0 auto; white-space: nowrap; }
+.wind-section__summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: #526d74;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .wind-context__reference {
-  margin-left: auto;
   color: #526d74;
   font-size: 0.74rem;
   font-variant-numeric: tabular-nums;
@@ -3492,14 +3508,48 @@ input:focus-visible {
 .wind-segments__row--secondary { color: #71858b; }
 .wind-segments__row--secondary .wind-segments__button { font-weight: 600; }
 .wind-segments__row--current { background: #e3f0f2; }
-.wind-context__summary {
-  color: #526d74;
-  font-size: 0.74rem;
-  white-space: nowrap;
-}
-.wind-context__summary strong { margin-right: 2px; }
 .wind-context__info-row {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-top: 2px;
+}
+.wind-segments__filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.wind-segments__filter-option {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid #c8d7da;
+  border-radius: 7px;
+  color: #31515a;
+  background: #f7fafb;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.wind-segments__filter-option[aria-pressed="true"] {
+  border-color: #28788a;
+  background: #e3f0f2;
+}
+.wind-segments__filter-option:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.wind-segments__filter-option:focus-visible {
+  outline: 2px solid #28788a;
+  outline-offset: 2px;
+}
+.wind-segments__partial {
+  display: block;
+  color: #71858b;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.1;
 }

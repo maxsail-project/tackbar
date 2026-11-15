@@ -7,14 +7,17 @@ import {
   formatWindSegmentKind,
   windSegmentMatchesWindow,
   type WindSegment,
+  type WindSegmentKind,
 } from '../utils/windSegments'
 import { formatAnalysisWindowDuration } from './AnalysisWindow'
 
 interface WindSegmentsSectionProps {
-  /** P-referenced wind segments (#192.3). */
+  /** P-referenced wind segments over P's full track in the available range (#192.3). */
   segments: WindSegment[]
   analysisWindow: AnalysisWindowRange | null
   onSegmentSelect: (segment: WindSegment) => void
+  /** Changing this (the Primary Activity) resets the type filter to All. */
+  filterResetKey: string
   /**
    * Isolated C column: C's classification over each P segment interval, index-aligned with
    * `segments`. Omit to remove the column.
@@ -22,24 +25,52 @@ interface WindSegmentsSectionProps {
   comparisonSegmentClassifications?: WindWindowClassification[]
 }
 
+export type WindSegmentFilter = 'all' | WindSegmentKind
+
+const FILTERS: WindSegmentFilter[] = ['all', 'upwind', 'reaching', 'downwind', 'unclassified']
+
 export function formatWindSegmentCount(count: number) {
   return `${count} ${count === 1 ? 'segment' : 'segments'}`
+}
+
+function overlapsWindow(segment: WindSegment, analysisWindow: AnalysisWindowRange | null) {
+  return analysisWindow === null || (segment.start < analysisWindow.end && segment.end > analysisWindow.start)
+}
+
+function extendsBeyondWindow(segment: WindSegment, analysisWindow: AnalysisWindowRange | null) {
+  return analysisWindow !== null && (segment.start < analysisWindow.start || segment.end > analysisWindow.end)
 }
 
 export default function WindSegmentsSection({
   segments,
   analysisWindow,
   onSegmentSelect,
+  filterResetKey,
   comparisonSegmentClassifications,
 }: WindSegmentsSectionProps) {
   const [expanded, setExpanded] = useState(false)
+  // Ephemeral filter, tied to the Primary it was chosen for; a new Primary falls back to All.
+  const [filterState, setFilterState] = useState<{ key: string, value: WindSegmentFilter }>({ key: filterResetKey, value: 'all' })
   const contentId = useId()
+
+  // Computed on P's full track; only segments overlapping the current window are listed.
+  const listed = segments
+    .map((segment, index) => ({ segment, comparison: comparisonSegmentClassifications?.[index] }))
+    .filter(({ segment }) => overlapsWindow(segment, analysisWindow))
+  const counts = new Map<WindSegmentFilter, number>(FILTERS.map((filter) => [
+    filter,
+    filter === 'all' ? listed.length : listed.filter(({ segment }) => segment.kind === filter).length,
+  ]))
+  const chosen = filterState.key === filterResetKey ? filterState.value : 'all'
+  // A chosen type with no listed segments shows All rather than an empty list.
+  const activeFilter: WindSegmentFilter = (counts.get(chosen) ?? 0) > 0 ? chosen : 'all'
+  const visible = activeFilter === 'all' ? listed : listed.filter(({ segment }) => segment.kind === activeFilter)
 
   return (
     <section className="content-section maneuver-section wind-segments-section" aria-labelledby="wind-segments-title">
       <div className="maneuver-section__header">
         <p className="section-kicker" id="wind-segments-title">Wind Segments (P)</p>
-        <span className="wind-context__reference" data-wind-segments-summary>{formatWindSegmentCount(segments.length)}</span>
+        <span className="wind-section__summary" data-wind-segments-summary>{formatWindSegmentCount(listed.length)}</span>
         <button
           type="button"
           className="maneuver-section__collapse"
@@ -52,50 +83,73 @@ export default function WindSegmentsSection({
       </div>
 
       <div id={contentId} hidden={!expanded}>
-        {segments.length === 0 ? (
-          <p className="wind-context__note">No segments for P in the available range.</p>
+        {listed.length === 0 ? (
+          <p className="wind-context__note">No segments for P in this Analysis Window.</p>
         ) : (
-          <table className="wind-context-table wind-segments__table" aria-label="P wind segments">
-            <thead><tr>
-              <th scope="col" className="wind-segments__segment-column">Segment</th>
-              <th scope="col">Time (UTC)</th>
-              <th scope="col">Duration</th>
-              {comparisonSegmentClassifications !== undefined && <th scope="col">C</th>}
-            </tr></thead>
-            <tbody>
-              {segments.map((segment, index) => {
-                const current = windSegmentMatchesWindow(segment, analysisWindow)
-                const label = formatWindSegmentKind(segment.kind)
-                const time = `${formatGpsTime(segment.start)}–${formatGpsTime(segment.end)}`
+          <>
+            <div className="wind-segments__filter" role="group" aria-label="Filter wind segments by type">
+              {FILTERS.map((filter) => {
+                const count = counts.get(filter) ?? 0
                 return (
-                  <tr
-                    key={`${segment.start}:${segment.end}`}
-                    className={`wind-segments__row${segment.kind === 'unclassified' ? ' wind-segments__row--secondary' : ''}${current ? ' wind-segments__row--current' : ''}`}
-                    data-wind-segment={segment.kind}
-                    onClick={() => onSegmentSelect(segment)}
+                  <button
+                    key={filter}
+                    type="button"
+                    className="wind-segments__filter-option"
+                    data-wind-segment-filter={filter}
+                    aria-pressed={activeFilter === filter}
+                    disabled={count === 0}
+                    onClick={() => setFilterState({ key: filterResetKey, value: filter })}
                   >
-                    <td className="wind-segments__segment-column">
-                      <button
-                        type="button"
-                        className="wind-segments__button"
-                        aria-pressed={current}
-                        aria-label={`Set Analysis Window to ${label} segment ${time} UTC`}
-                      >
-                        {label}
-                      </button>
-                    </td>
-                    <td>{time}</td>
-                    <td>{formatAnalysisWindowDuration(segment.end - segment.start)}</td>
-                    {comparisonSegmentClassifications !== undefined && (
-                      <td data-wind-segment-comparison style={{ color: ACTIVITY_COLORS.comparison }}>
-                        {formatWindClassification(comparisonSegmentClassifications[index] ?? 'unavailable')}
-                      </td>
-                    )}
-                  </tr>
+                    {filter === 'all' ? 'All' : formatWindSegmentKind(filter)} {count}
+                  </button>
                 )
               })}
-            </tbody>
-          </table>
+            </div>
+            <table className="wind-context-table wind-segments__table" aria-label="P wind segments">
+              <thead><tr>
+                <th scope="col" className="wind-segments__segment-column">Segment</th>
+                <th scope="col">Time (UTC)</th>
+                <th scope="col">Duration</th>
+                {comparisonSegmentClassifications !== undefined && <th scope="col">C</th>}
+              </tr></thead>
+              <tbody>
+                {visible.map(({ segment, comparison }) => {
+                  const current = windSegmentMatchesWindow(segment, analysisWindow)
+                  const partial = extendsBeyondWindow(segment, analysisWindow)
+                  const label = formatWindSegmentKind(segment.kind)
+                  const time = `${formatGpsTime(segment.start)}–${formatGpsTime(segment.end)}`
+                  return (
+                    <tr
+                      key={`${segment.start}:${segment.end}`}
+                      className={`wind-segments__row${segment.kind === 'unclassified' ? ' wind-segments__row--secondary' : ''}${current ? ' wind-segments__row--current' : ''}`}
+                      data-wind-segment={segment.kind}
+                      data-wind-segment-partial={partial || undefined}
+                      onClick={() => onSegmentSelect(segment)}
+                    >
+                      <td className="wind-segments__segment-column">
+                        <button
+                          type="button"
+                          className="wind-segments__button"
+                          aria-pressed={current}
+                          aria-label={`Set Analysis Window to ${label} segment ${time} UTC${partial ? ', partly outside the current window' : ''}`}
+                        >
+                          {label}
+                          {partial && <span className="wind-segments__partial">partial</span>}
+                        </button>
+                      </td>
+                      <td>{time}</td>
+                      <td>{formatAnalysisWindowDuration(segment.end - segment.start)}</td>
+                      {comparisonSegmentClassifications !== undefined && (
+                        <td data-wind-segment-comparison style={{ color: ACTIVITY_COLORS.comparison }}>
+                          {comparison === undefined ? '—' : formatWindClassification(comparison)}
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
     </section>

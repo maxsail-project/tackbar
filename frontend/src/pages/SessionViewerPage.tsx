@@ -1235,6 +1235,7 @@ export function SessionViewer({
           segments={windSegments}
           analysisWindow={analysisWindow}
           onSegmentSelect={(segment) => commitAnalysisWindowRange({ start: segment.start, end: segment.end })}
+          filterResetKey={primaryActivityId}
           comparisonSegmentClassifications={comparisonSegmentClassifications}
         />
         <WindContextSection

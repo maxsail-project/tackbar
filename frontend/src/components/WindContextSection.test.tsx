@@ -100,7 +100,7 @@ describe('WindContextSection', () => {
     expect(markup).toMatch(/<th scope="col" aria-describedby="([^"]+)">Axis<\/th>/)
     const helpId = markup.match(/aria-describedby="([^"]+)">Axis/)![1]
     expect(markup).toContain(`id="${helpId}"`)
-    expect(content).toContain('Axis is the estimated bisector of the upwind tacks')
+    expect(content).toContain('Axis: estimated bisector of the upwind tacks; not applied to TWD.')
     expect(markup).toContain('class="wind-context-table-wrap"')
     expect(content).not.toMatch(/Axis[^.]*TWD \d/)
     // P and C disagree by more than 5°: no hint.
@@ -150,7 +150,7 @@ describe('WindContextSection', () => {
     expect(text(markup)).toContain('P 609 m to windward 893 m 68%')
     expect(markup).toContain('Progress relative to the wind')
     expect(markup).not.toContain('data-wind-progress-difference')
-    expect(text(markup)).toContain('It is not VMG.')
+    expect(text(markup)).toContain('Progress: net distance along the wind axis; not VMG.')
   })
 
   it('shows P/C progress with the neutral difference line', () => {
@@ -213,17 +213,21 @@ describe('WindContextSection', () => {
     expect(upwindOnly).not.toContain('Downwind readings')
   })
 
-  it('shows effective TWD, source and P classification in the collapsed header', () => {
+  it('shows a one-line header with TWD and P classification, adding Manual only for a Viewer TWD', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={downwind} comparison={upwind}
     />)
     const header = markup.slice(0, markup.indexOf('hidden=""'))
-    expect(text(header)).toContain('TWD 105° · Modelled')
-    expect(text(header)).toContain('P Downwind')
-    expect(text(header)).not.toContain('Upwind')
+    expect(header).toContain('class="wind-section__summary" data-wind-context-summary="true">TWD 105° · Downwind</span>')
+    expect(text(header)).not.toMatch(/Modelled|Upwind/)
+    const manual = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 5, source: 'manual' }} displayDegrees={5} primary={unavailable}
+    />)
+    expect(text(manual.split('hidden=""')[0])).toContain('TWD 005° Manual · Unavailable')
+    expect(text(manual.split('hidden=""')[1])).toContain('TWD 005° · Manual · Viewer')
     expect(text(renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={unavailable}
-    />).split('hidden=""')[0])).toContain('P Unavailable')
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={{ ...downwind, classification: 'mixed', downwind: null }}
+    />).split('hidden=""')[0])).toContain('TWD 105° · Mixed')
   })
 
   it('moves explanatory notes into an accessible native info popover', () => {
@@ -238,10 +242,33 @@ describe('WindContextSection', () => {
     expect(control).toContain(`popoverTarget="${notesId}"`)
     expect(markup).toContain(`id="${notesId}" class="maneuver-evidence__help" popover="auto" role="note" aria-labelledby="${notesId}-title"`)
     const popover = markup.slice(markup.indexOf(`id="${notesId}"`))
+    const lines = [...popover.matchAll(/<p class="maneuver-evidence__secondary"[^>]*>(.*?)<\/p>/g)].map((match) => match[1].replace(/<[^>]+>/g, '').replace('&#x27;', "'"))
     expect(text(popover)).toContain('Wind analysis notes')
-    expect(text(popover)).toContain('Shares of moving time (SOG ≥ 1.5 kn)')
-    expect(text(popover)).toContain('Axis is the estimated bisector of the upwind tacks')
-    expect(text(popover)).toContain('It is not VMG.')
+    expect(lines).toEqual([
+      'Sectors: COG vs effective TWD, over moving time (SOG ≥ 1.5 kn).',
+      'Tacks: upwind only; HDG/HEEL only confirm them.',
+      'Axis: estimated bisector of the upwind tacks; not applied to TWD.',
+      'Progress: net distance along the wind axis; not VMG.',
+      'Depth / Gybe angle: mean downwind TWA / angle between the two downwind courses.',
+      "Segments: P's track split by wind sector; tap one to set the Analysis Window.",
+    ])
     expect(markup).not.toContain('class="wind-context__note"')
+  })
+
+  it('keeps a normal C row with — in the tack and downwind tables when C has no value, and no C row without Comparison', () => {
+    const withComparison = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={unavailable}
+    />)
+    expect(text(withComparison)).toContain('C — — — — — —')
+    expect(withComparison).toContain('data-wind-tack-role="comparison"')
+    const downwindWithComparison = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={downwind} comparison={upwind}
+    />)
+    expect(downwindWithComparison).toContain('data-wind-downwind-role="comparison"')
+    expect(text(downwindWithComparison)).toMatch(/Gybe angle P 152° 42° C — —/)
+    const primaryOnly = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
+    />)
+    expect(primaryOnly).not.toMatch(/data-wind-(role|tack-role|progress-role|downwind-role)="comparison"/)
   })
 })
