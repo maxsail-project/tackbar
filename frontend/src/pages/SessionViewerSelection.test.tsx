@@ -507,7 +507,7 @@ describe('Viewer TWD state', () => {
       await mountViewer('original', longWindSession)
       const option = (filter: string) => segmentsSection().querySelector<HTMLButtonElement>(`[data-wind-segment-filter="${filter}"]`)!
       expect(['all', 'upwind', 'reaching', 'downwind', 'unclassified'].map((filter) => option(filter).textContent))
-        .toEqual(['All 2', 'Upwind 1', 'Reaching 1', 'Downwind 0', 'Unclassified 0'])
+        .toEqual(['All 2', 'Up 1', 'Reach 1', 'Down 0', 'Other 0'])
       expect(option('downwind').disabled).toBe(true)
       expect(option('unclassified').disabled).toBe(true)
       expect(option('all').getAttribute('aria-pressed')).toBe('true')

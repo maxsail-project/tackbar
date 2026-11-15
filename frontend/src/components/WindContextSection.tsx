@@ -91,9 +91,7 @@ export default function WindContextSection({
     { role: 'primary', result: primary },
     ...(comparison ? [{ role: 'comparison' as const, result: comparison }] : []),
   ]
-  const tackRows = rows.some(({ result }) => result.upwindTack !== null)
-    ? rows.filter(({ role, result }) => role === 'comparison' || result.upwindTack !== null)
-    : []
+  const tackRows = rows.some(({ result }) => result.upwindTack !== null) ? rows : []
   const axisHelpId = useId()
   const hint = resolveTackAxisHint(
     effectiveTwd.degrees,
@@ -108,9 +106,7 @@ export default function WindContextSection({
   const progressDifference = primaryProgress && comparison
     ? calculateProgressDifference(primaryProgress, comparisonProgress)
     : null
-  const downwindRows = rows.some(({ result }) => result.downwind !== null)
-    ? rows.filter(({ role, result }) => role === 'comparison' || result.downwind !== null)
-    : []
+  const downwindRows = rows.some(({ result }) => result.downwind !== null) ? rows : []
 
   return (
     <section className="content-section maneuver-section wind-context-section" aria-labelledby="wind-context-title">
@@ -218,7 +214,6 @@ export default function WindContextSection({
         {hint !== null && <p className="wind-context__hint" data-wind-axis-hint><strong>{formatTackAxisHint(hint)}</strong></p>}
 
         {progressRows.length > 0 && (
-          <div className="wind-context-table-wrap">
           <table className="wind-context-table wind-context-table--progress" aria-label="Progress relative to the wind">
             <thead><tr>
               <th scope="col" aria-label="Activity">P/C</th>
@@ -243,7 +238,6 @@ export default function WindContextSection({
               ))}
             </tbody>
           </table>
-          </div>
         )}
 
         {progressDifference !== null && (
@@ -251,7 +245,6 @@ export default function WindContextSection({
         )}
 
         {downwindRows.length > 0 && (
-          <div className="wind-context-table-wrap">
           <table className="wind-context-table wind-context-table--downwind" aria-label="Downwind readings">
             <thead><tr>
               <th scope="col" aria-label="Activity">P/C</th>
@@ -268,7 +261,6 @@ export default function WindContextSection({
               ))}
             </tbody>
           </table>
-          </div>
         )}
 
         <div id={notesId} ref={notesRef} className="maneuver-evidence__help" popover="auto"

@@ -3455,10 +3455,9 @@ input:focus-visible {
   margin-top: 8px;
   overflow-x: auto;
 }
-.wind-context-table-wrap .wind-context-table {
-  min-width: 360px;
-  margin-top: 0;
-}
+.wind-context-table-wrap .wind-context-table { margin-top: 0; }
+/* Only the 7-column tack table needs a floor; it scrolls only below this width. */
+.wind-context-table-wrap .wind-context-table--tack { min-width: 320px; }
 .wind-context__hint {
   margin: 8px 0 0;
   color: #263f46;
@@ -3498,7 +3497,7 @@ input:focus-visible {
   color: inherit;
   background: transparent;
   font: inherit;
-  font-weight: 800;
+  font-weight: 400;
   cursor: pointer;
 }
 .wind-segments__button:focus-visible {
@@ -3506,7 +3505,6 @@ input:focus-visible {
   outline-offset: -2px;
 }
 .wind-segments__row--secondary { color: #71858b; }
-.wind-segments__row--secondary .wind-segments__button { font-weight: 600; }
 .wind-segments__row--current { background: #e3f0f2; }
 .wind-context__info-row {
   display: flex;
@@ -3523,7 +3521,7 @@ input:focus-visible {
 }
 .wind-segments__filter-option {
   min-height: 44px;
-  padding: 0 10px;
+  padding: 0 7px;
   border: 1px solid #c8d7da;
   border-radius: 7px;
   color: #31515a;
@@ -3552,4 +3550,8 @@ input:focus-visible {
   font-size: 0.62rem;
   font-weight: 600;
   line-height: 1.1;
+}
+@media (max-width: 374px) {
+  .wind-segments__filter { gap: 3px; }
+  .wind-segments__filter-option { padding: 0 5px; }
 }

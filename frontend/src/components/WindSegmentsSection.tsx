@@ -29,6 +29,18 @@ export type WindSegmentFilter = 'all' | WindSegmentKind
 
 const FILTERS: WindSegmentFilter[] = ['all', 'upwind', 'reaching', 'downwind', 'unclassified']
 
+const FILTER_SHORT_LABELS: Record<WindSegmentFilter, string> = {
+  all: 'All',
+  upwind: 'Up',
+  reaching: 'Reach',
+  downwind: 'Down',
+  unclassified: 'Other',
+}
+
+function filterFullLabel(filter: WindSegmentFilter) {
+  return filter === 'all' ? 'All' : formatWindSegmentKind(filter)
+}
+
 export function formatWindSegmentCount(count: number) {
   return `${count} ${count === 1 ? 'segment' : 'segments'}`
 }
@@ -61,9 +73,7 @@ export default function WindSegmentsSection({
     filter,
     filter === 'all' ? listed.length : listed.filter(({ segment }) => segment.kind === filter).length,
   ]))
-  const chosen = filterState.key === filterResetKey ? filterState.value : 'all'
-  // A chosen type with no listed segments shows All rather than an empty list.
-  const activeFilter: WindSegmentFilter = (counts.get(chosen) ?? 0) > 0 ? chosen : 'all'
+  const activeFilter: WindSegmentFilter = filterState.key === filterResetKey ? filterState.value : 'all'
   const visible = activeFilter === 'all' ? listed : listed.filter(({ segment }) => segment.kind === activeFilter)
 
   return (
@@ -97,14 +107,18 @@ export default function WindSegmentsSection({
                     className="wind-segments__filter-option"
                     data-wind-segment-filter={filter}
                     aria-pressed={activeFilter === filter}
-                    disabled={count === 0}
+                    aria-label={`${filterFullLabel(filter)}, ${formatWindSegmentCount(count)}`}
+                    disabled={count === 0 && activeFilter !== filter}
                     onClick={() => setFilterState({ key: filterResetKey, value: filter })}
                   >
-                    {filter === 'all' ? 'All' : formatWindSegmentKind(filter)} {count}
+                    {FILTER_SHORT_LABELS[filter]} {count}
                   </button>
                 )
               })}
             </div>
+            {visible.length === 0 ? (
+              <p className="wind-context__note" data-wind-segments-empty>No {filterFullLabel(activeFilter)} segments in this window</p>
+            ) : (
             <table className="wind-context-table wind-segments__table" aria-label="P wind segments">
               <thead><tr>
                 <th scope="col" className="wind-segments__segment-column">Segment</th>
@@ -149,6 +163,7 @@ export default function WindSegmentsSection({
                 })}
               </tbody>
             </table>
+            )}
           </>
         )}
       </div>

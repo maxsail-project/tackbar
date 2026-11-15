@@ -37,12 +37,13 @@ describe('WindSegmentsSection', () => {
     expect(content).toContain('Unclassified 11:30:00–11:35:00 5m00s')
     expect(content).toContain('Upwind 11:35:00–11:41:10 6m10s')
     expect(content).toContain('Reaching 11:41:55–11:43:40 1m45s')
-    expect(content).not.toMatch(/Pre-start|Reach |partial/)
+    // Table labels keep the full type names; the compact filter labels are separate.
+    expect(text(markup.slice(markup.indexOf('<table')))).not.toMatch(/Pre-start|Reach |Other|partial/)
     expect(markup.match(/wind-segments__row--secondary/g)).toHaveLength(2)
     const highlighted = renderToStaticMarkup(<WindSegmentsSection
       segments={segments} analysisWindow={{ start: t0 + 300_000, end: t0 + 670_000 }} onSegmentSelect={vi.fn()} filterResetKey="a"
     />)
-    expect(highlighted.match(/aria-pressed="true" aria-label=/g)).toHaveLength(1)
+    expect(highlighted.slice(highlighted.indexOf('<table')).match(/aria-pressed="true"/g)).toHaveLength(1)
     expect(highlighted).toContain('aria-pressed="true" aria-label="Set Analysis Window to Upwind segment 11:35:00–11:41:10 UTC"')
     expect(markup).toContain('<th scope="col" class="wind-segments__segment-column">Segment</th>')
     expect(markup).not.toContain('wind-context-table-wrap')
@@ -119,7 +120,9 @@ describe('WindSegmentsSection', () => {
     const option = (filter: string) => container.querySelector<HTMLButtonElement>(`[data-wind-segment-filter="${filter}"]`)!
     const kinds = () => [...container.querySelectorAll<HTMLTableRowElement>('[data-wind-segment]')].map((row) => row.dataset.windSegment)
     expect(['all', 'upwind', 'reaching', 'downwind', 'unclassified'].map((filter) => option(filter).textContent))
-      .toEqual(['All 4', 'Upwind 1', 'Reaching 1', 'Downwind 0', 'Unclassified 2'])
+      .toEqual(['All 4', 'Up 1', 'Reach 1', 'Down 0', 'Other 2'])
+    expect(['all', 'upwind', 'reaching', 'downwind', 'unclassified'].map((filter) => option(filter).getAttribute('aria-label')))
+      .toEqual(['All, 4 segments', 'Upwind, 1 segment', 'Reaching, 1 segment', 'Downwind, 0 segments', 'Unclassified, 2 segments'])
     expect(option('downwind').disabled).toBe(true)
     expect(option('upwind').disabled).toBe(false)
     expect(option('all').getAttribute('aria-pressed')).toBe('true')
@@ -133,6 +136,42 @@ describe('WindSegmentsSection', () => {
     await render('b')
     expect(option('all').getAttribute('aria-pressed')).toBe('true')
     expect(kinds()).toEqual(['unclassified', 'upwind', 'unclassified', 'reaching'])
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it('uses normal weight for classified rows and keeps the muted style only for Unclassified', () => {
+    const markup = renderToStaticMarkup(<WindSegmentsSection segments={segments} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey="a" />)
+    const rowClasses = [...markup.matchAll(/<tr class="([^"]+)" data-wind-segment="([a-z]+)"/g)].map((match) => [match[2], match[1]])
+    expect(rowClasses).toEqual([
+      ['unclassified', 'wind-segments__row wind-segments__row--secondary'],
+      ['upwind', 'wind-segments__row'],
+      ['unclassified', 'wind-segments__row wind-segments__row--secondary'],
+      ['reaching', 'wind-segments__row'],
+    ])
+  })
+
+  it('keeps a selected type with no listed segments selected and shows its empty state', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    const render = (window: { start: number, end: number } | null) => act(async () => root.render(<WindSegmentsSection
+      segments={segments} analysisWindow={window} onSegmentSelect={vi.fn()} filterResetKey="a"
+    />))
+    await render(null)
+    const option = (filter: string) => container.querySelector<HTMLButtonElement>(`[data-wind-segment-filter="${filter}"]`)!
+    await act(async () => option('upwind').click())
+    // A window covering only the trailing Reaching segment lists no Upwind segment.
+    await render({ start: t0 + 720_000, end: t0 + 800_000 })
+    expect(option('upwind').textContent).toBe('Up 0')
+    expect(option('upwind').getAttribute('aria-pressed')).toBe('true')
+    expect(option('upwind').disabled).toBe(false)
+    expect(option('downwind').disabled).toBe(true)
+    expect(container.querySelector('[data-wind-segments-empty]')!.textContent).toBe('No Upwind segments in this window')
+    expect(container.querySelector('[data-wind-segment]')).toBeNull()
+    await act(async () => option('all').click())
+    expect([...container.querySelectorAll<HTMLTableRowElement>('[data-wind-segment]')].map((row) => row.dataset.windSegment)).toEqual(['reaching'])
     await act(async () => root.unmount())
     container.remove()
   })

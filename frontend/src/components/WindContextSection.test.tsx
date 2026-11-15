@@ -72,14 +72,32 @@ describe('WindContextSection', () => {
     expect(content).not.toMatch(/Stbd|Port ·/)
   })
 
-  it('lists tack rows only for upwind-dominant Activities', () => {
+  it('shows a P row with — when only C has tack or downwind values', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90}
       primary={{ ...downwind, classification: 'mixed', downwind: null }} comparison={upwind}
     />)
     expect(text(markup)).toContain('P 10% 10% 80% Mixed')
     expect(markup).toContain('data-wind-tack-role="comparison"')
-    expect(markup).not.toContain('data-wind-tack-role="primary"')
+    expect(markup).toContain('data-wind-tack-role="primary"')
+    expect(text(markup)).toContain('Tack angle P — — — — — — C 55% · 42°')
+    const downwindOnlyC = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90}
+      primary={{ ...downwind, classification: 'mixed', downwind: null }} comparison={downwind}
+    />)
+    expect(text(downwindOnlyC)).toMatch(/Gybe angle P — — C 152° 42°/)
+  })
+
+  it('renders progress and downwind tables without a scroll wrapper; only the tack table keeps one', () => {
+    const markup = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90} primary={upwind} comparison={downwind}
+      primaryProgress={{ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }}
+      comparisonProgress={{ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }}
+    />)
+    expect(markup.match(/class="wind-context-table-wrap"/g)).toHaveLength(1)
+    expect(markup).toMatch(/class="wind-context-table-wrap"><table class="wind-context-table wind-context-table--tack"/)
+    expect(markup).toContain('<table class="wind-context-table wind-context-table--progress"')
+    expect(markup).toContain('<table class="wind-context-table wind-context-table--downwind"')
   })
 
   const withAxis = (degrees: number, offsetDegrees: number, tackAngleDegrees = 78): WindContextResult => ({
