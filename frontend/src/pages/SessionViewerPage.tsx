@@ -80,12 +80,12 @@ import {
   formatSessionRange,
 } from '../utils/sessionPresentation'
 import { selectHistoricalConditionsSample } from '../utils/historicalConditions'
-import { resolveTwdReference } from '../utils/twdReference'
+import { createTwdTimeResolver, resolveTwdReference } from '../utils/twdReference'
 import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
 import { resolveTwsPresentation, resolveTwsReference, stepViewerTws } from '../utils/twsReference'
 import { calculateWindContext, resolveEffectiveTwd } from '../utils/windContext'
 import { calculateWindProgress } from '../utils/windProgress'
-import { detectWindSegments } from '../utils/windSegments'
+import { classifySegmentInterval, createSegmentTwdAtTime, detectWindSegments } from '../utils/windSegments'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -809,26 +809,36 @@ export function SessionViewer({
     ),
     [analysisWindow, comparisonSummaryMetrics, comparisonTrack, comparisonWindContext, effectiveTwd],
   )
+  // Segments use a window-independent per-sample wind reference (nearest modelled sample to
+  // each sample's UTC time, or the manual value), so selecting a segment cannot re-segment.
+  const modelledTwdAtTime = useMemo(
+    () => createTwdTimeResolver(session.historical_conditions),
+    [session.historical_conditions],
+  )
+  const segmentTwdAtTime = useMemo(
+    () => createSegmentTwdAtTime(modelledTwdAtTime, manualTwdDegrees),
+    [manualTwdDegrees, modelledTwdAtTime],
+  )
   // P-referenced wind segments are derived only; recomputing them never moves the window.
   const windSegments = useMemo(
     () => detectWindSegments(
       primaryTrack?.samples ?? [],
       availableRange,
-      effectiveTwd,
+      segmentTwdAtTime,
       sessionStarts.map((start) => start.time),
     ),
-    [availableRange, effectiveTwd, primaryTrack, sessionStarts],
+    [availableRange, primaryTrack, segmentTwdAtTime, sessionStarts],
   )
   // Isolated C column (#192.3 option C): remove this memo and its prop to drop the column.
   const comparisonSegmentClassifications = useMemo(
     () => comparisonActivityId === null
       ? undefined
-      : windSegments.map((segment) => calculateWindContext(
+      : windSegments.map((segment) => classifySegmentInterval(
           comparisonTrack?.samples ?? [],
           segment,
-          effectiveTwd,
-        ).classification),
-    [comparisonActivityId, comparisonTrack, effectiveTwd, windSegments],
+          segmentTwdAtTime,
+        )),
+    [comparisonActivityId, comparisonTrack, segmentTwdAtTime, windSegments],
   )
   const twsReference = useMemo(
     () => resolveTwsReference(

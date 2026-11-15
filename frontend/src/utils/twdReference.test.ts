@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HistoricalConditions, HistoricalConditionsSample } from '../types/session'
 import { selectHistoricalConditionsSample } from './historicalConditions'
-import { resolveTwdReference } from './twdReference'
+import { createTwdTimeResolver, resolveTwdReference } from './twdReference'
 
 function sample(time: string, direction: number | null): HistoricalConditionsSample {
   return {
@@ -93,5 +93,42 @@ describe('modelled TWD reference resolution', () => {
     expect(resolveTwdReference(at('2031-06-01T09:00:00Z'), {
       ...conditions(sample('2031-06-01T09:00:00Z', 45)), weather_source: null,
     })).toMatchObject({ provenance: { provider: null } })
+  })
+})
+
+describe('per-instant modelled TWD resolver', () => {
+  const at = (hour: number, minute = 0) => Date.UTC(2031, 0, 1, hour, minute)
+  const conditions = (samples: [string, number | null][]): HistoricalConditions => ({
+    weather_source: { provider: 'open-meteo' }, marine_source: null,
+    hourly: samples.map(([time, direction]) => ({
+      time, wind_direction_10m_deg: direction,
+      air_temperature_c: null, wind_speed_10m_kn: null, wind_gusts_10m_kn: null,
+      cloud_cover_pct: null, wave_height_m: null, wave_direction_deg: null, wave_period_s: null,
+    })),
+  })
+
+  it('matches resolveTwdReference for nearest, earlier-tie, unsorted, invalid and duplicate samples', () => {
+    const source = conditions([
+      ['2031-01-01T12:00:00Z', 30],
+      ['2031-01-01T10:00:00Z', 10.4],
+      ['2031-01-01T11:00:00Z', null],
+      ['2031-01-01T11:00:00', 99],
+      ['2031-01-01T13:00:00+00:00', 40],
+      ['2031-01-01T13:00:00Z', 41],
+    ])
+    const resolve = createTwdTimeResolver(source)!
+    for (const time of [at(8), at(10), at(10, 59), at(11), at(11, 1), at(12, 30), at(13), at(15)]) {
+      const reference = resolveTwdReference(time, source)
+      expect(reference.status).toBe('available')
+      expect(resolve(time)).toBe(reference.status === 'available' ? reference.directionDegrees : null)
+    }
+    expect(resolve(at(11))).toBe(10.4)
+    expect(resolve(at(12, 30))).toBe(30)
+    expect(resolve(at(15))).toBe(40)
+  })
+
+  it('is null without a valid modelled direction', () => {
+    expect(createTwdTimeResolver(null)).toBeNull()
+    expect(createTwdTimeResolver(conditions([['2031-01-01T10:00:00Z', null], ['2031-01-01T11:00:00', 5]]))).toBeNull()
   })
 })

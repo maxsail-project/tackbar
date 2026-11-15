@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { TrackSample } from '../types/track'
-import type { EffectiveTwd } from './windContext'
-import { detectWindSegments, formatWindSegmentKind, windSegmentMatchesWindow, type WindSegment } from './windSegments'
+import type { HistoricalConditions } from '../types/session'
+import { createTwdTimeResolver } from './twdReference'
+import {
+  classifySegmentInterval,
+  createSegmentTwdAtTime,
+  detectWindSegments,
+  formatWindSegmentKind,
+  windSegmentMatchesWindow,
+  type TwdAtTime,
+  type WindSegment,
+} from './windSegments'
 
 const start = Date.UTC(2025, 5, 21, 11, 30)
-const twd = (degrees: number): EffectiveTwd => ({ degrees, source: 'manual' })
+const twd = (degrees: number): TwdAtTime => () => degrees
 
 interface Leg {
   seconds: number
@@ -229,5 +238,73 @@ describe('segment window matching', () => {
     expect(windSegmentMatchesWindow(segment, { start: at(0), end: at(100) })).toBe(true)
     expect(windSegmentMatchesWindow(segment, { start: at(0), end: at(101) })).toBe(false)
     expect(windSegmentMatchesWindow(segment, null)).toBe(false)
+  })
+})
+
+function conditions(samples: [secondsFromStart: number, direction: number | null][]): HistoricalConditions {
+  return {
+    weather_source: { provider: 'open-meteo' }, marine_source: null,
+    hourly: samples.map(([seconds, direction]) => ({
+      time: new Date(start + seconds * 1_000).toISOString(),
+      wind_direction_10m_deg: direction,
+      air_temperature_c: null, wind_speed_10m_kn: null, wind_gusts_10m_kn: null,
+      cloud_cover_pct: null, wave_height_m: null, wave_direction_deg: null, wave_period_s: null,
+    })),
+  }
+}
+
+describe('window-independent per-sample wind reference', () => {
+  it('re-classifies by each sample time when the nearest modelled sample changes along the track', () => {
+    // Constant COG 000°: modelled 000° (upwind) through the equal-distance tie at 200 s (earlier wins), then 090°.
+    const { samples, range } = track([{ seconds: 400, cog: 0 }])
+    const modelled = createTwdTimeResolver(conditions([[0, 0], [400, 90]]))
+    const segments = detectWindSegments(samples, range, createSegmentTwdAtTime(modelled, null))
+    expect(summary(segments)).toEqual([['upwind', 0, 201], ['reaching', 201, 400]])
+  })
+
+  it('applies an active manual value to all samples and returns to per-sample modelled without it', () => {
+    const { samples, range } = track([{ seconds: 400, cog: 0 }])
+    const modelled = createTwdTimeResolver(conditions([[0, 0], [400, 90]]))
+    expect(summary(detectWindSegments(samples, range, createSegmentTwdAtTime(modelled, 180)))).toEqual([['downwind', 0, 400]])
+    expect(summary(detectWindSegments(samples, range, createSegmentTwdAtTime(modelled, null)))).toEqual([
+      ['upwind', 0, 201], ['reaching', 201, 400],
+    ])
+  })
+
+  it('has no reference without modelled direction or manual value', () => {
+    expect(createSegmentTwdAtTime(createTwdTimeResolver(conditions([[0, null]])), null)).toBeNull()
+    expect(createSegmentTwdAtTime(null, null)).toBeNull()
+    const { samples, range } = track([{ seconds: 200, cog: 0 }])
+    expect(detectWindSegments(samples, range, createSegmentTwdAtTime(null, null))).toEqual([])
+    expect(createSegmentTwdAtTime(null, 355)!(start)).toBe(355)
+  })
+
+  it('does not depend on any Analysis Window: the same track gives the same list', () => {
+    const { samples, range } = track([{ seconds: 300, cog: 0 }, { seconds: 300, cog: 180 }])
+    const modelled = createSegmentTwdAtTime(createTwdTimeResolver(conditions([[0, 0], [3_600, 10]])), null)
+    const first = detectWindSegments(samples, range, modelled)
+    expect(detectWindSegments(samples, range, modelled)).toEqual(first)
+    expect(summary(first)).toEqual([['upwind', 0, 300], ['downwind', 300, 600]])
+  })
+})
+
+describe('C classification over a P segment interval', () => {
+  it('reports Upwind, Mixed and Unavailable with the per-sample rule', () => {
+    const upwind = track([{ seconds: 200, cog: 0 }])
+    expect(classifySegmentInterval(upwind.samples, { start: at(0), end: at(200) }, twd(0))).toBe('upwind')
+    const mixed = track([{ seconds: 100, cog: 0 }, { seconds: 100, cog: 90 }])
+    expect(classifySegmentInterval(mixed.samples, { start: at(0), end: at(200) }, twd(0))).toBe('mixed')
+    const slow = track([{ seconds: 200, cog: 0, sog: 1 }])
+    expect(classifySegmentInterval(slow.samples, { start: at(0), end: at(200) }, twd(0))).toBe('unavailable')
+    expect(classifySegmentInterval(upwind.samples, { start: at(0), end: at(200) }, null)).toBe('unavailable')
+    expect(classifySegmentInterval([], { start: at(0), end: at(200) }, twd(0))).toBe('unavailable')
+  })
+
+  it('uses each sample time for the modelled reference', () => {
+    const { samples } = track([{ seconds: 400, cog: 0 }])
+    const modelled = createSegmentTwdAtTime(createTwdTimeResolver(conditions([[0, 0], [400, 90]])), null)
+    expect(classifySegmentInterval(samples, { start: at(0), end: at(190) }, modelled)).toBe('upwind')
+    expect(classifySegmentInterval(samples, { start: at(210), end: at(400) }, modelled)).toBe('reaching')
+    expect(classifySegmentInterval(samples, { start: at(0), end: at(400) }, modelled)).toBe('mixed')
   })
 })

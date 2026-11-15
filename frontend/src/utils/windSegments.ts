@@ -4,13 +4,27 @@ import type { AnalysisWindowRange } from './analysisWindow'
 import {
   classifyWindSector,
   signedTwaDegrees,
-  type EffectiveTwd,
   type WindSector,
+  type WindWindowClassification,
 } from './windContext'
 
 type WindContextConfig = typeof WIND_CONTEXT_CONFIG
 
 export type WindSegmentKind = WindSector | 'unclassified' | 'pre-start'
+
+/**
+ * Window-independent segmentation wind reference: TWD for a sample's own UTC time — the
+ * nearest persisted modelled direction, or the active Manual · Viewer value for every sample.
+ */
+export type TwdAtTime = (utcMs: number) => number | null
+
+export function createSegmentTwdAtTime(
+  modelledAtTime: ((utcMs: number) => number) | null,
+  manualDegrees: number | null,
+): TwdAtTime | null {
+  if (manualDegrees !== null && Number.isFinite(manualDegrees)) return () => manualDegrees
+  return modelledAtTime
+}
 
 /**
  * Ephemeral Viewer shortcut to an Analysis Window (#192.3): not an Activity, Session,
@@ -38,7 +52,7 @@ interface LabelledInterval {
 function labelIntervals(
   samples: TrackSample[],
   range: AnalysisWindowRange,
-  twdDegrees: number,
+  twdAt: TwdAtTime,
   config: WindContextConfig,
 ) {
   const blocks: LabelledInterval[][] = []
@@ -60,7 +74,8 @@ function labelIntervals(
     }
     const end = Math.min(next, range.end)
     const moving = sample.sog !== null && Number.isFinite(sample.sog) && sample.sog >= config.movingMinSogKnots
-    const twa = moving ? signedTwaDegrees(twdDegrees, sample.cog) : null
+    const twd = moving ? twdAt(start) : null
+    const twa = twd === null ? null : signedTwaDegrees(twd, sample.cog)
     const label: IntervalLabel = twa === null ? 'none' : classifyWindSector(twa, config)
     const previous = current[current.length - 1]
     if (previous !== undefined && previous.end !== start) {
@@ -163,29 +178,52 @@ function segmentBlock(block: LabelledInterval[], config: WindContextConfig): Win
 }
 
 /**
- * P-referenced wind segments over the available range from the effective TWD (#192.3).
+ * P-referenced wind segments over the available range (#192.3), classified per sample with
+ * the window-independent `twdAt` reference.
  * Boundaries are forced at each inferred Session Start inside the range; an Unclassified
  * segment ending exactly at a Start is labelled Pre-start.
  */
 export function detectWindSegments(
   samples: TrackSample[],
   range: AnalysisWindowRange | null,
-  effectiveTwd: EffectiveTwd | null,
+  twdAt: TwdAtTime | null,
   sessionStartTimes: number[] = [],
   config: WindContextConfig = WIND_CONTEXT_CONFIG,
 ): WindSegment[] {
-  if (range === null || effectiveTwd === null || !Number.isFinite(effectiveTwd.degrees) || range.end <= range.start) {
-    return []
-  }
+  if (range === null || twdAt === null || range.end <= range.start) return []
   const starts = [...new Set(sessionStartTimes)]
     .filter((time) => Number.isFinite(time) && time > range.start && time < range.end)
     .sort((first, second) => first - second)
-  const blocks = splitAtBoundaries(labelIntervals(samples, range, effectiveTwd.degrees, config), starts)
+  const blocks = splitAtBoundaries(labelIntervals(samples, range, twdAt, config), starts)
   return blocks.flatMap((block) => segmentBlock(block, config)).map((segment) => (
     segment.kind === 'unclassified' && starts.includes(segment.end)
       ? { ...segment, kind: 'pre-start' as const }
       : segment
   ))
+}
+
+/**
+ * C column: dominant sector / Mixed / Unavailable of an Activity over one P segment interval,
+ * with the #192.1 moving-time shares and dominance rule but the per-sample `twdAt` reference.
+ */
+export function classifySegmentInterval(
+  samples: TrackSample[],
+  interval: AnalysisWindowRange,
+  twdAt: TwdAtTime | null,
+  config: WindContextConfig = WIND_CONTEXT_CONFIG,
+): WindWindowClassification {
+  if (twdAt === null || interval.end <= interval.start) return 'unavailable'
+  const sectorMs: Record<WindSector, number> = { upwind: 0, reaching: 0, downwind: 0 }
+  for (const block of labelIntervals(samples, interval, twdAt, config)) {
+    for (const { label, start, end } of block) {
+      if (label !== 'none') sectorMs[label] += end - start
+    }
+  }
+  const total = sectorMs.upwind + sectorMs.reaching + sectorMs.downwind
+  if (total <= 0) return 'unavailable'
+  const dominant = (Object.keys(sectorMs) as WindSector[])
+    .find((sector) => sectorMs[sector] / total >= config.dominantShare)
+  return dominant ?? 'mixed'
 }
 
 export function formatWindSegmentKind(kind: WindSegmentKind) {
