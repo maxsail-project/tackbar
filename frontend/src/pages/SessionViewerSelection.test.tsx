@@ -311,6 +311,47 @@ describe('Viewer TWD state', () => {
     expect(weatherTime()).toBe(new Date(start + 9_000).toISOString())
   })
 
+  it.each(['original', 'temporary'] as const)('places the collapsed wind section after Maneuver Analysis and recomputes from effective TWD on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const section = () => container.querySelector('.wind-context-section')
+    expect(section()).not.toBeNull()
+    expect(container.querySelector('[data-viewer-section="maneuver-analysis"]')!.compareDocumentPosition(section()!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(section()!.compareDocumentPosition(container.querySelector('[aria-labelledby="comparison-title"]')!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(section()!.querySelector('.maneuver-section__collapse')?.getAttribute('aria-expanded')).toBe('false')
+    expect(section()!.querySelector('[hidden]')).not.toBeNull()
+    const reference = () => section()!.querySelector('.wind-context__reference')!.textContent
+    const primaryRow = () => section()!.querySelector('[data-wind-role="primary"]')!.textContent
+    // COG 090° vs original modelled 91.6° → upwind, tack indeterminate.
+    expect(reference()).toBe('TWD 090° · Modelled')
+    expect(primaryRow()).toBe('P100%0%0%Upwind')
+    expect(section()!.querySelector('[data-wind-tack-role="primary"]')!.textContent).toBe('P0% · —0% · —100%COG only')
+    expect(section()!.querySelector('[data-wind-role="comparison"]')).toBeNull()
+    await click('[data-twd-gesture]')
+    // Manual 355° → |TWA| 95° → reaching; no tack split.
+    expect(reference()).toBe('TWD 355° · Manual · Viewer')
+    expect(primaryRow()).toBe('P0%100%0%Reaching')
+    expect(section()!.querySelector('[data-wind-tack-role]')).toBeNull()
+    await click('[data-twd-auto]')
+    expect(reference()).toBe('TWD 090° · Modelled')
+    expect(primaryRow()).toBe('P100%0%0%Upwind')
+    await choose('Compare', 'b')
+    expect(section()!.querySelector('[data-wind-role="comparison"]')!.textContent).toBe('C100%0%0%Upwind')
+    await click('[data-narrow-window]')
+    // Window midpoint now nearest the 180° sample: COG 090° → |TWA| 90° reaching.
+    expect(reference()).toBe('TWD 180° · Modelled')
+    expect(primaryRow()).toBe('P0%100%0%Reaching')
+    expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
+  })
+
+  it('hides the wind section without effective TWD and shows it for a manual-only correction', async () => {
+    await mountViewer('original', session)
+    expect(container.querySelector('.wind-context-section')).toBeNull()
+    await click('[data-twd-minus]')
+    expect(container.querySelector('.wind-context__reference')!.textContent).toBe('TWD 355° · Manual · Viewer')
+    await click('[data-twd-auto]')
+    expect(container.querySelector('.wind-context-section')).toBeNull()
+  })
+
   it('keeps unavailable North-up distinct from manual-only ±5° and returns to unavailable', async () => {
     await mountViewer('original', session)
     const mapState = () => container.querySelector('[data-twd]')!

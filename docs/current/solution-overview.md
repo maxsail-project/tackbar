@@ -99,7 +99,9 @@ flowchart TB
   automatic tack/gybe classifications.
 - **Session context is optional.** Historical/modelled weather and marine
   values are not onboard measurements. Persisted modelled wind can orient
-  the Viewer map as TWD; current sailing analytics do not consume it.
+  the Viewer map as TWD and, with any labelled Viewer correction, feed the
+  Viewer's ephemeral wind-relative window context; backend maneuver
+  analytics do not consume it.
 - **Providers and storage are backend concerns.** The frontend consumes
   APIs, not private files; acquisition and context providers remain replaceable.
 

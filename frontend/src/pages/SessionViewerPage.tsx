@@ -31,6 +31,7 @@ import ManeuverEventTable, {
 } from '../components/ManeuverEventTable'
 import ManeuverProfiles from '../components/ManeuverProfiles'
 import SelectedManeuvers from '../components/SelectedManeuvers'
+import WindContextSection from '../components/WindContextSection'
 import TrackMap, {
   type ContextualMapActivity,
   createMapFitContextKey,
@@ -82,6 +83,7 @@ import { selectHistoricalConditionsSample } from '../utils/historicalConditions'
 import { resolveTwdReference } from '../utils/twdReference'
 import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
 import { resolveTwsPresentation, resolveTwsReference, stepViewerTws } from '../utils/twsReference'
+import { calculateWindContext, resolveEffectiveTwd } from '../utils/windContext'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -771,6 +773,18 @@ export function SessionViewer({
     [analysisWindow, session.historical_conditions],
   )
   const twdPresentation = resolveTwdPresentation(twdReference, manualTwdDegrees)
+  const effectiveTwd = useMemo(
+    () => resolveEffectiveTwd(twdReference, manualTwdDegrees),
+    [manualTwdDegrees, twdReference],
+  )
+  const primaryWindContext = useMemo(
+    () => calculateWindContext(primaryWindowSamples, analysisWindow, effectiveTwd),
+    [analysisWindow, effectiveTwd, primaryWindowSamples],
+  )
+  const comparisonWindContext = useMemo(
+    () => calculateWindContext(comparisonWindowSamples, analysisWindow, effectiveTwd),
+    [analysisWindow, comparisonWindowSamples, effectiveTwd],
+  )
   const twsReference = useMemo(
     () => resolveTwsReference(
       analysisWindow === null
@@ -1158,6 +1172,14 @@ export function SessionViewer({
               )}
           selectedManeuverKey={maneuverSelectionHistory[0]}
           onSelect={selectManeuver}
+        />
+      )}
+      {analysisWindow !== null && effectiveTwd !== null && twdPresentation.displayDegrees !== null && (
+        <WindContextSection
+          effectiveTwd={effectiveTwd}
+          displayDegrees={twdPresentation.displayDegrees}
+          primary={primaryWindContext}
+          comparison={comparisonActivityId === null ? undefined : comparisonWindContext}
         />
       )}
       <ComparisonTable
