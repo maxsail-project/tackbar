@@ -324,7 +324,7 @@ describe('Viewer TWD state', () => {
     // COG 090° vs original modelled 91.6° → upwind, tack indeterminate.
     expect(reference()).toBe('TWD 090° · Modelled')
     expect(primaryRow()).toBe('P100%0%0%Upwind')
-    expect(section()!.querySelector('[data-wind-tack-role="primary"]')!.textContent).toBe('P0% · —0% · —100%COG only')
+    expect(section()!.querySelector('[data-wind-tack-role="primary"]')!.textContent).toBe('P0% · —0% · —100%COG only——')
     expect(section()!.querySelector('[data-wind-role="comparison"]')).toBeNull()
     await click('[data-twd-gesture]')
     // Manual 355° → |TWA| 95° → reaching; no tack split.

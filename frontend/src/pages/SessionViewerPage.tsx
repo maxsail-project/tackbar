@@ -777,13 +777,15 @@ export function SessionViewer({
     () => resolveEffectiveTwd(twdReference, manualTwdDegrees),
     [manualTwdDegrees, twdReference],
   )
+  // Full canonical tracks (as Summary uses) let the last in-window sample represent
+  // its real interval to the next sample, clipped at the window end.
   const primaryWindContext = useMemo(
-    () => calculateWindContext(primaryWindowSamples, analysisWindow, effectiveTwd),
-    [analysisWindow, effectiveTwd, primaryWindowSamples],
+    () => calculateWindContext(primaryTrack?.samples ?? [], analysisWindow, effectiveTwd),
+    [analysisWindow, effectiveTwd, primaryTrack],
   )
   const comparisonWindContext = useMemo(
-    () => calculateWindContext(comparisonWindowSamples, analysisWindow, effectiveTwd),
-    [analysisWindow, comparisonWindowSamples, effectiveTwd],
+    () => calculateWindContext(comparisonTrack?.samples ?? [], analysisWindow, effectiveTwd),
+    [analysisWindow, comparisonTrack, effectiveTwd],
   )
   const twsReference = useMemo(
     () => resolveTwsReference(

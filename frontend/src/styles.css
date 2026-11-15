@@ -3435,3 +3435,17 @@ input:focus-visible {
   .wind-context-table { font-size: 0.66rem; }
   .wind-context-table thead th { font-size: 0.54rem; }
 }
+.wind-context-table-wrap {
+  margin-top: 8px;
+  overflow-x: auto;
+}
+.wind-context-table-wrap .wind-context-table {
+  min-width: 360px;
+  margin-top: 0;
+}
+.wind-context__hint {
+  margin: 8px 0 0;
+  color: #263f46;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}

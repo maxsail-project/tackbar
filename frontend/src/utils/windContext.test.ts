@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { TrackSample } from '../types/track'
 import {
+  calculateTackAxis,
   calculateWindContext,
+  circularMeanOfTwo,
   classifyUpwindTack,
   classifyWindSector,
   evaluateHeelCheck,
   formatTwdSource,
   normalizeSignedDegrees,
   resolveEffectiveTwd,
+  resolveTackAxisHint,
   resolveTackCheckLabels,
   signedTwaDegrees,
   type EffectiveTwd,
+  type TackAxis,
 } from './windContext'
 
 const start = Date.UTC(2031, 5, 15, 11)
@@ -261,5 +265,127 @@ describe('tack consistency checks', () => {
       { cog: 45 },
     ])
     expect(check(list).heel).toBe('opposite')
+  })
+})
+
+describe('window end', () => {
+  it('counts the last in-window sample interval clipped at the window end from the full track', () => {
+    const list = samples(repeat(21, { cog: 180 }))
+    const window = { start, end: start + 10_500 }
+    expect(calculateWindContext(list, window, modelled(0)).movingSeconds).toBe(10.5)
+    // Window-only samples lose the final partial interval.
+    expect(calculateWindContext(list.slice(0, 11), window, modelled(0)).movingSeconds).toBe(10)
+  })
+
+  it('keeps samples starting before the window start excluded', () => {
+    const list = samples(repeat(21, { cog: 180 }))
+    expect(calculateWindContext(list, { start: start + 500, end: start + 10_000 }, modelled(0)).movingSeconds).toBe(9)
+  })
+})
+
+describe('tack axis and tack angle', () => {
+  /** Starboard and port legs at constant COG, `seconds` of represented time each. */
+  function legs(starboardCog: number, portCog: number, seconds = 61, extra: Partial<Record<'starboard' | 'port', SensorInput>> = {}) {
+    return samples([
+      ...repeat(seconds, { cog: starboardCog, ...extra.starboard }),
+      ...repeat(seconds, { cog: portCog, ...extra.port }),
+      { cog: portCog },
+    ])
+  }
+  const axisFor = (list: TrackSample[], twd: number) =>
+    calculateWindContext(list, windowFor(list), modelled(twd)).upwindTack!.axis
+
+  it('computes the 015° / 33° / 45° example: Axis 021° (+6), Tack angle 78°', () => {
+    // TWD 015°: starboard COG 342° → |TWA| 33°, port COG 060° → |TWA| 45°.
+    const axis = axisFor(legs(342, 60), 15)!
+    expect(axis.degrees).toBeCloseTo(21)
+    expect(axis.offsetDegrees).toBeCloseTo(6)
+    expect(axis.tackAngleDegrees).toBeCloseTo(78)
+  })
+
+  it('normalizes across 0°/360° with effective TWD 355°', () => {
+    // Starboard COG 322° → 33°, port COG 040° → 45° → Axis 001°, +6.
+    const axis = axisFor(legs(322, 40), 355)!
+    expect(axis.degrees).toBeCloseTo(1)
+    expect(axis.offsetDegrees).toBeCloseTo(6)
+    const negative = axisFor(legs(318, 30), 5)!
+    // Starboard 47°, port 25° → Axis 354° (−11).
+    expect(negative.degrees).toBeCloseTo(354)
+    expect(negative.offsetDegrees).toBeCloseTo(-11)
+  })
+
+  it('is invariant when effective TWD is moved near the axis', () => {
+    const list = legs(342, 60)
+    const near = axisFor(list, 21)!
+    expect(near.degrees).toBeCloseTo(21)
+    expect(near.offsetDegrees).toBeCloseTo(0)
+    expect(near.tackAngleDegrees).toBeCloseTo(78)
+    expect(axisFor(list, 18)!.degrees).toBeCloseTo(21)
+    const wrapped = legs(322, 40)
+    expect(axisFor(wrapped, 1)!.degrees).toBeCloseTo(1)
+    expect(axisFor(wrapped, 358)!.degrees).toBeCloseTo(1)
+  })
+
+  it('is unavailable with less than 60 s on one tack', () => {
+    const list = samples([...repeat(61, { cog: 342 }), ...repeat(59, { cog: 60 }), { cog: 60 }])
+    const tack = calculateWindContext(list, windowFor(list), modelled(15)).upwindTack!
+    expect(tack.tackSeconds.port).toBe(59)
+    expect(tack.axis).toBeNull()
+    const exactly = samples([...repeat(60, { cog: 342 }), ...repeat(60, { cog: 60 }), { cog: 60 }])
+    expect(axisFor(exactly, 15)).not.toBeNull()
+  })
+
+  it('is unavailable when the tack check is ?', () => {
+    const list = legs(342, 60, 61, { starboard: { hdg: 60 }, port: { hdg: 342 } })
+    const tack = calculateWindContext(list, windowFor(list), modelled(15)).upwindTack!
+    expect(tack.check.labels).toEqual(['?'])
+    expect(tack.axis).toBeNull()
+    expect(axisFor(legs(342, 60, 61, { starboard: { hdg: 345 }, port: { hdg: 57 } }), 15)).not.toBeNull()
+  })
+
+  it('is absent for non-upwind windows and requires both tack means', () => {
+    const downwind = samples(repeat(200, { cog: 195 }))
+    expect(calculateWindContext(downwind, windowFor(downwind), modelled(15)).upwindTack).toBeNull()
+    expect(calculateTackAxis(15, {
+      tackSeconds: { port: 0, starboard: 120, indeterminate: 0 },
+      meanAbsTwaDegrees: { port: null, starboard: 33 },
+      check: { hdg: 'unavailable', heel: 'unavailable', labels: ['COG only'] },
+    })).toBeNull()
+  })
+})
+
+describe('combined tack axis hint', () => {
+  const axis = (degrees: number, twd: number): TackAxis => ({
+    degrees, offsetDegrees: normalizeSignedDegrees(degrees - twd), tackAngleDegrees: 80,
+  })
+
+  it('shows the circular mean when P and C agree within 5° and differ from TWD by ≥ 3°', () => {
+    const hint = resolveTackAxisHint(15, axis(21, 15), true, axis(24, 15))!
+    expect(hint.degrees).toBeCloseTo(22.5)
+    expect(hint.offsetDegrees).toBeCloseTo(7.5)
+    expect(hint.combined).toBe(true)
+    expect(resolveTackAxisHint(15, axis(21, 15), true, axis(26, 15))).not.toBeNull()
+  })
+
+  it('hides on disagreement, small offset or a missing C axis', () => {
+    expect(resolveTackAxisHint(15, axis(21, 15), true, axis(26.5, 15))).toBeNull()
+    expect(resolveTackAxisHint(15, axis(16, 15), true, axis(19, 15))).toBeNull()
+    expect(resolveTackAxisHint(15, axis(21, 15), true, null)).toBeNull()
+    expect(resolveTackAxisHint(15, null, true, axis(21, 15))).toBeNull()
+  })
+
+  it('uses the P axis alone without Comparison', () => {
+    expect(resolveTackAxisHint(15, axis(21, 15), false, null)).toEqual({ degrees: 21, offsetDegrees: 6, combined: false })
+    expect(resolveTackAxisHint(15, axis(12, 15), false, null)!.offsetDegrees).toBe(-3)
+    expect(resolveTackAxisHint(15, axis(17.9, 15), false, null)).toBeNull()
+  })
+
+  it('averages axes circularly across 0°', () => {
+    expect(circularMeanOfTwo(358, 2)).toBeCloseTo(0)
+    expect(circularMeanOfTwo(2, 358)).toBeCloseTo(0)
+    expect(circularMeanOfTwo(357, 1)).toBeCloseTo(359)
+    const hint = resolveTackAxisHint(350, axis(358, 350), true, axis(2, 350))!
+    expect(hint.degrees).toBeCloseTo(0)
+    expect(hint.offsetDegrees).toBeCloseTo(10)
   })
 })

@@ -24,11 +24,32 @@ export interface TackCheck {
   labels: TackCheckLabel[]
 }
 
+/**
+ * Estimated bisector of the upwind tacks (#192.1.1). A displayed estimate only:
+ * never a TWD source, never a calculation input and never applied automatically.
+ */
+export interface TackAxis {
+  /** Circular-normalized to [0°, 360°). */
+  degrees: number
+  /** Signed circular difference Axis − effective TWD in (−180°, 180°]. */
+  offsetDegrees: number
+  tackAngleDegrees: number
+}
+
 export interface UpwindTackSummary {
   upwindSeconds: number
+  tackSeconds: Record<UpwindTack, number>
   shares: Record<UpwindTack, number>
   meanAbsTwaDegrees: { port: number | null, starboard: number | null }
   check: TackCheck
+  axis: TackAxis | null
+}
+
+export interface TackAxisHint {
+  degrees: number
+  offsetDegrees: number
+  /** True when the hint combines the P and C axes. */
+  combined: boolean
 }
 
 export interface WindContextResult {
@@ -159,6 +180,65 @@ export function resolveTackCheckLabels(hdg: HdgCheck, heel: HeelCheck): TackChec
   return labels.length > 0 ? labels : ['COG only']
 }
 
+function normalizeDegrees(value: number) {
+  return ((value % 360) + 360) % 360
+}
+
+/**
+ * `Axis = TWD + (mean |TWA| port − mean |TWA| starboard) / 2`, equivalent to the bisector
+ * of the mean tack courses; `Tack angle = mean |TWA| starboard + mean |TWA| port`.
+ * Requires each tack to have the minimum upwind moving time and a check other than `?`.
+ */
+export function calculateTackAxis(
+  twdDegrees: number,
+  summary: Pick<UpwindTackSummary, 'tackSeconds' | 'meanAbsTwaDegrees' | 'check'>,
+  config: WindContextConfig = WIND_CONTEXT_CONFIG,
+): TackAxis | null {
+  const { port, starboard } = summary.meanAbsTwaDegrees
+  if (port === null || starboard === null || !Number.isFinite(twdDegrees)) return null
+  if (
+    summary.tackSeconds.port < config.tackAxisMinTackSeconds
+    || summary.tackSeconds.starboard < config.tackAxisMinTackSeconds
+  ) return null
+  if (summary.check.labels.includes('?')) return null
+  const degrees = normalizeDegrees(twdDegrees + (port - starboard) / 2)
+  return {
+    degrees,
+    offsetDegrees: normalizeSignedDegrees(degrees - twdDegrees),
+    tackAngleDegrees: starboard + port,
+  }
+}
+
+/** Circular midpoint of two angles along their shortest arc, in [0°, 360°). */
+export function circularMeanOfTwo(first: number, second: number) {
+  return normalizeDegrees(first + normalizeSignedDegrees(second - first) / 2)
+}
+
+/**
+ * Single hint: with Comparison selected, both axes must be available, agree within the
+ * configured limit and their circular mean must differ from effective TWD by the minimum
+ * offset; without Comparison, the Primary axis alone follows the same offset rule.
+ */
+export function resolveTackAxisHint(
+  twdDegrees: number,
+  primaryAxis: TackAxis | null,
+  hasComparison: boolean,
+  comparisonAxis: TackAxis | null,
+  config: WindContextConfig = WIND_CONTEXT_CONFIG,
+): TackAxisHint | null {
+  if (primaryAxis === null || !Number.isFinite(twdDegrees)) return null
+  let degrees = primaryAxis.degrees
+  if (hasComparison) {
+    if (comparisonAxis === null) return null
+    const agreement = Math.abs(normalizeSignedDegrees(comparisonAxis.degrees - primaryAxis.degrees))
+    if (agreement > config.tackAxisHintAgreementDegrees) return null
+    degrees = circularMeanOfTwo(primaryAxis.degrees, comparisonAxis.degrees)
+  }
+  const offsetDegrees = normalizeSignedDegrees(degrees - twdDegrees)
+  if (Math.abs(offsetDegrees) < config.tackAxisHintMinOffsetDegrees) return null
+  return { degrees, offsetDegrees, combined: hasComparison }
+}
+
 /**
  * Wind-relative context of one Activity over the Analysis Window.
  * Each valid canonical sample inside the window represents the interval to the next sample,
@@ -227,8 +307,13 @@ export function calculateWindContext(
   if (classification === 'upwind') {
     const hdg = evaluateHdgCheck(hdgTwa)
     const heelCheck = evaluateHeelCheck(heel, config)
-    upwindTack = {
+    const summary = {
       upwindSeconds: sectorMs.upwind / 1_000,
+      tackSeconds: {
+        port: tackMs.port / 1_000,
+        starboard: tackMs.starboard / 1_000,
+        indeterminate: tackMs.indeterminate / 1_000,
+      },
       shares: {
         port: tackMs.port / sectorMs.upwind,
         starboard: tackMs.starboard / sectorMs.upwind,
@@ -240,6 +325,7 @@ export function calculateWindContext(
       },
       check: { hdg, heel: heelCheck, labels: resolveTackCheckLabels(hdg, heelCheck) },
     }
+    upwindTack = { ...summary, axis: calculateTackAxis(effectiveTwd.degrees, summary, config) }
   }
 
   return {
