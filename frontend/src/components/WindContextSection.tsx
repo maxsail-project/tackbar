@@ -12,6 +12,12 @@ import {
   type TackAxisHint,
   type WindContextResult,
 } from '../utils/windContext'
+import {
+  calculateProgressDifference,
+  formatProgressDifference,
+  formatProgressReason,
+  type WindProgress,
+} from '../utils/windProgress'
 
 type Role = 'primary' | 'comparison'
 
@@ -21,6 +27,8 @@ interface WindContextSectionProps {
   displayDegrees: number
   primary: WindContextResult
   comparison?: WindContextResult
+  primaryProgress?: WindProgress
+  comparisonProgress?: WindProgress
 }
 
 function roleLabel(role: Role) {
@@ -45,6 +53,14 @@ function formatTackAngle(axis: TackAxis | null) {
   return axis === null ? '—' : `${Math.round(axis.tackAngleDegrees)}°`
 }
 
+function formatMetres(value: number | null) {
+  return value === null ? '—' : `${Math.round(value)} m`
+}
+
+function formatDegrees(value: number | null) {
+  return value === null ? '—' : `${Math.round(value)}°`
+}
+
 export function formatTackAxisHint(hint: TackAxisHint) {
   const subject = hint.combined ? 'Both tack axes' : 'Tack axis'
   return `${subject} ≈ ${formatTwdDegrees(hint.degrees)} (${formatSignedDegrees(hint.offsetDegrees)}°) — consider adjusting TWD`
@@ -55,6 +71,8 @@ export default function WindContextSection({
   displayDegrees,
   primary,
   comparison,
+  primaryProgress,
+  comparisonProgress,
 }: WindContextSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const contentId = useId()
@@ -70,6 +88,14 @@ export default function WindContextSection({
     comparison !== undefined,
     comparison?.upwindTack?.axis ?? null,
   )
+  const progressRows: { role: Role, progress: WindProgress }[] = [
+    ...(primaryProgress ? [{ role: 'primary' as const, progress: primaryProgress }] : []),
+    ...(comparison && comparisonProgress ? [{ role: 'comparison' as const, progress: comparisonProgress }] : []),
+  ]
+  const progressDifference = primaryProgress && comparison
+    ? calculateProgressDifference(primaryProgress, comparisonProgress)
+    : null
+  const downwindRows = rows.filter(({ result }) => result.downwind !== null)
 
   return (
     <section className="content-section maneuver-section wind-context-section" aria-labelledby="wind-context-title">
@@ -145,12 +171,76 @@ export default function WindContextSection({
 
         {hint !== null && <p className="wind-context__hint" data-wind-axis-hint><strong>{formatTackAxisHint(hint)}</strong></p>}
 
+        {progressRows.length > 0 && (
+          <div className="wind-context-table-wrap">
+          <table className="wind-context-table wind-context-table--progress" aria-label="Progress relative to the wind">
+            <thead><tr>
+              <th scope="col" aria-label="Activity">P/C</th>
+              <th scope="col">Progress</th>
+              <th scope="col">Distance</th>
+              <th scope="col">Efficiency</th>
+            </tr></thead>
+            <tbody>
+              {progressRows.map(({ role, progress }) => (
+                <tr key={role} data-wind-progress-role={role}>
+                  <th scope="row" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>
+                  {progress.status === 'available' ? <>
+                    <td>{formatMetres(progress.progressMeters)} to {progress.sector === 'upwind' ? 'windward' : 'leeward'}</td>
+                    <td>{formatMetres(progress.distanceMeters)}</td>
+                    <td>{formatWindShare(progress.efficiency)}</td>
+                  </> : <>
+                    <td className="wind-context-table__reason" data-wind-progress-reason={progress.reason}>{formatProgressReason(progress.reason)}</td>
+                    <td>{formatMetres(progress.distanceMeters)}</td>
+                    <td>—</td>
+                  </>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        {progressDifference !== null && (
+          <p className="wind-context__difference" data-wind-progress-difference>{formatProgressDifference(progressDifference)}</p>
+        )}
+
+        {downwindRows.length > 0 && (
+          <div className="wind-context-table-wrap">
+          <table className="wind-context-table wind-context-table--downwind" aria-label="Downwind readings">
+            <thead><tr>
+              <th scope="col" aria-label="Activity">P/C</th>
+              <th scope="col">Depth</th>
+              <th scope="col">Gybe angle</th>
+            </tr></thead>
+            <tbody>
+              {downwindRows.map(({ role, result }) => (
+                <tr key={role} data-wind-downwind-role={role}>
+                  <th scope="row" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>
+                  <td>{formatDegrees(result.downwind!.depthDegrees)}</td>
+                  <td>{formatDegrees(result.downwind!.gybeAngleDegrees)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
         <p className="wind-context__note">
           Shares of moving time (SOG ≥ {WIND_CONTEXT_CONFIG.movingMinSogKnots} kn) from COG and the effective TWD. Tack split for upwind windows only; HDG/HEEL only check the COG tack.
         </p>
         {tackRows.length > 0 && (
           <p className="wind-context__note" id={axisHelpId}>
             Axis is the estimated bisector of the upwind tacks, with its signed difference from the effective TWD; it is not applied to TWD. Tack angle is the sum of mean starboard and port |TWA|. Both need at least {WIND_CONTEXT_CONFIG.tackAxisMinTackSeconds} s on each tack and no inconsistent check.
+          </p>
+        )}
+        {progressRows.length > 0 && (
+          <p className="wind-context__note">
+            Progress is the window's net displacement projected on the effective TWD axis (downwind: TWD + 180°), for upwind or downwind windows with a net course within {WIND_CONTEXT_CONFIG.progressMaxAxisOffsetDegrees}° of that axis. Efficiency is progress divided by distance sailed. It is not VMG.
+          </p>
+        )}
+        {downwindRows.length > 0 && (
+          <p className="wind-context__note">
+            Depth is the mean downwind |TWA|. Gybe angle is the course difference between two COG groups, shown only when each has at least {WIND_CONTEXT_CONFIG.tackAxisMinTackSeconds} s and they differ by at least {WIND_CONTEXT_CONFIG.gybeAngleMinDegrees}°.
           </p>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TrackSample } from '../types/track'
 import {
+  calculateGybeAngle,
   calculateTackAxis,
   calculateWindContext,
   circularMeanOfTwo,
@@ -86,7 +87,7 @@ describe('effective TWD', () => {
   }
 
   it('uses the original unrounded modelled direction or the manual value', () => {
-    expect(resolveEffectiveTwd(reference, null)).toEqual({ degrees: 91.6, source: 'modelled' })
+    expect(resolveEffectiveTwd(reference, null)).toEqual({ degrees: 91.6, source: 'modelled', sourceTimeUtc: reference.sourceTimeUtc })
     expect(resolveEffectiveTwd(reference, 95)).toEqual({ degrees: 95, source: 'manual' })
     expect(resolveEffectiveTwd({ status: 'unavailable' }, 355)).toEqual({ degrees: 355, source: 'manual' })
     expect(resolveEffectiveTwd({ status: 'unavailable' }, null)).toBeNull()
@@ -111,7 +112,7 @@ describe('window classification', () => {
     expect(calculateWindContext(list, null, modelled(0)).classification).toBe('unavailable')
     const slow = samples(repeat(11, { cog: 45, sog: 1.49 }))
     expect(calculateWindContext(slow, windowFor(slow), modelled(0))).toEqual({
-      classification: 'unavailable', movingSeconds: 0, sectorShares: null, upwindTack: null,
+      classification: 'unavailable', movingSeconds: 0, sectorShares: null, upwindTack: null, downwind: null,
     })
     const noCog = samples(repeat(11, { cog: null }))
     expect(calculateWindContext(noCog, windowFor(noCog), modelled(0)).classification).toBe('unavailable')
@@ -387,5 +388,53 @@ describe('combined tack axis hint', () => {
     const hint = resolveTackAxisHint(350, axis(358, 350), true, axis(2, 350))!
     expect(hint.degrees).toBeCloseTo(0)
     expect(hint.offsetDegrees).toBeCloseTo(10)
+  })
+})
+
+describe('downwind readings', () => {
+  const downwindFor = (list: TrackSample[], twd: number) =>
+    calculateWindContext(list, windowFor(list), modelled(twd)).downwind
+
+  it('weights Depth by represented time', () => {
+    // TWD 000°: COG 150° (|TWA| 150°) for 5 s, then COG 180° (|TWA| 180°) for 1 s.
+    const list = samples([{ cog: 150 }, { cog: 180 }, { cog: 180 }])
+    list[1] = { ...list[1], utc: new Date(start + 5_000).toISOString() }
+    list[2] = { ...list[2], utc: new Date(start + 6_000).toISOString() }
+    const readings = downwindFor(list, 0)!
+    expect(readings.downwindSeconds).toBe(6)
+    expect(readings.depthDegrees).toBeCloseTo(155)
+    expect(readings.gybeAngleDegrees).toBeNull()
+  })
+
+  it('reports a two-mode Gybe angle independent of TWD', () => {
+    const list = samples([...repeat(70, { cog: 150 }), ...repeat(70, { cog: 210 }), { cog: 210 }])
+    expect(downwindFor(list, 0)!.gybeAngleDegrees).toBeCloseTo(60)
+    expect(downwindFor(list, 0)!.depthDegrees).toBeCloseTo(150)
+    expect(downwindFor(list, 10)!.gybeAngleDegrees).toBeCloseTo(60)
+  })
+
+  it('shows no Gybe angle for single-mode deep running, constant course or a group under 60 s', () => {
+    const deep = samples([...Array.from({ length: 140 }, (_, index) => ({ cog: index % 2 === 0 ? 175 : 185 })), { cog: 180 }])
+    expect(downwindFor(deep, 0)!.gybeAngleDegrees).toBeNull()
+    expect(downwindFor(samples(repeat(141, { cog: 180 })), 0)!.gybeAngleDegrees).toBeNull()
+    const short = samples([...repeat(59, { cog: 150 }), ...repeat(81, { cog: 210 }), { cog: 210 }])
+    expect(downwindFor(short, 0)!.gybeAngleDegrees).toBeNull()
+    const enough = samples([...repeat(60, { cog: 150 }), ...repeat(80, { cog: 210 }), { cog: 210 }])
+    expect(downwindFor(enough, 0)!.gybeAngleDegrees).toBeCloseTo(60)
+  })
+
+  it('wraps COG groups across 0°/360°', () => {
+    // TWD 180°: COG 330° and 030° are both |TWA| 150°; their mean course is 000°.
+    const list = samples([...repeat(70, { cog: 330 }), ...repeat(70, { cog: 30 }), { cog: 30 }])
+    const readings = downwindFor(list, 180)!
+    expect(readings.gybeAngleDegrees).toBeCloseTo(60)
+    expect(readings.depthDegrees).toBeCloseTo(150)
+    expect(calculateGybeAngle([[352, 70_000], [8, 70_000]])).toBeNull()
+    expect(calculateGybeAngle([[340, 70_000], [20, 70_000]])).toBeCloseTo(40)
+  })
+
+  it('is absent for non-downwind windows', () => {
+    const upwind = samples(repeat(141, { cog: 30 }))
+    expect(calculateWindContext(upwind, windowFor(upwind), modelled(0)).downwind).toBeNull()
   })
 })

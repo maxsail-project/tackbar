@@ -12,6 +12,8 @@ export interface EffectiveTwd {
   /** Numeric calculation value: original unrounded modelled direction or the manual Viewer value. */
   degrees: number
   source: TwdSource
+  /** UTC time of the automatic modelled sample; absent for a manual Viewer value. */
+  sourceTimeUtc?: string
 }
 
 export type HdgCheck = 'agree' | 'disagree' | 'unavailable'
@@ -52,12 +54,26 @@ export interface TackAxisHint {
   combined: boolean
 }
 
+/**
+ * Descriptive downwind readings (#192.2). No downwind axis, tack or gybe label.
+ * Gybe angle groups by COG around the time-weighted circular mean COG, independent of TWD.
+ */
+export interface DownwindReadings {
+  downwindSeconds: number
+  /** Time-weighted mean |TWA| of downwind moving samples. */
+  depthDegrees: number
+  /** Absolute circular difference of the two COG group means, or null when unsupported. */
+  gybeAngleDegrees: number | null
+}
+
 export interface WindContextResult {
   classification: WindWindowClassification
   movingSeconds: number
   sectorShares: Record<WindSector, number> | null
   /** Present only for an upwind-dominant window. */
   upwindTack: UpwindTackSummary | null
+  /** Present only for a downwind-dominant window. */
+  downwind: DownwindReadings | null
 }
 
 type WindContextConfig = typeof WIND_CONTEXT_CONFIG
@@ -67,6 +83,7 @@ const UNAVAILABLE: WindContextResult = {
   movingSeconds: 0,
   sectorShares: null,
   upwindTack: null,
+  downwind: null,
 }
 
 function isFiniteNumber(value: number | null | undefined): value is number {
@@ -118,7 +135,7 @@ export function resolveEffectiveTwd(
     return { degrees: manualDegrees, source: 'manual' }
   }
   if (reference.status === 'available' && Number.isFinite(reference.directionDegrees)) {
-    return { degrees: reference.directionDegrees, source: 'modelled' }
+    return { degrees: reference.directionDegrees, source: 'modelled', sourceTimeUtc: reference.sourceTimeUtc }
   }
   return null
 }
@@ -209,6 +226,50 @@ export function calculateTackAxis(
   }
 }
 
+/** Time-weighted circular mean of angles in [0°, 360°), or null without a defined direction. */
+export function weightedCircularMean(values: Weighted[]) {
+  let sin = 0
+  let cos = 0
+  let total = 0
+  for (const [value, weight] of values) {
+    const radians = value * Math.PI / 180
+    sin += Math.sin(radians) * weight
+    cos += Math.cos(radians) * weight
+    total += weight
+  }
+  if (total <= 0 || Math.hypot(sin, cos) / total < 1e-9) return null
+  return normalizeDegrees(Math.atan2(sin, cos) * 180 / Math.PI)
+}
+
+/**
+ * Gybe angle: split downwind moving COG samples by their side of the time-weighted circular
+ * mean COG (samples exactly on the mean join neither group); each group needs the minimum
+ * represented time; the angle is the absolute circular difference of the group means and
+ * must reach the configured minimum. Otherwise null (e.g. single-mode deep running).
+ */
+export function calculateGybeAngle(
+  courses: Weighted[],
+  config: WindContextConfig = WIND_CONTEXT_CONFIG,
+): number | null {
+  const mean = weightedCircularMean(courses)
+  if (mean === null) return null
+  const right: Weighted[] = []
+  const left: Weighted[] = []
+  for (const course of courses) {
+    const side = normalizeSignedDegrees(course[0] - mean)
+    if (side > 0) right.push(course)
+    else if (side < 0) left.push(course)
+  }
+  const minMs = config.tackAxisMinTackSeconds * 1_000
+  const seconds = (group: Weighted[]) => group.reduce((sum, [, weight]) => sum + weight, 0)
+  if (seconds(right) < minMs || seconds(left) < minMs) return null
+  const rightMean = weightedCircularMean(right)
+  const leftMean = weightedCircularMean(left)
+  if (rightMean === null || leftMean === null) return null
+  const angle = Math.abs(normalizeSignedDegrees(rightMean - leftMean))
+  return angle >= config.gybeAngleMinDegrees ? angle : null
+}
+
 /** Circular midpoint of two angles along their shortest arc, in [0°, 360°). */
 export function circularMeanOfTwo(first: number, second: number) {
   return normalizeDegrees(first + normalizeSignedDegrees(second - first) / 2)
@@ -261,6 +322,8 @@ export function calculateWindContext(
   const absTwa = { port: [] as Weighted[], starboard: [] as Weighted[] }
   const hdgTwa = { port: [] as Weighted[], starboard: [] as Weighted[] }
   const heel = { port: [] as Weighted[], starboard: [] as Weighted[] }
+  const downwindAbsTwa: Weighted[] = []
+  const downwindCourses: Weighted[] = []
 
   for (let index = 0; index + 1 < samples.length; index += 1) {
     const sample = samples[index]
@@ -279,6 +342,10 @@ export function calculateWindContext(
 
     const sector = classifyWindSector(twa, config)
     sectorMs[sector] += represented
+    if (sector === 'downwind') {
+      downwindAbsTwa.push([Math.abs(twa), represented])
+      downwindCourses.push([normalizeDegrees(sample.cog!), represented])
+    }
     if (sector !== 'upwind') continue
 
     const tack = classifyUpwindTack(twa, config)
@@ -328,11 +395,21 @@ export function calculateWindContext(
     upwindTack = { ...summary, axis: calculateTackAxis(effectiveTwd.degrees, summary, config) }
   }
 
+  let downwind: DownwindReadings | null = null
+  if (classification === 'downwind') {
+    downwind = {
+      downwindSeconds: sectorMs.downwind / 1_000,
+      depthDegrees: weightedMean(downwindAbsTwa)!,
+      gybeAngleDegrees: calculateGybeAngle(downwindCourses, config),
+    }
+  }
+
   return {
     classification,
     movingSeconds: movingMs / 1_000,
     sectorShares,
     upwindTack,
+    downwind,
   }
 }
 

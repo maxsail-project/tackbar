@@ -23,4 +23,12 @@ export const WIND_CONTEXT_CONFIG = {
   tackAxisHintAgreementDegrees: 5,
   /** The hinted axis must differ from effective TWD by at least this circular difference. */
   tackAxisHintMinOffsetDegrees: 3,
+  /** Net window bearing must be within this circular difference of the wind axis for progress (#192.2). */
+  progressMaxAxisOffsetDegrees: 30,
+  /** Automatic modelled TWD sample must be within this time of the window midpoint for progress. */
+  progressMaxModelledTwdAgeMinutes: 60,
+  /** P−C equivalent-time difference at or below this is `Similar`. */
+  progressSimilarSeconds: 5,
+  /** Downwind Gybe angle needs each COG group at least `tackAxisMinTackSeconds` and this minimum angle. */
+  gybeAngleMinDegrees: 20,
 } as const

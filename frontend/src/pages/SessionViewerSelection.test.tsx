@@ -343,6 +343,28 @@ describe('Viewer TWD state', () => {
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
   })
 
+  it.each(['original', 'temporary'] as const)('shows wind-axis progress and recomputes it on manual TWD change and Reset on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const section = () => container.querySelector('.wind-context-section')!
+    const progressRow = (role: string) => section().querySelector(`[data-wind-progress-role="${role}"]`)?.textContent
+    // Due-east track (≈1112 m net) against modelled TWD 91.6° → upwind, 1.6° off axis; Summary distance is 0 m.
+    expect(progressRow('primary')).toBe('P1112 m to windward0 m—')
+    expect(section().querySelector('[data-wind-progress-role="comparison"]')).toBeNull()
+    expect(section().querySelector('[data-wind-progress-difference]')).toBeNull()
+    await click('[data-twd-gesture]')
+    expect(progressRow('primary')).toBe('PReaching window0 m—')
+    await click('[data-twd-auto]')
+    expect(progressRow('primary')).toBe('P1112 m to windward0 m—')
+    await click('[data-twd-minus]')
+    // Manual 085°: 5° off axis.
+    expect(progressRow('primary')).toBe('P1108 m to windward0 m—')
+    await choose('Compare', 'b')
+    expect(progressRow('comparison')).toBe('C1108 m to windward0 m—')
+    expect(section().querySelector('[data-wind-progress-difference]')!.textContent).toBe('Δ progress P−C: Similar')
+    expect(section().querySelector('[data-wind-downwind-role]')).toBeNull()
+    expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
+  })
+
   it('hides the wind section without effective TWD and shows it for a manual-only correction', async () => {
     await mountViewer('original', session)
     expect(container.querySelector('.wind-context-section')).toBeNull()

@@ -84,6 +84,7 @@ import { resolveTwdReference } from '../utils/twdReference'
 import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
 import { resolveTwsPresentation, resolveTwsReference, stepViewerTws } from '../utils/twsReference'
 import { calculateWindContext, resolveEffectiveTwd } from '../utils/windContext'
+import { calculateWindProgress } from '../utils/windProgress'
 import {
   deriveDisplayManeuvers,
   maneuverSelectionKey,
@@ -787,6 +788,26 @@ export function SessionViewer({
     () => calculateWindContext(comparisonTrack?.samples ?? [], analysisWindow, effectiveTwd),
     [analysisWindow, comparisonTrack, effectiveTwd],
   )
+  const primaryWindProgress = useMemo(
+    () => calculateWindProgress(
+      primaryTrack?.samples ?? [],
+      analysisWindow,
+      effectiveTwd,
+      primaryWindContext.classification,
+      primarySummaryMetrics?.distanceMeters ?? null,
+    ),
+    [analysisWindow, effectiveTwd, primarySummaryMetrics, primaryTrack, primaryWindContext],
+  )
+  const comparisonWindProgress = useMemo(
+    () => calculateWindProgress(
+      comparisonTrack?.samples ?? [],
+      analysisWindow,
+      effectiveTwd,
+      comparisonWindContext.classification,
+      comparisonSummaryMetrics?.distanceMeters ?? null,
+    ),
+    [analysisWindow, comparisonSummaryMetrics, comparisonTrack, comparisonWindContext, effectiveTwd],
+  )
   const twsReference = useMemo(
     () => resolveTwsReference(
       analysisWindow === null
@@ -1182,6 +1203,8 @@ export function SessionViewer({
           displayDegrees={twdPresentation.displayDegrees}
           primary={primaryWindContext}
           comparison={comparisonActivityId === null ? undefined : comparisonWindContext}
+          primaryProgress={primaryWindProgress}
+          comparisonProgress={comparisonActivityId === null ? undefined : comparisonWindProgress}
         />
       )}
       <ComparisonTable

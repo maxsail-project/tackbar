@@ -9,7 +9,7 @@ export interface SessionStartLine {
   boat: { latitude: number, longitude: number } | null
 }
 
-function distanceMeters(a: { latitude: number, longitude: number }, b: { latitude: number, longitude: number }) {
+export function distanceMeters(a: { latitude: number, longitude: number }, b: { latitude: number, longitude: number }) {
   const radians = Math.PI / 180
   const lat1 = a.latitude * radians
   const lat2 = b.latitude * radians
@@ -19,7 +19,7 @@ function distanceMeters(a: { latitude: number, longitude: number }, b: { latitud
   return 6_371_000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }
 
-function bearing(pin: { latitude: number, longitude: number }, boat: { latitude: number, longitude: number }) {
+export function bearing(pin: { latitude: number, longitude: number }, boat: { latitude: number, longitude: number }) {
   const radians = Math.PI / 180
   const lat1 = pin.latitude * radians
   const lat2 = boat.latitude * radians

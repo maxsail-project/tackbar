@@ -3449,3 +3449,13 @@ input:focus-visible {
   font-size: 0.76rem;
   line-height: 1.4;
 }
+.wind-context-table__reason {
+  color: #526d74;
+  font-style: italic;
+}
+.wind-context__difference {
+  margin: 8px 0 0;
+  color: #263f46;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
