@@ -30,6 +30,17 @@ const unavailable: WindContextResult = {
   classification: 'unavailable', movingSeconds: 0, sectorShares: null, upwindTack: null, downwind: null,
 }
 
+/** Cell texts of one metric row, in P then C order; null when the row is absent. */
+function metric(markup: string, key: string) {
+  const row = markup.match(new RegExp(`<tr data-wind-metric="${key}">(.*?)</tr>`))
+  if (row === null) return null
+  return [...row[1].matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((cell) => cell[1].replace(/<[^>]+>/g, ''))
+}
+
+function metricKeys(markup: string) {
+  return [...markup.matchAll(/<tr data-wind-metric="([^"]+)">/g)].map((match) => match[1])
+}
+
 function text(markup: string) {
   return markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
 }
@@ -46,29 +57,34 @@ describe('WindContextSection', () => {
     expect(text(markup)).not.toContain('Wind Segments')
   })
 
-  it('omits the TWD controls without handlers and shows enabled steps with Reset disabled for a modelled TWD', () => {
+  it('renders the map-style TWD control with a value button, no standalone Reset TWD and a closed detail', () => {
     const without = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 5, source: 'manual' }} displayDegrees={5} primary={unavailable}
     />)
     expect(without).not.toContain('aria-label="Decrease TWD by 5°"')
     expect(without).not.toContain('Reset TWD')
+    const handlers = {
+      onTwdStep: () => undefined,
+      onTwdReset: () => undefined,
+      twdReference: { status: 'unavailable' } as const,
+    }
     const modelled = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90} primary={upwind}
-      onTwdStep={() => undefined} onTwdReset={() => undefined}
+      {...handlers} twdPresentation={{ bearing: 90, displayDegrees: 90, automaticDegrees: 90, manual: false }}
     />)
     expect(modelled).toContain('aria-label="Decrease TWD by 5°"')
     expect(modelled).toContain('aria-label="Increase TWD by 5°"')
-    expect(modelled).not.toContain('Reset TWD')
-    expect(modelled).toContain('Modelled')
+    expect(modelled).toMatch(/<button type="button" class="map-bearing__value" data-wind-twd-value[^>]*aria-label="TWD 090°\. Show wind reference details" aria-expanded="false"/)
     expect(modelled).toContain('<span>TWD</span><strong>090°</strong>')
-    expect(modelled).not.toContain('−5°')
+    expect(modelled).not.toContain('Reset TWD')
+    expect(modelled).not.toContain('map-twd__detail')
     expect(modelled.indexOf('aria-label="Decrease TWD by 5°"')).toBeLessThan(modelled.indexOf('data-wind-twd-value'))
     expect(modelled.indexOf('data-wind-twd-value')).toBeLessThan(modelled.indexOf('aria-label="Increase TWD by 5°"'))
     const manual = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 95, source: 'manual' }} displayDegrees={95} primary={upwind}
-      onTwdStep={() => undefined} onTwdReset={() => undefined}
+      {...handlers} twdPresentation={{ bearing: 95, displayDegrees: 95, automaticDegrees: 90, manual: true }}
     />)
-    expect(manual).toMatch(/<button[^>]*aria-label="Reset TWD to modelled"[^>]*>Reset TWD<\/button>/)
+    expect(manual).not.toContain('Reset TWD')
     expect(text(manual)).toContain('Manual · Viewer')
     expect(manual.split('hidden=""')[0]).not.toContain('Decrease TWD')
   })
@@ -81,53 +97,110 @@ describe('WindContextSection', () => {
     expect(text(markup)).toContain('Manual · Viewer')
   })
 
-  it('shows P-only composition and upwind tack split with check', () => {
-    const markup = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90} primary={upwind}
-    />)
-    const content = text(markup)
-    expect(content).toContain('P 82% 12% 6% Upwind')
-    expect(content).toContain('P 55% · 42° 40% · 45° 5% HDG ✓ — —')
-    expect(markup).not.toContain('data-wind-role="comparison"')
+  it('titles the conclusion with the dominant sector in caps', () => {
+    const title = (primary: WindContextResult) => text(renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90} primary={primary}
+    />).match(/data-wind-conclusion-title[^>]*>(.*?)<\/p>/)![1])
+    expect(title(upwind)).toBe('UPWIND')
+    expect(title(downwind)).toBe('DOWNWIND')
+    expect(title({ ...upwind, classification: 'reaching' })).toBe('REACHING')
+    expect(title({ ...upwind, classification: 'mixed' })).toBe('MIXED')
+    expect(title(unavailable)).toBe('UNAVAILABLE')
   })
 
-  it('shows P/C rows and no tack label for downwind or unavailable windows', () => {
+  it('builds one P-only metric table with bare values for an upwind window', () => {
     const markup = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90} primary={downwind} comparison={unavailable}
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={withAxis(108, 3)}
+      primaryProgress={progress('upwind', 609, 893, 1.65)}
     />)
-    const content = text(markup)
-    expect(content).toContain('P 10% 10% 80% Downwind')
-    expect(content).toContain('C — — — Unavailable')
-    expect(markup).not.toContain('Upwind tack split')
-    expect(content).not.toMatch(/Stbd|Port ·/)
+    expect(markup.match(/<table class="wind-metric-table"/g)).toHaveLength(1)
+    expect(markup).not.toMatch(/aria-label="(Wind sector composition|Upwind tack split|Progress relative to the wind|Downwind readings)"/)
+    expect(metricKeys(markup)).toEqual([
+      'upwind-share', 'progress', 'distance', 'efficiency', 'time-starboard', 'time-port',
+      'twa-starboard', 'twa-port', 'axis', 'tack-angle', 'tack-check',
+    ])
+    expect(metric(markup, 'upwind-share')).toEqual(['82%'])
+    expect(metric(markup, 'progress')).toEqual(['609 m'])
+    expect(metric(markup, 'distance')).toEqual(['893 m'])
+    expect(metric(markup, 'efficiency')).toEqual(['68%'])
+    expect(metric(markup, 'time-starboard')).toEqual(['55%'])
+    expect(metric(markup, 'time-port')).toEqual(['40%'])
+    expect(metric(markup, 'twa-starboard')).toEqual(['42°'])
+    expect(metric(markup, 'twa-port')).toEqual(['45°'])
+    expect(metric(markup, 'axis')).toEqual(['108° (+3)'])
+    expect(metric(markup, 'tack-angle')).toEqual(['78°'])
+    expect(metric(markup, 'tack-check')).toEqual(['HDG ✓'])
+    expect(text(markup)).toContain('Progress to windward')
+    expect(text(markup)).toContain('Time on starboard')
+    const headers = [...markup.match(/<table class="wind-metric-table"[\s\S]*?<\/thead>/)![0].matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map((match) => match[1])
+    expect(headers).toEqual(['', 'P'])
+    expect(markup).toMatch(/<th scope="col" style="color:[^"]+">P<\/th>/)
   })
 
-  it('shows a P row with — when only C has tack or downwind values', () => {
+  it('adds a C column only with Comparison and colours the headers', () => {
     const markup = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90}
-      primary={{ ...downwind, classification: 'mixed', downwind: null }} comparison={upwind}
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={withAxis(354.4, -20.6, 81.6)}
+      primaryProgress={progress('upwind', 609, 893, 1.65)} comparisonProgress={progress('upwind', 569, 814, 1.54)}
     />)
-    expect(text(markup)).toContain('P 10% 10% 80% Mixed')
-    expect(markup).toContain('data-wind-tack-role="comparison"')
-    expect(markup).toContain('data-wind-tack-role="primary"')
-    expect(text(markup)).toContain('Tack angle P — — — — — — C 55% · 42°')
-    const downwindOnlyC = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90}
-      primary={{ ...downwind, classification: 'mixed', downwind: null }} comparison={downwind}
-    />)
-    expect(text(downwindOnlyC)).toMatch(/Gybe angle P — — C 152° 42°/)
+    expect(metric(markup, 'progress')).toEqual(['609 m', '569 m'])
+    expect(metric(markup, 'efficiency')).toEqual(['68%', '70%'])
+    expect(metric(markup, 'axis')).toEqual(['—', '354° (−21)'])
+    expect(metric(markup, 'tack-angle')).toEqual(['—', '82°'])
+    const headers = [...markup.match(/<table class="wind-metric-table"[\s\S]*?<\/thead>/)![0].matchAll(/<th scope="col"([^>]*)>(.*?)<\/th>/g)]
+    expect(headers.map((match) => match[2])).toEqual(['', 'P', 'C'])
+    expect(headers[1][1]).not.toEqual(headers[2][1])
   })
 
-  it('renders progress and downwind tables without a scroll wrapper; only the tack table keeps one', () => {
+  it('shows downwind rows and hides the rows that are empty for every Activity', () => {
     const markup = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90} primary={upwind} comparison={downwind}
-      primaryProgress={{ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }}
-      comparisonProgress={{ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }}
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105}
+      primary={downwind} comparison={{ ...downwind, downwind: { downwindSeconds: 90, depthDegrees: 171, gybeAngleDegrees: null } }}
+      primaryProgress={progress('downwind', 679, 760, 2.6)} comparisonProgress={progress('downwind', 626, 700, 2.4)}
     />)
-    expect(markup.match(/class="wind-context-table-wrap"/g)).toHaveLength(1)
-    expect(markup).toMatch(/class="wind-context-table-wrap"><table class="wind-context-table wind-context-table--tack"/)
-    expect(markup).toContain('<table class="wind-context-table wind-context-table--progress"')
-    expect(markup).toContain('<table class="wind-context-table wind-context-table--downwind"')
+    expect(metricKeys(markup)).toEqual(['downwind-share', 'progress', 'distance', 'efficiency', 'depth', 'gybe-angle'])
+    expect(metric(markup, 'depth')).toEqual(['152°', '171°'])
+    expect(metric(markup, 'gybe-angle')).toEqual(['42°', '—'])
+    expect(metric(markup, 'progress')).toEqual(['679 m', '626 m'])
+    expect(text(markup)).toContain('Progress to leeward')
+    expect(text(markup)).toContain('Depth (mean TWA)')
+    const bothEmpty = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105}
+      primary={{ ...downwind, downwind: { downwindSeconds: 90, depthDegrees: 171, gybeAngleDegrees: null } }}
+    />)
+    expect(metricKeys(bothEmpty)).toEqual(['downwind-share', 'depth'])
+    expect(markup).not.toMatch(/Stbd|Port ·/)
+  })
+
+  it('shows only sector shares and Distance for reaching, mixed and unavailable windows', () => {
+    const reaching = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105}
+      primary={{ ...upwind, classification: 'reaching', upwindTack: null }}
+      primaryProgress={{ status: 'unavailable', reason: 'reaching', distanceMeters: 412.4 }}
+    />)
+    expect(metricKeys(reaching)).toEqual(['upwind-share', 'reaching-share', 'downwind-share', 'distance'])
+    expect(metric(reaching, 'distance')).toEqual(['412 m'])
+    const mixed = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105}
+      primary={{ ...downwind, classification: 'mixed', downwind: null }} comparison={unavailable}
+    />)
+    expect(metricKeys(mixed)).toEqual(['upwind-share', 'reaching-share', 'downwind-share'])
+    expect(metric(mixed, 'upwind-share')).toEqual(['10%', '—'])
+    const none = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={unavailable}
+    />)
+    expect(none).not.toContain('<table class="wind-metric-table"')
+  })
+
+  it('keeps a — C cell in rows where only P has a value', () => {
+    const markup = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={unavailable}
+    />)
+    expect(metric(markup, 'time-starboard')).toEqual(['55%', '—'])
+    expect(metric(markup, 'tack-check')).toEqual(['HDG ✓', '—'])
+    const primaryOnly = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
+    />)
+    expect(primaryOnly).not.toMatch(/data-wind-metric-role="comparison"/)
   })
 
   const withAxis = (degrees: number, offsetDegrees: number, tackAngleDegrees = 78): WindContextResult => ({
@@ -135,22 +208,14 @@ describe('WindContextSection', () => {
     upwindTack: { ...upwind.upwindTack!, axis: { degrees, offsetDegrees, tackAngleDegrees } },
   })
 
-  it('shows Axis with signed TWD difference and Tack angle, described as an estimated bisector', () => {
+  it('shows Axis with signed TWD difference and Tack angle, described by the popover as an estimated bisector', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 15, source: 'modelled' }} displayDegrees={15}
       primary={withAxis(21, 6)} comparison={withAxis(354.4, -20.6, 81.6)}
     />)
-    const content = text(markup)
-    expect(content).toContain('Axis')
-    expect(content).toContain('Tack angle')
-    expect(content).toContain('P 55% · 42° 40% · 45° 5% HDG ✓ 021° (+6) 78°')
-    expect(content).toContain('C 55% · 42° 40% · 45° 5% HDG ✓ 354° (−21) 82°')
-    expect(markup).toMatch(/<th scope="col" aria-describedby="([^"]+)">Axis<\/th>/)
-    const helpId = markup.match(/aria-describedby="([^"]+)">Axis/)![1]
-    expect(markup).toContain(`id="${helpId}"`)
-    expect(content).toContain('Axis: estimated bisector of the upwind tacks; not applied to TWD.')
-    expect(markup).toContain('class="wind-context-table-wrap"')
-    expect(content).not.toMatch(/Axis[^.]*TWD \d/)
+    expect(metric(markup, 'axis')).toEqual(['021° (+6)', '354° (−21)'])
+    expect(metric(markup, 'tack-angle')).toEqual(['78°', '82°'])
+    expect(text(markup)).toContain('Axis: estimated bisector of the upwind tacks; not applied to TWD.')
     // P and C disagree by more than 5°: no hint.
     expect(markup).not.toContain('data-wind-axis-hint')
   })
@@ -173,7 +238,7 @@ describe('WindContextSection', () => {
       effectiveTwd={{ degrees: 20, source: 'manual' }} displayDegrees={20} primary={withAxis(21, 1)}
     />)
     expect(hidden).not.toContain('data-wind-axis-hint')
-    expect(text(hidden)).toContain('021° (+1)')
+    expect(metric(hidden, 'axis')).toEqual(['021° (+1)'])
   })
 
   it('shows no hint when the Comparison axis is unavailable', () => {
@@ -182,7 +247,7 @@ describe('WindContextSection', () => {
       primary={withAxis(21, 6)} comparison={upwind}
     />)
     expect(markup).not.toContain('data-wind-axis-hint')
-    expect(text(markup)).toContain('C 55% · 42° 40% · 45° 5% HDG ✓ — —')
+    expect(metric(markup, 'axis')).toEqual(['021° (+6)', '—'])
   })
 
   const windowStartMs = Date.UTC(2025, 5, 21, 11, 37, 35)
@@ -207,42 +272,57 @@ describe('WindContextSection', () => {
     startTimeMs: windowStartMs, endTimeMs: windowStartMs + 370_000,
   })
 
-  it('shows P-only progress without a difference line', () => {
+  it('concludes P-only with progress and efficiency, without a difference line', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
       primaryProgress={progress('upwind', 609, 893, 1.65)}
     />)
-    expect(text(markup)).toContain('P 609 m to windward 893 m 68%')
-    expect(markup).toContain('Progress relative to the wind')
+    expect(text(markup)).toContain('UPWIND 609 m to windward · 68% efficiency')
     expect(markup).not.toContain('data-wind-progress-difference')
     expect(markup).not.toContain('data-wind-progress-gaps')
+    expect(markup).not.toContain('data-wind-lateral-caution')
+    const leeward = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={downwind}
+      primaryProgress={progress('downwind', 679, 760, 2.6)}
+    />)
+    expect(text(leeward)).toContain('DOWNWIND 679 m to leeward · 89% efficiency')
+    const noEfficiency = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
+      primaryProgress={{ ...progress('upwind', 609, 893, 1.65), efficiency: null } as WindProgress}
+    />)
+    expect(text(noEfficiency)).toContain('UPWIND 609 m to windward')
+    expect(text(noEfficiency)).not.toContain('efficiency')
     expect(text(markup).replace('&#x27;', "'")).toContain("Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats' average speed along that axis. Along the wind axis, not toward a mark; gap error grows with lateral separation.")
   })
 
-  it('shows P/C progress with the P-perspective gain line and the gap line', () => {
+  it('concludes P/C with the P-perspective gain line and a gap line without the lateral suffix', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={upwind} comparison={upwind}
       primaryProgress={progress('upwind', 609, 893, 1.65)} comparisonProgress={progress('upwind', 569, 814, 1.54)}
     />)
     const content = text(markup)
-    expect(content).toContain('C 569 m to windward 814 m 70%')
     expect(content).toContain('P gained 40 m to windward on C — equivalent to about 25 s of sailing.')
     expect(content).toContain('At 11:37:35 P level with C → at 11:43:45 40 m to windward of C')
-    expect(content).not.toContain('wide lateral separation')
-    expect(content).not.toMatch(/ahead|behind|winner/i)
+    expect(content).not.toContain('efficiency')
+    expect(markup).not.toContain('data-wind-lateral-caution')
+    expect(content.slice(0, content.indexOf('Wind analysis notes'))).not.toMatch(/ahead|behind|winner|lateral|far apart/i)
   })
 
-  it('states a loss and a wide lateral separation caution', () => {
+  it('states a loss and, only for a wide lateral separation, one caution line under the conclusion', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={upwind} comparison={upwind}
       primaryProgress={progress('upwind', 569, 814, 1.54, 0, 0)} comparisonProgress={progress('upwind', 609, 893, 1.65, -20, 200)}
     />)
     const content = text(markup)
     expect(content).toContain('P lost 40 m to windward on C — equivalent to about 25 s of sailing.')
-    expect(content).toContain('At 11:37:35 P 20 m to windward of C → at 11:43:45 20 m to leeward of C · boats far apart sideways: gaps approximate')
+    expect(content).toContain('At 11:37:35 P 20 m to windward of C → at 11:43:45 20 m to leeward of C')
+    expect(markup.match(/data-wind-lateral-caution/g)).toHaveLength(1)
+    expect(content).toContain('Boats far apart sideways: results sensitive to TWD')
+    expect(markup.indexOf('data-wind-progress-gaps')).toBeLessThan(markup.indexOf('data-wind-lateral-caution'))
+    expect(markup.indexOf('data-wind-lateral-caution')).toBeLessThan(markup.indexOf('wind-metric-table'))
   })
 
-  it('shows Similar within 5 s and no line when one Activity is ineligible', () => {
+  it('shows Similar within 5 s and falls back to P alone when C is ineligible', () => {
     const similar = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={upwind}
       primaryProgress={progress('upwind', 609, 893, 2)} comparisonProgress={progress('upwind', 600, 814, 2)}
@@ -253,8 +333,10 @@ describe('WindContextSection', () => {
       primaryProgress={progress('upwind', 609, 893, 2)}
       comparisonProgress={{ status: 'unavailable', reason: 'course-off-axis', distanceMeters: 814 }}
     />)
-    expect(text(ineligible)).toContain('C Course not along wind axis 814 m —')
     expect(ineligible).not.toContain('data-wind-progress-difference')
+    expect(text(ineligible)).toContain('609 m to windward · 68% efficiency')
+    expect(metric(ineligible, 'progress')).toEqual(['609 m', '—'])
+    expect(metric(ineligible, 'distance')).toEqual(['893 m', '814 m'])
   })
 
   it.each([
@@ -266,32 +348,17 @@ describe('WindContextSection', () => {
     ['no-end-position', 'No position near window end'],
     ['insufficient-positions', 'Insufficient position data'],
     ['course-off-axis', 'Course not along wind axis'],
-  ] as const)('shows the %s reason with distance and no progress', (reason, label) => {
+  ] as const)('shows the %s reason in the conclusion with distance only in the table', (reason, label) => {
     const markup = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={unavailable}
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
       primaryProgress={{ status: 'unavailable', reason, distanceMeters: reason === 'sector-unavailable' ? null : 412.4 }}
     />)
-    expect(text(markup)).toContain(`P ${label} ${reason === 'sector-unavailable' ? '—' : '412 m'} —`)
-  })
-
-  it('shows downwind Depth and Gybe angle only for downwind-dominant Activities', () => {
-    const markup = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105}
-      primary={downwind} comparison={{ ...downwind, downwind: { downwindSeconds: 90, depthDegrees: 171, gybeAngleDegrees: null } }}
-      primaryProgress={progress('downwind', 679, 760, 2.6)} comparisonProgress={progress('downwind', 626, 700, 2.4)}
-    />)
-    const content = text(markup)
-    expect(content).toContain('Depth')
-    expect(content).toContain('P 152° 42°')
-    expect(content).toContain('C 171° —')
-    expect(content).toContain('P 679 m to leeward 760 m 89%')
-    expect(content).toContain('P gained 53 m to leeward on C — equivalent to about 21 s of sailing.')
-    expect(content).toContain('At 11:37:35 P level with C → at 11:43:45 53 m downwind of C')
-    expect(content).not.toMatch(/Stbd|Port ·|gybe on/i)
-    const upwindOnly = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
-    />)
-    expect(upwindOnly).not.toContain('Downwind readings')
+    expect(text(markup)).toContain(`UPWIND ${label}`)
+    expect(markup).toContain(`data-wind-progress-reason="${reason}"`)
+    expect(metric(markup, 'progress')).toBeNull()
+    expect(metric(markup, 'efficiency')).toBeNull()
+    expect(metric(markup, 'distance')).toEqual(reason === 'sector-unavailable' ? null : ['412 m'])
+    expect(markup).not.toContain('data-wind-progress-own')
   })
 
   const t0 = Date.UTC(2025, 5, 21, 11, 30)
@@ -300,9 +367,10 @@ describe('WindContextSection', () => {
     { kind: 'reaching', start: t0 + 300_000, end: t0 + 420_000 },
   ]
 
-  it('is one Wind section: count in the header and the segment list before the window reading', () => {
+  it('is one Wind Analysis section with the specified body order and a collapsed Sector breakdown', () => {
     const markup = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={upwind}
+      effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={withAxis(120, 15)}
+      primaryProgress={progress('upwind', 609, 893, 1.65)}
       segments={segments} analysisWindow={{ start: t0, end: t0 + 420_000 }} availableRange={{ start: t0, end: t0 + 420_000 }}
       onSegmentSelect={() => undefined} filterResetKey="a"
     />)
@@ -310,11 +378,28 @@ describe('WindContextSection', () => {
     const [header, body] = markup.split('hidden=""')
     expect(text(header)).toContain('Wind Analysis 2 segments · TWD 105° Manual · Upwind')
     expect(markup.match(/aria-label="About wind analysis"/g)).toHaveLength(1)
-    const order = ['wind-segments__filter', 'wind-segments__table', 'data-wind-twd-source', 'aria-label="Wind sector composition"']
-      .map((marker) => body.indexOf(marker))
+    const order = [
+      'wind-segments__filter', 'wind-segments__table', 'data-wind-twd-source', 'data-wind-conclusion-title',
+      'class="wind-metric-table"', 'data-wind-axis-hint', 'Sector breakdown',
+    ].map((marker) => body.indexOf(marker))
     expect(order.every((index) => index >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
     expect(text(body)).toContain('All 2 Up 1 Reach 1 Down 0 Other 0')
+    expect(body).not.toContain('Reset TWD')
+  })
+
+  it('keeps the Sector breakdown collapsed with an accessible disclosure and per-Activity shares', () => {
+    const markup = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={downwind}
+    />)
+    const toggle = markup.match(/<button type="button" class="wind-breakdown__toggle" aria-expanded="false" aria-controls="([^"]+)">Sector breakdown<\/button>/)
+    expect(toggle).not.toBeNull()
+    expect(markup).toContain(`<div id="${toggle![1]}" hidden="" data-wind-breakdown="true">`)
+    const breakdown = text(markup.slice(markup.indexOf('data-wind-breakdown'), markup.indexOf('id="', markup.indexOf('data-wind-breakdown') + 20)))
+    expect(breakdown).toContain('P/C Upwind Reaching Downwind Indet.')
+    expect(breakdown).toContain('P 82% 12% 6% 5%')
+    expect(breakdown).toContain('C 10% 10% 80% —')
+    expect(breakdown).not.toContain('Window')
   })
 
   it('shows a one-line header with TWD and P classification, adding Manual only for a Viewer TWD', () => {
@@ -358,22 +443,5 @@ describe('WindContextSection', () => {
       "Segments: P's track split by wind sector using the modelled TWD at each sample; tap one to set the Analysis Window.",
     ])
     expect(markup).not.toContain('wind-context__note">Sectors')
-  })
-
-  it('keeps a normal C row with — in the tack and downwind tables when C has no value, and no C row without Comparison', () => {
-    const withComparison = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={unavailable}
-    />)
-    expect(text(withComparison)).toContain('C — — — — — —')
-    expect(withComparison).toContain('data-wind-tack-role="comparison"')
-    const downwindWithComparison = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={downwind} comparison={upwind}
-    />)
-    expect(downwindWithComparison).toContain('data-wind-downwind-role="comparison"')
-    expect(text(downwindWithComparison)).toMatch(/Gybe angle P 152° 42° C — —/)
-    const primaryOnly = renderToStaticMarkup(<WindContextSection
-      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
-    />)
-    expect(primaryOnly).not.toMatch(/data-wind-(role|tack-role|progress-role|downwind-role)="comparison"/)
   })
 })

@@ -243,13 +243,13 @@ describe('P-perspective gain and gaps at the same instants', () => {
     expect(formatProgressGaps(negative)).toBe('At 11:37:35 P level with C → at 11:43:45 10 m to leeward of C')
   })
 
-  it('adds the wide lateral separation caution above 150 m at either instant', () => {
+  it('flags wide lateral separation above 150 m at either instant without a suffix on the gap line (#192.4)', () => {
     const narrow = pair(0, 'upwind', { from: [0, 0], to: [400, 0] }, { from: [0, 149], to: [400, 149] })
     expect(narrow.wideLateralSeparation).toBe(false)
-    expect(formatProgressGaps(narrow)).not.toContain('wide lateral separation')
     const wideAtEnd = pair(0, 'upwind', { from: [0, 0], to: [400, 0] }, { from: [0, 100], to: [400, 151] })
     expect(wideAtEnd.wideLateralSeparation).toBe(true)
-    expect(formatProgressGaps(wideAtEnd)).toMatch(/ · boats far apart sideways: gaps approximate$/)
+    expect(formatProgressGaps(wideAtEnd)).not.toMatch(/far apart|lateral|approximate/)
+    expect(formatProgressGaps(wideAtEnd)).toBe(formatProgressGaps({ ...wideAtEnd, wideLateralSeparation: false }))
     const wideAtStart = pair(0, 'upwind', { from: [0, 151], to: [400, 0] }, { from: [0, 0], to: [400, 0] })
     expect(wideAtStart.wideLateralSeparation).toBe(true)
   })

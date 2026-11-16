@@ -3412,25 +3412,9 @@ input:focus-visible {
   gap: 4px 8px;
   min-width: 0;
 }
-.wind-context__twd-stepper { flex: 0 0 auto; }
+.wind-context__twd-stepper { flex: 0 0 auto; box-shadow: none; }
 .wind-context__twd-stepper .map-bearing__value { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; padding: 3px 5px; font-size: 0.63rem; line-height: 1.2; }
 .wind-context__twd-stepper .map-bearing__value strong { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
-.wind-context__twd-button {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 8px;
-  border: 1px solid #c8d7da;
-  border-radius: 7px;
-  color: #31515a;
-  background: #f7fafb;
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.wind-context__twd-button:disabled { cursor: default; opacity: 0.45; }
-.wind-context__twd-button:focus-visible { outline: 2px solid #28788a; outline-offset: 2px; }
 .wind-context__reference {
   color: #526d74;
   font-size: 0.74rem;
@@ -3475,28 +3459,11 @@ input:focus-visible {
   .wind-context-table { font-size: 0.66rem; }
   .wind-context-table thead th { font-size: 0.54rem; }
 }
-.wind-context-table-wrap {
-  margin-top: 8px;
-  overflow-x: auto;
-}
-.wind-context-table-wrap .wind-context-table { margin-top: 0; }
-/* Only the 7-column tack table needs a floor; it scrolls only below this width. */
-.wind-context-table-wrap .wind-context-table--tack { min-width: 320px; }
 .wind-context__hint {
   margin: 8px 0 0;
   color: #263f46;
   font-size: 0.76rem;
   line-height: 1.4;
-}
-.wind-context-table__reason {
-  color: #526d74;
-  font-style: italic;
-}
-.wind-context__difference {
-  margin: 8px 0 0;
-  color: #263f46;
-  font-size: 0.76rem;
-  font-variant-numeric: tabular-nums;
 }
 .wind-segments__table { table-layout: auto; }
 .wind-segments__table th,
@@ -3580,3 +3547,84 @@ input:focus-visible {
   .wind-segments__filter { gap: 3px; }
   .wind-segments__filter-option { padding: 0 5px; }
 }
+
+/* #192.4: flat in-line TWD detail, conclusion block, metric table and sector breakdown. */
+.wind-context__twd-detail {
+  position: static;
+  flex: 1 1 100%;
+  width: auto;
+  max-width: 320px;
+  border-radius: 7px;
+  box-shadow: none;
+}
+.wind-conclusion {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid #28788a;
+  border-radius: 0 7px 7px 0;
+  background: #eef4f5;
+  color: #263f46;
+}
+.wind-conclusion__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.wind-conclusion__line {
+  margin: 3px 0 0;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+.wind-conclusion__line--reason { color: #526d74; font-style: italic; }
+.wind-conclusion__caution {
+  margin: 4px 0 0;
+  color: #526d74;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+.wind-metric-table {
+  width: 100%;
+  margin-top: 8px;
+  border-spacing: 0;
+  table-layout: fixed;
+  color: #263f46;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.wind-metric-table th,
+.wind-metric-table td {
+  padding: 3px 4px;
+  text-align: center;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.wind-metric-table thead th {
+  color: #71858b;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.wind-metric-table tbody th,
+.wind-metric-table tbody td { border-top: 1px solid #d3e0e2; }
+.wind-metric-table tbody th[scope="row"] { font-weight: 600; text-align: left; }
+.wind-metric-table tbody td { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.wind-metric-table .wind-metric-table__label { width: 46%; }
+.wind-metric-table--breakdown tbody th[scope="row"] { text-align: center; font-weight: 800; }
+.wind-metric-table--breakdown tbody td { font-family: inherit; }
+.wind-breakdown { margin-top: 8px; }
+.wind-breakdown__toggle {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid #c8d7da;
+  border-radius: 7px;
+  color: #31515a;
+  background: #f7fafb;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.wind-breakdown__toggle:focus-visible { outline: 2px solid #28788a; outline-offset: 2px; }
+.wind-breakdown__toggle[aria-expanded="true"] { background: #e3f0f2; }

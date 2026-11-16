@@ -1,8 +1,9 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { WIND_CONTEXT_CONFIG } from '../config/windContext'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
-import { formatTwdDegrees } from '../utils/twdPresentation'
+import type { TwdReference } from '../utils/twdReference'
+import { formatTwdDegrees, type TwdPresentation } from '../utils/twdPresentation'
 import {
   formatTwdSource,
   formatWindClassification,
@@ -22,7 +23,7 @@ import {
   type WindProgress,
 } from '../utils/windProgress'
 import type { WindSegment } from '../utils/windSegments'
-import { TwdStepper } from './TwdControl'
+import { TwdDetail, TwdStepper } from './TwdControl'
 import WindSegmentsList, { countListedWindSegments, formatWindSegmentCount } from './WindSegmentsSection'
 
 type Role = 'primary' | 'comparison'
@@ -47,7 +48,17 @@ interface WindContextSectionProps {
   comparisonSegmentClassifications?: WindWindowClassification[]
   /** Same page handlers as the map TWD control (#192.3.2); the controls are omitted without them. */
   onTwdStep?: (step: -5 | 5) => void
+  /** The TWD detail's Automatic reset, same handler as the map's (#192.4). */
   onTwdReset?: () => void
+  /** Same reference and presentation as the map; the value opens the shared TWD detail (#192.4). */
+  twdReference?: TwdReference
+  twdPresentation?: TwdPresentation
+}
+
+interface MetricRow {
+  key: string
+  label: string
+  values: Record<Role, string>
 }
 
 function roleLabel(role: Role) {
@@ -80,6 +91,74 @@ function formatDegrees(value: number | null) {
   return value === null ? '—' : `${Math.round(value)}°`
 }
 
+/**
+ * One row per metric, bare values only (units and direction live in the row label). A row is
+ * dropped when every shown Activity reads "—" (#192.4). The sector follows P's classification.
+ */
+export function buildWindMetricRows(
+  sector: WindWindowClassification,
+  results: Record<Role, WindContextResult | undefined>,
+  progress: Record<Role, WindProgress | undefined>,
+  roles: Role[],
+): MetricRow[] {
+  const row = (key: string, label: string, read: (role: Role) => string): MetricRow => ({
+    key,
+    label,
+    values: {
+      primary: roles.includes('primary') ? read('primary') : '—',
+      comparison: roles.includes('comparison') ? read('comparison') : '—',
+    },
+  })
+  const share = (name: 'upwind' | 'reaching' | 'downwind') => (role: Role) => formatWindShare(results[role]?.sectorShares?.[name])
+  const available = (role: Role) => {
+    const value = progress[role]
+    return value?.status === 'available' ? value : null
+  }
+  const progressMetres = (role: Role) => {
+    const value = available(role)
+    return value ? formatMetres(value.progressMeters) : '—'
+  }
+  const efficiency = (role: Role) => {
+    const value = available(role)
+    return value ? formatWindShare(value.efficiency) : '—'
+  }
+  const distance = (role: Role) => formatMetres(progress[role]?.distanceMeters ?? null)
+  const tack = (role: Role) => results[role]?.upwindTack ?? null
+  const rows: MetricRow[] = []
+  if (sector === 'upwind') {
+    rows.push(
+      row('upwind-share', 'Upwind share', share('upwind')),
+      row('progress', 'Progress to windward', progressMetres),
+      row('distance', 'Distance', distance),
+      row('efficiency', 'Efficiency', efficiency),
+      row('time-starboard', 'Time on starboard', (role) => { const value = tack(role); return value ? formatWindShare(value.shares.starboard) : '—' }),
+      row('time-port', 'Time on port', (role) => { const value = tack(role); return value ? formatWindShare(value.shares.port) : '—' }),
+      row('twa-starboard', 'TWA on starboard', (role) => formatMeanTwa(tack(role)?.meanAbsTwaDegrees.starboard ?? null)),
+      row('twa-port', 'TWA on port', (role) => formatMeanTwa(tack(role)?.meanAbsTwaDegrees.port ?? null)),
+      row('axis', 'Axis', (role) => formatAxis(tack(role)?.axis ?? null)),
+      row('tack-angle', 'Tack angle', (role) => formatTackAngle(tack(role)?.axis ?? null)),
+      row('tack-check', 'Tack check', (role) => tack(role)?.check.labels.join(' ') || '—'),
+    )
+  } else if (sector === 'downwind') {
+    rows.push(
+      row('downwind-share', 'Downwind share', share('downwind')),
+      row('progress', 'Progress to leeward', progressMetres),
+      row('distance', 'Distance', distance),
+      row('efficiency', 'Efficiency', efficiency),
+      row('depth', 'Depth (mean TWA)', (role) => formatDegrees(results[role]?.downwind?.depthDegrees ?? null)),
+      row('gybe-angle', 'Gybe angle', (role) => formatDegrees(results[role]?.downwind?.gybeAngleDegrees ?? null)),
+    )
+  } else {
+    rows.push(
+      row('upwind-share', 'Upwind share', share('upwind')),
+      row('reaching-share', 'Reaching share', share('reaching')),
+      row('downwind-share', 'Downwind share', share('downwind')),
+      row('distance', 'Distance', distance),
+    )
+  }
+  return rows.filter((entry) => roles.some((role) => entry.values[role] !== '—'))
+}
+
 export function formatWindAnalysisSummary(
   displayDegrees: number,
   source: EffectiveTwd['source'],
@@ -110,8 +189,13 @@ export default function WindContextSection({
   comparisonSegmentClassifications,
   onTwdStep,
   onTwdReset,
+  twdReference,
+  twdPresentation,
 }: WindContextSectionProps) {
   const [expanded, setExpanded] = useState(false)
+  const [twdDetailExpanded, setTwdDetailExpanded] = useState(false)
+  const [breakdownExpanded, setBreakdownExpanded] = useState(false)
+  const breakdownId = useId()
   const [notesExpanded, setNotesExpanded] = useState(false)
   const contentId = useId()
   const notesId = useId()
@@ -120,7 +204,6 @@ export default function WindContextSection({
     { role: 'primary', result: primary },
     ...(comparison ? [{ role: 'comparison' as const, result: comparison }] : []),
   ]
-  const tackRows = rows.some(({ result }) => result.upwindTack !== null) ? rows : []
   const axisHelpId = useId()
   const hint = resolveTackAxisHint(
     effectiveTwd.degrees,
@@ -128,14 +211,34 @@ export default function WindContextSection({
     comparison !== undefined,
     comparison?.upwindTack?.axis ?? null,
   )
-  const progressRows: { role: Role, progress: WindProgress }[] = [
-    ...(primaryProgress ? [{ role: 'primary' as const, progress: primaryProgress }] : []),
-    ...(comparison && comparisonProgress ? [{ role: 'comparison' as const, progress: comparisonProgress }] : []),
-  ]
   const progressDifference = primaryProgress && comparison
     ? calculateProgressDifference(primaryProgress, comparisonProgress)
     : null
-  const downwindRows = rows.some(({ result }) => result.downwind !== null) ? rows : []
+  const roles: Role[] = comparison ? ['primary', 'comparison'] : ['primary']
+  const metricRows = buildWindMetricRows(
+    primary.classification,
+    { primary, comparison },
+    { primary: primaryProgress, comparison: comparisonProgress },
+    roles,
+  )
+  const hasTwdDetail = twdReference !== undefined && twdPresentation !== undefined && onTwdReset !== undefined
+  const twdDetailId = `${contentId}-twd-detail`
+  const twdRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!twdDetailExpanded) return
+    const dismissOutside = (event: Event) => {
+      const target = event.target
+      if (!(target instanceof Node) || twdRef.current === null || twdRef.current.contains(target)) return
+      setTwdDetailExpanded(false)
+    }
+    document.addEventListener('pointerdown', dismissOutside, true)
+    document.addEventListener('click', dismissOutside, true)
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside, true)
+      document.removeEventListener('click', dismissOutside, true)
+    }
+  }, [twdDetailExpanded])
 
   return (
     <section className="content-section maneuver-section wind-context-section" aria-labelledby="wind-context-title">
@@ -170,9 +273,15 @@ export default function WindContextSection({
         />
 
         <div className="wind-context__info-row">
-          <div className="wind-context__twd">
+          <div className="wind-context__twd" ref={twdRef}>
             {(() => {
-              const value = <span className="map-bearing__value" data-wind-twd-value aria-label={`Effective TWD ${formatTwdDegrees(displayDegrees)}`}><span>TWD</span><strong>{formatTwdDegrees(displayDegrees)}</strong></span>
+              const label = formatTwdDegrees(displayDegrees)
+              const content = <><span>TWD</span><strong>{label}</strong></>
+              const value = hasTwdDetail
+                ? (
+                  <button type="button" className="map-bearing__value" data-wind-twd-value aria-label={`TWD ${label}. Show wind reference details`} aria-expanded={twdDetailExpanded} aria-controls={twdDetailId} onClick={() => setTwdDetailExpanded((current) => !current)}>{content}</button>
+                )
+                : <span className="map-bearing__value" data-wind-twd-value aria-label={`Effective TWD ${label}`}>{content}</span>
               return onTwdStep !== undefined && onTwdReset !== undefined
                 ? (
                   <div className="map-navigation-group wind-context__twd-stepper" role="group" aria-label="Adjust TWD">
@@ -182,8 +291,8 @@ export default function WindContextSection({
                 : <div className="map-navigation-group wind-context__twd-stepper"><div className="map-navigation-group__direction">{value}</div></div>
             })()}
             <span className="wind-context__reference" data-wind-twd-source>{formatTwdSource(effectiveTwd.source)}</span>
-            {onTwdReset !== undefined && effectiveTwd.source === 'manual' && (
-              <button type="button" className="wind-context__twd-button" data-wind-twd-reset aria-label="Reset TWD to modelled" onClick={onTwdReset}>Reset TWD</button>
+            {hasTwdDetail && twdDetailExpanded && (
+              <TwdDetail id={twdDetailId} className="wind-context__twd-detail" reference={twdReference} presentation={twdPresentation} onAutomatic={() => { onTwdReset(); setTwdDetailExpanded(false) }} />
             )}
           </div>
           <button
@@ -202,121 +311,77 @@ export default function WindContextSection({
           </button>
         </div>
 
-        <table className="wind-context-table" aria-label="Wind sector composition">
-          <thead><tr>
-            <th scope="col" aria-label="Activity">P/C</th>
-            <th scope="col">Upwind</th>
-            <th scope="col">Reaching</th>
-            <th scope="col">Downwind</th>
-            <th scope="col">Window</th>
-          </tr></thead>
-          <tbody>
-            {rows.map(({ role, result }) => (
-              <tr key={role} data-wind-role={role}>
-                <th scope="row" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>
-                <td>{formatWindShare(result.sectorShares?.upwind)}</td>
-                <td>{formatWindShare(result.sectorShares?.reaching)}</td>
-                <td>{formatWindShare(result.sectorShares?.downwind)}</td>
-                <td className="wind-context-table__classification">{formatWindClassification(result.classification)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="wind-conclusion" data-wind-conclusion>
+          <p className="wind-conclusion__title" data-wind-conclusion-title>{formatWindClassification(primary.classification).toUpperCase()}</p>
+          {progressDifference !== null ? (
+            <>
+              <p className="wind-conclusion__line" data-wind-progress-difference>{formatProgressDifference(progressDifference)}</p>
+              <p className="wind-conclusion__line" data-wind-progress-gaps>{formatProgressGaps(progressDifference)}</p>
+            </>
+          ) : primaryProgress?.status === 'available' ? (
+            <p className="wind-conclusion__line" data-wind-progress-own>
+              {formatMetres(primaryProgress.progressMeters)} to {primaryProgress.sector === 'upwind' ? 'windward' : 'leeward'}{primaryProgress.efficiency === null ? '' : ` · ${formatWindShare(primaryProgress.efficiency)} efficiency`}
+            </p>
+          ) : primaryProgress?.status === 'unavailable' ? (
+            <p className="wind-conclusion__line wind-conclusion__line--reason" data-wind-progress-reason={primaryProgress.reason}>{formatProgressReason(primaryProgress.reason)}</p>
+          ) : null}
+          {progressDifference?.wideLateralSeparation === true && (
+            <p className="wind-conclusion__caution" data-wind-lateral-caution>Boats far apart sideways: results sensitive to TWD</p>
+          )}
+        </div>
 
-        {tackRows.length > 0 && (
-          <div className="wind-context-table-wrap">
-          <table className="wind-context-table wind-context-table--tack" aria-label="Upwind tack split">
+        {metricRows.length > 0 && (
+          <table className="wind-metric-table" aria-label="Wind metrics">
             <thead><tr>
-              <th scope="col" aria-label="Activity">P/C</th>
-              <th scope="col">Stbd · TWA</th>
-              <th scope="col">Port · TWA</th>
-              <th scope="col">Indet.</th>
-              <th scope="col">Check</th>
-              <th scope="col" aria-describedby={axisHelpId}>Axis</th>
-              <th scope="col">Tack angle</th>
+              <th scope="col" className="wind-metric-table__label" aria-label="Metric" />
+              {roles.map((role) => <th key={role} scope="col" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>)}
             </tr></thead>
             <tbody>
-              {tackRows.map(({ role, result }) => {
-                const tack = result.upwindTack
-                if (tack === null) {
-                  return (
-                    <tr key={role} data-wind-tack-role={role}>
-                      <th scope="row" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>
-                      <td>—</td><td>—</td><td>—</td><td>—</td><td data-wind-axis>—</td><td data-wind-tack-angle>—</td>
-                    </tr>
-                  )
-                }
-                return (
-                  <tr key={role} data-wind-tack-role={role}>
-                    <th scope="row" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>
-                    <td>{formatWindShare(tack.shares.starboard)} · {formatMeanTwa(tack.meanAbsTwaDegrees.starboard)}</td>
-                    <td>{formatWindShare(tack.shares.port)} · {formatMeanTwa(tack.meanAbsTwaDegrees.port)}</td>
-                    <td>{formatWindShare(tack.shares.indeterminate)}</td>
-                    <td className="wind-context-table__check">{tack.check.labels.join(' ')}</td>
-                    <td data-wind-axis>{formatAxis(tack.axis)}</td>
-                    <td data-wind-tack-angle>{formatTackAngle(tack.axis)}</td>
-                  </tr>
-                )
-              })}
+              {metricRows.map((metric) => (
+                <tr key={metric.key} data-wind-metric={metric.key}>
+                  <th scope="row" aria-describedby={metric.key === 'axis' ? axisHelpId : undefined}>{metric.label}</th>
+                  {roles.map((role) => <td key={role} data-wind-metric-role={role}>{metric.values[role]}</td>)}
+                </tr>
+              ))}
             </tbody>
           </table>
-          </div>
         )}
 
         {hint !== null && <p className="wind-context__hint" data-wind-axis-hint><strong>{formatTackAxisHint(hint)}</strong></p>}
 
-        {progressRows.length > 0 && (
-          <table className="wind-context-table wind-context-table--progress" aria-label="Progress relative to the wind">
-            <thead><tr>
-              <th scope="col" aria-label="Activity">P/C</th>
-              <th scope="col">Progress</th>
-              <th scope="col">Distance</th>
-              <th scope="col">Efficiency</th>
-            </tr></thead>
-            <tbody>
-              {progressRows.map(({ role, progress }) => (
-                <tr key={role} data-wind-progress-role={role}>
-                  <th scope="row" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>
-                  {progress.status === 'available' ? <>
-                    <td>{formatMetres(progress.progressMeters)} to {progress.sector === 'upwind' ? 'windward' : 'leeward'}</td>
-                    <td>{formatMetres(progress.distanceMeters)}</td>
-                    <td>{formatWindShare(progress.efficiency)}</td>
-                  </> : <>
-                    <td className="wind-context-table__reason" data-wind-progress-reason={progress.reason}>{formatProgressReason(progress.reason)}</td>
-                    <td>{formatMetres(progress.distanceMeters)}</td>
-                    <td>—</td>
-                  </>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {progressDifference !== null && (
-          <>
-            <p className="wind-context__difference" data-wind-progress-difference>{formatProgressDifference(progressDifference)}</p>
-            <p className="wind-context__difference" data-wind-progress-gaps>{formatProgressGaps(progressDifference)}</p>
-          </>
-        )}
-
-        {downwindRows.length > 0 && (
-          <table className="wind-context-table wind-context-table--downwind" aria-label="Downwind readings">
-            <thead><tr>
-              <th scope="col" aria-label="Activity">P/C</th>
-              <th scope="col">Depth</th>
-              <th scope="col">Gybe angle</th>
-            </tr></thead>
-            <tbody>
-              {downwindRows.map(({ role, result }) => (
-                <tr key={role} data-wind-downwind-role={role}>
-                  <th scope="row" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>
-                  <td>{formatDegrees(result.downwind?.depthDegrees ?? null)}</td>
-                  <td>{formatDegrees(result.downwind?.gybeAngleDegrees ?? null)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <div className="wind-breakdown">
+          <button
+            type="button"
+            className="wind-breakdown__toggle"
+            aria-expanded={breakdownExpanded}
+            aria-controls={breakdownId}
+            onClick={() => setBreakdownExpanded((current) => !current)}
+          >
+            Sector breakdown
+          </button>
+          <div id={breakdownId} hidden={!breakdownExpanded} data-wind-breakdown>
+            <table className="wind-metric-table wind-metric-table--breakdown" aria-label="Sector breakdown">
+              <thead><tr>
+                <th scope="col" aria-label="Activity">P/C</th>
+                <th scope="col">Upwind</th>
+                <th scope="col">Reaching</th>
+                <th scope="col">Downwind</th>
+                <th scope="col">Indet.</th>
+              </tr></thead>
+              <tbody>
+                {rows.map(({ role, result }) => (
+                  <tr key={role} data-wind-role={role}>
+                    <th scope="row" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</th>
+                    <td>{formatWindShare(result.sectorShares?.upwind)}</td>
+                    <td>{formatWindShare(result.sectorShares?.reaching)}</td>
+                    <td>{formatWindShare(result.sectorShares?.downwind)}</td>
+                    <td>{formatWindShare(result.upwindTack?.shares.indeterminate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         <div id={notesId} ref={notesRef} className="maneuver-evidence__help" popover="auto"
           role="note" aria-labelledby={`${notesId}-title`} data-wind-notes

@@ -1254,6 +1254,8 @@ export function SessionViewer({
           comparisonSegmentClassifications={comparisonSegmentClassifications}
           onTwdStep={stepTwd}
           onTwdReset={resetTwd}
+          twdReference={twdReference}
+          twdPresentation={twdPresentation}
         />
       )}
       <ComparisonTable

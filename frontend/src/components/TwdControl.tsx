@@ -30,6 +30,34 @@ export function TwdStepper({ onStep, decreaseLabel, increaseLabel, value, leadin
   </div>
 }
 
+/** TWD reference details shared by the map control and the Wind Analysis section (#192.4). */
+export function TwdDetail({ id, reference, presentation, onAutomatic, className = '' }: {
+  id: string
+  reference: TwdReference
+  presentation: TwdPresentation
+  onAutomatic: () => void
+  className?: string
+}) {
+  const displayed = presentation.displayDegrees === null ? '—' : formatTwdDegrees(presentation.displayDegrees)
+  return <section id={id} className={`map-twd__detail${className === '' ? '' : ` ${className}`}`} aria-label="TWD reference details">
+      {reference.status === 'available' ? <dl>
+        <div><dt>Source</dt><dd>Modelled weather</dd></div>
+        <div><dt>Method</dt><dd>Nearest valid wind sample to window midpoint</dd></div>
+        <div><dt>Sample time</dt><dd>{formatHistoricalConditionsTime(reference.sourceTimeUtc)}</dd></div>
+        <div><dt>Provider</dt><dd>{reference.provenance.provider ?? 'Unavailable'}</dd></div>
+        <div><dt>Original TWD</dt><dd>{reference.directionDegrees}°</dd></div>
+        <div><dt>Automatic rounded TWD</dt><dd>{formatTwdDegrees(presentation.automaticDegrees!)}</dd></div>
+      </dl> : <p>No automatic TWD reference available.</p>}
+      {presentation.manual
+        ? <p>Viewer correction: {displayed}{reference.status === 'unavailable' ? ' · Manual only' : ''}</p>
+        : <p>Displayed TWD: {displayed}</p>}
+      {presentation.manual && <div className="map-twd__manual">
+        <span>Manual · Viewer</span>
+        <button type="button" aria-label="Reset TWD to automatic" onClick={onAutomatic}>Reset</button>
+      </div>}
+  </section>
+}
+
 export default function TwdControl({ reference, presentation, expanded, onExpandedChange, onStep, onAutomatic }: {
   reference: TwdReference
   presentation: TwdPresentation
@@ -50,22 +78,6 @@ export default function TwdControl({ reference, presentation, expanded, onExpand
         <span>TWD</span><strong>{displayed}</strong>
       </button>}
     />
-    {expanded && <section id="map-twd-detail" className="map-twd__detail" aria-label="TWD reference details">
-      {reference.status === 'available' ? <dl>
-        <div><dt>Source</dt><dd>Modelled weather</dd></div>
-        <div><dt>Method</dt><dd>Nearest valid wind sample to window midpoint</dd></div>
-        <div><dt>Sample time</dt><dd>{formatHistoricalConditionsTime(reference.sourceTimeUtc)}</dd></div>
-        <div><dt>Provider</dt><dd>{reference.provenance.provider ?? 'Unavailable'}</dd></div>
-        <div><dt>Original TWD</dt><dd>{reference.directionDegrees}°</dd></div>
-        <div><dt>Automatic rounded TWD</dt><dd>{formatTwdDegrees(presentation.automaticDegrees!)}</dd></div>
-      </dl> : <p>No automatic TWD reference available.</p>}
-      {presentation.manual
-        ? <p>Viewer correction: {displayed}{reference.status === 'unavailable' ? ' · Manual only' : ''}</p>
-        : <p>Displayed TWD: {displayed}</p>}
-      {presentation.manual && <div className="map-twd__manual">
-        <span>Manual · Viewer</span>
-        <button type="button" aria-label="Reset TWD to automatic" onClick={onAutomatic}>Reset</button>
-      </div>}
-    </section>}
+    {expanded && <TwdDetail id="map-twd-detail" reference={reference} presentation={presentation} onAutomatic={onAutomatic} />}
   </div>
 }
