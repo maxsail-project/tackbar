@@ -160,16 +160,26 @@ describe('neutral P−C progress difference', () => {
     expect(difference.status).toBe('difference')
     expect(difference.meters).toBe(40)
     expect(difference.seconds).toBeCloseTo(40 / 1.595)
-    expect(formatProgressDifference(difference)).toBe('Δ progress P−C: +40 m (≈25 s)')
+    expect(formatProgressDifference(difference)).toBe('P made 40 m more progress to windward than C — equivalent to about 25 s of sailing.')
     const negative = calculateProgressDifference(eligible('downwind', 626, 2.4), eligible('downwind', 679, 2.6))!
-    expect(formatProgressDifference(negative)).toBe('Δ progress P−C: −53 m (≈−21 s)')
+    expect(formatProgressDifference(negative)).toBe('C made 53 m more progress to leeward than P — equivalent to about 21 s of sailing.')
+  })
+
+  it('words P more, C more and Similar for both sectors', () => {
+    const words = (sector: 'upwind' | 'downwind', p: number, c: number) =>
+      formatProgressDifference(calculateProgressDifference(eligible(sector, p, 2), eligible(sector, c, 2))!)
+    expect(words('upwind', 200, 100)).toBe('P made 100 m more progress to windward than C — equivalent to about 50 s of sailing.')
+    expect(words('upwind', 100, 200)).toBe('C made 100 m more progress to windward than P — equivalent to about 50 s of sailing.')
+    expect(words('downwind', 200, 100)).toBe('P made 100 m more progress to leeward than C — equivalent to about 50 s of sailing.')
+    expect(words('downwind', 100, 200)).toBe('C made 100 m more progress to leeward than P — equivalent to about 50 s of sailing.')
+    expect(words('downwind', 100, 105)).toBe('P and C made similar progress to leeward (within 5 s).')
   })
 
   it('is Similar at exactly ±5 s and not beyond', () => {
     expect(calculateProgressDifference(eligible('upwind', 110, 2), eligible('upwind', 100, 2))!.status).toBe('similar')
     expect(calculateProgressDifference(eligible('upwind', 100, 2), eligible('upwind', 110, 2))!.status).toBe('similar')
     expect(formatProgressDifference(calculateProgressDifference(eligible('upwind', 110, 2), eligible('upwind', 100, 2))!))
-      .toBe('Δ progress P−C: Similar')
+      .toBe('P and C made similar progress to windward (within 5 s).')
     expect(calculateProgressDifference(eligible('upwind', 110.2, 2), eligible('upwind', 100, 2))!.status).toBe('difference')
   })
 

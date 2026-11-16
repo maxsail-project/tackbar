@@ -139,15 +139,13 @@ export function calculateProgressDifference(
   }
 }
 
-function formatSigned(value: number) {
-  const rounded = Math.round(value)
-  if (rounded === 0) return '0'
-  return rounded < 0 ? `−${Math.abs(rounded)}` : `+${rounded}`
-}
-
 export function formatProgressDifference(difference: ProgressDifference) {
-  if (difference.status === 'similar') return 'Δ progress P−C: Similar'
-  return `Δ progress P−C: ${formatSigned(difference.meters)} m (≈${formatSigned(difference.seconds).replace('+', '')} s)`
+  const direction = difference.sector === 'upwind' ? 'windward' : 'leeward'
+  if (difference.status === 'similar') return `P and C made similar progress to ${direction} (within 5 s).`
+  const [more, less] = difference.meters >= 0 ? ['P', 'C'] : ['C', 'P']
+  const meters = Math.round(Math.abs(difference.meters))
+  const seconds = Math.round(Math.abs(difference.seconds))
+  return `${more} made ${meters} m more progress to ${direction} than ${less} — equivalent to about ${seconds} s of sailing.`
 }
 
 export function formatProgressReason(reason: ProgressUnavailableReason) {

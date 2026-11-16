@@ -373,7 +373,7 @@ describe('Viewer TWD state', () => {
     expect(progressRow('primary')).toBe('P1108 m to windward0 m—')
     await choose('Compare', 'b')
     expect(progressRow('comparison')).toBe('C1108 m to windward0 m—')
-    expect(section().querySelector('[data-wind-progress-difference]')!.textContent).toBe('Δ progress P−C: Similar')
+    expect(section().querySelector('[data-wind-progress-difference]')!.textContent).toBe('P and C made similar progress to windward (within 5 s).')
     expect(section().querySelector('[data-wind-downwind-role]')).toBeNull()
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
   })

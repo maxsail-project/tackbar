@@ -168,7 +168,7 @@ describe('WindContextSection', () => {
     expect(text(markup)).toContain('P 609 m to windward 893 m 68%')
     expect(markup).toContain('Progress relative to the wind')
     expect(markup).not.toContain('data-wind-progress-difference')
-    expect(text(markup)).toContain('Progress: net distance along the wind axis; not VMG.')
+    expect(text(markup).replace('&#x27;', "'")).toContain("Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats' average speed along that axis.")
   })
 
   it('shows P/C progress with the neutral difference line', () => {
@@ -178,7 +178,7 @@ describe('WindContextSection', () => {
     />)
     const content = text(markup)
     expect(content).toContain('C 569 m to windward 814 m 70%')
-    expect(content).toContain('Δ progress P−C: +40 m (≈25 s)')
+    expect(content).toContain('P made 40 m more progress to windward than C — equivalent to about 25 s of sailing.')
     expect(content).not.toMatch(/ahead|behind|winner/i)
   })
 
@@ -187,7 +187,7 @@ describe('WindContextSection', () => {
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={upwind}
       primaryProgress={progress('upwind', 609, 893, 2)} comparisonProgress={progress('upwind', 600, 814, 2)}
     />)
-    expect(text(similar)).toContain('Δ progress P−C: Similar')
+    expect(text(similar)).toContain('P and C made similar progress to windward (within 5 s).')
     const ineligible = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={upwind}
       primaryProgress={progress('upwind', 609, 893, 2)}
@@ -223,7 +223,7 @@ describe('WindContextSection', () => {
     expect(content).toContain('P 152° 42°')
     expect(content).toContain('C 171° —')
     expect(content).toContain('P 679 m to leeward 760 m 89%')
-    expect(content).toContain('Δ progress P−C: +53 m (≈21 s)')
+    expect(content).toContain('P made 53 m more progress to leeward than C — equivalent to about 21 s of sailing.')
     expect(content).not.toMatch(/Stbd|Port ·|gybe on/i)
     const upwindOnly = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
@@ -266,9 +266,9 @@ describe('WindContextSection', () => {
       'Sectors: COG vs effective TWD, over moving time (SOG ≥ 1.5 kn).',
       'Tacks: upwind only; HDG/HEEL only confirm them.',
       'Axis: estimated bisector of the upwind tacks; not applied to TWD.',
-      'Progress: net distance along the wind axis; not VMG.',
+      "Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats' average speed along that axis.",
       'Depth / Gybe angle: mean downwind TWA / angle between the two downwind courses.',
-      "Segments: P's track split by wind sector; tap one to set the Analysis Window.",
+      "Segments: P's track split by wind sector using the modelled TWD at each sample; tap one to set the Analysis Window.",
     ])
     expect(markup).not.toContain('class="wind-context__note"')
   })
