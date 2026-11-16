@@ -104,6 +104,10 @@ jobs:
         working-directory: frontend
         run: npm run test -- --coverage.enabled --coverage.reporter=lcov
 
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
+
       - name: Check coverage reports
         run: |
           test -s backend/coverage.xml
@@ -113,3 +117,7 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Build production frontend
+        working-directory: frontend
+        run: npm run build
