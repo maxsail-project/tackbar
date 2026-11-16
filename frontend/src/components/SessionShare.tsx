@@ -121,6 +121,19 @@ export function SessionSharePanel({
     share?.expires_at ?? '1970-01-01T00:00:00Z',
   )
   const url = share ? temporaryShareUrl(share.path, origin) : null
+  const [copyFeedback, setCopyFeedback] = useState('')
+
+  useEffect(() => setCopyFeedback(''), [url, status])
+
+  async function copyLink() {
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopyFeedback('Link copied')
+    } catch {
+      setCopyFeedback('Unable to copy. Select the link to copy it.')
+    }
+  }
 
   return (
     <div className="share-panel-backdrop" role="presentation">
@@ -144,6 +157,11 @@ export function SessionSharePanel({
               <QRCodeSVG value={url} size={256} level="M" marginSize={2} />
             </div>
             <p className="share-panel__instruction">Scan to open this Session</p>
+            <p className="share-panel__url">{url}</p>
+            <button className="share-panel__copy" type="button" onClick={() => void copyLink()}>
+              Copy link
+            </button>
+            <p className="share-panel__copy-feedback" role="status">{copyFeedback}</p>
             <p className="share-panel__expiry">
               {remaining === 'Expired'
                 ? 'Temporary access expired'

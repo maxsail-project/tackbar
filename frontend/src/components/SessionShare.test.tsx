@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -9,6 +12,15 @@ import {
   temporaryShareUrl,
 } from './SessionShare'
 
+vi.mock('qrcode.react', () => ({
+  QRCodeSVG: ({ value }: { value: string }) => <svg data-qr-value={value} />,
+}))
+
+const temporaryUrl = 'https://tackbar.example/q/temporary-private-token'
+const share = {
+  path: '/q/temporary-private-token',
+  expires_at: '2099-01-01T12:00:00Z',
+}
 
 describe('temporary Session sharing presentation', () => {
   it('offers About in the header shared by original and temporary Viewers', () => {
@@ -69,10 +81,7 @@ describe('temporary Session sharing presentation', () => {
   it('renders a local QR presentation containing only the temporary URL', () => {
     const markup = renderToStaticMarkup(
       <SessionSharePanel
-        share={{
-          path: '/q/temporary-private-token',
-          expires_at: '2099-01-01T12:00:00Z',
-        }}
+        share={share}
         status="ready"
         onClose={vi.fn()}
         origin="https://tackbar.example"
@@ -83,8 +92,50 @@ describe('temporary Session sharing presentation', () => {
     expect(markup).toContain('Temporary Session access QR code')
     expect(markup).toContain('Scan to open this Session')
     expect(markup).toContain('Access expires in')
+    expect(markup).toContain(`data-qr-value="${temporaryUrl}"`)
+    expect(markup).toContain(`class="share-panel__url">${temporaryUrl}</p>`)
+    expect(markup).toContain('>Copy link</button>')
     expect(markup).not.toContain('/s/')
     expect(markup).not.toContain('original-private-token')
+  })
+
+  it('copies exactly the displayed QR destination and reports the result', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(
+        <SessionSharePanel share={share} status="ready" onClose={vi.fn()} origin="https://tackbar.example" />,
+      ))
+      const qrUrl = container.querySelector('svg[data-qr-value]')?.getAttribute('data-qr-value')
+      expect(container.querySelector('.share-panel__url')?.textContent).toBe(qrUrl)
+      await act(async () => container.querySelector<HTMLButtonElement>('.share-panel__copy')!.click())
+      expect(writeText).toHaveBeenCalledExactlyOnceWith(qrUrl)
+      expect(container.querySelector('[role="status"]')?.textContent).toBe('Link copied')
+
+      writeText.mockRejectedValueOnce(new Error('Clipboard unavailable'))
+      await act(async () => container.querySelector<HTMLButtonElement>('.share-panel__copy')!.click())
+      expect(container.querySelector('[role="status"]')?.textContent).toBe(
+        'Unable to copy. Select the link to copy it.',
+      )
+    } finally {
+      await act(async () => root.unmount())
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it.each(['loading', 'error'] as const)('does not expose a URL while %s', (status) => {
+    const markup = renderToStaticMarkup(
+      <SessionSharePanel share={share} status={status} onClose={vi.fn()} origin="https://tackbar.example" />,
+    )
+    expect(markup).not.toContain(temporaryUrl)
+    expect(markup).not.toContain('share-panel__url')
+    expect(markup).not.toContain('Copy link')
+    expect(markup).not.toContain('<svg')
   })
 
   it('formats a low-frequency remaining lifetime and builds the temporary URL', () => {
