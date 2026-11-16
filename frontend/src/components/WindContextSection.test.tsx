@@ -41,9 +41,8 @@ describe('WindContextSection', () => {
     />)
     expect(markup).toContain('aria-expanded="false"')
     expect(markup).toMatch(/<div id="[^"]+" hidden="">/)
-    expect(text(markup)).toContain('TWD 090° · Modelled')
-    expect(text(markup)).toContain('Wind 0 segments')
-    expect(text(markup)).not.toContain('Wind Analysis')
+    expect(text(markup)).toContain('TWD 090° Modelled')
+    expect(text(markup)).toContain('Wind Analysis 0 segments')
     expect(text(markup)).not.toContain('Wind Segments')
   })
 
@@ -51,20 +50,26 @@ describe('WindContextSection', () => {
     const without = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 5, source: 'manual' }} displayDegrees={5} primary={unavailable}
     />)
-    expect(without).not.toContain('wind-context__twd-controls')
+    expect(without).not.toContain('aria-label="Decrease TWD by 5°"')
+    expect(without).not.toContain('Reset TWD')
     const modelled = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90} primary={upwind}
       onTwdStep={() => undefined} onTwdReset={() => undefined}
     />)
     expect(modelled).toContain('aria-label="Decrease TWD by 5°"')
     expect(modelled).toContain('aria-label="Increase TWD by 5°"')
-    expect(modelled).toMatch(/<button[^>]*aria-label="Reset TWD to modelled" disabled=""/)
-    expect(modelled.indexOf('wind-context__reference')).toBeLessThan(modelled.indexOf('wind-context__twd-controls'))
+    expect(modelled).not.toContain('Reset TWD')
+    expect(modelled).toContain('Modelled')
+    expect(modelled).toContain('<span>TWD</span><strong>090°</strong>')
+    expect(modelled).not.toContain('−5°')
+    expect(modelled.indexOf('aria-label="Decrease TWD by 5°"')).toBeLessThan(modelled.indexOf('data-wind-twd-value'))
+    expect(modelled.indexOf('data-wind-twd-value')).toBeLessThan(modelled.indexOf('aria-label="Increase TWD by 5°"'))
     const manual = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 95, source: 'manual' }} displayDegrees={95} primary={upwind}
       onTwdStep={() => undefined} onTwdReset={() => undefined}
     />)
-    expect(manual).not.toMatch(/aria-label="Reset TWD to modelled"[^>]*disabled/)
+    expect(manual).toMatch(/<button[^>]*aria-label="Reset TWD to modelled"[^>]*>Reset TWD<\/button>/)
+    expect(text(manual)).toContain('Manual · Viewer')
     expect(manual.split('hidden=""')[0]).not.toContain('Decrease TWD')
   })
 
@@ -72,7 +77,8 @@ describe('WindContextSection', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 5, source: 'manual' }} displayDegrees={5} primary={unavailable}
     />)
-    expect(text(markup)).toContain('TWD 005° · Manual · Viewer')
+    expect(text(markup)).toContain('TWD 005°')
+    expect(text(markup)).toContain('Manual · Viewer')
   })
 
   it('shows P-only composition and upwind tack split with check', () => {
@@ -233,7 +239,7 @@ describe('WindContextSection', () => {
     />)
     const content = text(markup)
     expect(content).toContain('P lost 40 m to windward on C — equivalent to about 25 s of sailing.')
-    expect(content).toContain('At 11:37:35 P 20 m to windward of C → at 11:43:45 20 m to leeward of C · wide lateral separation')
+    expect(content).toContain('At 11:37:35 P 20 m to windward of C → at 11:43:45 20 m to leeward of C · boats far apart sideways: gaps approximate')
   })
 
   it('shows Similar within 5 s and no line when one Activity is ineligible', () => {
@@ -302,9 +308,9 @@ describe('WindContextSection', () => {
     />)
     expect(markup.match(/class="section-kicker"/g)).toHaveLength(1)
     const [header, body] = markup.split('hidden=""')
-    expect(text(header)).toContain('Wind 2 segments · TWD 105° Manual · Upwind')
+    expect(text(header)).toContain('Wind Analysis 2 segments · TWD 105° Manual · Upwind')
     expect(markup.match(/aria-label="About wind analysis"/g)).toHaveLength(1)
-    const order = ['wind-segments__filter', 'wind-segments__table', 'wind-context__reference', 'aria-label="Wind sector composition"']
+    const order = ['wind-segments__filter', 'wind-segments__table', 'data-wind-twd-source', 'aria-label="Wind sector composition"']
       .map((marker) => body.indexOf(marker))
     expect(order.every((index) => index >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
@@ -322,7 +328,8 @@ describe('WindContextSection', () => {
       effectiveTwd={{ degrees: 5, source: 'manual' }} displayDegrees={5} primary={unavailable}
     />)
     expect(text(manual.split('hidden=""')[0])).toContain('0 segments · TWD 005° Manual · Unavailable')
-    expect(text(manual.split('hidden=""')[1])).toContain('TWD 005° · Manual · Viewer')
+    expect(text(manual.split('hidden=""')[1])).toContain('TWD 005°')
+    expect(text(manual.split('hidden=""')[1])).toContain('Manual · Viewer')
     expect(text(renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={{ ...downwind, classification: 'mixed', downwind: null }}
     />).split('hidden=""')[0])).toContain('0 segments · TWD 105° · Mixed')

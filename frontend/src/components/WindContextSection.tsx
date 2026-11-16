@@ -22,6 +22,7 @@ import {
   type WindProgress,
 } from '../utils/windProgress'
 import type { WindSegment } from '../utils/windSegments'
+import { TwdStepper } from './TwdControl'
 import WindSegmentsList, { countListedWindSegments, formatWindSegmentCount } from './WindSegmentsSection'
 
 type Role = 'primary' | 'comparison'
@@ -139,7 +140,7 @@ export default function WindContextSection({
   return (
     <section className="content-section maneuver-section wind-context-section" aria-labelledby="wind-context-title">
       <div className="maneuver-section__header">
-        <p className="section-kicker" id="wind-context-title">Wind</p>
+        <p className="section-kicker" id="wind-context-title">Wind Analysis</p>
         <span className="wind-section__summary" data-wind-context-summary>
           {formatWindAnalysisSummary(displayDegrees, effectiveTwd.source, primary.classification, countListedWindSegments(segments, analysisWindow))}
         </span>
@@ -170,15 +171,19 @@ export default function WindContextSection({
 
         <div className="wind-context__info-row">
           <div className="wind-context__twd">
-            <span className="wind-context__reference" aria-label={`Effective TWD ${formatTwdDegrees(displayDegrees)}, ${formatTwdSource(effectiveTwd.source)}`}>
-              TWD <strong>{formatTwdDegrees(displayDegrees)}</strong> · {formatTwdSource(effectiveTwd.source)}
-            </span>
-            {onTwdStep !== undefined && onTwdReset !== undefined && (
-              <span className="wind-context__twd-controls" role="group" aria-label="Adjust TWD">
-                <button type="button" className="wind-context__twd-button" data-wind-twd-minus aria-label="Decrease TWD by 5°" onClick={() => onTwdStep(-5)}>−5°</button>
-                <button type="button" className="wind-context__twd-button" data-wind-twd-plus aria-label="Increase TWD by 5°" onClick={() => onTwdStep(5)}>+5°</button>
-                <button type="button" className="wind-context__twd-button" data-wind-twd-reset aria-label="Reset TWD to modelled" disabled={effectiveTwd.source !== 'manual'} onClick={onTwdReset}>Reset TWD</button>
-              </span>
+            {(() => {
+              const value = <span className="map-bearing__value" data-wind-twd-value aria-label={`Effective TWD ${formatTwdDegrees(displayDegrees)}`}><span>TWD</span><strong>{formatTwdDegrees(displayDegrees)}</strong></span>
+              return onTwdStep !== undefined && onTwdReset !== undefined
+                ? (
+                  <div className="map-navigation-group wind-context__twd-stepper" role="group" aria-label="Adjust TWD">
+                    <TwdStepper onStep={onTwdStep} decreaseLabel="Decrease TWD by 5°" increaseLabel="Increase TWD by 5°" value={value} />
+                  </div>
+                )
+                : <div className="map-navigation-group wind-context__twd-stepper"><div className="map-navigation-group__direction">{value}</div></div>
+            })()}
+            <span className="wind-context__reference" data-wind-twd-source>{formatTwdSource(effectiveTwd.source)}</span>
+            {onTwdReset !== undefined && effectiveTwd.source === 'manual' && (
+              <button type="button" className="wind-context__twd-button" data-wind-twd-reset aria-label="Reset TWD to modelled" onClick={onTwdReset}>Reset TWD</button>
             )}
           </div>
           <button

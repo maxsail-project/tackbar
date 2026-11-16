@@ -1,10 +1,33 @@
-import type { MouseEvent, PointerEvent } from 'react'
+import type { MouseEvent, PointerEvent, ReactNode } from 'react'
 import type { TwdReference } from '../utils/twdReference'
 import { formatTwdDegrees, type TwdPresentation } from '../utils/twdPresentation'
 import { formatHistoricalConditionsTime } from '../utils/historicalConditions'
 
 function stopMapInteraction(event: PointerEvent) {
   event.stopPropagation()
+}
+
+/**
+ * Presentational rotate-left / value / rotate-right row shared by the map TWD control and the
+ * Wind Analysis section (#192.3.2). It owns no behavior: callers supply handlers, names and value.
+ */
+export function TwdStepper({ onStep, decreaseLabel, increaseLabel, value, leading }: {
+  onStep: (step: -5 | 5) => void
+  decreaseLabel: string
+  increaseLabel: string
+  value: ReactNode
+  leading?: ReactNode
+}) {
+  return <div className="map-navigation-group__direction">
+    {leading}
+    <button type="button" aria-label={decreaseLabel} onClick={() => onStep(-5)}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 2 7M4 4v6h6" /></svg>
+    </button>
+    {value}
+    <button type="button" aria-label={increaseLabel} onClick={() => onStep(5)}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-2 7m2-13v6h-6" /></svg>
+    </button>
+  </div>
 }
 
 export default function TwdControl({ reference, presentation, expanded, onExpandedChange, onStep, onAutomatic }: {
@@ -18,18 +41,15 @@ export default function TwdControl({ reference, presentation, expanded, onExpand
   const displayed = presentation.displayDegrees === null ? '—' : formatTwdDegrees(presentation.displayDegrees)
 
   return <div className={`map-navigation-group${expanded ? ' map-navigation-group--expanded' : ''}`} role="group" aria-label="True wind direction control" onPointerDown={stopMapInteraction} onClick={(event: MouseEvent) => event.stopPropagation()}>
-    <div className="map-navigation-group__direction">
-      {expanded && <button type="button" className="map-twd__header-dismiss" aria-label="Close TWD reference details" onClick={() => onExpandedChange(false)} />}
-      <button type="button" aria-label="Adjust TWD 5 degrees counterclockwise" onClick={() => onStep(-5)}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 2 7M4 4v6h6" /></svg>
-      </button>
-      <button type="button" className="map-bearing__value" aria-label={`TWD ${displayed}. Show wind reference details`} aria-expanded={expanded} aria-controls="map-twd-detail" onClick={() => onExpandedChange(!expanded)}>
+    <TwdStepper
+      onStep={onStep}
+      decreaseLabel="Adjust TWD 5 degrees counterclockwise"
+      increaseLabel="Adjust TWD 5 degrees clockwise"
+      leading={expanded && <button type="button" className="map-twd__header-dismiss" aria-label="Close TWD reference details" onClick={() => onExpandedChange(false)} />}
+      value={<button type="button" className="map-bearing__value" aria-label={`TWD ${displayed}. Show wind reference details`} aria-expanded={expanded} aria-controls="map-twd-detail" onClick={() => onExpandedChange(!expanded)}>
         <span>TWD</span><strong>{displayed}</strong>
-      </button>
-      <button type="button" aria-label="Adjust TWD 5 degrees clockwise" onClick={() => onStep(5)}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-2 7m2-13v6h-6" /></svg>
-      </button>
-    </div>
+      </button>}
+    />
     {expanded && <section id="map-twd-detail" className="map-twd__detail" aria-label="TWD reference details">
       {reference.status === 'available' ? <dl>
         <div><dt>Source</dt><dd>Modelled weather</dd></div>

@@ -318,7 +318,7 @@ describe('Viewer TWD state', () => {
     expect(section()).not.toBeNull()
     expect(container.querySelectorAll('.wind-context-section')).toHaveLength(1)
     expect(container.querySelector('.wind-segments-section')).toBeNull()
-    expect(section()!.querySelector('.section-kicker')!.textContent).toBe('Wind')
+    expect(section()!.querySelector('.section-kicker')!.textContent).toBe('Wind Analysis')
     const order = [
       container.querySelector('[data-viewer-section="maneuver-analysis"]')!,
       section()!,
@@ -334,26 +334,26 @@ describe('Viewer TWD state', () => {
     expect(body.querySelector('.wind-segments__filter')!.compareDocumentPosition(body.querySelector('.wind-context__info-row')!))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(section()!.querySelector('[data-wind-context-summary]')!.textContent).toBe('1 segment · TWD 090° · Upwind')
-    const reference = () => section()!.querySelector('.wind-context__reference')!.textContent
+    const reference = () => `${section()!.querySelector('[data-wind-twd-value]')!.textContent} · ${section()!.querySelector('[data-wind-twd-source]')!.textContent}`
     const primaryRow = () => section()!.querySelector('[data-wind-role="primary"]')!.textContent
     // COG 090° vs original modelled 91.6° → upwind, tack indeterminate.
-    expect(reference()).toBe('TWD 090° · Modelled')
+    expect(reference()).toBe('TWD090° · Modelled')
     expect(primaryRow()).toBe('P100%0%0%Upwind')
     expect(section()!.querySelector('[data-wind-tack-role="primary"]')!.textContent).toBe('P0% · —0% · —100%COG only——')
     expect(section()!.querySelector('[data-wind-role="comparison"]')).toBeNull()
     await click('[data-twd-gesture]')
     // Manual 355° → |TWA| 95° → reaching; no tack split.
-    expect(reference()).toBe('TWD 355° · Manual · Viewer')
+    expect(reference()).toBe('TWD355° · Manual · Viewer')
     expect(primaryRow()).toBe('P0%100%0%Reaching')
     expect(section()!.querySelector('[data-wind-tack-role]')).toBeNull()
     await click('[data-twd-auto]')
-    expect(reference()).toBe('TWD 090° · Modelled')
+    expect(reference()).toBe('TWD090° · Modelled')
     expect(primaryRow()).toBe('P100%0%0%Upwind')
     await choose('Compare', 'b')
     expect(section()!.querySelector('[data-wind-role="comparison"]')!.textContent).toBe('C100%0%0%Upwind')
     await click('[data-narrow-window]')
     // Window midpoint now nearest the 180° sample: COG 090° → |TWA| 90° reaching.
-    expect(reference()).toBe('TWD 180° · Modelled')
+    expect(reference()).toBe('TWD180° · Modelled')
     expect(primaryRow()).toBe('P0%100%0%Reaching')
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
   })
@@ -448,7 +448,7 @@ describe('Viewer TWD state', () => {
       // Per-sample: 000° through the equal-distance tie at +200 s, then 090°.
       expect(kinds()).toEqual(['upwind', 'reaching'])
       expect(rows().map((row) => row.querySelector('td:nth-child(2)')!.textContent)).toEqual(['10:00:00–10:03:21', '10:03:21–10:06:40'])
-      expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 000° · Modelled')
+      expect([section().querySelector('[data-wind-twd-value]')!.textContent, section().querySelector('[data-wind-twd-source]')!.textContent].join(' · ')).toBe('TWD000° · Modelled')
       expect(pressed()).toEqual(['false', 'false'])
       expect(section().querySelector('[data-wind-context-summary]')!.textContent).toMatch(/^2 segments · /)
       expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('2 segments · TWD 000° · Upwind')
@@ -458,7 +458,7 @@ describe('Viewer TWD state', () => {
       expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('1 segment · TWD 090° · Reaching')
       // The window result TWD follows the new midpoint; segment bounds do not. Only segments
       // overlapping the window are listed, so the selected segment is listed alone and highlighted.
-      expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 090° · Modelled')
+      expect(section().querySelector('[data-wind-twd-value]')!.textContent).toBe('TWD090°')
       expect(kinds()).toEqual(['reaching'])
       expect(pressed()).toEqual(['true'])
       expect(section().querySelector('[data-wind-context-summary]')!.textContent).toMatch(/^1 segment · /)
@@ -468,7 +468,7 @@ describe('Viewer TWD state', () => {
 
       // Manual TWD applies to all samples and re-segments without moving the window.
       await click('[data-twd-minus]')
-      expect(section().querySelector('.wind-context__reference')!.textContent).toBe('TWD 085° · Manual · Viewer')
+      expect(section().querySelector('[data-wind-twd-value]')!.textContent).toBe('TWD085°')
       expect(section().querySelector('[data-wind-context-summary]')!.textContent).toBe('1 segment · TWD 085° Manual · Reaching')
       // The whole-track Reaching segment extends beyond the window: listed as partial.
       expect(kinds()).toEqual(['reaching'])
@@ -568,39 +568,38 @@ describe('Viewer TWD state', () => {
     const section = () => container.querySelector('.wind-context-section')!
     const button = (name: string) => section().querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!
     const mapTwd = () => container.querySelector('[data-twd]')!.getAttribute('data-twd')
-    const reference = () => section().querySelector('.wind-context__reference')!.textContent
+    const reference = () => `${section().querySelector('[data-wind-twd-value]')!.textContent} · ${section().querySelector('[data-wind-twd-source]')!.textContent}`
     const primaryRow = () => section().querySelector('[data-wind-role="primary"]')!.textContent
     // The controls live in the body line (inside the collapsible content), never in the header.
     expect(section().querySelector('.maneuver-section__header button[aria-label$="TWD by 5°"]')).toBeNull()
-    expect(section().querySelector('[hidden] .wind-context__reference')).not.toBeNull()
-    expect(section().querySelector('[hidden] .wind-context__twd-controls')).not.toBeNull()
+    expect(section().querySelector('[hidden] [data-wind-twd-source]')).not.toBeNull()
+    expect(section().querySelector('[hidden] .wind-context__twd-stepper')).not.toBeNull()
     expect(section().querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')).toBe('false')
-    expect(button('Decrease TWD by 5°').textContent).toBe('−5°')
-    expect(button('Increase TWD by 5°').textContent).toBe('+5°')
-    expect(button('Reset TWD to modelled').textContent).toBe('Reset TWD')
-    expect(button('Reset TWD to modelled').disabled).toBe(true)
+    expect(button('Decrease TWD by 5°').querySelector('svg')).not.toBeNull()
+    expect(button('Increase TWD by 5°').querySelector('svg')).not.toBeNull()
+    expect(section().querySelector('[aria-label="Reset TWD to modelled"]')).toBeNull()
     expect(mapTwd()).toBe('90')
     expect(primaryRow()).toBe('P100%0%0%Upwind')
     // +5° from the section: 95° (|TWA| 5° off still upwind), map and reference follow.
     await act(async () => button('Increase TWD by 5°').click())
-    expect(reference()).toBe('TWD 095° · Manual · Viewer')
+    expect(reference()).toBe('TWD095° · Manual · Viewer')
     expect(mapTwd()).toBe('95')
     expect(container.querySelector('[data-twd-manual]')!.getAttribute('data-twd-manual')).toBe('true')
-    expect(button('Reset TWD to modelled').disabled).toBe(false)
+    expect(button('Reset TWD to modelled').textContent).toBe('Reset TWD')
     await act(async () => button('Decrease TWD by 5°').click())
     await act(async () => button('Decrease TWD by 5°').click())
-    expect(reference()).toBe('TWD 085° · Manual · Viewer')
+    expect(reference()).toBe('TWD085° · Manual · Viewer')
     expect(mapTwd()).toBe('85')
     expect(section().querySelector('[data-wind-context-summary]')!.textContent).toMatch(/TWD 085° Manual · /)
     // A change from the map is reflected in the section.
     await click('[data-twd-plus]')
-    expect(reference()).toBe('TWD 090° · Manual · Viewer')
+    expect(reference()).toBe('TWD090° · Manual · Viewer')
     expect(mapTwd()).toBe('90')
     // Reset returns to modelled and disables itself.
     await act(async () => button('Reset TWD to modelled').click())
-    expect(reference()).toBe('TWD 090° · Modelled')
+    expect(reference()).toBe('TWD090° · Modelled')
     expect(container.querySelector('[data-twd-manual]')!.getAttribute('data-twd-manual')).toBe('false')
-    expect(button('Reset TWD to modelled').disabled).toBe(true)
+    expect(section().querySelector('[aria-label="Reset TWD to modelled"]')).toBeNull()
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
   })
 
@@ -608,7 +607,8 @@ describe('Viewer TWD state', () => {
     await mountViewer('original', session)
     expect(container.querySelector('.wind-context-section')).toBeNull()
     await click('[data-twd-minus]')
-    expect(container.querySelector('.wind-context-section .wind-context__reference')!.textContent).toBe('TWD 355° · Manual · Viewer')
+    expect(container.querySelector('.wind-context-section [data-wind-twd-value]')!.textContent).toBe('TWD355°')
+    expect(container.querySelector('.wind-context-section [data-wind-twd-source]')!.textContent).toBe('Manual · Viewer')
     expect(container.querySelector('.wind-context-section .wind-segments__filter')).not.toBeNull()
     await click('[data-twd-auto]')
     expect(container.querySelector('.wind-context-section')).toBeNull()

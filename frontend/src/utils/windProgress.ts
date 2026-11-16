@@ -227,7 +227,7 @@ function formatGap(gap: ProgressGap, sector: ProgressSector, config: WindContext
 export function formatProgressGaps(difference: ProgressDifference, config: WindContextConfig = WIND_CONTEXT_CONFIG) {
   const { startGap, endGap, sector } = difference
   const text = `At ${formatUtcTime(startGap.timeMs)} P ${formatGap(startGap, sector, config)} → at ${formatUtcTime(endGap.timeMs)} ${formatGap(endGap, sector, config)}`
-  return difference.wideLateralSeparation ? `${text} · wide lateral separation` : text
+  return difference.wideLateralSeparation ? `${text} · boats far apart sideways: gaps approximate` : text
 }
 
 export function formatProgressReason(reason: ProgressUnavailableReason) {

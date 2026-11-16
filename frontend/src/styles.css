@@ -3412,7 +3412,9 @@ input:focus-visible {
   gap: 4px 8px;
   min-width: 0;
 }
-.wind-context__twd-controls { display: flex; flex-wrap: wrap; gap: 4px; }
+.wind-context__twd-stepper { flex: 0 0 auto; }
+.wind-context__twd-stepper .map-bearing__value { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; padding: 3px 5px; font-size: 0.63rem; line-height: 1.2; }
+.wind-context__twd-stepper .map-bearing__value strong { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
 .wind-context__twd-button {
   min-width: 44px;
   min-height: 44px;

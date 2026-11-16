@@ -249,7 +249,7 @@ describe('P-perspective gain and gaps at the same instants', () => {
     expect(formatProgressGaps(narrow)).not.toContain('wide lateral separation')
     const wideAtEnd = pair(0, 'upwind', { from: [0, 0], to: [400, 0] }, { from: [0, 100], to: [400, 151] })
     expect(wideAtEnd.wideLateralSeparation).toBe(true)
-    expect(formatProgressGaps(wideAtEnd)).toMatch(/ · wide lateral separation$/)
+    expect(formatProgressGaps(wideAtEnd)).toMatch(/ · boats far apart sideways: gaps approximate$/)
     const wideAtStart = pair(0, 'upwind', { from: [0, 151], to: [400, 0] }, { from: [0, 0], to: [400, 0] })
     expect(wideAtStart.wideLateralSeparation).toBe(true)
   })
