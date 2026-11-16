@@ -2,6 +2,62 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.22 Californian — Gone with the Wind
+
+### English
+
+This release adds wind-relative debriefing to the Session Viewer, makes temporary Session links easier to share, and lets Admin refresh persisted Session location deliberately.
+
+### Added
+
+* A collapsed Wind section uses the effective modelled or explicitly corrected Viewer TWD to show window sector composition, upwind tack context and estimated tack axis, downwind readings, and eligible progress along the wind axis. P/C gain and same-instant gaps are descriptive, with a caution for wide lateral separation; they are not tactical ranking or progress toward a mark. P-referenced wind segments can set the shared Analysis Window. These calculations remain ephemeral Viewer presentation, use canonical track evidence and do not change backend maneuver analytics.
+* The Share Session panel displays the same complete temporary `/q/<token>` URL as its QR and offers selectable text and Copy link. The original Session capability is not exposed, and temporary access rules remain unchanged.
+
+### Changed
+
+* Explicit Admin **Enrich Session** now attempts to refresh geography even when location already exists. A usable new snapshot replaces location fields and provenance together only when every previously populated geographic field type remains populated. Failed or less-complete lookups preserve the prior snapshot; automatic new-Session enrichment remains missing-only, and conditions refresh independently.
+* Repository guidance and local development documentation were refreshed. CI gained SonarQube analysis and coverage reporting, with Python workflows aligned to 3.14. The completed SonarCloud review also clarified a `pd.NaT` metadata guard and corrected PowerShell validation parsing without changing Activity behavior.
+
+### Issues
+
+- [#191](https://github.com/maxsail-project/tackbar/issues/191) — [#191] Triage and fix open SonarCloud findings on main
+- [#192](https://github.com/maxsail-project/tackbar/issues/192) — [#192] Add wind-relative window analysis, progress and detected legs from effective TWD
+- [#193](https://github.com/maxsail-project/tackbar/issues/193) — [#193] Show and copy temporary Session share URL alongside QR
+- [#195](https://github.com/maxsail-project/tackbar/issues/195) — [#195] Refresh persisted Session location during explicit Admin enrichment
+
+### Validation
+
+The completed Issues record accepted focused implementation checks and product-owner review. At candidate `f7df8664`, [SonarQube CI](https://github.com/maxsail-project/tackbar/actions/runs/43943669233) succeeded, including backend and frontend tests with coverage and the scan; that workflow does not run frontend typecheck or production build. Release preparation verifies Issue completion and commit inclusion, current documentation, bilingual consistency, publication absence, exact release-body correspondence and `git diff --check`. Wind thresholds are provisional; wind-axis gain and gap depend on the effective TWD and become more sensitive to direction error when boats are far apart sideways. Future aggregate wind analysis, automatic TWD estimation and persisted manual wind references remain separate work.
+
+---
+
+### Español
+
+Esta versión incorpora el debriefing relativo al viento en Session Viewer, facilita compartir enlaces temporales de Session y permite a Admin actualizar deliberadamente la ubicación persistida de una Session.
+
+### Añadido
+
+* Una sección Wind plegada por defecto usa la TWD efectiva modelada o corregida explícitamente en el Viewer para mostrar la composición de sectores de la ventana, el contexto de bordos de ceñida y su eje estimado, lecturas de popa y, cuando procede, el avance sobre el eje del viento. La ganancia P/C y las separaciones en los mismos instantes son descriptivas, con una advertencia ante gran separación lateral; no son clasificación táctica ni avance hacia una baliza. Los segmentos de viento referidos a P pueden fijar la Analysis Window compartida. Estos cálculos son presentación efímera del Viewer, usan el track canónico y no cambian la analítica de maniobras del backend.
+* El panel Share Session muestra la misma URL temporal completa `/q/<token>` que el QR y ofrece texto seleccionable y Copy link. No expone la capability original de Session y conserva las reglas de acceso temporal.
+
+### Cambiado
+
+* **Enrich Session** explícito en Admin intenta ahora actualizar la geografía aunque ya exista ubicación. Un nuevo conjunto de datos utilizable sustituye conjuntamente los campos de ubicación y su procedencia solo si sigue presente cada tipo de campo geográfico anteriormente poblado. Las consultas fallidas o menos completas conservan los datos anteriores; el enriquecimiento automático de una Session nueva sigue limitado a datos ausentes y la actualización de condiciones es independiente.
+* Se actualizaron las guías del repositorio y la documentación de desarrollo local. CI incorpora análisis SonarQube e informes de cobertura, con los workflows Python ajustados a 3.14. La revisión completada de SonarCloud también aclaró una comprobación de `pd.NaT` en metadatos y corrigió el análisis de resultados en PowerShell sin cambiar el comportamiento de Activity.
+
+### Issues
+
+- [#191](https://github.com/maxsail-project/tackbar/issues/191) — [#191] Triage and fix open SonarCloud findings on main
+- [#192](https://github.com/maxsail-project/tackbar/issues/192) — [#192] Add wind-relative window analysis, progress and detected legs from effective TWD
+- [#193](https://github.com/maxsail-project/tackbar/issues/193) — [#193] Show and copy temporary Session share URL alongside QR
+- [#195](https://github.com/maxsail-project/tackbar/issues/195) — [#195] Refresh persisted Session location during explicit Admin enrichment
+
+### Validación
+
+Los Issues completados registran comprobaciones focalizadas de implementación y la revisión aceptada por el propietario del producto. En el candidato `f7df8664`, [CI SonarQube](https://github.com/maxsail-project/tackbar/actions/runs/43943669233) terminó correctamente, incluidas las pruebas backend y frontend con cobertura y el análisis; ese workflow no ejecuta el typecheck ni el build de producción del frontend. La preparación verifica cierre e inclusión de Issues, documentación vigente, coherencia bilingüe, ausencia de publicación, correspondencia exacta del cuerpo de la release y `git diff --check`. Los umbrales de viento son provisionales; la ganancia y separación sobre el eje del viento dependen de la TWD efectiva y son más sensibles a errores de dirección cuando los barcos están muy separados lateralmente. El análisis agregado por tipo de segmento, la estimación automática de TWD y las referencias manuales de viento persistidas son trabajo independiente.
+
+---
+
 ## v0.7.21 Californian — Sailing Is the Limit
 
 ### English

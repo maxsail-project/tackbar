@@ -158,6 +158,8 @@ The Viewer offers:
   and speed;
 * source-aware wind references, Session location and, when available,
   historical conditions;
+* wind-relative segments and window analysis, including tack context and
+  progress along the effective wind axis when evidence supports it;
 * other visible Activities as passive fleet context on the map, while analysis
   stays limited to two.
 
@@ -435,6 +437,8 @@ El Viewer ofrece:
   rumbo y velocidad;
 * referencias de viento con procedencia, ubicación de la Session y, cuando
   existan, condiciones históricas;
+* segmentos y análisis de la ventana relativos al viento, incluidos el contexto
+  de bordos y el avance sobre el eje de viento efectivo cuando hay evidencia;
 * otras Activities visibles como contexto pasivo de flota en el mapa, mientras
   el análisis sigue limitado a dos.
 
