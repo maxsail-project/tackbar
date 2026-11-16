@@ -31,7 +31,7 @@ describe('WindSegmentsList', () => {
       segments={segments} analysisWindow={{ start: t0, end: t0 + 820_000 }} onSegmentSelect={vi.fn()} filterResetKey="a"
     />)
     const content = text(markup)
-    expect(content).toContain('Segment Time (UTC) Duration')
+    expect(content).toContain('P Time (UTC) Duration')
     expect(content).toContain('Unclassified 11:30:00–11:35:00 5m00s')
     expect(content).toContain('Upwind 11:35:00–11:41:10 6m10s')
     expect(content).toContain('Reaching 11:41:55–11:43:40 1m45s')
@@ -43,7 +43,7 @@ describe('WindSegmentsList', () => {
     />)
     expect(highlighted.slice(highlighted.indexOf('<table')).match(/aria-pressed="true"/g)).toHaveLength(1)
     expect(highlighted).toContain('aria-pressed="true" aria-label="Set Analysis Window to Upwind segment 11:35:00–11:41:10 UTC"')
-    expect(markup).toContain('<th scope="col" class="wind-segments__segment-column">Segment</th>')
+    expect(markup).toContain('<th scope="col" class="wind-segments__segment-column" aria-label="P segment">P</th>')
     expect(markup).not.toContain('wind-context-table-wrap')
     expect(markup).not.toContain('data-wind-segment-comparison')
   })
@@ -54,11 +54,28 @@ describe('WindSegmentsList', () => {
       comparisonSegmentClassifications={['unavailable', 'upwind', 'mixed', 'reaching']}
     />)
     const content = text(markup)
-    expect(content).toContain('Segment Time (UTC) Duration C')
+    expect(content).toContain('P Time (UTC) Duration C')
     expect(content).toContain('Unclassified 11:30:00–11:35:00 5m00s Unavailable')
     expect(content).toContain('Upwind 11:35:00–11:41:10 6m10s Upwind')
     expect(content).toContain('Unclassified 11:41:10–11:41:55 45s Mixed')
     expect(markup.match(/data-wind-segment-comparison/g)).toHaveLength(4)
+  })
+
+  it('colours the P column with the Primary colour and mutes Unclassified (P) and unclassified C values consistently', () => {
+    const markup = renderToStaticMarkup(<WindSegmentsList
+      segments={segments} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey="a"
+      comparisonSegmentClassifications={['unavailable', 'upwind', 'mixed', 'reaching']}
+    />)
+    expect(markup).toContain('aria-label="P segment">P</th>')
+    expect(markup).toContain('aria-label="C segment">C</th>')
+    const buttons = [...markup.matchAll(/<button type="button" class="([^"]*)" style="color:([^"]+)" aria-pressed="[a-z]+" aria-label="([^"]+)"/g)]
+    expect(buttons).toHaveLength(4)
+    for (const [, , color] of buttons) expect(color).toBe('#168097')
+    expect(buttons.map((match) => match[1].includes('wind-segments__label--muted'))).toEqual([true, false, true, false])
+    expect(buttons[1][3]).toBe('Set Analysis Window to Upwind segment 11:35:00–11:41:10 UTC')
+    const cells = [...markup.matchAll(/<td data-wind-segment-comparison="true"(?: class="([^"]*)")? style="color:([^"]+)"/g)]
+    expect(cells).toHaveLength(4)
+    expect(cells.map((match) => match[1] === 'wind-segments__label--muted')).toEqual([true, false, true, false])
   })
 
   it('shows an empty state', () => {

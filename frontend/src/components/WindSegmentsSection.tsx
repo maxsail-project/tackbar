@@ -141,10 +141,10 @@ export default function WindSegmentsList({
             ) : (
             <table className="wind-context-table wind-segments__table" aria-label="P wind segments">
               <thead><tr>
-                <th scope="col" className="wind-segments__segment-column">Segment</th>
+                <th scope="col" className="wind-segments__segment-column" aria-label="P segment">P</th>
                 <th scope="col">Time (UTC)</th>
                 <th scope="col">Duration</th>
-                {comparisonSegmentClassifications !== undefined && <th scope="col">C</th>}
+                {comparisonSegmentClassifications !== undefined && <th scope="col" aria-label="C segment">C</th>}
               </tr></thead>
               <tbody>
                 {visible.map(({ segment, comparison }) => {
@@ -163,7 +163,8 @@ export default function WindSegmentsList({
                       <td className="wind-segments__segment-column">
                         <button
                           type="button"
-                          className="wind-segments__button"
+                          className={`wind-segments__button${segment.kind === 'unclassified' ? ' wind-segments__label--muted' : ''}`}
+                          style={{ color: ACTIVITY_COLORS.primary }}
                           aria-pressed={current}
                           aria-label={`Set Analysis Window to ${label} segment ${time} UTC${partial ? ', partly outside the current window' : ''}`}
                         >
@@ -174,7 +175,11 @@ export default function WindSegmentsList({
                       <td>{time}</td>
                       <td>{formatAnalysisWindowDuration(segment.end - segment.start)}</td>
                       {comparisonSegmentClassifications !== undefined && (
-                        <td data-wind-segment-comparison style={{ color: ACTIVITY_COLORS.comparison }}>
+                        <td
+                          data-wind-segment-comparison
+                          className={comparison === undefined || comparison === 'mixed' || comparison === 'unavailable' ? 'wind-segments__label--muted' : undefined}
+                          style={{ color: ACTIVITY_COLORS.comparison }}
+                        >
                           {comparison === undefined ? '—' : formatWindClassification(comparison)}
                         </td>
                       )}
