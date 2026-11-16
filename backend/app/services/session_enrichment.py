@@ -36,14 +36,14 @@ class SessionEnrichmentService:
     def enrich_new_session_geography(self, session_id: str) -> None:
         """Best-effort geography only; authoritative ingestion is already complete."""
         try:
-            self._enrich_missing_geography(session_id)
+            self._enrich_geography(session_id)
         except Exception:
             return
 
     def enrich_new_session_context(self, session_id: str) -> None:
         """Best-effort context; authoritative ingestion is already complete."""
         try:
-            geography_result = self._enrich_missing_geography(session_id)
+            geography_result = self._enrich_geography(session_id)
         except Exception:
             geography_result = "failed"
         geography_log = logger.warning if geography_result == "failed" else logger.info
@@ -67,14 +67,14 @@ class SessionEnrichmentService:
         session = self.sessions.get_by_id(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
-        self._enrich_missing_geography(session_id)
+        self._enrich_geography(session_id, refresh_existing=True)
         self._refresh_conditions(session_id)
 
-    def _enrich_missing_geography(self, session_id: str) -> str:
+    def _enrich_geography(self, session_id: str, *, refresh_existing: bool = False) -> str:
         session = self.sessions.get_by_id(session_id)
         if session is None:
             return "unavailable (Session missing)"
-        if session.has_geographic_context:
+        if session.has_geographic_context and not refresh_existing:
             return "skipped (already persisted)"
         if self.geocoding is None:
             return "unavailable (provider not configured)"
@@ -90,8 +90,33 @@ class SessionEnrichmentService:
         if context is None:
             return "returned no usable result"
         current = self.sessions.get_by_id(session_id)
-        if current is None or current.has_geographic_context:
+        if current is None:
             return "skipped (Session changed)"
+        if not refresh_existing and current.has_geographic_context:
+            return "skipped (Session changed)"
+        existing_fields = (
+            current.location_label,
+            current.location_region,
+            current.location_country,
+            current.location_country_code,
+        )
+        replacement_fields = (
+            context.label,
+            context.region,
+            context.country,
+            context.country_code,
+        )
+
+        def populated(value: str | None) -> bool:
+            return isinstance(value, str) and bool(value.strip())
+
+        if not any(populated(value) for value in replacement_fields):
+            return "returned no usable result"
+        if any(
+            populated(existing) and not populated(replacement)
+            for existing, replacement in zip(existing_fields, replacement_fields)
+        ):
+            return "skipped (incomplete geographic result)"
         self.sessions.replace(replace(
             current,
             location_label=context.label,

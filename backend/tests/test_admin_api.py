@@ -1242,12 +1242,12 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
         def reverse(self, latitude: float, longitude: float):
             geo_calls.append((latitude, longitude))
             return GeographicContext(
-                label="Valencia",
-                region="Comunitat Valenciana",
+                label="Valencia" if len(geo_calls) == 1 else "Gandia",
+                region=None if len(geo_calls) == 3 else "Comunitat Valenciana",
                 country="España",
                 country_code="es",
                 provider="geoapify",
-                resolved_at=datetime(2026, 10, 18, 10, tzinfo=timezone.utc),
+                resolved_at=datetime(2026, 10, 18, 9 + len(geo_calls), tzinfo=timezone.utc),
             )
 
     class Conditions:
@@ -1291,6 +1291,7 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
 
     first = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/enrich")
     second = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/enrich")
+    rejected = _request("POST", f"/api/admin/sessions/{SESSION_ACTIVE}/enrich")
     unauthorized = _request(
         "POST",
         f"/api/admin/sessions/{SESSION_ACTIVE}/enrich",
@@ -1298,7 +1299,7 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
     )
     missing = _request("POST", "/api/admin/sessions/unknown/enrich")
 
-    assert first.status_code == second.status_code == 200
+    assert first.status_code == second.status_code == rejected.status_code == 200
     assert unauthorized.status_code == 401
     assert missing.status_code == 404
     assert first.json["location"] == {
@@ -1312,19 +1313,23 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
     }
     assert first.json["location_label"] == "Valencia"
     assert first.json["location_country"] == "España"
+    assert second.json["location"]["label"] == "Gandia"
+    assert second.json["location"]["resolved_at"] == "2026-10-18T11:00:00Z"
+    assert rejected.json["location"] == second.json["location"]
     assert first.json["historical_conditions"]["weather_source"]["route"] == "forecast"
     assert first.json["historical_conditions"]["marine_source"] is None
     assert first.json["historical_conditions"]["hourly"][0]["wind_speed_10m_kn"] == 12
     assert first.json["historical_conditions"]["hourly"][0]["weather_code"] == 2
-    assert geo_calls == [(0.1, -30.1)]
-    assert len(conditions_calls) == 2
+    assert geo_calls == [(0.1, -30.1)] * 3
+    assert len(conditions_calls) == 3
     assert conditions_calls[0] == (
         datetime(2026, 8, 10, 6, tzinfo=timezone.utc),
         datetime(2026, 8, 10, 13, tzinfo=timezone.utc),
     )
     persisted = json.loads((root / "sessions.json").read_text(encoding="utf-8"))
     record = next(item for item in persisted if item["id"] == SESSION_ACTIVE)
-    assert record["location_label"] == "Valencia"
+    assert record["location_label"] == "Gandia"
+    assert record["location_resolved_at"] == "2026-10-18T11:00:00+00:00"
     assert record["historical_conditions"]["hourly"][0]["air_temperature_c"] == 24
     assert record["historical_conditions"]["hourly"][0]["weather_code"] == 2
 

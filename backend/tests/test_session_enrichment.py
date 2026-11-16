@@ -230,7 +230,7 @@ def test_geoapify_rejects_results_without_supported_geographic_fields(
     assert provider.reverse(39.4, -0.3) is None
 
 
-def test_enrichment_persists_cityless_context_once(
+def test_admin_enrichment_requeries_cityless_context(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     activities, sessions = _repositories(temporary_json_file)
@@ -266,7 +266,7 @@ def test_enrichment_persists_cityless_context_once(
     assert persisted.location_provider == "geoapify"
     assert persisted.location_resolved_at == _time(10, 18, 9)
     assert persisted.location_source_activity_id == "activity-a"
-    assert calls == 1
+    assert calls == 2
 
 
 @pytest.mark.parametrize(
@@ -277,7 +277,7 @@ def test_enrichment_persists_cityless_context_once(
         ("location_country_code", "es"),
     ],
 )
-def test_enrichment_does_not_overwrite_persisted_partial_geographic_context(
+def test_automatic_enrichment_does_not_overwrite_persisted_partial_geographic_context(
     temporary_json_file: Callable[[str, object], Path],
     field_name: str,
     field_value: str,
@@ -298,12 +298,196 @@ def test_enrichment_does_not_overwrite_persisted_partial_geographic_context(
         sessions,
         activities,
         geocoding=UnexpectedGeocoder(),
-    ).enrich_from_admin("session-a")
+    ).enrich_new_session_geography("session-a")
 
     persisted = sessions.get_by_id("session-a")
     assert persisted is not None
     assert getattr(persisted, field_name) == field_value
     assert calls == 0
+
+
+@pytest.mark.parametrize(
+    ("existing_fields", "new_fields"),
+    [
+        (
+            {"location_label": "Old city", "location_region": "Old region",
+             "location_country": "Old country", "location_country_code": "old"},
+            ("New city", "New region", "New country", "new"),
+        ),
+        (
+            {"location_region": "Old region", "location_country": "Old country"},
+            ("New city", "New region", "New country", "new"),
+        ),
+        (
+            {"location_country": "Old country"},
+            ("New city", None, "New country", None),
+        ),
+    ],
+)
+def test_admin_refresh_replaces_complete_or_partial_geography_as_one_snapshot(
+    temporary_json_file: Callable[[str, object], Path],
+    existing_fields: dict[str, str],
+    new_fields: tuple[str | None, str | None, str | None, str | None],
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    old = sessions.get_by_id("session-a")
+    assert old is not None
+    sessions.replace(replace(
+        old, **existing_fields, location_provider="old-provider",
+        location_resolved_at=_time(10, 17, 14),
+        location_source_activity_id="old-activity", capability_token="keep-token",
+    ))
+    calls: list[tuple[float, float]] = []
+
+    class Geocoder:
+        def reverse(self, latitude: float, longitude: float) -> GeographicContext:
+            calls.append((latitude, longitude))
+            return GeographicContext(
+                *new_fields, provider="geoapify", resolved_at=_time(10, 18, 9),
+            )
+
+    service = SessionEnrichmentService(sessions, activities, geocoding=Geocoder())
+    service.enrich_from_admin("session-a")
+    service.enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert (
+        persisted.location_label, persisted.location_region,
+        persisted.location_country, persisted.location_country_code,
+    ) == new_fields
+    assert (
+        persisted.location_provider, persisted.location_resolved_at,
+        persisted.location_source_activity_id,
+    ) == ("geoapify", _time(10, 18, 9), "activity-a")
+    assert persisted.capability_token == "keep-token"
+    assert persisted.activity_ids == ["activity-a"]
+    assert calls == [(39.4, -0.3), (39.4, -0.3)]
+
+
+@pytest.mark.parametrize("missing_field", ["label", "region", "country", "country_code"])
+def test_admin_refresh_rejects_a_result_missing_any_existing_field_type(
+    temporary_json_file: Callable[[str, object], Path],
+    missing_field: str,
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    old = sessions.get_by_id("session-a")
+    assert old is not None
+    old = replace(
+        old, location_label="Old city", location_region="Old region",
+        location_country="Old country", location_country_code="old",
+        location_provider="old-provider", location_resolved_at=_time(10, 17, 14),
+        location_source_activity_id="old-activity",
+    )
+    sessions.replace(old)
+    values = {"label": "New city", "region": "New region",
+              "country": "New country", "country_code": "new"}
+    values[missing_field] = None
+
+    class Geocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            return GeographicContext(
+                **values, provider="geoapify", resolved_at=_time(10, 18, 9),
+            )
+
+    SessionEnrichmentService(sessions, activities, geocoding=Geocoder()).enrich_from_admin("session-a")
+
+    assert SessionRepository(sessions.path).get_by_id("session-a") == old
+
+
+def test_admin_refresh_checks_latest_persisted_fields_after_provider_call(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    old = sessions.get_by_id("session-a")
+    assert old is not None
+    sessions.replace(replace(old, location_country="Old country"))
+
+    class Geocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            current = sessions.get_by_id("session-a")
+            assert current is not None
+            sessions.replace(replace(current, location_region="Newly persisted region"))
+            return GeographicContext(
+                label="New city", region=None, country="New country",
+                country_code=None, provider="geoapify",
+                resolved_at=_time(10, 18, 9),
+            )
+
+    SessionEnrichmentService(sessions, activities, geocoding=Geocoder()).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert persisted.location_label is None
+    assert persisted.location_region == "Newly persisted region"
+    assert persisted.location_country == "Old country"
+    assert persisted.location_provider is None
+
+
+def test_admin_refresh_preserves_conditions_written_during_geocoding(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    old = sessions.get_by_id("session-a")
+    assert old is not None
+    sessions.replace(replace(old, location_country="Old country"))
+    conditions = HistoricalConditions(
+        coverage_start=_time(10, 17, 7), coverage_end=_time(10, 17, 15),
+        requested_latitude=39.41, requested_longitude=-0.29,
+        weather_source=_source("forecast"), marine_source=None, hourly=[],
+    )
+
+    class Geocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            current = sessions.get_by_id("session-a")
+            assert current is not None
+            sessions.replace(replace(current, historical_conditions=conditions))
+            return GeographicContext(
+                label="New city", region=None, country="New country",
+                country_code=None, provider="geoapify",
+                resolved_at=_time(10, 18, 9),
+            )
+
+    SessionEnrichmentService(sessions, activities, geocoding=Geocoder()).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert persisted.location_label == "New city"
+    assert persisted.historical_conditions == conditions
+
+
+@pytest.mark.parametrize("outcome", ["unconfigured", "failed", "unavailable", "empty"])
+def test_admin_refresh_preserves_geography_when_lookup_is_unusable(
+    temporary_json_file: Callable[[str, object], Path],
+    outcome: str,
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    old = sessions.get_by_id("session-a")
+    assert old is not None
+    old = replace(
+        old, location_country="Old country", location_provider="old-provider",
+        location_resolved_at=_time(10, 17, 14),
+        location_source_activity_id="old-activity",
+    )
+    sessions.replace(old)
+
+    class Geocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext | None:
+            if outcome == "failed":
+                raise TimeoutError("provider unavailable")
+            if outcome == "unavailable":
+                return None
+            return GeographicContext(
+                label=" ", region=None, country=None, country_code=None,
+                provider="geoapify", resolved_at=_time(10, 18, 9),
+            )
+
+    SessionEnrichmentService(
+        sessions, activities,
+        geocoding=None if outcome == "unconfigured" else Geocoder(),
+    ).enrich_from_admin("session-a")
+
+    assert SessionRepository(sessions.path).get_by_id("session-a") == old
 
 
 def test_geoapify_configuration_is_required_without_exposing_value() -> None:
@@ -615,6 +799,13 @@ def test_admin_geography_failure_does_not_prevent_conditions_enrichment(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:
     activities, sessions = _repositories(temporary_json_file)
+    old = sessions.get_by_id("session-a")
+    assert old is not None
+    sessions.replace(replace(
+        old, location_country="Old country", location_provider="old-provider",
+        location_resolved_at=_time(10, 17, 14),
+        location_source_activity_id="old-activity",
+    ))
 
     class FailingGeocoder:
         def reverse(self, _latitude, _longitude):
@@ -641,5 +832,40 @@ def test_admin_geography_failure_does_not_prevent_conditions_enrichment(
 
     persisted = sessions.get_by_id("session-a")
     assert persisted is not None
-    assert persisted.location_label is None
+    assert persisted.location_country == "Old country"
+    assert persisted.location_provider == "old-provider"
+    assert persisted.location_resolved_at == _time(10, 17, 14)
+    assert persisted.location_source_activity_id == "old-activity"
     assert persisted.historical_conditions is not None
+
+
+def test_admin_geography_refresh_does_not_require_conditions_success(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _repositories(temporary_json_file)
+    old = sessions.get_by_id("session-a")
+    assert old is not None
+    sessions.replace(replace(old, location_country="Old country"))
+
+    class Geocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            return GeographicContext(
+                label="New city", region=None, country="New country",
+                country_code=None, provider="geoapify",
+                resolved_at=_time(10, 18, 9),
+            )
+
+    class FailingConditions:
+        def fetch(self, *_args):
+            raise TimeoutError("conditions unavailable")
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=Geocoder(), conditions=FailingConditions(),
+    ).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert persisted.location_label == "New city"
+    assert persisted.location_country == "New country"
+    assert persisted.location_provider == "geoapify"
+    assert persisted.historical_conditions is None
