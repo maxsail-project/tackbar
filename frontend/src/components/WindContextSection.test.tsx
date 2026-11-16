@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { WindContextResult } from '../utils/windContext'
+import type { WindSegment } from '../utils/windSegments'
 import type { WindProgress } from '../utils/windProgress'
 import WindContextSection from './WindContextSection'
 
@@ -41,7 +42,9 @@ describe('WindContextSection', () => {
     expect(markup).toContain('aria-expanded="false"')
     expect(markup).toMatch(/<div id="[^"]+" hidden="">/)
     expect(text(markup)).toContain('TWD 090° · Modelled')
-    expect(text(markup)).toContain('Wind Analysis')
+    expect(text(markup)).toContain('Wind 0 segments')
+    expect(text(markup)).not.toContain('Wind Analysis')
+    expect(text(markup)).not.toContain('Wind Segments')
   })
 
   it('shows the manual Viewer source', () => {
@@ -264,21 +267,44 @@ describe('WindContextSection', () => {
     expect(upwindOnly).not.toContain('Downwind readings')
   })
 
+  const t0 = Date.UTC(2025, 5, 21, 11, 30)
+  const segments: WindSegment[] = [
+    { kind: 'upwind', start: t0, end: t0 + 300_000 },
+    { kind: 'reaching', start: t0 + 300_000, end: t0 + 420_000 },
+  ]
+
+  it('is one Wind section: count in the header and the segment list before the window reading', () => {
+    const markup = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={upwind}
+      segments={segments} analysisWindow={{ start: t0, end: t0 + 420_000 }} availableRange={{ start: t0, end: t0 + 420_000 }}
+      onSegmentSelect={() => undefined} filterResetKey="a"
+    />)
+    expect(markup.match(/class="section-kicker"/g)).toHaveLength(1)
+    const [header, body] = markup.split('hidden=""')
+    expect(text(header)).toContain('Wind 2 segments · TWD 105° Manual · Upwind')
+    expect(markup.match(/aria-label="About wind analysis"/g)).toHaveLength(1)
+    const order = ['wind-segments__filter', 'wind-segments__table', 'wind-context__reference', 'aria-label="Wind sector composition"']
+      .map((marker) => body.indexOf(marker))
+    expect(order.every((index) => index >= 0)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+    expect(text(body)).toContain('All 2 Up 1 Reach 1 Down 0 Other 0')
+  })
+
   it('shows a one-line header with TWD and P classification, adding Manual only for a Viewer TWD', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={downwind} comparison={upwind}
     />)
     const header = markup.slice(0, markup.indexOf('hidden=""'))
-    expect(header).toContain('class="wind-section__summary" data-wind-context-summary="true">TWD 105° · Downwind</span>')
+    expect(header).toContain('class="wind-section__summary" data-wind-context-summary="true">0 segments · TWD 105° · Downwind</span>')
     expect(text(header)).not.toMatch(/Modelled|Upwind/)
     const manual = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 5, source: 'manual' }} displayDegrees={5} primary={unavailable}
     />)
-    expect(text(manual.split('hidden=""')[0])).toContain('TWD 005° Manual · Unavailable')
+    expect(text(manual.split('hidden=""')[0])).toContain('0 segments · TWD 005° Manual · Unavailable')
     expect(text(manual.split('hidden=""')[1])).toContain('TWD 005° · Manual · Viewer')
     expect(text(renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={{ ...downwind, classification: 'mixed', downwind: null }}
-    />).split('hidden=""')[0])).toContain('TWD 105° · Mixed')
+    />).split('hidden=""')[0])).toContain('0 segments · TWD 105° · Mixed')
   })
 
   it('moves explanatory notes into an accessible native info popover', () => {
@@ -303,7 +329,7 @@ describe('WindContextSection', () => {
       'Depth / Gybe angle: mean downwind TWA / angle between the two downwind courses.',
       "Segments: P's track split by wind sector using the modelled TWD at each sample; tap one to set the Analysis Window.",
     ])
-    expect(markup).not.toContain('class="wind-context__note"')
+    expect(markup).not.toContain('wind-context__note">Sectors')
   })
 
   it('keeps a normal C row with — in the tack and downwind tables when C has no value, and no C row without Comparison', () => {

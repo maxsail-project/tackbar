@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { WindSegment } from '../utils/windSegments'
-import WindSegmentsSection, { formatWindSegmentCount } from './WindSegmentsSection'
+import WindSegmentsList, { countListedWindSegments, formatWindSegmentCount, WIND_SEGMENTS_RESET_LABEL } from './WindSegmentsSection'
 
 const t0 = Date.UTC(2025, 5, 21, 11, 30)
 const segments: WindSegment[] = [
@@ -18,18 +18,16 @@ function text(markup: string) {
   return markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
 }
 
-describe('WindSegmentsSection', () => {
-  it('is collapsed by default with the segment count in the header', () => {
-    const markup = renderToStaticMarkup(<WindSegmentsSection segments={segments} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey="a" />)
-    expect(markup).toContain('aria-expanded="false"')
-    expect(markup).toMatch(/<div id="[^"]+" hidden="">/)
-    expect(text(markup.split('hidden=""')[0])).toContain('Wind Segments (P) 4 segments')
+describe('WindSegmentsList', () => {
+  it('formats and counts listed segments for the Wind header', () => {
     expect(formatWindSegmentCount(1)).toBe('1 segment')
     expect(formatWindSegmentCount(0)).toBe('0 segments')
+    expect(countListedWindSegments(segments, null)).toBe(4)
+    expect(countListedWindSegments(segments, { start: t0 + 360_000, end: t0 + 720_000 })).toBe(3)
   })
 
   it('lists Segment, Time and Duration in page flow, with secondary Unclassified rows and the current window highlighted', () => {
-    const markup = renderToStaticMarkup(<WindSegmentsSection
+    const markup = renderToStaticMarkup(<WindSegmentsList
       segments={segments} analysisWindow={{ start: t0, end: t0 + 820_000 }} onSegmentSelect={vi.fn()} filterResetKey="a"
     />)
     const content = text(markup)
@@ -40,7 +38,7 @@ describe('WindSegmentsSection', () => {
     // Table labels keep the full type names; the compact filter labels are separate.
     expect(text(markup.slice(markup.indexOf('<table')))).not.toMatch(/Pre-start|Reach |Other|partial/)
     expect(markup.match(/wind-segments__row--secondary/g)).toHaveLength(2)
-    const highlighted = renderToStaticMarkup(<WindSegmentsSection
+    const highlighted = renderToStaticMarkup(<WindSegmentsList
       segments={segments} analysisWindow={{ start: t0 + 300_000, end: t0 + 670_000 }} onSegmentSelect={vi.fn()} filterResetKey="a"
     />)
     expect(highlighted.slice(highlighted.indexOf('<table')).match(/aria-pressed="true"/g)).toHaveLength(1)
@@ -51,7 +49,7 @@ describe('WindSegmentsSection', () => {
   })
 
   it('shows the isolated C column only when classifications are provided', () => {
-    const markup = renderToStaticMarkup(<WindSegmentsSection
+    const markup = renderToStaticMarkup(<WindSegmentsList
       segments={segments} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey="a"
       comparisonSegmentClassifications={['unavailable', 'upwind', 'mixed', 'reaching']}
     />)
@@ -64,21 +62,17 @@ describe('WindSegmentsSection', () => {
   })
 
   it('shows an empty state', () => {
-    const markup = renderToStaticMarkup(<WindSegmentsSection segments={[]} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey="a" />)
-    expect(text(markup)).toContain('0 segments')
+    const markup = renderToStaticMarkup(<WindSegmentsList segments={[]} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey="a" />)
     expect(text(markup)).toContain('No segments for P in this Analysis Window.')
   })
 
-  it('selects a segment from its row button and toggles open', async () => {
+  it('selects a segment from its row button', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const onSegmentSelect = vi.fn()
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    await act(async () => root.render(<WindSegmentsSection segments={segments} analysisWindow={null} onSegmentSelect={onSegmentSelect} filterResetKey="a" />))
-    const toggle = container.querySelector<HTMLButtonElement>('.maneuver-section__collapse')!
-    await act(async () => toggle.click())
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    await act(async () => root.render(<WindSegmentsList segments={segments} analysisWindow={null} onSegmentSelect={onSegmentSelect} filterResetKey="a" />))
     await act(async () => container.querySelectorAll<HTMLButtonElement>('.wind-segments__button')[1].click())
     expect(onSegmentSelect).toHaveBeenCalledTimes(1)
     expect(onSegmentSelect).toHaveBeenCalledWith(segments[1])
@@ -94,13 +88,12 @@ describe('WindSegmentsSection', () => {
     const root = createRoot(container)
     // Window 11:36:00–11:42:00 touches Upwind (partial), Unclassified (inside) and Reaching (partial).
     const window = { start: t0 + 360_000, end: t0 + 720_000 }
-    await act(async () => root.render(<WindSegmentsSection segments={segments} analysisWindow={window} onSegmentSelect={onSegmentSelect} filterResetKey="a" />))
+    await act(async () => root.render(<WindSegmentsList segments={segments} analysisWindow={window} onSegmentSelect={onSegmentSelect} filterResetKey="a" />))
     const rows = () => [...container.querySelectorAll<HTMLTableRowElement>('[data-wind-segment]')]
     expect(rows().map((row) => row.dataset.windSegment)).toEqual(['upwind', 'unclassified', 'reaching'])
     expect(rows().map((row) => row.dataset.windSegmentPartial ?? 'no')).toEqual(['true', 'no', 'true'])
     expect(rows()[0].querySelector('.wind-segments__partial')!.textContent).toBe('partial')
     expect(rows()[0].querySelector('button')!.getAttribute('aria-label')).toBe('Set Analysis Window to Upwind segment 11:35:00–11:41:10 UTC, partly outside the current window')
-    expect(container.querySelector('[data-wind-segments-summary]')!.textContent).toBe('3 segments')
     await act(async () => rows()[0].querySelector('button')!.click())
     expect(onSegmentSelect).toHaveBeenCalledWith(segments[1])
     await act(async () => root.unmount())
@@ -112,7 +105,7 @@ describe('WindSegmentsSection', () => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    const render = (key: string, comparison?: ('upwind' | 'mixed')[]) => act(async () => root.render(<WindSegmentsSection
+    const render = (key: string, comparison?: ('upwind' | 'mixed')[]) => act(async () => root.render(<WindSegmentsList
       segments={segments} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey={key}
       comparisonSegmentClassifications={comparison}
     />))
@@ -141,7 +134,7 @@ describe('WindSegmentsSection', () => {
   })
 
   it('uses normal weight for classified rows and keeps the muted style only for Unclassified', () => {
-    const markup = renderToStaticMarkup(<WindSegmentsSection segments={segments} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey="a" />)
+    const markup = renderToStaticMarkup(<WindSegmentsList segments={segments} analysisWindow={null} onSegmentSelect={vi.fn()} filterResetKey="a" />)
     const rowClasses = [...markup.matchAll(/<tr class="([^"]+)" data-wind-segment="([a-z]+)"/g)].map((match) => [match[2], match[1]])
     expect(rowClasses).toEqual([
       ['unclassified', 'wind-segments__row wind-segments__row--secondary'],
@@ -156,7 +149,7 @@ describe('WindSegmentsSection', () => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    const render = (window: { start: number, end: number } | null) => act(async () => root.render(<WindSegmentsSection
+    const render = (window: { start: number, end: number } | null) => act(async () => root.render(<WindSegmentsList
       segments={segments} analysisWindow={window} onSegmentSelect={vi.fn()} filterResetKey="a"
     />))
     await render(null)
@@ -174,5 +167,81 @@ describe('WindSegmentsSection', () => {
     expect([...container.querySelectorAll<HTMLTableRowElement>('[data-wind-segment]')].map((row) => row.dataset.windSegment)).toEqual(['reaching'])
     await act(async () => root.unmount())
     container.remove()
+  })
+
+  describe('section Reset', () => {
+    const full = { start: t0, end: t0 + 820_000 }
+    const narrow = { start: t0 + 300_000, end: t0 + 670_000 }
+
+    async function mount(initialWindow: { start: number, end: number }) {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+      const container = document.createElement('div')
+      document.body.append(container)
+      const root = createRoot(container)
+      const onWindowReset = vi.fn()
+      const onSegmentSelect = vi.fn()
+      const render = (analysisWindow: { start: number, end: number }) => act(async () => root.render(<WindSegmentsList
+        segments={segments} analysisWindow={analysisWindow} availableRange={full}
+        onWindowReset={onWindowReset} onSegmentSelect={onSegmentSelect} filterResetKey="a"
+      />))
+      await render(initialWindow)
+      const first = () => container.querySelector<HTMLButtonElement>('[data-wind-segment-filter="all"]')!
+      const filter = (kind: string) => container.querySelector<HTMLButtonElement>(`[data-wind-segment-filter="${kind}"]`)!
+      const dispose = async () => { await act(async () => root.unmount()); container.remove() }
+      return { container, render, first, filter, dispose, onWindowReset, onSegmentSelect }
+    }
+
+    it('shows All, not Reset, when the filter is All and the window is full', async () => {
+      const view = await mount(full)
+      expect(view.first().textContent).toBe('All 4')
+      expect(view.first().getAttribute('aria-label')).toBe('All, 4 segments')
+      expect(view.container.querySelector('[data-wind-segments-reset]')).toBeNull()
+      await view.dispose()
+    })
+
+    it('shows Reset instead of All when the window is not the full range', async () => {
+      const view = await mount(narrow)
+      expect(view.first().textContent).toBe('Reset')
+      expect(view.first().getAttribute('aria-label')).toBe(WIND_SEGMENTS_RESET_LABEL)
+      expect(view.first().getAttribute('aria-label')).toBe('Reset wind segments and Analysis Window')
+      expect(view.first().disabled).toBe(false)
+      expect(view.first().hasAttribute('aria-pressed')).toBe(false)
+      await view.dispose()
+    })
+
+    it('shows Reset instead of All when a filter is active, narrowing the list only', async () => {
+      const view = await mount(full)
+      await act(async () => view.filter('upwind').click())
+      expect(view.first().textContent).toBe('Reset')
+      expect([...view.container.querySelectorAll<HTMLElement>('[data-wind-segment]')].map((row) => row.dataset.windSegment)).toEqual(['upwind'])
+      // Filtering never touches the Analysis Window.
+      expect(view.onWindowReset).not.toHaveBeenCalled()
+      expect(view.onSegmentSelect).not.toHaveBeenCalled()
+      await view.dispose()
+    })
+
+    it('keeps the filter when a segment is selected', async () => {
+      const view = await mount(full)
+      await act(async () => view.filter('unclassified').click())
+      await act(async () => view.container.querySelectorAll<HTMLButtonElement>('.wind-segments__button')[0].click())
+      expect(view.onSegmentSelect).toHaveBeenCalledWith(segments[0])
+      expect(view.filter('unclassified').getAttribute('aria-pressed')).toBe('true')
+      await view.dispose()
+    })
+
+    it('restores the full window through the handler and sets the filter to All', async () => {
+      const view = await mount(full)
+      await act(async () => view.filter('upwind').click())
+      await act(async () => view.first().click())
+      expect(view.onWindowReset).toHaveBeenCalledTimes(1)
+      expect(view.first().textContent).toBe('All 4')
+      expect(view.filter('all').getAttribute('aria-pressed')).toBe('true')
+      // The window still reads as narrowed until the parent applies the reset.
+      await view.render(narrow)
+      expect(view.first().textContent).toBe('Reset')
+      await view.render(full)
+      expect(view.first().textContent).toBe('All 4')
+      await view.dispose()
+    })
   })
 })

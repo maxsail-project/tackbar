@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { formatGpsTime } from '../utils/replay'
@@ -11,10 +11,14 @@ import {
 } from '../utils/windSegments'
 import { formatAnalysisWindowDuration } from './AnalysisWindow'
 
-interface WindSegmentsSectionProps {
+interface WindSegmentsListProps {
   /** P-referenced wind segments over P's full track in the available range (#192.3). */
   segments: WindSegment[]
   analysisWindow: AnalysisWindowRange | null
+  /** Full available range; the section Reset shows while the window differs from it (#192.3.1). */
+  availableRange?: AnalysisWindowRange | null
+  /** Restores the full Analysis Window through the same handler as the Analysis Window Reset. */
+  onWindowReset?: () => void
   onSegmentSelect: (segment: WindSegment) => void
   /** Changing this (the Primary Activity) resets the type filter to All. */
   filterResetKey: string
@@ -53,17 +57,24 @@ function extendsBeyondWindow(segment: WindSegment, analysisWindow: AnalysisWindo
   return analysisWindow !== null && (segment.start < analysisWindow.start || segment.end > analysisWindow.end)
 }
 
-export default function WindSegmentsSection({
+/** Segments overlapping the Analysis Window: the list and the header count (#192.3.1). */
+export function countListedWindSegments(segments: WindSegment[], analysisWindow: AnalysisWindowRange | null) {
+  return segments.filter((segment) => overlapsWindow(segment, analysisWindow)).length
+}
+
+export const WIND_SEGMENTS_RESET_LABEL = 'Reset wind segments and Analysis Window'
+
+export default function WindSegmentsList({
   segments,
   analysisWindow,
+  availableRange = null,
+  onWindowReset,
   onSegmentSelect,
   filterResetKey,
   comparisonSegmentClassifications,
-}: WindSegmentsSectionProps) {
-  const [expanded, setExpanded] = useState(false)
+}: WindSegmentsListProps) {
   // Ephemeral filter, tied to the Primary it was chosen for; a new Primary falls back to All.
   const [filterState, setFilterState] = useState<{ key: string, value: WindSegmentFilter }>({ key: filterResetKey, value: 'all' })
-  const contentId = useId()
 
   // Computed on P's full track; only segments overlapping the current window are listed.
   const listed = segments
@@ -75,31 +86,38 @@ export default function WindSegmentsSection({
   ]))
   const activeFilter: WindSegmentFilter = filterState.key === filterResetKey ? filterState.value : 'all'
   const visible = activeFilter === 'all' ? listed : listed.filter(({ segment }) => segment.kind === activeFilter)
+  const windowIsFull = analysisWindow === null || availableRange === null
+    || (analysisWindow.start === availableRange.start && analysisWindow.end === availableRange.end)
+  // The first option becomes Reset while a filter or a narrowed window is active (#192.3.1).
+  const resetActive = activeFilter !== 'all' || !windowIsFull
 
   return (
-    <section className="content-section maneuver-section wind-segments-section" aria-labelledby="wind-segments-title">
-      <div className="maneuver-section__header">
-        <p className="section-kicker" id="wind-segments-title">Wind Segments (P)</p>
-        <span className="wind-section__summary" data-wind-segments-summary>{formatWindSegmentCount(listed.length)}</span>
-        <button
-          type="button"
-          className="maneuver-section__collapse"
-          aria-expanded={expanded}
-          aria-controls={contentId}
-          onClick={() => setExpanded((current) => !current)}
-        >
-          {expanded ? 'Collapse' : 'Expand'}
-        </button>
-      </div>
-
-      <div id={contentId} hidden={!expanded}>
-        {listed.length === 0 ? (
+    <div className="wind-segments">
+      {listed.length === 0 && !resetActive ? (
           <p className="wind-context__note">No segments for P in this Analysis Window.</p>
         ) : (
           <>
             <div className="wind-segments__filter" role="group" aria-label="Filter wind segments by type">
               {FILTERS.map((filter) => {
                 const count = counts.get(filter) ?? 0
+                if (filter === 'all' && resetActive) {
+                  return (
+                    <button
+                      key={filter}
+                      type="button"
+                      className="wind-segments__filter-option"
+                      data-wind-segment-filter="all"
+                      data-wind-segments-reset
+                      aria-label={WIND_SEGMENTS_RESET_LABEL}
+                      onClick={() => {
+                        onWindowReset?.()
+                        setFilterState({ key: filterResetKey, value: 'all' })
+                      }}
+                    >
+                      Reset
+                    </button>
+                  )
+                }
                 return (
                   <button
                     key={filter}
@@ -117,7 +135,9 @@ export default function WindSegmentsSection({
               })}
             </div>
             {visible.length === 0 ? (
-              <p className="wind-context__note" data-wind-segments-empty>No {filterFullLabel(activeFilter)} segments in this window</p>
+              <p className="wind-context__note" data-wind-segments-empty>
+                {activeFilter === 'all' ? 'No segments for P in this Analysis Window.' : `No ${filterFullLabel(activeFilter)} segments in this window`}
+              </p>
             ) : (
             <table className="wind-context-table wind-segments__table" aria-label="P wind segments">
               <thead><tr>
@@ -166,7 +186,6 @@ export default function WindSegmentsSection({
             )}
           </>
         )}
-      </div>
-    </section>
+    </div>
   )
 }

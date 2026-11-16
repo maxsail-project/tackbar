@@ -3390,12 +3390,9 @@ input:focus-visible {
 }
 
 /* Wind section headers stay on one line; the summary truncates before wrapping. */
-.wind-context-section .maneuver-section__header,
-.wind-segments-section .maneuver-section__header { flex-wrap: nowrap; min-width: 0; }
+.wind-context-section .maneuver-section__header { flex-wrap: nowrap; min-width: 0; }
 .wind-context-section .section-kicker,
-.wind-segments-section .section-kicker,
-.wind-context-section .maneuver-section__collapse,
-.wind-segments-section .maneuver-section__collapse { flex: 0 0 auto; white-space: nowrap; }
+.wind-context-section .maneuver-section__collapse { flex: 0 0 auto; white-space: nowrap; }
 .wind-section__summary {
   flex: 1 1 auto;
   min-width: 0;

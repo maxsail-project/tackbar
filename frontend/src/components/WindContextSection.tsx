@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { WIND_CONTEXT_CONFIG } from '../config/windContext'
+import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { formatTwdDegrees } from '../utils/twdPresentation'
 import {
   formatTwdSource,
@@ -11,6 +12,7 @@ import {
   type TackAxis,
   type TackAxisHint,
   type WindContextResult,
+  type WindWindowClassification,
 } from '../utils/windContext'
 import {
   calculateProgressDifference,
@@ -19,6 +21,8 @@ import {
   formatProgressReason,
   type WindProgress,
 } from '../utils/windProgress'
+import type { WindSegment } from '../utils/windSegments'
+import WindSegmentsList, { countListedWindSegments, formatWindSegmentCount } from './WindSegmentsSection'
 
 type Role = 'primary' | 'comparison'
 
@@ -30,6 +34,16 @@ interface WindContextSectionProps {
   comparison?: WindContextResult
   primaryProgress?: WindProgress
   comparisonProgress?: WindProgress
+  /** P-referenced wind segments over P's full track (#192.3); the list is filter-only (#192.3.1). */
+  segments?: WindSegment[]
+  analysisWindow?: AnalysisWindowRange | null
+  availableRange?: AnalysisWindowRange | null
+  onSegmentSelect?: (segment: WindSegment) => void
+  /** Same handler and side effects as the Analysis Window Reset. */
+  onWindowReset?: () => void
+  /** Changing this (the Primary Activity) resets the segment filter to All. */
+  filterResetKey?: string
+  comparisonSegmentClassifications?: WindWindowClassification[]
 }
 
 function roleLabel(role: Role) {
@@ -66,8 +80,9 @@ export function formatWindAnalysisSummary(
   displayDegrees: number,
   source: EffectiveTwd['source'],
   classification: WindContextResult['classification'],
+  segmentCount = 0,
 ) {
-  return `TWD ${formatTwdDegrees(displayDegrees)}${source === 'manual' ? ' Manual' : ''} · ${formatWindClassification(classification)}`
+  return `${formatWindSegmentCount(segmentCount)} · TWD ${formatTwdDegrees(displayDegrees)}${source === 'manual' ? ' Manual' : ''} · ${formatWindClassification(classification)}`
 }
 
 export function formatTackAxisHint(hint: TackAxisHint) {
@@ -82,6 +97,13 @@ export default function WindContextSection({
   comparison,
   primaryProgress,
   comparisonProgress,
+  segments = [],
+  analysisWindow = null,
+  availableRange = null,
+  onSegmentSelect = () => undefined,
+  onWindowReset,
+  filterResetKey = '',
+  comparisonSegmentClassifications,
 }: WindContextSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const [notesExpanded, setNotesExpanded] = useState(false)
@@ -112,9 +134,9 @@ export default function WindContextSection({
   return (
     <section className="content-section maneuver-section wind-context-section" aria-labelledby="wind-context-title">
       <div className="maneuver-section__header">
-        <p className="section-kicker" id="wind-context-title">Wind Analysis</p>
+        <p className="section-kicker" id="wind-context-title">Wind</p>
         <span className="wind-section__summary" data-wind-context-summary>
-          {formatWindAnalysisSummary(displayDegrees, effectiveTwd.source, primary.classification)}
+          {formatWindAnalysisSummary(displayDegrees, effectiveTwd.source, primary.classification, countListedWindSegments(segments, analysisWindow))}
         </span>
         <button
           type="button"
@@ -131,6 +153,16 @@ export default function WindContextSection({
       </div>
 
       <div id={contentId} hidden={!expanded}>
+        <WindSegmentsList
+          segments={segments}
+          analysisWindow={analysisWindow}
+          availableRange={availableRange}
+          onWindowReset={onWindowReset}
+          onSegmentSelect={onSegmentSelect}
+          filterResetKey={filterResetKey}
+          comparisonSegmentClassifications={comparisonSegmentClassifications}
+        />
+
         <div className="wind-context__info-row">
           <span className="wind-context__reference" aria-label={`Effective TWD ${formatTwdDegrees(displayDegrees)}, ${formatTwdSource(effectiveTwd.source)}`}>
             TWD <strong>{formatTwdDegrees(displayDegrees)}</strong> · {formatTwdSource(effectiveTwd.source)}

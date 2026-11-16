@@ -16,6 +16,7 @@ import {
 } from '../api/tackbarApi'
 import ActivitySelector from '../components/ActivitySelector'
 import AnalysisWindow, {
+  requestAnalysisWindowReset,
   type AnalysisWindowReplay,
 } from '../components/AnalysisWindow'
 import ComparisonTable from '../components/ComparisonTable'
@@ -32,7 +33,6 @@ import ManeuverEventTable, {
 import ManeuverProfiles from '../components/ManeuverProfiles'
 import SelectedManeuvers from '../components/SelectedManeuvers'
 import WindContextSection from '../components/WindContextSection'
-import WindSegmentsSection from '../components/WindSegmentsSection'
 import TrackMap, {
   type ContextualMapActivity,
   createMapFitContextKey,
@@ -1230,14 +1230,6 @@ export function SessionViewer({
         />
       )}
       {analysisWindow !== null && effectiveTwd !== null && twdPresentation.displayDegrees !== null && (
-        <>
-        <WindSegmentsSection
-          segments={windSegments}
-          analysisWindow={analysisWindow}
-          onSegmentSelect={(segment) => commitAnalysisWindowRange({ start: segment.start, end: segment.end })}
-          filterResetKey={primaryActivityId}
-          comparisonSegmentClassifications={comparisonSegmentClassifications}
-        />
         <WindContextSection
           effectiveTwd={effectiveTwd}
           displayDegrees={twdPresentation.displayDegrees}
@@ -1245,8 +1237,16 @@ export function SessionViewer({
           comparison={comparisonActivityId === null ? undefined : comparisonWindContext}
           primaryProgress={primaryWindProgress}
           comparisonProgress={comparisonActivityId === null ? undefined : comparisonWindProgress}
+          segments={windSegments}
+          analysisWindow={analysisWindow}
+          availableRange={availableRange}
+          onSegmentSelect={(segment) => commitAnalysisWindowRange({ start: segment.start, end: segment.end })}
+          onWindowReset={() => {
+            if (availableRange !== null) requestAnalysisWindowReset(availableRange, commitAnalysisWindowRange)
+          }}
+          filterResetKey={primaryActivityId}
+          comparisonSegmentClassifications={comparisonSegmentClassifications}
         />
-        </>
       )}
       <ComparisonTable
         primaryLabel={summaryLabels.get(primaryActivity.id) ?? ''}
