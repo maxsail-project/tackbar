@@ -634,6 +634,21 @@ export function trimAxisDomain(statistics: TrimStatistics[]) {
   }
 }
 
+export function trimAxisTicks(domain: { minimum: number, maximum: number }) {
+  const steps = VS_CONFIG.trimTickStepCandidatesDeg
+  const multiples = (step: number) => {
+    const first = Math.ceil(domain.minimum / step)
+    const last = Math.floor(domain.maximum / step)
+    const values: number[] = []
+    for (let index = first; index <= last; index += 1) values.push(index === 0 ? 0 : index * step)
+    return values
+  }
+  const step = steps.find((candidate) => (
+    multiples(candidate).length <= VS_CONFIG.trimMaxTickCount
+  )) ?? steps[steps.length - 1]
+  return multiples(step)
+}
+
 function trimAccessibleDescription(role: ActivityRole, statistics: TrimStatistics) {
   return [
     `${role} TRIM`,
@@ -677,8 +692,7 @@ function TrimBoxplot({
     primary: hasComparison ? margin.left + chartWidth * 0.4 : margin.left + chartWidth / 2,
     comparison: margin.left + chartWidth * 0.65,
   }
-  const tickValues = [domain.minimum, domain.maximum]
-  if (domain.minimum <= 0 && domain.maximum >= 0) tickValues.splice(1, 0, 0)
+  const tickValues = trimAxisTicks(domain)
   const renderBox = (
     role: 'comparison' | 'primary',
     label: 'Comparison' | 'Primary',
@@ -770,17 +784,16 @@ function TrimBoxplot({
       />
       {tickValues.map((value) => (
         <g key={value}>
-          {value === 0 && (
-            <line
-              data-guide="trim-zero"
-              x1={margin.left}
-              x2={width - margin.right}
-              y1={y(value)}
-              y2={y(value)}
-              stroke={VS_CONFIG.guideColor}
-              strokeWidth={VS_CONFIG.guideStrokeWidth}
-            />
-          )}
+          <line
+            data-guide={value === 0 ? 'trim-zero' : 'trim-tick'}
+            x1={margin.left}
+            x2={width - margin.right}
+            y1={y(value)}
+            y2={y(value)}
+            stroke={VS_CONFIG.guideColor}
+            strokeWidth={VS_CONFIG.guideStrokeWidth}
+            strokeOpacity={value === 0 ? 1 : VS_CONFIG.trimTickGuideOpacity}
+          />
           <line
             x1={margin.left - 4}
             x2={margin.left}

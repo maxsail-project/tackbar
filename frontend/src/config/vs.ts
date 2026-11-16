@@ -39,6 +39,9 @@ export const VS_CONFIG = {
   trimMedianStrokeWidth: 2.5,
   trimAxisPaddingFraction: 0.1,
   trimAxisMinPaddingDeg: 1,
+  trimTickStepCandidatesDeg: [1, 2, 5, 10],
+  trimMaxTickCount: 6,
+  trimTickGuideOpacity: 0.5,
   guideColor: '#dbe6e8',
   guideStrokeWidth: 0.75,
 } as const

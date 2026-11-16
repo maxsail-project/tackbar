@@ -7,6 +7,7 @@ import VsDistributionView, {
   heelAngleDegrees,
   nicePercentageCeiling,
   trimAxisDomain,
+  trimAxisTicks,
 } from './VsDistributionView'
 
 const START = Date.parse('2026-10-12T12:00:00Z')
@@ -316,6 +317,35 @@ describe('TRIM boxplot presentation', () => {
 
   it('uses a whisker-focused padded domain without allowing outliers to expand it', () => {
     expect(trimAxisDomain([statistics])).toEqual({ minimum: -3, maximum: 3 })
+  })
+
+  it.each([
+    [-1.1, 8.3, [0, 2, 4, 6, 8]],
+    [-5.6, 6.5, [-4, -2, 0, 2, 4, 6]],
+    [-1, 1, [-1, 0, 1]],
+    [-23, 31, [-20, -10, 0, 10, 20, 30]],
+  ])('picks regular ticks for [%d, %d]', (minimum, maximum, expected) => {
+    expect(trimAxisTicks({ minimum, maximum })).toEqual(expected)
+  })
+
+  it('draws regular tick lines and labels without domain bound labels', () => {
+    const trim = [-1, -1, 0, 0, 1, 1, 2, 2, 3, 3, 0]
+    const markup = renderToStaticMarkup(
+      <VsDistributionView
+        primarySamples={trim.map((value, seconds) => sample(seconds, 4, 1, 0, value))}
+        analysisWindow={{ start: START, end: START + 10_000 }}
+      />,
+    )
+    const trimMarkup = markup.slice(markup.indexOf('Time-weighted signed TRIM boxplot'))
+    expect(trimMarkup).toContain('data-guide="trim-zero"')
+    expect(trimMarkup).toContain('data-guide="trim-tick"')
+    for (const value of [0, 2, 4]) {
+      expect(trimMarkup).toContain(`data-trim-axis-value="${value}"`)
+    }
+    expect(trimMarkup.match(/data-trim-axis-value="/g)!.length).toBe(
+      trimMarkup.match(/data-guide="trim-(?:zero|tick)"/g)!.length,
+    )
+    expect(trimMarkup).not.toMatch(/data-trim-axis-value="-?\d+\.\d+"/)
   })
 
   it('renders shared-axis P/C boxes and accessible statistics without a visible summary', () => {
