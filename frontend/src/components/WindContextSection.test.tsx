@@ -155,9 +155,26 @@ describe('WindContextSection', () => {
     expect(text(markup)).toContain('C 55% · 42° 40% · 45° 5% HDG ✓ — —')
   })
 
-  const progress = (sector: 'upwind' | 'downwind', progressMeters: number, distanceMeters: number, speed: number): WindProgress => ({
+  const windowStartMs = Date.UTC(2025, 5, 21, 11, 37, 35)
+  const axisDegrees = 105
+  /** Position in the wind-axis frame (along the axis, lateral to its right) from a fixed origin. */
+  const axisPosition = (along: number, lateral: number) => {
+    const radians = axisDegrees * Math.PI / 180
+    const north = along * Math.cos(radians) - lateral * Math.sin(radians)
+    const east = along * Math.sin(radians) + lateral * Math.cos(radians)
+    return {
+      latitude: 40 + (north / 6_371_000) * 180 / Math.PI,
+      longitude: 1 + (east / (6_371_000 * Math.cos(40 * Math.PI / 180))) * 180 / Math.PI,
+    }
+  }
+  const progress = (
+    sector: 'upwind' | 'downwind', progressMeters: number, distanceMeters: number, speed: number,
+    startAlong = 0, lateral = 0,
+  ): WindProgress => ({
     status: 'available', sector, progressMeters, distanceMeters, efficiency: progressMeters / distanceMeters,
-    durationSeconds: progressMeters / speed, progressSpeedMetersPerSecond: speed, netBearingDegrees: 105,
+    durationSeconds: 370, progressSpeedMetersPerSecond: speed, netBearingDegrees: axisDegrees, axisDegrees,
+    startPosition: axisPosition(startAlong, lateral), endPosition: axisPosition(startAlong + progressMeters, lateral),
+    startTimeMs: windowStartMs, endTimeMs: windowStartMs + 370_000,
   })
 
   it('shows P-only progress without a difference line', () => {
@@ -168,18 +185,31 @@ describe('WindContextSection', () => {
     expect(text(markup)).toContain('P 609 m to windward 893 m 68%')
     expect(markup).toContain('Progress relative to the wind')
     expect(markup).not.toContain('data-wind-progress-difference')
-    expect(text(markup).replace('&#x27;', "'")).toContain("Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats' average speed along that axis.")
+    expect(markup).not.toContain('data-wind-progress-gaps')
+    expect(text(markup).replace('&#x27;', "'")).toContain("Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats' average speed along that axis. Along the wind axis, not toward a mark; gap error grows with lateral separation.")
   })
 
-  it('shows P/C progress with the neutral difference line', () => {
+  it('shows P/C progress with the P-perspective gain line and the gap line', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={upwind} comparison={upwind}
       primaryProgress={progress('upwind', 609, 893, 1.65)} comparisonProgress={progress('upwind', 569, 814, 1.54)}
     />)
     const content = text(markup)
     expect(content).toContain('C 569 m to windward 814 m 70%')
-    expect(content).toContain('P made 40 m more progress to windward than C — equivalent to about 25 s of sailing.')
+    expect(content).toContain('P gained 40 m to windward on C — equivalent to about 25 s of sailing.')
+    expect(content).toContain('At 11:37:35 P level with C → at 11:43:45 40 m to windward of C')
+    expect(content).not.toContain('wide lateral separation')
     expect(content).not.toMatch(/ahead|behind|winner/i)
+  })
+
+  it('states a loss and a wide lateral separation caution', () => {
+    const markup = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={upwind} comparison={upwind}
+      primaryProgress={progress('upwind', 569, 814, 1.54, 0, 0)} comparisonProgress={progress('upwind', 609, 893, 1.65, -20, 200)}
+    />)
+    const content = text(markup)
+    expect(content).toContain('P lost 40 m to windward on C — equivalent to about 25 s of sailing.')
+    expect(content).toContain('At 11:37:35 P 20 m to windward of C → at 11:43:45 20 m to leeward of C · wide lateral separation')
   })
 
   it('shows Similar within 5 s and no line when one Activity is ineligible', () => {
@@ -202,6 +232,8 @@ describe('WindContextSection', () => {
     ['mixed', 'Mixed window'],
     ['sector-unavailable', 'Sector unavailable'],
     ['wind-reference-age', 'Wind reference too far in time'],
+    ['no-start-position', 'No position near window start'],
+    ['no-end-position', 'No position near window end'],
     ['insufficient-positions', 'Insufficient position data'],
     ['course-off-axis', 'Course not along wind axis'],
   ] as const)('shows the %s reason with distance and no progress', (reason, label) => {
@@ -223,7 +255,8 @@ describe('WindContextSection', () => {
     expect(content).toContain('P 152° 42°')
     expect(content).toContain('C 171° —')
     expect(content).toContain('P 679 m to leeward 760 m 89%')
-    expect(content).toContain('P made 53 m more progress to leeward than C — equivalent to about 21 s of sailing.')
+    expect(content).toContain('P gained 53 m to leeward on C — equivalent to about 21 s of sailing.')
+    expect(content).toContain('At 11:37:35 P level with C → at 11:43:45 53 m downwind of C')
     expect(content).not.toMatch(/Stbd|Port ·|gybe on/i)
     const upwindOnly = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
@@ -266,7 +299,7 @@ describe('WindContextSection', () => {
       'Sectors: COG vs effective TWD, over moving time (SOG ≥ 1.5 kn).',
       'Tacks: upwind only; HDG/HEEL only confirm them.',
       'Axis: estimated bisector of the upwind tacks; not applied to TWD.',
-      "Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats' average speed along that axis.",
+      "Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats' average speed along that axis. Along the wind axis, not toward a mark; gap error grows with lateral separation.",
       'Depth / Gybe angle: mean downwind TWA / angle between the two downwind courses.',
       "Segments: P's track split by wind sector using the modelled TWD at each sample; tap one to set the Analysis Window.",
     ])

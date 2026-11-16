@@ -5,6 +5,7 @@ import {
   calculateProgressDifference,
   calculateWindProgress,
   formatProgressDifference,
+  formatProgressGaps,
   type WindProgress,
 } from './windProgress'
 
@@ -117,30 +118,42 @@ describe('progress along the wind axis', () => {
     })
   })
 
-  it('reports insufficient position data and uses only valid in-window positions', () => {
+  it('reports missing or insufficient position data', () => {
     const one = track([{ seconds: 10, north: 0, east: 0 }])
-    expect(calculateWindProgress(one, window370, manual(0), 'upwind', 10)).toMatchObject({ reason: 'insufficient-positions' })
-    const stationary = track([{ seconds: 0, north: 0, east: 0 }, { seconds: 100, north: 0, east: 0 }])
+    expect(calculateWindProgress(one, window370, manual(0), 'upwind', 10)).toMatchObject({ reason: 'no-end-position' })
+    const stationary = track([{ seconds: 0, north: 0, east: 0 }, { seconds: 370, north: 0, east: 0 }])
     expect(calculateWindProgress(stationary, window370, manual(0), 'upwind', 10)).toMatchObject({ reason: 'insufficient-positions' })
     const invalid = track([
       { seconds: 0, north: 0, east: 0, lat: Number.NaN },
-      { seconds: 100, north: 0, east: 0, lat: 91 },
+      { seconds: 370, north: 0, east: 0, lat: 91 },
     ])
-    expect(calculateWindProgress(invalid, window370, manual(0), 'upwind', 10)).toMatchObject({ reason: 'insufficient-positions' })
+    expect(calculateWindProgress(invalid, window370, manual(0), 'upwind', 10)).toMatchObject({ reason: 'no-start-position' })
     expect(calculateWindProgress(straight(300, 0), null, manual(0), 'upwind', 10)).toMatchObject({ reason: 'sector-unavailable' })
     expect(calculateWindProgress(straight(300, 0), window370, null, 'upwind', 10)).toMatchObject({ reason: 'sector-unavailable' })
+  })
 
-    // Leading invalid position and out-of-window samples are skipped; gaps are irrelevant to net displacement.
-    const gapped = track([
-      { seconds: -50, north: -900, east: 0 },
+  it('takes the nearest valid sample to the window start and end instants, outside the window if needed', () => {
+    const result = available(calculateWindProgress(track([
+      { seconds: -8, north: -50, east: 0 },
       { seconds: 0, north: 0, east: 0, lat: Number.NaN },
-      { seconds: 20, north: 100, east: 0 },
-      { seconds: 300, north: 350, east: 0 },
-      { seconds: 400, north: 2_000, east: 0 },
-    ])
-    const result = available(calculateWindProgress(gapped, window370, manual(0), 'upwind', 300))
-    expect(result.progressMeters).toBeCloseTo(250, 0)
-    expect(result.durationSeconds).toBe(280)
+      { seconds: 6, north: 30, east: 0 },
+      { seconds: 366, north: 330, east: 0 },
+      { seconds: 372, north: 400, east: 0 },
+    ]), window370, manual(0), 'upwind', 500))
+    // Start: +6 s beats −8 s and the invalid sample at 0 s; end: 372 s (2 s away) beats 366 s.
+    expect(result.progressMeters).toBeCloseTo(370, 0)
+    expect(result.durationSeconds).toBe(370)
+    expect(result.startTimeMs).toBe(start)
+    expect(result.endTimeMs).toBe(start + 370_000)
+  })
+
+  it('accepts a sample exactly 10 s away and reports a missing start or end beyond that', () => {
+    const edge = track([{ seconds: 10, north: 0, east: 0 }, { seconds: 360, north: 300, east: 0 }])
+    expect(available(calculateWindProgress(edge, window370, manual(0), 'upwind', 400)).progressMeters).toBeCloseTo(300, 0)
+    const lateStart = track([{ seconds: 10.001, north: 0, east: 0 }, { seconds: 370, north: 300, east: 0 }])
+    expect(calculateWindProgress(lateStart, window370, manual(0), 'upwind', 400)).toMatchObject({ reason: 'no-start-position' })
+    const earlyEnd = track([{ seconds: 0, north: 0, east: 0 }, { seconds: 359.999, north: 300, east: 0 }])
+    expect(calculateWindProgress(earlyEnd, window370, manual(0), 'upwind', 400)).toMatchObject({ reason: 'no-end-position' })
   })
 
   it('leaves efficiency unavailable without Summary distance', () => {
@@ -149,46 +162,116 @@ describe('progress along the wind axis', () => {
   })
 })
 
-describe('neutral P−C progress difference', () => {
-  const eligible = (sector: 'upwind' | 'downwind', progressMeters: number, speed: number): WindProgress => ({
-    status: 'available', sector, progressMeters, distanceMeters: progressMeters * 1.4, efficiency: 0.7,
-    durationSeconds: progressMeters / speed, progressSpeedMetersPerSecond: speed, netBearingDegrees: 0,
-  })
+describe('P-perspective gain and gaps at the same instants', () => {
+  /** Straight two-sample track in the wind-axis frame (along towards the axis bearing, lateral to its right). */
+  function axisTrack(axisBearing: number, from: [number, number], to: [number, number]) {
+    const radians = axisBearing * Math.PI / 180
+    const toNorthEast = ([along, lateral]: [number, number]) => ({
+      north: along * Math.cos(radians) - lateral * Math.sin(radians),
+      east: along * Math.sin(radians) + lateral * Math.cos(radians),
+    })
+    return track([
+      { seconds: 0, ...toNorthEast(from) },
+      { seconds: 370, ...toNorthEast(to) },
+    ])
+  }
 
-  it('reports metres and equivalent seconds from the mean progress speed', () => {
-    const difference = calculateProgressDifference(eligible('upwind', 609, 1.65), eligible('upwind', 569, 1.54))!
+  function pair(
+    twd: number,
+    sector: 'upwind' | 'downwind',
+    p: { from: [number, number], to: [number, number] },
+    c: { from: [number, number], to: [number, number] },
+  ) {
+    const axis = sector === 'upwind' ? twd : twd + 180
+    const progress = (t: { from: [number, number], to: [number, number] }) => available(calculateWindProgress(
+      axisTrack(axis, t.from, t.to), window370, manual(twd), sector, 500,
+    ))
+    return calculateProgressDifference(progress(p), progress(c))!
+  }
+
+  it('states P gained windward on C and the gap line, with gain = end gap − start gap', () => {
+    const difference = pair(0, 'upwind', { from: [-20, 0], to: [380, 0] }, { from: [0, 0], to: [340, 0] })
+    expect(difference.startGap.alongMeters).toBeCloseTo(-20, 1)
+    expect(difference.endGap.alongMeters).toBeCloseTo(40, 1)
+    expect(difference.gainMeters).toBeCloseTo(difference.endGap.alongMeters - difference.startGap.alongMeters, 9)
     expect(difference.status).toBe('difference')
-    expect(difference.meters).toBe(40)
-    expect(difference.seconds).toBeCloseTo(40 / 1.595)
-    expect(formatProgressDifference(difference)).toBe('P made 40 m more progress to windward than C — equivalent to about 25 s of sailing.')
-    const negative = calculateProgressDifference(eligible('downwind', 626, 2.4), eligible('downwind', 679, 2.6))!
-    expect(formatProgressDifference(negative)).toBe('C made 53 m more progress to leeward than P — equivalent to about 21 s of sailing.')
+    expect(formatProgressDifference(difference))
+      .toBe('P gained 60 m to windward on C — equivalent to about 60 s of sailing.')
+    expect(formatProgressGaps(difference))
+      .toBe('At 11:37:35 P 20 m to leeward of C → at 11:43:45 40 m to windward of C')
   })
 
-  it('words P more, C more and Similar for both sectors', () => {
-    const words = (sector: 'upwind' | 'downwind', p: number, c: number) =>
-      formatProgressDifference(calculateProgressDifference(eligible(sector, p, 2), eligible(sector, c, 2))!)
-    expect(words('upwind', 200, 100)).toBe('P made 100 m more progress to windward than C — equivalent to about 50 s of sailing.')
-    expect(words('upwind', 100, 200)).toBe('C made 100 m more progress to windward than P — equivalent to about 50 s of sailing.')
-    expect(words('downwind', 200, 100)).toBe('P made 100 m more progress to leeward than C — equivalent to about 50 s of sailing.')
-    expect(words('downwind', 100, 200)).toBe('C made 100 m more progress to leeward than P — equivalent to about 50 s of sailing.')
-    expect(words('downwind', 100, 105)).toBe('P and C made similar progress to leeward (within 5 s).')
+  it('states P lost windward on C', () => {
+    const difference = pair(0, 'upwind', { from: [0, 0], to: [340, 0] }, { from: [-20, 0], to: [380, 0] })
+    expect(difference.gainMeters).toBeCloseTo(-60, 1)
+    expect(formatProgressDifference(difference))
+      .toBe('P lost 60 m to windward on C — equivalent to about 60 s of sailing.')
+    expect(formatProgressGaps(difference))
+      .toBe('At 11:37:35 P 20 m to windward of C → at 11:43:45 40 m to leeward of C')
   })
 
-  it('is Similar at exactly ±5 s and not beyond', () => {
-    expect(calculateProgressDifference(eligible('upwind', 110, 2), eligible('upwind', 100, 2))!.status).toBe('similar')
-    expect(calculateProgressDifference(eligible('upwind', 100, 2), eligible('upwind', 110, 2))!.status).toBe('similar')
-    expect(formatProgressDifference(calculateProgressDifference(eligible('upwind', 110, 2), eligible('upwind', 100, 2))!))
-      .toBe('P and C made similar progress to windward (within 5 s).')
-    expect(calculateProgressDifference(eligible('upwind', 110.2, 2), eligible('upwind', 100, 2))!.status).toBe('difference')
+  it('states downwind gain and loss with downwind/upwind-of-C gaps', () => {
+    const gained = pair(0, 'downwind', { from: [-20, 0], to: [380, 0] }, { from: [0, 0], to: [340, 0] })
+    expect(formatProgressDifference(gained))
+      .toBe('P gained 60 m to leeward on C — equivalent to about 60 s of sailing.')
+    expect(formatProgressGaps(gained))
+      .toBe('At 11:37:35 P 20 m upwind of C → at 11:43:45 40 m downwind of C')
+    const lost = pair(0, 'downwind', { from: [0, 0], to: [340, 0] }, { from: [-20, 0], to: [380, 0] })
+    expect(formatProgressDifference(lost))
+      .toBe('P lost 60 m to leeward on C — equivalent to about 60 s of sailing.')
+    expect(formatProgressGaps(lost))
+      .toBe('At 11:37:35 P 20 m downwind of C → at 11:43:45 40 m upwind of C')
   })
 
-  it('is absent when sectors differ, one Activity is ineligible or Comparison is missing', () => {
-    expect(calculateProgressDifference(eligible('upwind', 100, 2), eligible('downwind', 100, 2))).toBeNull()
-    expect(calculateProgressDifference(eligible('upwind', 100, 2), {
-      status: 'unavailable', reason: 'course-off-axis', distanceMeters: 100,
-    })).toBeNull()
-    expect(calculateProgressDifference({ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }, eligible('upwind', 100, 2))).toBeNull()
-    expect(calculateProgressDifference(eligible('upwind', 100, 2), undefined)).toBeNull()
+  it('is Similar within 5 s regardless of direction', () => {
+    const upwind = pair(0, 'upwind', { from: [0, 0], to: [400, 0] }, { from: [0, 0], to: [396, 0] })
+    expect(upwind.status).toBe('similar')
+    expect(formatProgressDifference(upwind)).toBe('P and C made similar progress to windward (within 5 s).')
+    const downwind = pair(0, 'downwind', { from: [0, 0], to: [396, 0] }, { from: [0, 0], to: [400, 0] })
+    expect(formatProgressDifference(downwind)).toBe('P and C made similar progress to leeward (within 5 s).')
+    const beyond = pair(0, 'upwind', { from: [0, 0], to: [410, 0] }, { from: [0, 0], to: [400, 0] })
+    expect(beyond.seconds).toBeGreaterThan(5)
+    expect(beyond.status).toBe('difference')
+  })
+
+  it('reads level with C below 10 m and states the gap from 10 m', () => {
+    const startLevel = pair(0, 'upwind', { from: [9.9, 0], to: [400, 0] }, { from: [0, 0], to: [389.8, 0] })
+    expect(formatProgressGaps(startLevel)).toBe('At 11:37:35 P level with C → at 11:43:45 10 m to windward of C')
+    const endLevel = pair(0, 'upwind', { from: [10.2, 0], to: [399.9, 0] }, { from: [0, 0], to: [400, 0] })
+    expect(formatProgressGaps(endLevel)).toBe('At 11:37:35 P 10 m to windward of C → at 11:43:45 level with C')
+    const negative = pair(0, 'upwind', { from: [-9.9, 0], to: [400, 0] }, { from: [0, 0], to: [410.2, 0] })
+    expect(formatProgressGaps(negative)).toBe('At 11:37:35 P level with C → at 11:43:45 10 m to leeward of C')
+  })
+
+  it('adds the wide lateral separation caution above 150 m at either instant', () => {
+    const narrow = pair(0, 'upwind', { from: [0, 0], to: [400, 0] }, { from: [0, 149], to: [400, 149] })
+    expect(narrow.wideLateralSeparation).toBe(false)
+    expect(formatProgressGaps(narrow)).not.toContain('wide lateral separation')
+    const wideAtEnd = pair(0, 'upwind', { from: [0, 0], to: [400, 0] }, { from: [0, 100], to: [400, 151] })
+    expect(wideAtEnd.wideLateralSeparation).toBe(true)
+    expect(formatProgressGaps(wideAtEnd)).toMatch(/ · wide lateral separation$/)
+    const wideAtStart = pair(0, 'upwind', { from: [0, 151], to: [400, 0] }, { from: [0, 0], to: [400, 0] })
+    expect(wideAtStart.wideLateralSeparation).toBe(true)
+  })
+
+  it('is circular-safe near 0°/360° for both sectors', () => {
+    for (const twd of [355, 5, 0, 180, 359.5]) {
+      const up = pair(twd, 'upwind', { from: [-20, 0], to: [380, 0] }, { from: [0, 0], to: [340, 0] })
+      expect(up.startGap.alongMeters).toBeCloseTo(-20, 0)
+      expect(up.endGap.alongMeters).toBeCloseTo(40, 0)
+      expect(up.gainMeters).toBeCloseTo(60, 0)
+      const down = pair(twd, 'downwind', { from: [-20, 0], to: [380, 0] }, { from: [0, 0], to: [340, 0] })
+      expect(down.startGap.alongMeters).toBeCloseTo(-20, 0)
+      expect(down.gainMeters).toBeCloseTo(60, 0)
+    }
+  })
+
+  it('is absent when sectors differ, one Activity is unavailable or Comparison is missing', () => {
+    const up = available(calculateWindProgress(straight(300, 0), window370, manual(0), 'upwind', 400))
+    const down = available(calculateWindProgress(straight(300, 180), window370, manual(0), 'downwind', 400))
+    expect(calculateProgressDifference(up, down)).toBeNull()
+    expect(calculateProgressDifference(up, { status: 'unavailable', reason: 'course-off-axis', distanceMeters: 100 })).toBeNull()
+    expect(calculateProgressDifference({ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }, up)).toBeNull()
+    expect(calculateProgressDifference(up, undefined)).toBeNull()
   })
 })

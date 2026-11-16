@@ -29,6 +29,12 @@ export const WIND_CONTEXT_CONFIG = {
   progressMaxModelledTwdAgeMinutes: 60,
   /** P−C equivalent-time difference at or below this is `Similar`. */
   progressSimilarSeconds: 5,
+  /** Window start/end positions come from the nearest valid sample within this many seconds (#192.2.1). */
+  sameInstantMaxSeconds: 10,
+  /** An along-axis gap with magnitude below this reads `level with C` (#192.2.1). */
+  levelGapMeters: 10,
+  /** Lateral separation above this at either window instant adds a caution (#192.2.1). */
+  lateralWideMeters: 150,
   /** Downwind Gybe angle needs each COG group at least `tackAxisMinTackSeconds` and this minimum angle. */
   gybeAngleMinDegrees: 20,
   /** Same-sector runs separated by less than this other-sector or non-moving time merge (#192.3). */

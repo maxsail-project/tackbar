@@ -15,6 +15,7 @@ import {
 import {
   calculateProgressDifference,
   formatProgressDifference,
+  formatProgressGaps,
   formatProgressReason,
   type WindProgress,
 } from '../utils/windProgress'
@@ -241,7 +242,10 @@ export default function WindContextSection({
         )}
 
         {progressDifference !== null && (
-          <p className="wind-context__difference" data-wind-progress-difference>{formatProgressDifference(progressDifference)}</p>
+          <>
+            <p className="wind-context__difference" data-wind-progress-difference>{formatProgressDifference(progressDifference)}</p>
+            <p className="wind-context__difference" data-wind-progress-gaps>{formatProgressGaps(progressDifference)}</p>
+          </>
         )}
 
         {downwindRows.length > 0 && (
@@ -271,7 +275,7 @@ export default function WindContextSection({
           <p className="maneuver-evidence__secondary">Sectors: COG vs effective TWD, over moving time (SOG ≥ {WIND_CONTEXT_CONFIG.movingMinSogKnots} kn).</p>
           <p className="maneuver-evidence__secondary">Tacks: upwind only; HDG/HEEL only confirm them.</p>
           <p className="maneuver-evidence__secondary" id={axisHelpId}>Axis: estimated bisector of the upwind tacks; not applied to TWD.</p>
-          <p className="maneuver-evidence__secondary">Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats&apos; average speed along that axis.</p>
+          <p className="maneuver-evidence__secondary">Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats&apos; average speed along that axis. Along the wind axis, not toward a mark; gap error grows with lateral separation.</p>
           <p className="maneuver-evidence__secondary">Depth / Gybe angle: mean downwind TWA / angle between the two downwind courses.</p>
           <p className="maneuver-evidence__secondary">Segments: P&apos;s track split by wind sector using the modelled TWD at each sample; tap one to set the Analysis Window.</p>
         </div>

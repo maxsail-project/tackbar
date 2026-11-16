@@ -17,8 +17,15 @@ export type ProgressUnavailableReason =
   | 'mixed'
   | 'sector-unavailable'
   | 'wind-reference-age'
+  | 'no-start-position'
+  | 'no-end-position'
   | 'insufficient-positions'
   | 'course-off-axis'
+
+export interface ProgressPosition {
+  latitude: number
+  longitude: number
+}
 
 export type WindProgress =
   | {
@@ -26,12 +33,19 @@ export type WindProgress =
       sector: ProgressSector
       /** Existing Summary distance for the same window (accumulated normalized `dist`). */
       distanceMeters: number | null
-      /** Net displacement projected on the wind axis; positive towards windward/leeward. */
+      /** Net displacement between the window-start and window-end positions projected on the wind axis. */
       progressMeters: number
       efficiency: number | null
+      /** Window duration: both Activities are measured at the same instants (#192.2.1). */
       durationSeconds: number
       progressSpeedMetersPerSecond: number
       netBearingDegrees: number
+      /** Wind axis bearing: effective TWD upwind, TWD + 180° downwind. */
+      axisDegrees: number
+      startPosition: ProgressPosition
+      endPosition: ProgressPosition
+      startTimeMs: number
+      endTimeMs: number
     }
   | {
       status: 'unavailable'
@@ -39,19 +53,50 @@ export type WindProgress =
       distanceMeters: number | null
     }
 
-export type ProgressDifference =
-  | { status: 'similar', sector: ProgressSector, meters: number, seconds: number }
-  | { status: 'difference', sector: ProgressSector, meters: number, seconds: number }
+/** Position of P relative to C along (+ towards windward/leeward) and across the wind axis. */
+export interface ProgressGap {
+  timeMs: number
+  /** P minus C along the axis: positive when P is further towards windward (upwind) / leeward (downwind). */
+  alongMeters: number
+  lateralMeters: number
+}
+
+export interface ProgressDifference {
+  status: 'similar' | 'difference'
+  sector: ProgressSector
+  /** P's gain on C along the axis; equals `endGap.alongMeters - startGap.alongMeters`. */
+  gainMeters: number
+  seconds: number
+  startGap: ProgressGap
+  endGap: ProgressGap
+  wideLateralSeparation: boolean
+}
 
 function isValidPosition(sample: TrackSample) {
   return Number.isFinite(sample.lat) && Number.isFinite(sample.lon)
     && Math.abs(sample.lat) <= 90 && Math.abs(sample.lon) <= 180
 }
 
+/** Nearest valid sample (earliest on ties) within `maxSeconds` of the instant, or null. */
+function positionNear(samples: TrackSample[], instant: number, maxSeconds: number): ProgressPosition | null {
+  let best: { sample: TrackSample, offset: number, time: number } | null = null
+  for (const sample of samples) {
+    const time = Date.parse(sample.utc)
+    if (!Number.isFinite(time) || !isValidPosition(sample)) continue
+    const offset = Math.abs(time - instant)
+    if (offset > maxSeconds * 1_000) continue
+    if (best === null || offset < best.offset || (offset === best.offset && time < best.time)) {
+      best = { sample, offset, time }
+    }
+  }
+  return best === null ? null : { latitude: best.sample.lat, longitude: best.sample.lon }
+}
+
 /**
- * Window-level progress along the effective TWD axis (#192.2): net displacement from the
- * first to the last valid in-window position, projected on TWD (upwind) or TWD + 180°
- * (downwind). A Viewer presentation measure only — not per-sample/per-tack VMG.
+ * Window-level progress along the effective TWD axis (#192.2, same instants #192.2.1): net
+ * displacement between the nearest valid positions to the window start and end instants,
+ * projected on TWD (upwind) or TWD + 180° (downwind). A Viewer presentation measure only —
+ * not per-sample/per-tack VMG.
  */
 export function calculateWindProgress(
   samples: TrackSample[],
@@ -82,28 +127,21 @@ export function calculateWindProgress(
     ) return unavailable('wind-reference-age')
   }
 
-  let first: { sample: TrackSample, time: number } | null = null
-  let last: { sample: TrackSample, time: number } | null = null
-  for (const sample of samples) {
-    const time = Date.parse(sample.utc)
-    if (!Number.isFinite(time) || time < analysisWindow.start || time > analysisWindow.end) continue
-    if (!isValidPosition(sample)) continue
-    if (first === null) first = { sample, time }
-    last = { sample, time }
-  }
-  if (first === null || last === null || last.time <= first.time) return unavailable('insufficient-positions')
-  const from = { latitude: first.sample.lat, longitude: first.sample.lon }
-  const to = { latitude: last.sample.lat, longitude: last.sample.lon }
+  const durationSeconds = (analysisWindow.end - analysisWindow.start) / 1_000
+  if (!(durationSeconds > 0)) return unavailable('insufficient-positions')
+  const from = positionNear(samples, analysisWindow.start, config.sameInstantMaxSeconds)
+  if (from === null) return unavailable('no-start-position')
+  const to = positionNear(samples, analysisWindow.end, config.sameInstantMaxSeconds)
+  if (to === null) return unavailable('no-end-position')
   const displacement = distanceMeters(from, to)
   if (!(displacement > 0)) return unavailable('insufficient-positions')
 
   const netBearingDegrees = bearing(from, to)
-  const axis = classification === 'upwind' ? effectiveTwd.degrees : effectiveTwd.degrees + 180
-  const offset = Math.abs(normalizeSignedDegrees(netBearingDegrees - axis))
+  const axisDegrees = ((classification === 'upwind' ? effectiveTwd.degrees : effectiveTwd.degrees + 180) % 360 + 360) % 360
+  const offset = Math.abs(normalizeSignedDegrees(netBearingDegrees - axisDegrees))
   if (offset > config.progressMaxAxisOffsetDegrees) return unavailable('course-off-axis')
 
   const progressMeters = displacement * Math.cos(offset * Math.PI / 180)
-  const durationSeconds = (last.time - first.time) / 1_000
   return {
     status: 'available',
     sector: classification,
@@ -113,12 +151,32 @@ export function calculateWindProgress(
     durationSeconds,
     progressSpeedMetersPerSecond: progressMeters / durationSeconds,
     netBearingDegrees,
+    axisDegrees,
+    startPosition: from,
+    endPosition: to,
+    startTimeMs: analysisWindow.start,
+    endTimeMs: analysisWindow.end,
   }
 }
 
+/** Along-axis and lateral coordinates of `point` from `origin`, via the shared geodesic helpers. */
+function project(origin: ProgressPosition, point: ProgressPosition, axisDegrees: number) {
+  const meters = distanceMeters(origin, point)
+  if (!(meters > 0)) return { along: 0, lateral: 0 }
+  const angle = normalizeSignedDegrees(bearing(origin, point) - axisDegrees) * Math.PI / 180
+  return { along: meters * Math.cos(angle), lateral: meters * Math.sin(angle) }
+}
+
+function gapAt(timeMs: number, primary: ProgressPosition, comparison: ProgressPosition, axisDegrees: number): ProgressGap {
+  // C relative to the local frame centred on P; P relative to C is the negation.
+  const c = project(primary, comparison, axisDegrees)
+  return { timeMs, alongMeters: -c.along, lateralMeters: -c.lateral }
+}
+
 /**
- * Neutral P−C difference, only when both Activities are eligible in the same sector.
- * Equivalent seconds = Δ metres ÷ mean of the two net progress speeds; `Similar` within the limit.
+ * P-perspective gain (#192.2.1), only when both Activities are eligible in the same sector.
+ * Gain = end gap - start gap along the axis, with both gaps measured at the same window
+ * instants. Equivalent seconds = |gain| / mean of both along-axis speeds; `Similar` within the limit.
  */
 export function calculateProgressDifference(
   primary: WindProgress,
@@ -129,23 +187,47 @@ export function calculateProgressDifference(
   if (primary.sector !== comparison.sector) return null
   const meanSpeed = (primary.progressSpeedMetersPerSecond + comparison.progressSpeedMetersPerSecond) / 2
   if (!(meanSpeed > 0)) return null
-  const meters = primary.progressMeters - comparison.progressMeters
-  const seconds = meters / meanSpeed
+  const startGap = gapAt(primary.startTimeMs, primary.startPosition, comparison.startPosition, primary.axisDegrees)
+  const endGap = gapAt(primary.endTimeMs, primary.endPosition, comparison.endPosition, primary.axisDegrees)
+  const gainMeters = endGap.alongMeters - startGap.alongMeters
+  const seconds = Math.abs(gainMeters) / meanSpeed
   return {
-    status: Math.abs(seconds) <= config.progressSimilarSeconds ? 'similar' : 'difference',
+    status: seconds <= config.progressSimilarSeconds ? 'similar' : 'difference',
     sector: primary.sector,
-    meters,
+    gainMeters,
     seconds,
+    startGap,
+    endGap,
+    wideLateralSeparation: Math.abs(startGap.lateralMeters) > config.lateralWideMeters
+      || Math.abs(endGap.lateralMeters) > config.lateralWideMeters,
   }
+}
+
+function formatUtcTime(timeMs: number) {
+  return new Date(timeMs).toISOString().slice(11, 19)
 }
 
 export function formatProgressDifference(difference: ProgressDifference) {
   const direction = difference.sector === 'upwind' ? 'windward' : 'leeward'
   if (difference.status === 'similar') return `P and C made similar progress to ${direction} (within 5 s).`
-  const [more, less] = difference.meters >= 0 ? ['P', 'C'] : ['C', 'P']
-  const meters = Math.round(Math.abs(difference.meters))
-  const seconds = Math.round(Math.abs(difference.seconds))
-  return `${more} made ${meters} m more progress to ${direction} than ${less} — equivalent to about ${seconds} s of sailing.`
+  const verb = difference.gainMeters >= 0 ? 'gained' : 'lost'
+  const meters = Math.round(Math.abs(difference.gainMeters))
+  const seconds = Math.round(difference.seconds)
+  return `P ${verb} ${meters} m to ${direction} on C — equivalent to about ${seconds} s of sailing.`
+}
+
+function formatGap(gap: ProgressGap, sector: ProgressSector, config: WindContextConfig) {
+  if (Math.abs(gap.alongMeters) < config.levelGapMeters) return 'level with C'
+  const meters = Math.round(Math.abs(gap.alongMeters))
+  const further = gap.alongMeters > 0 // P further along the axis than C
+  if (sector === 'upwind') return `${meters} m to ${further ? 'windward' : 'leeward'} of C`
+  return `${meters} m ${further ? 'downwind' : 'upwind'} of C`
+}
+
+export function formatProgressGaps(difference: ProgressDifference, config: WindContextConfig = WIND_CONTEXT_CONFIG) {
+  const { startGap, endGap, sector } = difference
+  const text = `At ${formatUtcTime(startGap.timeMs)} P ${formatGap(startGap, sector, config)} → at ${formatUtcTime(endGap.timeMs)} ${formatGap(endGap, sector, config)}`
+  return difference.wideLateralSeparation ? `${text} · wide lateral separation` : text
 }
 
 export function formatProgressReason(reason: ProgressUnavailableReason) {
@@ -154,6 +236,8 @@ export function formatProgressReason(reason: ProgressUnavailableReason) {
     case 'mixed': return 'Mixed window'
     case 'sector-unavailable': return 'Sector unavailable'
     case 'wind-reference-age': return 'Wind reference too far in time'
+    case 'no-start-position': return 'No position near window start'
+    case 'no-end-position': return 'No position near window end'
     case 'insufficient-positions': return 'Insufficient position data'
     default: return 'Course not along wind axis'
   }
