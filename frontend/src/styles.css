@@ -3404,6 +3404,31 @@ input:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.wind-context__twd {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.wind-context__twd-controls { display: flex; flex-wrap: wrap; gap: 4px; }
+.wind-context__twd-button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid #c8d7da;
+  border-radius: 7px;
+  color: #31515a;
+  background: #f7fafb;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.wind-context__twd-button:disabled { cursor: default; opacity: 0.45; }
+.wind-context__twd-button:focus-visible { outline: 2px solid #28788a; outline-offset: 2px; }
 .wind-context__reference {
   color: #526d74;
   font-size: 0.74rem;

@@ -44,6 +44,9 @@ interface WindContextSectionProps {
   /** Changing this (the Primary Activity) resets the segment filter to All. */
   filterResetKey?: string
   comparisonSegmentClassifications?: WindWindowClassification[]
+  /** Same page handlers as the map TWD control (#192.3.2); the controls are omitted without them. */
+  onTwdStep?: (step: -5 | 5) => void
+  onTwdReset?: () => void
 }
 
 function roleLabel(role: Role) {
@@ -104,6 +107,8 @@ export default function WindContextSection({
   onWindowReset,
   filterResetKey = '',
   comparisonSegmentClassifications,
+  onTwdStep,
+  onTwdReset,
 }: WindContextSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const [notesExpanded, setNotesExpanded] = useState(false)
@@ -164,9 +169,18 @@ export default function WindContextSection({
         />
 
         <div className="wind-context__info-row">
-          <span className="wind-context__reference" aria-label={`Effective TWD ${formatTwdDegrees(displayDegrees)}, ${formatTwdSource(effectiveTwd.source)}`}>
-            TWD <strong>{formatTwdDegrees(displayDegrees)}</strong> · {formatTwdSource(effectiveTwd.source)}
-          </span>
+          <div className="wind-context__twd">
+            <span className="wind-context__reference" aria-label={`Effective TWD ${formatTwdDegrees(displayDegrees)}, ${formatTwdSource(effectiveTwd.source)}`}>
+              TWD <strong>{formatTwdDegrees(displayDegrees)}</strong> · {formatTwdSource(effectiveTwd.source)}
+            </span>
+            {onTwdStep !== undefined && onTwdReset !== undefined && (
+              <span className="wind-context__twd-controls" role="group" aria-label="Adjust TWD">
+                <button type="button" className="wind-context__twd-button" data-wind-twd-minus aria-label="Decrease TWD by 5°" onClick={() => onTwdStep(-5)}>−5°</button>
+                <button type="button" className="wind-context__twd-button" data-wind-twd-plus aria-label="Increase TWD by 5°" onClick={() => onTwdStep(5)}>+5°</button>
+                <button type="button" className="wind-context__twd-button" data-wind-twd-reset aria-label="Reset TWD to modelled" disabled={effectiveTwd.source !== 'manual'} onClick={onTwdReset}>Reset TWD</button>
+              </span>
+            )}
+          </div>
           <button
             type="button"
             className="maneuver-evidence__info"

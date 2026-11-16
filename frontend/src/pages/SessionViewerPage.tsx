@@ -990,6 +990,15 @@ export function SessionViewer({
     setMapFocusRequest(navigation.focusRequest)
   }
 
+  // Shared by the map TWD control and the Wind section TWD controls (#192.3.2).
+  function stepTwd(step: -5 | 5) {
+    setManualTwdDegrees((current) => stepViewerTwd(current ?? twdPresentation.automaticDegrees, step))
+  }
+
+  function resetTwd() {
+    setManualTwdDegrees(null)
+  }
+
   function commitAnalysisWindowRange(requestedRange: AnalysisWindowRange) {
     if (availableRange === null) return
     const nextTimeline = commitSessionTimelineWindow(
@@ -1152,11 +1161,8 @@ export function SessionViewer({
           historicalConditionsMarineProvider={session.historical_conditions?.marine_source?.provider ?? null}
           twdReference={twdReference}
           twdPresentation={twdPresentation}
-          onTwdStep={(step) => setManualTwdDegrees((current) => stepViewerTwd(
-            current ?? twdPresentation.automaticDegrees,
-            step,
-          ))}
-          onTwdAutomatic={() => setManualTwdDegrees(null)}
+          onTwdStep={stepTwd}
+          onTwdAutomatic={resetTwd}
           onTwdGestureCommit={setManualTwdDegrees}
           twsReference={twsReference}
           twsPresentation={twsPresentation}
@@ -1246,6 +1252,8 @@ export function SessionViewer({
           }}
           filterResetKey={primaryActivityId}
           comparisonSegmentClassifications={comparisonSegmentClassifications}
+          onTwdStep={stepTwd}
+          onTwdReset={resetTwd}
         />
       )}
       <ComparisonTable

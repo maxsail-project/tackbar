@@ -47,6 +47,27 @@ describe('WindContextSection', () => {
     expect(text(markup)).not.toContain('Wind Segments')
   })
 
+  it('omits the TWD controls without handlers and shows enabled steps with Reset disabled for a modelled TWD', () => {
+    const without = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 5, source: 'manual' }} displayDegrees={5} primary={unavailable}
+    />)
+    expect(without).not.toContain('wind-context__twd-controls')
+    const modelled = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 90, source: 'modelled' }} displayDegrees={90} primary={upwind}
+      onTwdStep={() => undefined} onTwdReset={() => undefined}
+    />)
+    expect(modelled).toContain('aria-label="Decrease TWD by 5°"')
+    expect(modelled).toContain('aria-label="Increase TWD by 5°"')
+    expect(modelled).toMatch(/<button[^>]*aria-label="Reset TWD to modelled" disabled=""/)
+    expect(modelled.indexOf('wind-context__reference')).toBeLessThan(modelled.indexOf('wind-context__twd-controls'))
+    const manual = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 95, source: 'manual' }} displayDegrees={95} primary={upwind}
+      onTwdStep={() => undefined} onTwdReset={() => undefined}
+    />)
+    expect(manual).not.toMatch(/aria-label="Reset TWD to modelled"[^>]*disabled/)
+    expect(manual.split('hidden=""')[0]).not.toContain('Decrease TWD')
+  })
+
   it('shows the manual Viewer source', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 5, source: 'manual' }} displayDegrees={5} primary={unavailable}

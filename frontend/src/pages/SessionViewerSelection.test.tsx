@@ -563,6 +563,47 @@ describe('Viewer TWD state', () => {
     })
   })
 
+  it.each(['original', 'temporary'] as const)('adjusts TWD from the Wind section in sync with the map on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const section = () => container.querySelector('.wind-context-section')!
+    const button = (name: string) => section().querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!
+    const mapTwd = () => container.querySelector('[data-twd]')!.getAttribute('data-twd')
+    const reference = () => section().querySelector('.wind-context__reference')!.textContent
+    const primaryRow = () => section().querySelector('[data-wind-role="primary"]')!.textContent
+    // The controls live in the body line (inside the collapsible content), never in the header.
+    expect(section().querySelector('.maneuver-section__header button[aria-label$="TWD by 5°"]')).toBeNull()
+    expect(section().querySelector('[hidden] .wind-context__reference')).not.toBeNull()
+    expect(section().querySelector('[hidden] .wind-context__twd-controls')).not.toBeNull()
+    expect(section().querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')).toBe('false')
+    expect(button('Decrease TWD by 5°').textContent).toBe('−5°')
+    expect(button('Increase TWD by 5°').textContent).toBe('+5°')
+    expect(button('Reset TWD to modelled').textContent).toBe('Reset TWD')
+    expect(button('Reset TWD to modelled').disabled).toBe(true)
+    expect(mapTwd()).toBe('90')
+    expect(primaryRow()).toBe('P100%0%0%Upwind')
+    // +5° from the section: 95° (|TWA| 5° off still upwind), map and reference follow.
+    await act(async () => button('Increase TWD by 5°').click())
+    expect(reference()).toBe('TWD 095° · Manual · Viewer')
+    expect(mapTwd()).toBe('95')
+    expect(container.querySelector('[data-twd-manual]')!.getAttribute('data-twd-manual')).toBe('true')
+    expect(button('Reset TWD to modelled').disabled).toBe(false)
+    await act(async () => button('Decrease TWD by 5°').click())
+    await act(async () => button('Decrease TWD by 5°').click())
+    expect(reference()).toBe('TWD 085° · Manual · Viewer')
+    expect(mapTwd()).toBe('85')
+    expect(section().querySelector('[data-wind-context-summary]')!.textContent).toMatch(/TWD 085° Manual · /)
+    // A change from the map is reflected in the section.
+    await click('[data-twd-plus]')
+    expect(reference()).toBe('TWD 090° · Manual · Viewer')
+    expect(mapTwd()).toBe('90')
+    // Reset returns to modelled and disables itself.
+    await act(async () => button('Reset TWD to modelled').click())
+    expect(reference()).toBe('TWD 090° · Modelled')
+    expect(container.querySelector('[data-twd-manual]')!.getAttribute('data-twd-manual')).toBe('false')
+    expect(button('Reset TWD to modelled').disabled).toBe(true)
+    expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
+  })
+
   it('hides the wind section without effective TWD and shows it for a manual-only correction', async () => {
     await mountViewer('original', session)
     expect(container.querySelector('.wind-context-section')).toBeNull()
