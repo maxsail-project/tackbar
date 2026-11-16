@@ -76,7 +76,9 @@ interface VsCalculationConfig {
   sogBinKt: number
   cogBinDeg: number
   heelBinDeg: number
-  heelDomainCandidatesDeg: readonly number[]
+  heelDomainMinDeg: number
+  heelDomainMaxDeg: number
+  heelDomainMinShare: number
 }
 
 interface MutableActivityDistribution {
@@ -151,22 +153,52 @@ function selectHeelDomain(
   window: AnalysisWindowRange,
   config: VsCalculationConfig,
 ) {
-  const candidates = [...config.heelDomainCandidatesDeg].sort((a, b) => a - b)
+  const domains: number[] = []
+  for (
+    let domain = config.heelDomainMinDeg;
+    domain <= config.heelDomainMaxDeg;
+    domain += config.heelBinDeg
+  ) domains.push(domain)
   const maxGapMs = config.maxGapSeconds * 1_000
-  let minHeel = 0
-  let maxHeel = 0
-  for (const samples of activities) {
+  const windowDurationMs = window.end - window.start
+  const tolerance = 1e-9
+  // Per Activity: all valid HEEL time and the part inside each half-open [-D, +D).
+  const profiles = activities.map((samples) => {
+    let validMs = 0
+    const insideMs = domains.map(() => 0)
     for (let index = 0; index + 1 < samples.length; index += 1) {
       const heel = samples[index].heel
       if (heel === null || !Number.isFinite(heel)) continue
-      if (representedDurationMs(samples, index, window, maxGapMs) <= 0) continue
-      minHeel = Math.min(minHeel, heel)
-      maxHeel = Math.max(maxHeel, heel)
+      const representedMs = representedDurationMs(samples, index, window, maxGapMs)
+      if (representedMs <= 0) continue
+      validMs += representedMs
+      domains.forEach((domain, domainIndex) => {
+        if (heel >= -domain && heel < domain) insideMs[domainIndex] += representedMs
+      })
     }
-  }
-  // Half-open [-D, +D): +D itself needs the next domain.
-  return candidates.find((candidate) => minHeel >= -candidate && maxHeel < candidate)
-    ?? candidates[candidates.length - 1]
+    return { validMs, insideMs }
+  }).filter((profile) => profile.validMs > 0)
+
+  const lastIndex = domains.length - 1
+  const eligibleAt = (profile: { insideMs: number[] }, domainIndex: number) => (
+    Math.min(1, profile.insideMs[domainIndex] / windowDurationMs) >= config.minCoverage
+  )
+  // Smallest bin-aligned D keeping >= 95% of every Activity's valid HEEL time inside;
+  // none within the cap means the cap.
+  let chosen = domains.findIndex((_domain, domainIndex) => (
+    profiles.every((profile) => (
+      profile.insideMs[domainIndex] >= profile.validMs * config.heelDomainMinShare - tolerance
+    ))
+  ))
+  if (chosen === -1) chosen = lastIndex
+  // Widen while an Activity eligible at the cap is ineligible at D.
+  while (
+    chosen < lastIndex
+    && profiles.some((profile) => (
+      eligibleAt(profile, lastIndex) && !eligibleAt(profile, chosen)
+    ))
+  ) chosen += 1
+  return domains[chosen]
 }
 
 function accumulateActivity(
@@ -432,16 +464,17 @@ export function calculateVsDistributions(
   if (!Number.isFinite(config.heelBinDeg) || config.heelBinDeg <= 0) {
     throw new Error('HEEL bin size must be positive')
   }
-  const candidates = config.heelDomainCandidatesDeg
+  const { heelDomainMinDeg: domainMin, heelDomainMaxDeg: domainMax } = config
   if (
-    candidates.length === 0
-    || candidates.some((domain) => (
-      !Number.isFinite(domain)
-      || domain <= 0
-      || !Number.isInteger(domain / config.heelBinDeg)
-    ))
+    !Number.isFinite(domainMin)
+    || !Number.isFinite(domainMax)
+    || domainMin <= 0
+    || domainMin > domainMax
+    || !Number.isInteger(domainMin / config.heelBinDeg)
+    || !Number.isInteger(domainMax / config.heelBinDeg)
+    || !(config.heelDomainMinShare > 0 && config.heelDomainMinShare <= 1)
   ) {
-    throw new Error('HEEL domains must be positive and align with the bin size')
+    throw new Error('HEEL domain range must be positive and align with the bin size')
   }
 
   const windowDurationMs = window.end - window.start

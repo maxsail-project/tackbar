@@ -342,13 +342,13 @@ describe('signed linear HEEL bins', () => {
     expect(result.primary.heel.binTimeSeconds.has(0)).toBe(true)
   })
 
-  it('keeps one fixed symmetric domain aligned to 2° bins', () => {
+  it('keeps one symmetric domain aligned to 2° bins', () => {
     const result = calculateVsDistributions([
       sample(0, 4, 90, -20),
       sample(1, 4, 90, 19.9),
     ], null, window(0, 1))
 
-    expect(result.heelDomainMaximum).toBe(VS_CONFIG.heelDomainCandidatesDeg[0])
+    expect(result.heelDomainMaximum).toBe(20)
     expect(result.heelBins).toHaveLength(20)
     expect(result.heelBins[0].start).toBe(-20)
     expect(result.heelBins.at(-1)?.end).toBe(20)
@@ -476,63 +476,106 @@ describe('circular COG sectors', () => {
   })
 })
 
-describe('adaptive HEEL domain', () => {
-  const run = (primary: number[], comparison: number[] | null = null) => {
-    const build = (heels: number[]) => heels.map((heel, seconds) => sample(seconds, 4, 90, heel))
-    return calculateVsDistributions(
+describe('adaptive HEEL domain (continuous 95% |HEEL| rule)', () => {
+  // One sample per second; the last sample only closes the final interval.
+  const build = (heels: Array<number | null>) => (
+    heels.map((heel, seconds) => sample(seconds, 4, 90, heel))
+  )
+  const rep = (value: number | null, count: number) => Array<number | null>(count).fill(value)
+  const run = (primary: Array<number | null>, comparison: Array<number | null> | null = null) => (
+    calculateVsDistributions(
       build(primary),
       comparison && build(comparison),
-      window(0, primary.length - 1),
+      window(0, 100),
     )
-  }
+  )
+  const total = (...parts: Array<Array<number | null>>) => [...parts.flat(), 0]
+
+  it('fits a fan reaching about 22° to 22° instead of 30°', () => {
+    const result = run(total(rep(21.5, 50), rep(-10, 50)))
+    expect(result.heelDomainMaximum).toBe(22)
+    expect(result.heelBins).toHaveLength(22)
+    expect(result.primary.heel.coverage).toBe(1)
+  })
 
   it.each([
-    [[0, 19.9, -20, 5], 20],
-    [[0, 20, 1, 5], 30],
-    [[0, -20.001, 1, 5], 30],
-    [[0, 29.9, -30, 5], 30],
-    [[0, 30, 1, 5], 40],
-    [[0, -30.001, 1, 5], 40],
-    [[0, -40, 1, 5], 40],
-    [[0, 39.9, 1, 5], 40],
-    [[0, 40, 1, 5], 40],
-  ])('selects the domain for %j', (heels, expected) => {
-    expect(run(heels).heelDomainMaximum).toBe(expected)
+    [0, 10],
+    [9.9, 10],
+    [10, 12],
+    [-10, 10],
+    [-10.1, 12],
+    [19.9, 20],
+    [20, 22],
+    [21.5, 22],
+    [22, 24],
+    [39.9, 40],
+  ])('rounds heel %d up to a bin-aligned domain %d', (heel, expected) => {
+    const result = run(total(rep(heel, 100)))
+    expect(result.heelDomainMaximum).toBe(expected)
+    expect(result.heelDomainMaximum % VS_CONFIG.heelBinDeg).toBe(0)
   })
 
-  it('counts +20° with D=30 and keeps -20° at D=20', () => {
-    const upper = run([20, 20, 20, 20, 0])
-    expect(upper.heelDomainMaximum).toBe(30)
-    expect(upper.primary.heel.coverage).toBe(1)
-    expect(upper.heelBins).toHaveLength(30)
-    const lower = run([-20, -20, -20, -20, 0])
-    expect(lower.heelDomainMaximum).toBe(20)
+  it('does not widen for a tail of at most 5% and excludes it', () => {
+    const result = run(total(rep(25, 50), rep(0, 45), rep(35, 5)))
+    expect(result.heelDomainMaximum).toBe(26)
+    expect(result.primary.heel.coverage).toBe(0.95)
   })
 
-  it('excludes +40° from the cap and lowers coverage', () => {
-    const result = run([40, 0, 0, 0, 0])
-    expect(result.heelDomainMaximum).toBe(40)
-    expect(result.primary.heel.coverage).toBe(0.75)
+  it('widens once the tail exceeds 5%', () => {
+    const result = run(total(rep(25, 50), rep(0, 44), rep(35, 6)))
+    expect(result.heelDomainMaximum).toBe(36)
+    expect(result.primary.heel.coverage).toBe(1)
+  })
+
+  it('never goes below 10° for low heel', () => {
+    const result = run(total(rep(2, 100)))
+    expect(result.heelDomainMaximum).toBe(10)
+    expect(result.heelBins).toHaveLength(10)
+  })
+
+  it('widens in 2° steps when the excluded tail would make an eligible Activity unavailable', () => {
+    // 82% valid HEEL time; 4 of 82 s at 35°: 95.1% inside ±10° but coverage only 78%.
+    const result = run(total(rep(0, 78), rep(35, 4), rep(null, 18)))
+    expect(result.heelDomainMaximum).toBe(36)
+    expect(result.primary.heel.coverage).toBe(0.82)
+    expect(result.primary.heel.eligible).toBe(true)
+  })
+
+  it('does not widen when the Activity is ineligible even at the cap', () => {
+    const result = run(total(rep(0, 60), rep(35, 2), rep(null, 38)))
+    expect(result.heelDomainMaximum).toBe(10)
     expect(result.primary.heel.eligible).toBe(false)
   })
 
-  it('recovers eligibility for heel between 20° and 40°', () => {
-    const result = run([-35, -35, 0, 0, 0])
-    expect(result.heelDomainMaximum).toBe(40)
+  it('lets one Activity drive the shared domain', () => {
+    const result = run(total(rep(0, 100)), total(rep(25, 50), rep(0, 50)))
+    expect(result.heelDomainMaximum).toBe(26)
     expect(result.primary.heel.coverage).toBe(1)
-    expect(result.primary.heel.eligible).toBe(true)
-    expect(result.heelBins).toHaveLength(40)
+    expect(result.comparison?.heel.coverage).toBe(1)
   })
 
-  it('shares the domain driven by Comparison and ignores out-of-window samples', () => {
-    const result = run([0, 1, 2, 3, 4], [0, 25, 0, 0, 0])
-    expect(result.heelDomainMaximum).toBe(30)
-    expect(result.primary.heel.coverage).toBe(1)
-    const clipped = calculateVsDistributions(
-      [0, 1, 2, 3, 35, 35].map((heel, seconds) => sample(seconds, 4, 90, heel)),
+  it('always excludes time beyond the 40° cap and lowers coverage', () => {
+    const result = run(total(rep(35, 50), rep(40, 10), rep(0, 40)))
+    expect(result.heelDomainMaximum).toBe(40)
+    expect(result.primary.heel.coverage).toBe(0.9)
+    const unavailable = run(total(rep(-45, 30), rep(0, 70)))
+    expect(unavailable.heelDomainMaximum).toBe(40)
+    expect(unavailable.primary.heel.coverage).toBe(0.7)
+    expect(unavailable.primary.heel.eligible).toBe(false)
+  })
+
+  it('ignores samples outside the Analysis Window', () => {
+    const heels = [...rep(0, 60), ...rep(35, 40), 0]
+    const result = calculateVsDistributions(build(heels), null, window(0, 60))
+    expect(result.heelDomainMaximum).toBe(10)
+  })
+
+  it('rejects a HEEL range that does not align with the bin size', () => {
+    expect(() => calculateVsDistributions(
+      build(total(rep(0, 10))),
       null,
-      window(0, 3),
-    )
-    expect(clipped.heelDomainMaximum).toBe(20)
+      window(0, 10),
+      { ...VS_CONFIG, heelDomainMinDeg: 11 },
+    )).toThrow()
   })
 })

@@ -152,17 +152,17 @@ describe('VS distribution presentation', () => {
     )
     expect(markup.match(/data-guide="heel-boundary"/g)).toHaveLength(1)
     expect(markup.match(/data-guide="heel-axis"/g)).toHaveLength(2)
-    expect(markup.match(/data-guide="heel-angle"/g)).toHaveLength(6)
+    expect(markup.match(/data-guide="heel-angle"/g)).toHaveLength(2)
     expect(markup.match(/vs-distribution__radial-label/g)).toHaveLength(1)
     for (let degrees = 0; degrees < 360; degrees += 30) {
       expect(markup).toContain(`>${degrees}°</text>`)
     }
     expect(markup).not.toMatch(/>N<\/text>|>E<\/text>|>S<\/text>|>W<\/text>/)
     expect(markup).not.toContain('vs-distribution__spoke')
-    expect(markup).toContain('>-20°</text>')
+    expect(markup).toContain('>-10°</text>')
     expect(markup).toContain('>0°</text>')
-    expect(markup).toContain('>+20°</text>')
-    for (const degrees of [-15, -10, -5, 5, 10, 15]) {
+    expect(markup).toContain('>+10°</text>')
+    for (const degrees of [-5, 5]) {
       const label = degrees > 0 ? `+${degrees}°` : `${degrees}°`
       expect(markup).toContain(`data-heel-guide="${degrees}"`)
       expect(markup).toContain(`data-heel-guide-label="${degrees}"`)
@@ -281,8 +281,10 @@ describe('VS distribution presentation', () => {
 
 describe('adaptive HEEL semicircle labels and guides', () => {
   it.each([
-    [25, 30, [-20, -10, 10, 20]],
-    [-35, 40, [-30, -20, -10, 10, 20, 30]],
+    [4, 10, [-5, 5]],
+    [19, 20, [-15, -10, -5, 5, 10, 15]],
+    [23, 24, [-20, -10, 10, 20]],
+    [-39, 40, [-30, -20, -10, 10, 20, 30]],
   ])('renders heel %d with domain %d', (heel, domain, guides) => {
     const markup = renderToStaticMarkup(
       <VsDistributionView
@@ -297,7 +299,6 @@ describe('adaptive HEEL semicircle labels and guides', () => {
     for (const degrees of guides) {
       expect(heelMarkup).toContain(`data-heel-guide="${degrees}"`)
     }
-    expect(heelMarkup).not.toContain('data-heel-guide="5"')
   })
 })
 

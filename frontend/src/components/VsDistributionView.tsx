@@ -391,6 +391,15 @@ export function heelAngleDegrees(heel: number, domainMaximum: number) {
   return heel / domainMaximum * 90
 }
 
+export function heelGuideDegrees(domainMaximum: number) {
+  const step = domainMaximum <= VS_CONFIG.heelGuideFineMaxDomainDeg
+    ? VS_CONFIG.heelGuideFineStepDeg
+    : VS_CONFIG.heelGuideCoarseStepDeg
+  const guides: number[] = []
+  for (let degrees = step; degrees < domainMaximum; degrees += step) guides.push(degrees)
+  return guides
+}
+
 function semicircleArcPath(centerX: number, centerY: number, radius: number) {
   const start = semicirclePoint(centerX, centerY, radius, -90)
   const end = semicirclePoint(centerX, centerY, radius, 90)
@@ -478,7 +487,7 @@ function HeelSemicircle({
       />
     )
   })
-  const angleGuides = (VS_CONFIG.heelAngleGuideDegrees[domainMaximum] ?? []).flatMap((degrees) => (
+  const angleGuides = heelGuideDegrees(domainMaximum).flatMap((degrees) => (
     [-degrees, degrees]
   )).sort((first, second) => first - second)
   const degreeLabels = [
