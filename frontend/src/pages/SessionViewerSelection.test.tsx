@@ -573,6 +573,30 @@ describe('Viewer TWD state', () => {
       expect(kinds()).toEqual(['reaching'])
     })
 
+    it('resets the segment filter to All on external window changes but not on segment selection', async () => {
+      await mountViewer('original', longWindSession)
+      const pressed = (filter: string) => segmentsSection().querySelector(`[data-wind-segment-filter="${filter}"]`)!.getAttribute('aria-pressed')
+      const setUp = () => act(async () => segmentsSection().querySelector<HTMLButtonElement>('[data-wind-segment-filter="upwind"]')!.click())
+      await setUp()
+      expect(pressed('upwind')).toBe('true')
+      // Timeline window change resets the filter.
+      await click('[data-change-window]')
+      expect(pressed('upwind')).toBe('false')
+      // Analysis Window Reset resets the filter.
+      await setUp()
+      expect(pressed('upwind')).toBe('true')
+      await click('[data-reset-window]')
+      expect(pressed('upwind')).toBe('false')
+      expect(pressed('all')).toBe('true')
+      // Segment selection keeps the filter.
+      await setUp()
+      await act(async () => rows()[0].querySelector('button')!.click())
+      expect(pressed('upwind')).toBe('true')
+      // Primary change resets the filter.
+      await choose('My track', 'b')
+      expect(pressed('upwind')).toBe('false')
+    })
+
     it('does not split a homogeneous segment at an inferred Start inside it', async () => {
       vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
         { activity_id: 'a', race_timer_events: [{ timestamp: new Date(start + 100_000).toISOString(), event_type: 3 }], line_positions: [] },

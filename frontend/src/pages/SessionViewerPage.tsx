@@ -600,6 +600,7 @@ export function SessionViewer({
   const [analysisWindow, setAnalysisWindow] = useState<AnalysisWindowRange | null>(
     primaryRange,
   )
+  const [windSegmentFilterResetToken, setWindSegmentFilterResetToken] = useState(0)
   const windowStart = analysisWindow?.start ?? null
   const windowEnd = analysisWindow?.end ?? null
   const primaryAvailableSamples = useMemo(
@@ -1017,6 +1018,13 @@ export function SessionViewer({
     setPlaybackTime(nextTimeline.playbackTime)
   }
 
+  // Window changes from outside the Wind segment list (timeline drag/selection and the
+  // Analysis Window Reset) also reset the segment filter to All.
+  function commitExternalAnalysisWindowRange(requestedRange: AnalysisWindowRange) {
+    setWindSegmentFilterResetToken((token) => token + 1)
+    commitAnalysisWindowRange(requestedRange)
+  }
+
   function openSharePanel() {
     if (access.kind !== 'original') return
     setSharePanelOpen(true)
@@ -1213,7 +1221,7 @@ export function SessionViewer({
           togglePlayback,
           setSpeed,
         )}
-        onRangeChange={commitAnalysisWindowRange}
+        onRangeChange={commitExternalAnalysisWindowRange}
         onManeuverSelect={selectManeuver}
       />
       {analysisWindow !== null && (
@@ -1250,7 +1258,7 @@ export function SessionViewer({
           onWindowReset={() => {
             if (availableRange !== null) requestAnalysisWindowReset(availableRange, commitAnalysisWindowRange)
           }}
-          filterResetKey={primaryActivityId}
+          filterResetKey={`${primaryActivityId}:${windSegmentFilterResetToken}`}
           comparisonSegmentClassifications={comparisonSegmentClassifications}
           onTwdStep={stepTwd}
           onTwdReset={resetTwd}
