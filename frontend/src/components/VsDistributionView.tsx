@@ -478,7 +478,7 @@ function HeelSemicircle({
       />
     )
   })
-  const angleGuides = VS_CONFIG.heelAngleGuideDegrees.flatMap((degrees) => (
+  const angleGuides = (VS_CONFIG.heelAngleGuideDegrees[domainMaximum] ?? []).flatMap((degrees) => (
     [-degrees, degrees]
   )).sort((first, second) => first - second)
   const degreeLabels = [

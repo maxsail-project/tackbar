@@ -259,7 +259,7 @@ describe('VS distribution presentation', () => {
     expect(heelMarkup).toContain(`stroke="${ACTIVITY_COLORS.primary}"`)
   })
 
-  it('keeps the fixed domain and reports out-of-domain HEEL as unavailable coverage', () => {
+  it('adapts to the 40° cap and reports beyond-cap HEEL as unavailable coverage', () => {
     const markup = renderToStaticMarkup(
       <VsDistributionView
         primarySamples={[sample(0, 4, 1, -20), sample(1, 4, 1, -20)]}
@@ -275,6 +275,28 @@ describe('VS distribution presentation', () => {
     expect(heelMarkup).toContain('data-heel-bin="-20:-18"')
     expect(heelMarkup).not.toContain('data-heel-bin="42:44"')
     expect(markup).toContain('Heel distribution unavailable for Comparison · HEEL coverage 0%')
+  })
+})
+
+describe('adaptive HEEL semicircle labels and guides', () => {
+  it.each([
+    [25, 30, [-20, -10, 10, 20]],
+    [-35, 40, [-30, -20, -10, 10, 20, 30]],
+  ])('renders heel %d with domain %d', (heel, domain, guides) => {
+    const markup = renderToStaticMarkup(
+      <VsDistributionView
+        primarySamples={[sample(0, 4, 1, heel), sample(1, 4, 1, heel)]}
+        analysisWindow={analysisWindow}
+      />,
+    )
+    const heelMarkup = markup.slice(markup.indexOf('Time-weighted signed HEEL semicircular distribution'))
+    expect(heelMarkup).toContain(`>-${domain}°</text>`)
+    expect(heelMarkup).toContain(`>+${domain}°</text>`)
+    expect(heelMarkup.match(/data-guide="heel-angle"/g)).toHaveLength(guides.length)
+    for (const degrees of guides) {
+      expect(heelMarkup).toContain(`data-heel-guide="${degrees}"`)
+    }
+    expect(heelMarkup).not.toContain('data-heel-guide="5"')
   })
 })
 

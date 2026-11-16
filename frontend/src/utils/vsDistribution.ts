@@ -76,7 +76,7 @@ interface VsCalculationConfig {
   sogBinKt: number
   cogBinDeg: number
   heelBinDeg: number
-  heelDomainDeg: number
+  heelDomainCandidatesDeg: readonly number[]
 }
 
 interface MutableActivityDistribution {
@@ -132,9 +132,47 @@ function emptyMutableDistribution(cogBinCount: number): MutableActivityDistribut
   }
 }
 
+function representedDurationMs(
+  samples: TrackSample[],
+  index: number,
+  window: AnalysisWindowRange,
+  maxGapMs: number,
+) {
+  const t0 = timestampToMilliseconds(samples[index].utc)
+  const t1 = timestampToMilliseconds(samples[index + 1].utc)
+  const sourceDt = t1 - t0
+  if (!Number.isFinite(sourceDt) || sourceDt <= 0 || sourceDt > maxGapMs) return 0
+  const representedDt = Math.min(t1, window.end) - Math.max(t0, window.start)
+  return representedDt > 0 ? representedDt : 0
+}
+
+function selectHeelDomain(
+  activities: TrackSample[][],
+  window: AnalysisWindowRange,
+  config: VsCalculationConfig,
+) {
+  const candidates = [...config.heelDomainCandidatesDeg].sort((a, b) => a - b)
+  const maxGapMs = config.maxGapSeconds * 1_000
+  let minHeel = 0
+  let maxHeel = 0
+  for (const samples of activities) {
+    for (let index = 0; index + 1 < samples.length; index += 1) {
+      const heel = samples[index].heel
+      if (heel === null || !Number.isFinite(heel)) continue
+      if (representedDurationMs(samples, index, window, maxGapMs) <= 0) continue
+      minHeel = Math.min(minHeel, heel)
+      maxHeel = Math.max(maxHeel, heel)
+    }
+  }
+  // Half-open [-D, +D): +D itself needs the next domain.
+  return candidates.find((candidate) => minHeel >= -candidate && maxHeel < candidate)
+    ?? candidates[candidates.length - 1]
+}
+
 function accumulateActivity(
   samples: TrackSample[],
   window: AnalysisWindowRange,
+  heelDomainDeg: number,
   config: VsCalculationConfig,
 ) {
   const cogBinCount = 360 / config.cogBinDeg
@@ -143,16 +181,7 @@ function accumulateActivity(
 
   for (let index = 0; index + 1 < samples.length; index += 1) {
     const sample = samples[index]
-    const nextSample = samples[index + 1]
-    const t0 = timestampToMilliseconds(sample.utc)
-    const t1 = timestampToMilliseconds(nextSample.utc)
-    const sourceDt = t1 - t0
-
-    if (!Number.isFinite(sourceDt) || sourceDt <= 0 || sourceDt > maxGapMs) continue
-
-    const representedStart = Math.max(t0, window.start)
-    const representedEnd = Math.min(t1, window.end)
-    const representedDt = representedEnd - representedStart
+    const representedDt = representedDurationMs(samples, index, window, maxGapMs)
     if (representedDt <= 0) continue
 
     if (sample.sog !== null && Number.isFinite(sample.sog) && sample.sog >= 0) {
@@ -173,8 +202,8 @@ function accumulateActivity(
     if (
       sample.heel !== null
       && Number.isFinite(sample.heel)
-      && sample.heel >= -config.heelDomainDeg
-      && sample.heel < config.heelDomainDeg
+      && sample.heel >= -heelDomainDeg
+      && sample.heel < heelDomainDeg
     ) {
       const binIndex = Math.floor(sample.heel / config.heelBinDeg)
       result.heelBinTimeMs.set(
@@ -403,24 +432,33 @@ export function calculateVsDistributions(
   if (!Number.isFinite(config.heelBinDeg) || config.heelBinDeg <= 0) {
     throw new Error('HEEL bin size must be positive')
   }
+  const candidates = config.heelDomainCandidatesDeg
   if (
-    !Number.isFinite(config.heelDomainDeg)
-    || config.heelDomainDeg <= 0
-    || !Number.isInteger(config.heelDomainDeg / config.heelBinDeg)
+    candidates.length === 0
+    || candidates.some((domain) => (
+      !Number.isFinite(domain)
+      || domain <= 0
+      || !Number.isInteger(domain / config.heelBinDeg)
+    ))
   ) {
-    throw new Error('HEEL domain must be positive and align with the bin size')
+    throw new Error('HEEL domains must be positive and align with the bin size')
   }
 
   const windowDurationMs = window.end - window.start
+  const heelDomainDeg = selectHeelDomain(
+    comparisonSamples === null ? [primarySamples] : [primarySamples, comparisonSamples],
+    window,
+    config,
+  )
   const primary = finalizeActivity(
-    accumulateActivity(primarySamples, window, config),
+    accumulateActivity(primarySamples, window, heelDomainDeg, config),
     windowDurationMs,
     config,
   )
   const comparison = comparisonSamples === null
     ? null
     : finalizeActivity(
-        accumulateActivity(comparisonSamples, window, config),
+        accumulateActivity(comparisonSamples, window, heelDomainDeg, config),
         windowDurationMs,
         config,
       )
@@ -428,7 +466,7 @@ export function calculateVsDistributions(
     primary,
     comparison,
     config.heelBinDeg,
-    config.heelDomainDeg,
+    heelDomainDeg,
   )
 
   return {
