@@ -3,7 +3,6 @@ import {
   TRACE_MEDIAN_MIN_CONTRIBUTORS,
   TRACE_MEDIAN_MIN_COVERAGE,
   TRACE_MEDIAN_MIN_MANEUVERS,
-  TRACE_TURN_ANGLE_MIN_MANEUVERS,
   type TraceAggregate,
   type TracePoint,
   type TraceSideAggregate,
@@ -85,26 +84,29 @@ function turnAngleCell(side: TraceSideAggregate | undefined) {
   return side?.turnAngle.medianDeg == null ? '—' : `${side.turnAngle.medianDeg.toFixed(1)}° (${side.turnAngle.count})`
 }
 
+/** Per-role left/right reading for the line below the table: "left +x°", "similar" or "unavailable". */
+export function turnSideReading(trace: TraceAggregate | null | undefined) {
+  const reading = roundedInsightComparison(trace?.left.turnAngle.medianDeg ?? null, trace?.right.turnAngle.medianDeg ?? null, '°', ['left', 'right'])
+  return reading === '—' ? 'unavailable' : reading === 'Similar' ? 'similar' : reading
+}
+
 /** #202: median event |ΔCOG| per P/C × turn side, from the existing course references. */
 function turnAngleTable(primary: TraceAggregate | null, comparison: TraceAggregate | null | undefined,
   band: { minimum: number, maximum: number } | undefined) {
   const median = (trace: TraceAggregate | null | undefined, side: 'left' | 'right') => trace?.[side].turnAngle.medianDeg ?? null
-  const leftMinusRight = (trace: TraceAggregate | null | undefined) =>
-    roundedInsightComparison(median(trace, 'left'), median(trace, 'right'), '°', ['L', 'R'])
-  const primaryMinusComparison = (side: 'left' | 'right') => roundedInsightComparison(median(primary, side), median(comparison, side), '°')
-  return <section className="maneuver-insights" aria-label="Median event |ΔCOG| by turn side" data-trace-turn-angles="true">
-    <h3>Median event |ΔCOG| by turn side</h3>
-    <p>{band ? `|ΔCOG| band ${band.minimum}°–${band.maximum}° · ` : ''}per-event course change of all traced maneuvers (count), not the COG Insights Turn angle · at least {TRACE_TURN_ANGLE_MIN_MANEUVERS} per cell</p>
+  const difference = (side: 'left' | 'right') => roundedInsightComparison(median(primary, side), median(comparison, side), '°')
+  return <section className="maneuver-insights" aria-label="Median event |ΔCOG|" data-trace-turn-angles="true">
+    <h3>Median event |ΔCOG|</h3>
+    <p>Supported median per-event |ΔCOG|{band ? ` · band ${band.minimum}°–${band.maximum}°` : ''}</p>
     <table className="maneuver-insights__table">
-      <thead><tr><th scope="col" aria-label="Activity" /><th scope="col">Left turns</th><th scope="col">Right turns</th><th scope="col">L − R</th></tr></thead>
+      <thead><tr><th scope="col" aria-label="Activity" /><th scope="col">Left turns</th><th scope="col">Right turns</th></tr></thead>
       <tbody>
-        <tr><th scope="row" style={{ color: ACTIVITY_COLORS.primary }}>P</th><td>{turnAngleCell(primary?.left)}</td><td>{turnAngleCell(primary?.right)}</td><td>{leftMinusRight(primary)}</td></tr>
-        {comparison !== undefined && <>
-          <tr><th scope="row" style={{ color: ACTIVITY_COLORS.comparison }}>C</th><td>{turnAngleCell(comparison?.left)}</td><td>{turnAngleCell(comparison?.right)}</td><td>{leftMinusRight(comparison)}</td></tr>
-          <tr className="maneuver-insights__compare"><th scope="row">P − C</th><td>{primaryMinusComparison('left')}</td><td>{primaryMinusComparison('right')}</td><td>—</td></tr>
-        </>}
+        <tr><th scope="row" style={{ color: ACTIVITY_COLORS.primary }}>P</th><td>{turnAngleCell(primary?.left)}</td><td>{turnAngleCell(primary?.right)}</td></tr>
+        <tr><th scope="row" style={{ color: ACTIVITY_COLORS.comparison }}>C</th><td>{turnAngleCell(comparison?.left)}</td><td>{turnAngleCell(comparison?.right)}</td></tr>
+        <tr className="maneuver-insights__compare"><th scope="row" aria-label="Comparison" /><td>{difference('left')}</td><td>{difference('right')}</td></tr>
       </tbody>
     </table>
+    <p className="maneuver-insights__recovery" data-trace-turn-side-difference="true"><strong>Turn-side difference</strong> · <span style={{ color: ACTIVITY_COLORS.primary }}>P {turnSideReading(primary)}</span> · <span style={{ color: ACTIVITY_COLORS.comparison }}>C {turnSideReading(comparison)}</span></p>
   </section>
 }
 
