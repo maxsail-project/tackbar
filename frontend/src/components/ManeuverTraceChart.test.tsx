@@ -82,7 +82,7 @@ describe('TRACE chart rendering', () => {
     expect(html).toContain('>t=0</text>')
     expect(html).toMatch(/data-trace-scale-bar="\d+"/)
     expect(html).toMatch(/<text[^>]*>\d+ m<\/text>/)
-    expect(html).toContain('bisector aligned')
+    expect(html).toContain('entry/exit bisector')
     expect(html).not.toMatch(/Bisector \d/)
     expect(html).not.toMatch(/TWD \d|data-twd/i)
     expect(html).toContain('no TWD')
@@ -99,6 +99,35 @@ describe('TRACE chart rendering', () => {
     expect(html).toContain('R 3 traced, median from 3')
     expect(html).toContain('L 2 traced, median insufficient (2/3 with ≥65% coverage)')
     expect(html).toContain('not a sailed track')
+  })
+
+  it('titles both axes by mean course and turn side, replacing the terse edge labels (D5)', () => {
+    const primary = aggregatePreparedTracePopulation(population([trace('right'), trace('left')]), 40, 100)
+    const html = renderToStaticMarkup(<ManeuverTraceChart primary={primary} />)
+    expect(html).toMatch(/data-trace-axis="along">Along mean course \(m\) · forward up<\/p>/)
+    expect(html).toMatch(/data-trace-axis="across">\s*<span>← Left turns<\/span><span>Across mean course \(m\)<\/span><span>Right turns →<\/span>/)
+    expect(html).not.toContain('↑ Forward')
+    expect(html).not.toContain('Left turns · Right turns')
+    expect(html.match(/Left turns/g)).toHaveLength(1)
+    expect(html).toContain('preserveAspectRatio="xMidYMid meet"')
+    expect(html).toContain('data-trace-origin="true"')
+  })
+
+  it('adds one concise reading note covering arms, lean and median length (D5)', () => {
+    const primary = aggregatePreparedTracePopulation(population([trace('right')]), 40, 100)
+    const html = renderToStaticMarkup(<ManeuverTraceChart primary={primary} />)
+    expect(html.match(/data-trace-reading-note/g)).toHaveLength(1)
+    const note = html.match(/data-trace-reading-note="true">([\s\S]*?)<\/p>/)![1]
+    expect(note).toContain('How to read')
+    expect(note).toContain('not north or wind (no TWD)')
+    expect(note).toContain('1 m = 1 m')
+    expect(note).toContain('lower arm is the approach before t=0 and the upper arm the exit')
+    expect(note).toContain('about half the turn angle, so wider arms mean larger turns')
+    expect(note).toContain('a shorter median means less distance in the same time, not a tighter turn')
+    expect(note).toContain('not a sailed track')
+    expect(note).toContain('3 maneuvers with ≥65% position coverage and 3 contributors at each drawn second')
+    expect(note).not.toMatch(/\d+(\.\d+)?°/)
+    expect(html.match(/maneuver-profile__basis/g)).toHaveLength(1)
   })
 
   it('shows individual traces with an insufficient-median indication and visible exclusions', () => {
@@ -128,6 +157,9 @@ describe('TRACE chart rendering', () => {
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
     expect(css).toMatch(/\.maneuver-trace__plot\s*\{[\s\S]*?aspect-ratio: 1 \/ 1;/)
     expect(css).toMatch(/\.maneuver-trace\s*\{[\s\S]*?width: 100%;/)
+    expect(css).toMatch(/\.maneuver-trace__frame\s*\{[\s\S]*?grid-template-columns: auto minmax\(0, 1fr\);/)
+    expect(css).toMatch(/\.maneuver-trace__axis--along\s*\{[\s\S]*?writing-mode: vertical-rl;/)
+    expect(css).toMatch(/\.maneuver-trace__axis--across\s*\{[\s\S]*?flex-wrap: wrap;/)
   })
 })
 

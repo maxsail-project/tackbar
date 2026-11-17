@@ -101,46 +101,50 @@ export default function ManeuverTraceChart({ primary, comparison }: {
     {comparison ? traceCounts('C', comparison)
       : comparison === null && <p className="maneuver-profile__count">C profile data unavailable.</p>}
     <figure className="maneuver-trace" data-trace-chart="true">
-      <figcaption className="maneuver-trace__axis maneuver-trace__axis--top">↑ Forward · bisector aligned</figcaption>
-      <div className="maneuver-trace__plot">
-        <svg viewBox={`${minX} ${minY} ${side} ${side}`} preserveAspectRatio="xMidYMid meet" role="img"
-          data-trace-scale="equal" aria-label="Bisector-aligned maneuver paths in metres, t=0 at origin, forward up">
-          <g className="maneuver-trace__axes" aria-hidden="true">
-            <line data-trace-forward-axis="true" x1="0" x2="0" y1={minY} y2={minY + side} />
-            <line x1={minX} x2={minX + side} y1="0" y2="0" />
-          </g>
-          {roles.map(([role, trace]) => {
-            const color = role === 'primary' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
-            return <g key={`${role}-individual`}>
-              {[trace.right, trace.left].map((group) => {
-                const path = individualPath(group)
-                return path && <path key={group.side} data-trace-individual={`${role}-${group.side}`} d={path}
-                  fill="none" stroke={color} strokeWidth="0.8" strokeOpacity="0.4" vectorEffect="non-scaling-stroke" />
-              })}
+      <div className="maneuver-trace__frame">
+        <p className="maneuver-trace__axis maneuver-trace__axis--along" data-trace-axis="along">Along mean course (m) · forward up</p>
+        <div className="maneuver-trace__plot">
+          <svg viewBox={`${minX} ${minY} ${side} ${side}`} preserveAspectRatio="xMidYMid meet" role="img"
+            data-trace-scale="equal" aria-label="Bisector-aligned maneuver paths in metres, t=0 at origin, forward up">
+            <g className="maneuver-trace__axes" aria-hidden="true">
+              <line data-trace-forward-axis="true" x1="0" x2="0" y1={minY} y2={minY + side} />
+              <line x1={minX} x2={minX + side} y1="0" y2="0" />
             </g>
-          })}
-          {roles.map(([role, trace]) => {
-            const color = role === 'primary' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
-            return <g key={`${role}-median`}>
-              {[trace.right, trace.left].map((group) => {
-                const path = medianPath(group)
-                return path && <path key={group.side} data-trace-median={`${role}-${group.side}`} d={path}
-                  fill="none" stroke={color} strokeWidth="3.5" strokeOpacity="0.9" vectorEffect="non-scaling-stroke" />
-              })}
+            {roles.map(([role, trace]) => {
+              const color = role === 'primary' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
+              return <g key={`${role}-individual`}>
+                {[trace.right, trace.left].map((group) => {
+                  const path = individualPath(group)
+                  return path && <path key={group.side} data-trace-individual={`${role}-${group.side}`} d={path}
+                    fill="none" stroke={color} strokeWidth="0.8" strokeOpacity="0.4" vectorEffect="non-scaling-stroke" />
+                })}
+              </g>
+            })}
+            {roles.map(([role, trace]) => {
+              const color = role === 'primary' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
+              return <g key={`${role}-median`}>
+                {[trace.right, trace.left].map((group) => {
+                  const path = medianPath(group)
+                  return path && <path key={group.side} data-trace-median={`${role}-${group.side}`} d={path}
+                    fill="none" stroke={color} strokeWidth="3.5" strokeOpacity="0.9" vectorEffect="non-scaling-stroke" />
+                })}
+              </g>
+            })}
+            <g data-trace-origin="true" aria-label="t=0 origin">
+              <circle cx="0" cy="0" r={markerSize} fill="white" stroke="#17323a" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+              <text x={markerSize * 1.6} y={-markerSize * 1.4} fontSize={fontSize} fill="#17323a">t=0</text>
             </g>
-          })}
-          <g data-trace-origin="true" aria-label="t=0 origin">
-            <circle cx="0" cy="0" r={markerSize} fill="white" stroke="#17323a" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-            <text x={markerSize * 1.6} y={-markerSize * 1.4} fontSize={fontSize} fill="#17323a">t=0</text>
-          </g>
-          <g data-trace-scale-bar={scale} aria-label={`Scale bar ${scale} m`}>
-            <line x1={minX + inset} x2={minX + inset + scale} y1={barY} y2={barY} stroke="#17323a" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-            <text x={minX + inset} y={barY - fontSize * 0.5} fontSize={fontSize} fill="#17323a">{scale} m</text>
-          </g>
-        </svg>
+            <g data-trace-scale-bar={scale} aria-label={`Scale bar ${scale} m`}>
+              <line x1={minX + inset} x2={minX + inset + scale} y1={barY} y2={barY} stroke="#17323a" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+              <text x={minX + inset} y={barY - fontSize * 0.5} fontSize={fontSize} fill="#17323a">{scale} m</text>
+            </g>
+          </svg>
+        </div>
+        <p className="maneuver-trace__axis maneuver-trace__axis--across" data-trace-axis="across">
+          <span>← Left turns</span><span>Across mean course (m)</span><span>Right turns →</span>
+        </p>
       </div>
-      <figcaption className="maneuver-trace__axis">← Left turns · Right turns →</figcaption>
     </figure>
-    <p className="maneuver-profile__basis">Thin lines are original GPS positions per maneuver, translated to t=0 and rotated so the entry/exit COG bisector points up; 1 m = 1 m on both axes, no TWD. Bold lines are time-aligned coordinate-wise medians per turn side: they reflect both shape and speed and are not a sailed track. A median needs {TRACE_MEDIAN_MIN_MANEUVERS} maneuvers with ≥{Math.round(TRACE_MEDIAN_MIN_COVERAGE * 100)}% position coverage and {TRACE_MEDIAN_MIN_CONTRIBUTORS} contributors at each drawn second. Gaps remain open.</p>
+    <p className="maneuver-profile__basis" data-trace-reading-note="true"><strong>How to read:</strong> axes follow each maneuver's mean course (entry/exit bisector), not north or wind (no TWD); 1 m = 1 m. The lower arm is the approach before t=0 and the upper arm the exit; each arm leans from vertical by about half the turn angle, so wider arms mean larger turns. Thin lines are original GPS positions; bold lines are time-aligned medians per turn side, not a sailed track: a shorter median means less distance in the same time, not a tighter turn. A median needs {TRACE_MEDIAN_MIN_MANEUVERS} maneuvers with ≥{Math.round(TRACE_MEDIAN_MIN_COVERAGE * 100)}% position coverage and {TRACE_MEDIAN_MIN_CONTRIBUTORS} contributors at each drawn second; gaps remain open.</p>
   </>
 }
