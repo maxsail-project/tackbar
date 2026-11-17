@@ -22,6 +22,8 @@ import { relativeCogAxisBounds } from '../utils/typicalCogProfile'
 import { calculateCogManeuverInsights, type CogManeuverInsights } from '../utils/maneuverCogInsights'
 import { calculateHeelManeuverInsights, heelManeuverAxisBounds, type HeelManeuverInsights } from '../utils/maneuverHeelInsights'
 import ManeuverAngleRange, { type AngleBand } from './ManeuverAngleRange'
+import ManeuverTraceChart from './ManeuverTraceChart'
+import { aggregatePreparedTracePopulation } from '../utils/maneuverTrace'
 
 export function supportedSogPoints(profile: TypicalSogProfile): SogChartPoint[] {
   return profile.grid.map((point) => ({
@@ -163,7 +165,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
   primary: PreparedSogPopulation | null
   comparison?: PreparedSogPopulation | null
 }) {
-  const [signal, setSignal] = useState<'SOG' | 'COG' | 'HEEL'>('SOG')
+  const [signal, setSignal] = useState<'SOG' | 'COG' | 'HEEL' | 'TRACE'>('SOG')
   const [range, setRange] = useState<AngleBand>({
     minimum: MANEUVER_ANGLE_RANGE.initialMinimum,
     maximum: MANEUVER_ANGLE_RANGE.initialMaximum,
@@ -180,6 +182,10 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     ? aggregatePreparedHeelPopulation(primary, range.minimum, range.maximum) : null, [primary, range, signal])
   const cHeel = useMemo(() => signal === 'HEEL' && comparison
     ? aggregatePreparedHeelPopulation(comparison, range.minimum, range.maximum) : null, [comparison, range, signal])
+  const pTrace = useMemo(() => signal === 'TRACE' && primary
+    ? aggregatePreparedTracePopulation(primary, range.minimum, range.maximum) : null, [primary, range, signal])
+  const cTrace = useMemo(() => signal === 'TRACE' && comparison
+    ? aggregatePreparedTracePopulation(comparison, range.minimum, range.maximum) : null, [comparison, range, signal])
   const p = signal === 'SOG' ? pSog : signal === 'COG' ? pCog : pHeel
   const c = signal === 'SOG' ? cSog : signal === 'COG' ? cCog : cHeel
   const pRaw = signal === 'SOG' ? (pSog ? supportedSogPoints(pSog) : [])
@@ -203,15 +209,19 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     { role: 'comparison', raw: cRaw, color: ACTIVITY_COLORS.comparison },
     { role: 'primary', raw: pRaw, color: ACTIVITY_COLORS.primary },
   ]
-  return <section className="maneuver-profile" aria-label={`Typical ${signal} maneuver comparison`}>
-    <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median knots' : signal === 'COG' ? 'Median relative course change (°)' : 'Median |HEEL| (°), magnitude of signed inclination'} · relative to event center</span></div>
-      <span>Raw thin · smoothed bold</span></div>
-    <div className="metric-options" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }} role="group" aria-label="Maneuver profile signal">
-      {(['SOG', 'COG', 'HEEL'] as const).map((option) => <button type="button" key={option} className={signal === option ? 'is-active' : ''}
+  return <section className="maneuver-profile" aria-label={signal === 'TRACE' ? 'Maneuver trace comparison' : `Typical ${signal} maneuver comparison`}>
+    {signal === 'TRACE' ? <div className="metric-chart__heading"><div><strong>Maneuver paths</strong><span>Metres, 1 m = 1 m · t=0 at origin · bisector aligned, forward up</span></div>
+      <span>Individual thin · median bold</span></div>
+    : <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median knots' : signal === 'COG' ? 'Median relative course change (°)' : 'Median |HEEL| (°), magnitude of signed inclination'} · relative to event center</span></div>
+      <span>Raw thin · smoothed bold</span></div>}
+    <div className="metric-options" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }} role="group" aria-label="Maneuver profile signal">
+      {(['SOG', 'COG', 'HEEL', 'TRACE'] as const).map((option) => <button type="button" key={option} className={signal === option ? 'is-active' : ''}
         aria-pressed={signal === option} onClick={() => setSignal(option)}>{option}</button>)}
     </div>
     <ManeuverAngleRange range={range} onChange={setRange} />
     <p className="maneuver-profile__basis">Common |ΔCOG| filter from canonical course context; event ΔHDG/ΔCOG and HIGH/LOW evidence remain in the table.</p>
+    {signal === 'TRACE' && <ManeuverTraceChart primary={pTrace} comparison={comparison === undefined ? undefined : cTrace} />}
+    {signal !== 'TRACE' && <>
     {p && countSummary('P', p, primary!.missingCourseCount)}
     {c && countSummary('C', c, comparison!.missingCourseCount)}
     {!p && <p className="maneuver-profile__count">P profile data unavailable.</p>}
@@ -239,6 +249,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
         <div className="sog-signal-chart__x-axis" aria-hidden="true"><span>−25 s</span><span>t=0</span><span>+25 s</span></div>
       </div>
     </div>
+    </>}
     {signal === 'SOG' && <section className="maneuver-insights" aria-label="Maneuver Insights">
       <h3>SOG Maneuver Insights</h3>
       <p>Supported raw median SOG</p>
@@ -271,6 +282,6 @@ export default function ManeuverSogComparison({ primary, comparison }: {
         heelInsight('Exit HEEL', 'exitHeel', pHeelInsights, cHeelInsights),
       ])}
     </section>}
-    <p className="maneuver-profile__basis">Curves require 3 {signal}-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.{signal === 'COG' ? ' COG shows oriented relative turn degrees, not geographic course; t=0 remains the event center.' : ''}</p>
+    {signal !== 'TRACE' && <p className="maneuver-profile__basis">Curves require 3 {signal}-eligible maneuvers and 3 contributors at each drawn second. Gaps remain open.{signal === 'COG' ? ' COG shows oriented relative turn degrees, not geographic course; t=0 remains the event center.' : ''}</p>}
   </section>
 }

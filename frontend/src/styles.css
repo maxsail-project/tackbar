@@ -1609,6 +1609,39 @@ input:focus-visible {
 }
 
 .maneuver-profile__count strong { color: #17323a; }
+.maneuver-trace {
+  width: 100%;
+  max-width: 520px;
+  margin: 10px auto 0;
+}
+.maneuver-trace__plot {
+  aspect-ratio: 1 / 1;
+  border: 1px solid #c9d9dc;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff, #edf4f5);
+  overflow: hidden;
+}
+.maneuver-trace__plot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.maneuver-trace__plot path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.maneuver-trace__axes line {
+  stroke: #9fb3b8;
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+.maneuver-trace__axis {
+  margin: 4px 0;
+  color: #60777e;
+  font-size: 0.72rem;
+  text-align: center;
+}
 .maneuver-insights {
   margin-top: 16px;
   padding: 12px;

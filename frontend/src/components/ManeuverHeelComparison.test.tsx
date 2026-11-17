@@ -38,7 +38,7 @@ describe('typical HEEL chart selection', () => {
     expect(selection.signal).toBe('HEEL')
     let html = renderToStaticMarkup(<ManeuverSogComparison {...input} />)
     expect(html).toMatch(/aria-pressed="true"[^>]*>HEEL<\/button>/)
-    expect(html).toContain('grid-template-columns:repeat(3, minmax(0, 1fr))')
+    expect(html).toContain('grid-template-columns:repeat(4, minmax(0, 1fr))')
     signalButton(ManeuverSogComparison(input), 'COG')?.props.onClick()
     expect(selection.signal).toBe('COG')
     signalButton(ManeuverSogComparison(input), 'SOG')?.props.onClick()

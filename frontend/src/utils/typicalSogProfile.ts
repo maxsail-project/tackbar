@@ -2,7 +2,8 @@ import type { Maneuver } from '../types/maneuver'
 import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from './analysisWindow'
 import { maneuverCourseReferencesFromEvidence, prepareCourseEvidence } from './maneuverCourseChange'
-import { extractManeuverProfile, prepareManeuverSampleIndex, type ManeuverProfilePoint } from './maneuverProfiles'
+import { extractManeuverProfile, prepareManeuverSampleIndex, profileValueAtOffset } from './maneuverProfiles'
+import { prepareManeuverTrace, type PreparedTraceResult } from './maneuverTrace'
 import { relativeCogProfile } from './typicalCogProfile'
 
 export interface TypicalSogGridPoint {
@@ -28,6 +29,7 @@ export interface PreparedSogManeuver {
   cogGrid?: (number | null)[] | null
   heelNominalCoverage?: number
   heelGrid?: (number | null)[]
+  trace?: PreparedTraceResult
 }
 
 export interface PreparedSogPopulation {
@@ -45,25 +47,8 @@ export interface TypicalHeelProfile extends Omit<TypicalSogProfile, 'grid'> {
   grid: { offsetSeconds: number, medianHeelDeg: number | null, contributorCount: number }[]
 }
 
-function sogAtOffset(points: readonly ManeuverProfilePoint[], offsetSeconds: number): number | null {
-  for (let index = 0; index < points.length; index += 1) {
-    const point = points[index]
-    if (point.relativeTimeSeconds === offsetSeconds) return point.value
-
-    const previous = points[index - 1]
-    if (
-      previous
-      && point.connectToPrevious
-      && previous.relativeTimeSeconds < offsetSeconds
-      && offsetSeconds < point.relativeTimeSeconds
-    ) {
-      const fraction = (offsetSeconds - previous.relativeTimeSeconds)
-        / (point.relativeTimeSeconds - previous.relativeTimeSeconds)
-      return previous.value + fraction * (point.value - previous.value)
-    }
-  }
-  return null
-}
+/** Shared exact-or-connected-bracket 1s grid rule. */
+const sogAtOffset = profileValueAtOffset
 
 function median(values: number[]): number {
   values.sort((first, second) => first - second)
@@ -101,6 +86,7 @@ export function prepareSogManeuverPopulation(
       cogGrid: relativeCog === null ? null : Array.from({ length: 51 }, (_, index) => sogAtOffset(relativeCog, index - 25)),
       heelNominalCoverage: profile.heel.nominalCoverage,
       heelGrid: Array.from({ length: 51 }, (_, index) => sogAtOffset(absoluteHeel, index - 25)),
+      trace: prepareManeuverTrace(profile.position, references),
     })
   }
   return { detectedCount: maneuvers.length, windowEligibleCount, missingCourseCount, maneuvers: prepared }
