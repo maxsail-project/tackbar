@@ -24,6 +24,7 @@ import { calculateHeelManeuverInsights, heelManeuverAxisBounds, type HeelManeuve
 import ManeuverAngleRange, { type AngleBand } from './ManeuverAngleRange'
 import ManeuverTraceChart from './ManeuverTraceChart'
 import { aggregatePreparedTracePopulation } from '../utils/maneuverTrace'
+import { roundedInsightComparison } from '../utils/insightComparison'
 
 export function supportedSogPoints(profile: TypicalSogProfile): SogChartPoint[] {
   return profile.grid.map((point) => ({
@@ -138,11 +139,7 @@ function cogValue(value: number | null, unit: '°' | 's', signed = false) {
   return `${signed && value >= 0 ? '+' : ''}${value.toFixed(1)}${unit}`
 }
 
-export function roundedInsightComparison(primary: number | null, comparison: number | null, unit: '°' | 's') {
-  if (primary === null || comparison === null) return '—'
-  const difference = Math.abs(primary - comparison).toFixed(1)
-  return difference === '0.0' ? 'Similar' : `${primary > comparison ? 'P' : 'C'} +${difference}${unit}`
-}
+export { roundedInsightComparison }
 
 function cogInsight(label: string, metric: 'turnAngleDeg' | 'turnMidpointSeconds' | 'turnDurationSeconds',
   primary: CogManeuverInsights | null, comparison: CogManeuverInsights | null): InsightColumn {

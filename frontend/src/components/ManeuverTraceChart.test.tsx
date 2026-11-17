@@ -17,7 +17,8 @@ vi.mock('react', async (importOriginal) => {
 })
 
 import ManeuverSogComparison from './ManeuverSogComparison'
-import ManeuverTraceChart, { medianPath, signedDegrees, traceScaleBarMetres, traceViewFrame } from './ManeuverTraceChart'
+import ManeuverTraceChart, { medianPath, traceScaleBarMetres, traceViewFrame } from './ManeuverTraceChart'
+import { roundedInsightComparison } from '../utils/insightComparison'
 import { aggregatePreparedTracePopulation } from '../utils/maneuverTrace'
 
 function trace(side: TurnSide, scale = 1, coverage = 1, gapAt: number[] = []): PreparedManeuverTrace {
@@ -210,7 +211,7 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
   const rowOf = (table: string, label: string) => table.match(new RegExp(`<tr[^>]*><th scope="row"[^>]*>${label}</th>([\\s\\S]*?)</tr>`))![1]
     .match(/<td>([^<]*)<\/td>/g)!.map((cell) => cell.replace(/<\/?td>/g, ''))
 
-  it('shows P, C and signed P − C rows by Left turns, Right turns and L − R, with the active band', () => {
+  it('shows P, C and P − C rows by Left turns, Right turns and L − R, with the active band', () => {
     const primary = aggregatePreparedTracePopulation(angled([['left', 90], ['left', 95], ['left', 100], ['right', 80], ['right', 85], ['right', 90], ['right', 95]]), 40, 100)
     const comparison = aggregatePreparedTracePopulation(angled([['left', 88], ['left', 92], ['left', 96], ['right', 90], ['right', 91]]), 40, 100)
     const html = renderToStaticMarkup(<ManeuverTraceChart primary={primary} comparison={comparison} band={{ minimum: 40, maximum: 100 }} />)
@@ -218,11 +219,11 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
     expect(table).toContain('<h3>Median event |ΔCOG| by turn side</h3>')
     expect(table).toContain('|ΔCOG| band 40°–100°')
     expect(table).toContain('not the COG Insights Turn angle')
-    expect(table).toContain('L − R and P − C are signed differences')
+    expect(table).not.toContain('signed differences')
     expect(table).toMatch(/<th scope="col">Left turns<\/th><th scope="col">Right turns<\/th><th scope="col">L − R<\/th>/)
-    expect(rowOf(table, 'P')).toEqual(['95.0° (3)', '87.5° (4)', '+7.5°'])
+    expect(rowOf(table, 'P')).toEqual(['95.0° (3)', '87.5° (4)', 'L +7.5°'])
     expect(rowOf(table, 'C')).toEqual(['92.0° (3)', '—', '—'])
-    expect(rowOf(table, 'P − C')).toEqual(['+3.0°', '—', '—'])
+    expect(rowOf(table, 'P − C')).toEqual(['P +3.0°', '—', '—'])
     expect(table).not.toMatch(/port|starboard|tack|gybe|TWD/i)
     // The table sits below the plot and before the reading note.
     expect(html.indexOf('</figure>')).toBeLessThan(html.indexOf('data-trace-turn-angles'))
@@ -232,17 +233,28 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
   it('shows only P values in a single-Activity view', () => {
     const primary = aggregatePreparedTracePopulation(angled([['left', 90], ['left', 92], ['left', 94], ['right', 80], ['right', 82], ['right', 84]]), 40, 100)
     const table = tableOf(renderToStaticMarkup(<ManeuverTraceChart primary={primary} band={{ minimum: 40, maximum: 100 }} />))
-    expect(rowOf(table, 'P')).toEqual(['92.0° (3)', '82.0° (3)', '+10.0°'])
+    expect(rowOf(table, 'P')).toEqual(['92.0° (3)', '82.0° (3)', 'L +10.0°'])
     expect(table).not.toMatch(/scope="row"[^>]*>C<\/th>/)
     expect(table).not.toContain('>P − C</th>')
   })
 
-  it('formats signed differences explicitly', () => {
-    expect(signedDegrees(4.25)).toBe('+4.3°')
-    expect(signedDegrees(-4.25)).toBe('−4.3°')
-    expect(signedDegrees(0.04)).toBe('0.0°')
-    expect(signedDegrees(-0.04)).toBe('0.0°')
-    expect(signedDegrees(null)).toBe('—')
+  it('names the larger side or role like the other Insights tables, and never fills P − C × L − R', () => {
+    const primary = aggregatePreparedTracePopulation(angled([['left', 80], ['left', 82], ['left', 84], ['right', 90], ['right', 92], ['right', 94]]), 40, 100)
+    const comparison = aggregatePreparedTracePopulation(angled([['left', 82.03], ['left', 82.03], ['left', 82.03], ['right', 80], ['right', 81], ['right', 82]]), 40, 100)
+    const table = tableOf(renderToStaticMarkup(<ManeuverTraceChart primary={primary} comparison={comparison} band={{ minimum: 40, maximum: 100 }} />))
+    expect(rowOf(table, 'P')).toEqual(['82.0° (3)', '92.0° (3)', 'R +10.0°'])
+    expect(rowOf(table, 'C')).toEqual(['82.0° (3)', '81.0° (3)', 'L +1.0°'])
+    expect(rowOf(table, 'P − C')).toEqual(['Similar', 'P +11.0°', '—'])
+    expect(table).not.toMatch(/<td>[−+]\d/)
+  })
+
+  it('generalizes the shared Insights comparison to L/R labels without changing P/C', () => {
+    expect(roundedInsightComparison(96.3, 90, '°', ['L', 'R'])).toBe('L +6.3°')
+    expect(roundedInsightComparison(88, 90.1, '°', ['L', 'R'])).toBe('R +2.1°')
+    expect(roundedInsightComparison(90, 90.04, '°', ['L', 'R'])).toBe('Similar')
+    expect(roundedInsightComparison(null, 90, '°', ['L', 'R'])).toBe('—')
+    expect(roundedInsightComparison(92.3, 90, '°')).toBe('P +2.3°')
+    expect(roundedInsightComparison(89, 90, '°')).toBe('C +1.0°')
   })
 
   it('follows the shared band in the Maneuver Profiles TRACE view', () => {

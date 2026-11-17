@@ -155,11 +155,6 @@ function median(values: number[]): number {
   return values.length % 2 === 1 ? values[middle] : (values[middle - 1] + values[middle]) / 2
 }
 
-/** Signed first − second (e.g. L − R, P − C), only when both operands are supported. */
-export function turnAngleDifference(first: number | null, second: number | null): number | null {
-  return first === null || second === null ? null : first - second
-}
-
 function aggregateSide(side: TurnSide, traced: readonly { trace: PreparedManeuverTrace, turnDeg: number }[]): TraceSideAggregate {
   const traces = traced.map(({ trace }) => trace)
   // Magnitudes lie in 0–180°, so an arithmetic median is valid here (not a course mean).

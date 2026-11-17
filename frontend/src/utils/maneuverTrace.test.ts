@@ -9,7 +9,6 @@ import {
   projectLocalMetres,
   rotateToBisector,
   traceCenterAnchor,
-  turnAngleDifference,
   type PreparedManeuverTrace,
   type TracePoint,
 } from './maneuverTrace'
@@ -375,12 +374,5 @@ describe('median event |ΔCOG| per turn side (#202)', () => {
     const aggregate = aggregatePreparedTracePopulation(prepareSogManeuverPopulation(centers.map(event), samples, fullWindow), 0, 180)
     expect(aggregate.right.turnAngle.count).toBe(3)
     expect(aggregate.right.turnAngle.medianDeg).toBeCloseTo(90, 6)
-  })
-
-  it('signs differences as first minus second and needs both operands', () => {
-    expect(turnAngleDifference(95, 90)).toBe(5)
-    expect(turnAngleDifference(85, 90)).toBe(-5)
-    expect(turnAngleDifference(null, 90)).toBeNull()
-    expect(turnAngleDifference(90, null)).toBeNull()
   })
 })

@@ -4,11 +4,11 @@ import {
   TRACE_MEDIAN_MIN_COVERAGE,
   TRACE_MEDIAN_MIN_MANEUVERS,
   TRACE_TURN_ANGLE_MIN_MANEUVERS,
-  turnAngleDifference,
   type TraceAggregate,
   type TracePoint,
   type TraceSideAggregate,
 } from '../utils/maneuverTrace'
+import { roundedInsightComparison } from '../utils/insightComparison'
 
 type Role = 'primary' | 'comparison'
 
@@ -85,32 +85,23 @@ function turnAngleCell(side: TraceSideAggregate | undefined) {
   return side?.turnAngle.medianDeg == null ? '—' : `${side.turnAngle.medianDeg.toFixed(1)}° (${side.turnAngle.count})`
 }
 
-export function signedDegrees(value: number | null) {
-  if (value === null) return '—'
-  const rounded = value.toFixed(1)
-  if (Number(rounded) === 0) return '0.0°'
-  return `${value > 0 ? '+' : '−'}${Math.abs(value).toFixed(1)}°`
-}
-
 /** #202: median event |ΔCOG| per P/C × turn side, from the existing course references. */
 function turnAngleTable(primary: TraceAggregate | null, comparison: TraceAggregate | null | undefined,
   band: { minimum: number, maximum: number } | undefined) {
   const median = (trace: TraceAggregate | null | undefined, side: 'left' | 'right') => trace?.[side].turnAngle.medianDeg ?? null
   const leftMinusRight = (trace: TraceAggregate | null | undefined) =>
-    signedDegrees(turnAngleDifference(median(trace, 'left'), median(trace, 'right')))
-  const primaryMinusComparison = (side: 'left' | 'right') => signedDegrees(turnAngleDifference(median(primary, side), median(comparison, side)))
-  const pLR = turnAngleDifference(median(primary, 'left'), median(primary, 'right'))
-  const cLR = turnAngleDifference(median(comparison, 'left'), median(comparison, 'right'))
+    roundedInsightComparison(median(trace, 'left'), median(trace, 'right'), '°', ['L', 'R'])
+  const primaryMinusComparison = (side: 'left' | 'right') => roundedInsightComparison(median(primary, side), median(comparison, side), '°')
   return <section className="maneuver-insights" aria-label="Median event |ΔCOG| by turn side" data-trace-turn-angles="true">
     <h3>Median event |ΔCOG| by turn side</h3>
-    <p>{band ? `|ΔCOG| band ${band.minimum}°–${band.maximum}° · ` : ''}per-event course change of all traced maneuvers (count), not the COG Insights Turn angle · at least {TRACE_TURN_ANGLE_MIN_MANEUVERS} per cell · L − R and P − C are signed differences</p>
+    <p>{band ? `|ΔCOG| band ${band.minimum}°–${band.maximum}° · ` : ''}per-event course change of all traced maneuvers (count), not the COG Insights Turn angle · at least {TRACE_TURN_ANGLE_MIN_MANEUVERS} per cell</p>
     <table className="maneuver-insights__table">
       <thead><tr><th scope="col" aria-label="Activity" /><th scope="col">Left turns</th><th scope="col">Right turns</th><th scope="col">L − R</th></tr></thead>
       <tbody>
         <tr><th scope="row" style={{ color: ACTIVITY_COLORS.primary }}>P</th><td>{turnAngleCell(primary?.left)}</td><td>{turnAngleCell(primary?.right)}</td><td>{leftMinusRight(primary)}</td></tr>
         {comparison !== undefined && <>
           <tr><th scope="row" style={{ color: ACTIVITY_COLORS.comparison }}>C</th><td>{turnAngleCell(comparison?.left)}</td><td>{turnAngleCell(comparison?.right)}</td><td>{leftMinusRight(comparison)}</td></tr>
-          <tr className="maneuver-insights__compare"><th scope="row">P − C</th><td>{primaryMinusComparison('left')}</td><td>{primaryMinusComparison('right')}</td><td>{signedDegrees(turnAngleDifference(pLR, cLR))}</td></tr>
+          <tr className="maneuver-insights__compare"><th scope="row">P − C</th><td>{primaryMinusComparison('left')}</td><td>{primaryMinusComparison('right')}</td><td>—</td></tr>
         </>}
       </tbody>
     </table>
