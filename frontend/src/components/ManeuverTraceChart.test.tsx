@@ -226,8 +226,10 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
     expect(table).not.toContain('P − C')
     expect(rowOf(table, 'P')).toEqual(['95.0° (3)', '87.5° (4)'])
     expect(rowOf(table, 'C')).toEqual(['92.0° (3)', '90.5° (2)'])
-    expect(differenceRow(table)).toEqual(['P +3.0°', '—'])
-    expect(readingOf(table)).toBe('Turn-side difference · P left +7.5° · C unavailable')
+    // Right: P has 4, C has 2 → computed but indicative.
+    expect(differenceRow(table)).toEqual(['P +3.0°', 'C +3.0°'])
+    expect(readingOf(table)).toBe('Turn-side difference · P left +7.5° · C left +1.5° (few maneuvers)')
+    expect(table).not.toContain('unavailable')
     expect(table).toContain('class="maneuver-insights__recovery"')
     expect(table).not.toMatch(/\b(port|starboard|tacks?|gybes?|TWD)\b/i)
     // The table sits below the plot and before the reading note.
@@ -241,7 +243,9 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
     expect(rowOf(table, 'P')).toEqual(['92.0° (3)', '82.0° (3)'])
     expect(rowOf(table, 'C')).toEqual(['—', '—'])
     expect(differenceRow(table)).toEqual(['—', '—'])
-    expect(readingOf(table)).toBe('Turn-side difference · P left +10.0° · C unavailable')
+    expect(readingOf(table)).toBe('Turn-side difference · P left +10.0° · C —')
+    expect(table).not.toContain('unavailable')
+    expect(table).not.toContain('maneuver-insights__cell--indicative')
   })
 
   it('reads right, similar and P/C differences with the shared Insights format', () => {
@@ -255,17 +259,19 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
     expect(table).not.toMatch(/<td>[−+]\d/)
   })
 
-  it('shows 1, 2 and ≥3 maneuver cells with counts, muting 1–2 as indicative and blocking their comparisons', () => {
+  it('shows 1, 2 and ≥3 maneuver cells with counts, muting 1–2 and their comparisons as indicative', () => {
     const primary = aggregatePreparedTracePopulation(angled([['left', 70], ['right', 90], ['right', 95]]), 40, 100)
     const comparison = aggregatePreparedTracePopulation(angled([['left', 60], ['left', 62], ['left', 64], ['right', 80], ['right', 82], ['right', 84]]), 40, 100)
     const table = tableOf(renderToStaticMarkup(<ManeuverTraceChart primary={primary} comparison={comparison} band={{ minimum: 40, maximum: 100 }} />))
     expect(rowOf(table, 'P')).toEqual(['70.0° (1)', '92.5° (2)'])
     expect(rowOf(table, 'C')).toEqual(['62.0° (3)', '82.0° (3)'])
-    const indicative = [...table.matchAll(/<td class="maneuver-insights__cell--indicative" title="Indicative: fewer than 3 traced maneuvers">([^<]*)<\/td>/g)].map((match) => match[1])
-    expect(indicative).toEqual(['70.0° (1)', '92.5° (2)'])
-    // Both operands have values, but P is below 3: comparisons stay unavailable.
-    expect(differenceRow(table)).toEqual(['—', '—'])
-    expect(readingOf(table)).toBe('Turn-side difference · P unavailable · C right +20.0°')
+    // Both operands have values but P is below 3: comparisons are computed and muted as indicative.
+    expect(differenceRow(table)).toEqual(['P +8.0°', 'P +10.5°'])
+    expect(readingOf(table)).toBe('Turn-side difference · P right +22.5° (few maneuvers) · C right +20.0°')
+    const mutedDifferences = [...table.matchAll(/<td class="maneuver-insights__cell--indicative" title="Indicative: fewer than 3 traced maneuvers">([^<]*)<\/td>/g)].map((match) => match[1])
+    expect(mutedDifferences).toEqual(['70.0° (1)', '92.5° (2)', 'P +8.0°', 'P +10.5°'])
+    expect(table).toMatch(/<span style="color:#168097" class="maneuver-insights__cell--indicative" title="Indicative: fewer than 3 traced maneuvers">P right \+22\.5° \(few maneuvers\)<\/span>/)
+    expect(table).toMatch(/<span style="color:#9a5aaf">C right \+20\.0°<\/span>/)
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
     expect(css).toMatch(/\.wind-segments__label--muted,\s*\.maneuver-insights__cell--indicative \{ opacity: 0\.6; \}/)
   })
@@ -277,11 +283,15 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
     expect(table).not.toContain('maneuver-insights__cell--indicative')
   })
 
-  it('reads a side below three traced maneuvers as unavailable', () => {
+  it('reads a role with one indicative side as "(few maneuvers)" and a role without data as "—"', () => {
     const primary = aggregatePreparedTracePopulation(angled([['left', 80], ['left', 82], ['right', 90], ['right', 92], ['right', 94]]), 40, 100)
-    expect(turnSideReading(primary)).toBe('unavailable')
-    expect(turnSideReading(null)).toBe('unavailable')
-    expect(turnSideReading(undefined)).toBe('unavailable')
+    expect(turnSideReading(primary)).toEqual({ text: 'right +11.0° (few maneuvers)', indicative: true })
+    const similar = aggregatePreparedTracePopulation(angled([['left', 80], ['right', 80.04]]), 40, 100)
+    expect(turnSideReading(similar)).toEqual({ text: 'similar (few maneuvers)', indicative: true })
+    const leftOnly = aggregatePreparedTracePopulation(angled([['left', 80], ['left', 82], ['left', 84]]), 40, 100)
+    expect(turnSideReading(leftOnly)).toEqual({ text: '—', indicative: false })
+    expect(turnSideReading(null)).toEqual({ text: '—', indicative: false })
+    expect(turnSideReading(undefined)).toEqual({ text: '—', indicative: false })
   })
 
   it('generalizes the shared Insights comparison to L/R labels without changing P/C', () => {

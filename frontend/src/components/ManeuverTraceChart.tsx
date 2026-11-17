@@ -85,30 +85,45 @@ function turnAngleCell(side: TraceSideAggregate | undefined) {
   return side?.turnAngle.medianDeg == null ? '—' : `${side.turnAngle.medianDeg.toFixed(1)}° (${side.turnAngle.count})`
 }
 
+const INDICATIVE_TITLE = `Indicative: fewer than ${TRACE_TURN_ANGLE_MIN_MANEUVERS} traced maneuvers`
+
 /** Cells with 1–2 traced maneuvers stay visible but muted as indicative. */
 function turnAngleTd(side: TraceSideAggregate | undefined) {
   const indicative = side !== undefined && side.turnAngle.count > 0 && !side.turnAngle.supported
   return indicative
-    ? <td className="maneuver-insights__cell--indicative" title={`Indicative: fewer than ${TRACE_TURN_ANGLE_MIN_MANEUVERS} traced maneuvers`}>{turnAngleCell(side)}</td>
+    ? <td className="maneuver-insights__cell--indicative" title={INDICATIVE_TITLE}>{turnAngleCell(side)}</td>
     : <td>{turnAngleCell(side)}</td>
 }
 
-/** Comparisons use only supported (≥3) medians. */
-function supportedTurnAngle(trace: TraceAggregate | null | undefined, side: 'left' | 'right') {
-  const value = trace?.[side].turnAngle
-  return value?.supported ? value.medianDeg : null
+type TurnAngleOperand = TraceSideAggregate['turnAngle'] | undefined
+
+/** A comparison exists whenever both operands have a value; it is indicative when either has fewer than 3. */
+function turnAngleComparison(first: TurnAngleOperand, second: TurnAngleOperand, labels?: readonly [string, string]) {
+  const text = roundedInsightComparison(first?.medianDeg ?? null, second?.medianDeg ?? null, '°', labels)
+  return { text, indicative: text !== '—' && !(first!.supported && second!.supported) }
 }
 
-/** Per-role left/right reading for the line below the table: "left +x°", "similar" or "unavailable". */
+/** Per-role left/right reading: "left +x°" or "similar", with "(few maneuvers)" when indicative; "—" without data. */
 export function turnSideReading(trace: TraceAggregate | null | undefined) {
-  const reading = roundedInsightComparison(supportedTurnAngle(trace, 'left'), supportedTurnAngle(trace, 'right'), '°', ['left', 'right'])
-  return reading === '—' ? 'unavailable' : reading === 'Similar' ? 'similar' : reading
+  const { text, indicative } = turnAngleComparison(trace?.left.turnAngle, trace?.right.turnAngle, ['left', 'right'])
+  const reading = text === 'Similar' ? 'similar' : text
+  return { text: indicative ? `${reading} (few maneuvers)` : reading, indicative }
+}
+
+function turnSideSegment(role: 'P' | 'C', trace: TraceAggregate | null | undefined) {
+  const { text, indicative } = turnSideReading(trace)
+  const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
+  return <span style={{ color }} className={indicative ? 'maneuver-insights__cell--indicative' : undefined}
+    title={indicative ? INDICATIVE_TITLE : undefined}>{role} {text}</span>
 }
 
 /** #202: median event |ΔCOG| per P/C × turn side, from the existing course references. */
 function turnAngleTable(primary: TraceAggregate | null, comparison: TraceAggregate | null | undefined,
   band: { minimum: number, maximum: number } | undefined) {
-  const difference = (side: 'left' | 'right') => roundedInsightComparison(supportedTurnAngle(primary, side), supportedTurnAngle(comparison, side), '°')
+  const differenceTd = (side: 'left' | 'right') => {
+    const { text, indicative } = turnAngleComparison(primary?.[side].turnAngle, comparison?.[side].turnAngle)
+    return indicative ? <td className="maneuver-insights__cell--indicative" title={INDICATIVE_TITLE}>{text}</td> : <td>{text}</td>
+  }
   return <section className="maneuver-insights" aria-label="Median event |ΔCOG|" data-trace-turn-angles="true">
     <h3>Median event |ΔCOG|</h3>
     <p>Supported median per-event |ΔCOG|{band ? ` · band ${band.minimum}°–${band.maximum}°` : ''}</p>
@@ -117,10 +132,10 @@ function turnAngleTable(primary: TraceAggregate | null, comparison: TraceAggrega
       <tbody>
         <tr><th scope="row" style={{ color: ACTIVITY_COLORS.primary }}>P</th>{turnAngleTd(primary?.left)}{turnAngleTd(primary?.right)}</tr>
         <tr><th scope="row" style={{ color: ACTIVITY_COLORS.comparison }}>C</th>{turnAngleTd(comparison?.left)}{turnAngleTd(comparison?.right)}</tr>
-        <tr className="maneuver-insights__compare"><th scope="row" aria-label="Comparison" /><td>{difference('left')}</td><td>{difference('right')}</td></tr>
+        <tr className="maneuver-insights__compare"><th scope="row" aria-label="Comparison" />{differenceTd('left')}{differenceTd('right')}</tr>
       </tbody>
     </table>
-    <p className="maneuver-insights__recovery" data-trace-turn-side-difference="true"><strong>Turn-side difference</strong> · <span style={{ color: ACTIVITY_COLORS.primary }}>P {turnSideReading(primary)}</span> · <span style={{ color: ACTIVITY_COLORS.comparison }}>C {turnSideReading(comparison)}</span></p>
+    <p className="maneuver-insights__recovery" data-trace-turn-side-difference="true"><strong>Turn-side difference</strong> · {turnSideSegment('P', primary)} · {turnSideSegment('C', comparison)}</p>
   </section>
 }
 
