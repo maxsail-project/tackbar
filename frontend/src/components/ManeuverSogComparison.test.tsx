@@ -54,6 +54,7 @@ describe('maneuver SOG comparison', () => {
     expect(html).not.toContain('SOG drop')
     expect(html).not.toContain('detected')
     expect(html).toContain('t=0')
+    expect(html).toContain('<span>−25s</span><span>t=0</span><span>+25s</span>')
   })
 
   it('renders one compact three-column comparison table at every width', () => {

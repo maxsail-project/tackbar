@@ -243,7 +243,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
           {signal === 'SOG' && recoveryChartLabel('P', pRecovery, bounds)}
           {signal === 'SOG' && recoveryChartLabel('C', cRecovery, bounds)}
         </div>
-        <div className="sog-signal-chart__x-axis" aria-hidden="true"><span>−25 s</span><span>t=0</span><span>+25 s</span></div>
+        <div className="sog-signal-chart__x-axis" aria-hidden="true"><span>−25s</span><span>t=0</span><span>+25s</span></div>
       </div>
     </div>
     </>}

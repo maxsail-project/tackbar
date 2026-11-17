@@ -313,7 +313,7 @@ describe('WindContextSection', () => {
       primaryProgress={progress('upwind', 609, 893, 1.65)} comparisonProgress={progress('upwind', 569, 814, 1.54)}
     />)
     const content = text(markup)
-    expect(content).toContain('P gained 40 m to windward on C — equivalent to about 25 s of sailing.')
+    expect(content).toContain('P gained 40 m to windward on C — equivalent to about 25s of sailing.')
     expect(content).toContain('At 11:37:35 P level with C → at 11:43:45 40 m to windward of C')
     expect(content).not.toContain('efficiency')
     expect(markup).not.toContain('data-wind-lateral-caution')
@@ -326,7 +326,7 @@ describe('WindContextSection', () => {
       primaryProgress={progress('upwind', 569, 814, 1.54, 0, 0)} comparisonProgress={progress('upwind', 609, 893, 1.65, -20, 200)}
     />)
     const content = text(markup)
-    expect(content).toContain('P lost 40 m to windward on C — equivalent to about 25 s of sailing.')
+    expect(content).toContain('P lost 40 m to windward on C — equivalent to about 25s of sailing.')
     expect(content).toContain('At 11:37:35 P 20 m to windward of C → at 11:43:45 20 m to leeward of C')
     expect(markup.match(/data-wind-lateral-caution/g)).toHaveLength(1)
     expect(content).toContain('Boats far apart sideways: results sensitive to TWD')

@@ -69,7 +69,7 @@ export function HistoricalConditionsDetail({
     ['Cloud cover', formatHistoricalConditionsValue(sample.cloud_cover_pct, '%')],
     ['Wave height', formatHistoricalConditionsValue(sample.wave_height_m, ' m')],
     ['Wave direction', formatHistoricalConditionsValue(sample.wave_direction_deg, '°')],
-    ['Wave period', formatHistoricalConditionsValue(sample.wave_period_s, ' s')],
+    ['Wave period', formatHistoricalConditionsValue(sample.wave_period_s, 's')],
     ['Sample time', formatHistoricalConditionsTime(sample.time)],
   ].filter((item): item is [string, string] => item[1] !== null)
 

@@ -213,7 +213,7 @@ export function formatProgressDifference(difference: ProgressDifference) {
   const verb = difference.gainMeters >= 0 ? 'gained' : 'lost'
   const meters = Math.round(Math.abs(difference.gainMeters))
   const seconds = Math.round(difference.seconds)
-  return `P ${verb} ${meters} m to ${direction} on C — equivalent to about ${seconds} s of sailing.`
+  return `P ${verb} ${meters} m to ${direction} on C — equivalent to about ${seconds}s of sailing.`
 }
 
 function formatGap(gap: ProgressGap, sector: ProgressSector, config: WindContextConfig) {

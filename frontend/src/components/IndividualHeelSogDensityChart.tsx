@@ -1,5 +1,5 @@
 import { HEEL_SOG_DENSITY_CONFIG } from '../config/heelSogDensity'
-import { withTypographicMinus } from '../utils/numberFormat'
+import { formatFixed, withTypographicMinus } from '../utils/numberFormat'
 import type {
   ActivityHeelSogDensity,
   HeelSogDensityGeometry,
@@ -164,7 +164,7 @@ export default function IndividualHeelSogDensityChart({
                     y={plotMargin.top + plotHeight + 17}
                     textAnchor={index === 0 ? 'start' : index === 2 ? 'end' : 'middle'}
                   >
-                    {Number.isInteger(tick) ? tick : tick.toFixed(2)}
+                    {formatFixed(tick, 1)}
                   </text>
                 </g>
               )

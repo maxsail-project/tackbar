@@ -82,6 +82,7 @@ describe('historical conditions map control', () => {
       expect(markup).toContain(label)
     }
     expect(markup).toContain('<dt>Gusts</dt><dd>19 kt</dd>')
+    expect(markup).toContain('<dt>Wave period</dt><dd>3.4s</dd>')
     expect(markup).not.toContain('Historical · modelled')
     expect(markup).toContain('aria-label="Historical modelled conditions"')
     expect(markup).toContain('Source: Open-Meteo')

@@ -407,7 +407,9 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('Historical conditions · 1 hourly samples')
     expect(markup).toContain('open-meteo · forecast')
     expect(markup).toContain('23 °C')
-    expect(markup).toContain('14 kn')
+    expect(markup).toContain('14 kt')
+    expect(markup).toContain('18 kt')
+    expect(markup).not.toContain(' kn<')
     expect(markup).toContain('Enrich Session')
     expect(markup).toContain('<h4>Geographic context</h4>')
     expect(markup).toContain('Comunitat Valenciana')
@@ -426,6 +428,9 @@ describe('minimal Admin UI', () => {
       ],
     }
     const markup = renderToStaticMarkup(<HistoricalConditionsInspection conditions={conditions} />)
+    expect(markup).toContain('<td>14 kt</td>')
+    expect(markup).toContain('<td>5s</td>')
+    expect(markup).not.toContain('5 s<')
     const headers = [...markup.matchAll(/<th>(.*?)<\/th>/g)].map((match) => match[1])
     const rows = [...markup.matchAll(/<tr>(.*?)<\/tr>/g)].slice(1).map((match) => [...match[1].matchAll(/<td>(.*?)<\/td>/g)].map((cell) => cell[1]))
 
