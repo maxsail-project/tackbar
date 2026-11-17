@@ -161,6 +161,8 @@ The frontend should consume a stable API contract.
 
 Storage implementation must remain hidden from the frontend.
 
+Numeric values in Viewer analysis and summary tables use the inherited proportional font with `tabular-nums`; monospace is reserved for live instrument-style readouts and identifier codes.
+
 The backend owns persistence access, domain resolution and canonical track
 loading. The frontend may own ephemeral Viewer interaction and presentation
 state such as Activity selection, Analysis Window, filtered samples,

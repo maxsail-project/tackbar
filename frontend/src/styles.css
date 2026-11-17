@@ -1104,11 +1104,10 @@ input:focus-visible {
 .selected-maneuvers__table tbody th,
 .selected-maneuvers__table tbody td {
   border-top: 1px solid #d3e0e2;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .selected-maneuvers__table .selected-maneuvers__role {
-  font-family: inherit;
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -1536,7 +1535,7 @@ input:focus-visible {
 .analysis-window__summary-table tbody th,
 .analysis-window__summary-table tbody td {
   border-top: 1px solid #d3e0e2;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .analysis-window__summary-table tbody td {
@@ -1545,7 +1544,6 @@ input:focus-visible {
 }
 
 .analysis-window__summary-table tbody th {
-  font-family: inherit;
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -3711,10 +3709,9 @@ input:focus-visible {
 .wind-metric-table tbody th,
 .wind-metric-table tbody td { border-top: 1px solid #d3e0e2; }
 .wind-metric-table tbody th[scope="row"] { font-weight: 600; text-align: left; }
-.wind-metric-table tbody td { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.wind-metric-table tbody td { font-variant-numeric: tabular-nums; }
 .wind-metric-table .wind-metric-table__label { width: 46%; }
 .wind-metric-table--breakdown tbody th[scope="row"] { text-align: center; font-weight: 800; }
-.wind-metric-table--breakdown tbody td { font-family: inherit; }
 .wind-breakdown { margin-top: 8px; }
 .wind-breakdown__toggle {
   min-height: 44px;
