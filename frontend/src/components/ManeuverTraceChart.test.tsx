@@ -270,10 +270,11 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
     expect(readingOf(table)).toBe('Turn-side difference · P right +22.5° (few maneuvers) · C right +20.0°')
     const mutedDifferences = [...table.matchAll(/<td class="maneuver-insights__cell--indicative" title="Indicative: fewer than 3 traced maneuvers">([^<]*)<\/td>/g)].map((match) => match[1])
     expect(mutedDifferences).toEqual(['70.0° (1)', '92.5° (2)', 'P +8.0°', 'P +10.5°'])
-    expect(table).toMatch(/<span style="color:#168097" class="maneuver-insights__cell--indicative" title="Indicative: fewer than 3 traced maneuvers">P right \+22\.5° \(few maneuvers\)<\/span>/)
+    expect(table).toMatch(/<span style="color:#168097">P<\/span> <span class="maneuver-insights__cell--indicative" title="Indicative: fewer than 3 traced maneuvers">right \+22\.5° \(few maneuvers\)<\/span>/)
     expect(table).toMatch(/<span style="color:#9a5aaf">C right \+20\.0°<\/span>/)
     const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
-    expect(css).toMatch(/\.wind-segments__label--muted,\s*\.maneuver-insights__cell--indicative \{ opacity: 0\.6; \}/)
+    expect(css).toMatch(/\.wind-segments__label--muted \{ opacity: 0\.6; \}/)
+    expect(css).toMatch(/\.maneuver-insights__cell--indicative \{ color: #526d74; font-style: italic; \}/)
   })
 
   it('shows "—" without muting for an empty group', () => {

@@ -113,8 +113,8 @@ export function turnSideReading(trace: TraceAggregate | null | undefined) {
 function turnSideSegment(role: 'P' | 'C', trace: TraceAggregate | null | undefined) {
   const { text, indicative } = turnSideReading(trace)
   const color = role === 'P' ? ACTIVITY_COLORS.primary : ACTIVITY_COLORS.comparison
-  return <span style={{ color }} className={indicative ? 'maneuver-insights__cell--indicative' : undefined}
-    title={indicative ? INDICATIVE_TITLE : undefined}>{role} {text}</span>
+  if (!indicative) return <span style={{ color }}>{role} {text}</span>
+  return <span><span style={{ color }}>{role}</span> <span className="maneuver-insights__cell--indicative" title={INDICATIVE_TITLE}>{text}</span></span>
 }
 
 /** #202: median event |ΔCOG| per P/C × turn side, from the existing course references. */
