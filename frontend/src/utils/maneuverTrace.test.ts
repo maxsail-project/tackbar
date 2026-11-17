@@ -337,8 +337,8 @@ describe('median event |ΔCOG| per turn side (#202)', () => {
       { side: 'right', deg: 100 }, { side: 'right', deg: 80 }, { side: 'right', deg: 90 },
       { side: 'left', deg: 110 }, { side: 'left', deg: 80 }, { side: 'left', deg: 100 }, { side: 'left', deg: 90 },
     ]), 0, 180)
-    expect(aggregate.right.turnAngle).toEqual({ medianDeg: 90, count: 3 })
-    expect(aggregate.left.turnAngle).toEqual({ medianDeg: 95, count: 4 })
+    expect(aggregate.right.turnAngle).toEqual({ medianDeg: 90, count: 3, supported: true })
+    expect(aggregate.left.turnAngle).toEqual({ medianDeg: 95, count: 4, supported: true })
   })
 
   it('includes traced maneuvers below the spatial-median coverage rule, but never untraced ones', () => {
@@ -349,20 +349,24 @@ describe('median event |ΔCOG| per turn side (#202)', () => {
     ), 0, 180)
     expect(aggregate.right.medianEligibleCount).toBe(1)
     expect(aggregate.right.status).toBe('insufficient_maneuvers')
-    expect(aggregate.right.turnAngle).toEqual({ medianDeg: 70, count: 3 })
+    expect(aggregate.right.turnAngle).toEqual({ medianDeg: 70, count: 3, supported: true })
   })
 
-  it('withholds the value below three traced maneuvers but keeps the count', () => {
-    const aggregate = aggregatePreparedTracePopulation(angles([{ side: 'left', deg: 90 }, { side: 'left', deg: 95 }]), 0, 180)
-    expect(aggregate.left.turnAngle).toEqual({ medianDeg: null, count: 2 })
-    expect(aggregate.right.turnAngle).toEqual({ medianDeg: null, count: 0 })
+  it('reports an indicative median from one or two traced maneuvers, and nothing for an empty side', () => {
+    const two = aggregatePreparedTracePopulation(angles([{ side: 'left', deg: 90 }, { side: 'left', deg: 95 }]), 0, 180)
+    expect(two.left.turnAngle).toEqual({ medianDeg: 92.5, count: 2, supported: false })
+    expect(two.right.turnAngle).toEqual({ medianDeg: null, count: 0, supported: false })
+    const one = aggregatePreparedTracePopulation(angles([{ side: 'right', deg: 87 }]), 0, 180)
+    expect(one.right.turnAngle).toEqual({ medianDeg: 87, count: 1, supported: false })
+    // The spatial-median ≥3 rule is unchanged.
+    expect(one.right.status).toBe('insufficient_maneuvers')
   })
 
   it('responds to the shared |ΔCOG| band', () => {
     const population = angles([50, 70, 90, 110].map((deg) => ({ side: 'right' as const, deg })))
-    expect(aggregatePreparedTracePopulation(population, 40, 100).right.turnAngle).toEqual({ medianDeg: 70, count: 3 })
-    expect(aggregatePreparedTracePopulation(population, 60, 120).right.turnAngle).toEqual({ medianDeg: 90, count: 3 })
-    expect(aggregatePreparedTracePopulation(population, 60, 100).right.turnAngle).toEqual({ medianDeg: null, count: 2 })
+    expect(aggregatePreparedTracePopulation(population, 40, 100).right.turnAngle).toEqual({ medianDeg: 70, count: 3, supported: true })
+    expect(aggregatePreparedTracePopulation(population, 60, 120).right.turnAngle).toEqual({ medianDeg: 90, count: 3, supported: true })
+    expect(aggregatePreparedTracePopulation(population, 60, 100).right.turnAngle).toEqual({ medianDeg: 80, count: 2, supported: false })
   })
 
   it('uses the prepared |signedChangeDeg| from real course references', () => {

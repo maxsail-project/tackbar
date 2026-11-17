@@ -3597,7 +3597,8 @@ input:focus-visible {
   outline-offset: -2px;
 }
 .wind-segments__row--secondary { color: #71858b; }
-.wind-segments__label--muted { opacity: 0.6; }
+.wind-segments__label--muted,
+.maneuver-insights__cell--indicative { opacity: 0.6; }
 .wind-segments__row--current { background: #e3f0f2; }
 .wind-context__info-row {
   display: flex;

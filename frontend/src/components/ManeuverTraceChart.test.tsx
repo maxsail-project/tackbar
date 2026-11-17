@@ -208,7 +208,7 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
       maneuvers: entries.map(([side, deg]) => ({ courseChangeDeg: deg, nominalCoverage: 1, grid: [], trace: trace(side) })) }
   }
   const tableOf = (html: string) => html.match(/<section class="maneuver-insights"[^>]*data-trace-turn-angles="true">[\s\S]*?<\/section>/)![0]
-  const cells = (row: string) => row.match(/<td>([^<]*)<\/td>/g)!.map((cell) => cell.replace(/<\/?td>/g, ''))
+  const cells = (row: string) => row.match(/<td[^>]*>[^<]*<\/td>/g)!.map((cell) => cell.replace(/<\/?td[^>]*>/g, ''))
   const rowOf = (table: string, label: string) => cells(table.match(new RegExp(`<tr[^>]*><th scope="row"[^>]*>${label}</th>([\\s\\S]*?)</tr>`))![1])
   const differenceRow = (table: string) => cells(table.match(/<th scope="row" aria-label="Comparison"><\/th>([\s\S]*?)<\/tr>/)![1])
   const readingOf = (table: string) => table.match(/data-trace-turn-side-difference="true">([\s\S]*?)<\/p>/)![1].replace(/<[^>]+>/g, '')
@@ -225,7 +225,7 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
     expect(table).not.toContain('L − R')
     expect(table).not.toContain('P − C')
     expect(rowOf(table, 'P')).toEqual(['95.0° (3)', '87.5° (4)'])
-    expect(rowOf(table, 'C')).toEqual(['92.0° (3)', '—'])
+    expect(rowOf(table, 'C')).toEqual(['92.0° (3)', '90.5° (2)'])
     expect(differenceRow(table)).toEqual(['P +3.0°', '—'])
     expect(readingOf(table)).toBe('Turn-side difference · P left +7.5° · C unavailable')
     expect(table).toContain('class="maneuver-insights__recovery"')
@@ -253,6 +253,28 @@ describe('TRACE median event |ΔCOG| table (#202)', () => {
     expect(differenceRow(table)).toEqual(['Similar', 'P +10.0°'])
     expect(readingOf(table)).toBe('Turn-side difference · P right +10.0° · C similar')
     expect(table).not.toMatch(/<td>[−+]\d/)
+  })
+
+  it('shows 1, 2 and ≥3 maneuver cells with counts, muting 1–2 as indicative and blocking their comparisons', () => {
+    const primary = aggregatePreparedTracePopulation(angled([['left', 70], ['right', 90], ['right', 95]]), 40, 100)
+    const comparison = aggregatePreparedTracePopulation(angled([['left', 60], ['left', 62], ['left', 64], ['right', 80], ['right', 82], ['right', 84]]), 40, 100)
+    const table = tableOf(renderToStaticMarkup(<ManeuverTraceChart primary={primary} comparison={comparison} band={{ minimum: 40, maximum: 100 }} />))
+    expect(rowOf(table, 'P')).toEqual(['70.0° (1)', '92.5° (2)'])
+    expect(rowOf(table, 'C')).toEqual(['62.0° (3)', '82.0° (3)'])
+    const indicative = [...table.matchAll(/<td class="maneuver-insights__cell--indicative" title="Indicative: fewer than 3 traced maneuvers">([^<]*)<\/td>/g)].map((match) => match[1])
+    expect(indicative).toEqual(['70.0° (1)', '92.5° (2)'])
+    // Both operands have values, but P is below 3: comparisons stay unavailable.
+    expect(differenceRow(table)).toEqual(['—', '—'])
+    expect(readingOf(table)).toBe('Turn-side difference · P unavailable · C right +20.0°')
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(css).toMatch(/\.wind-segments__label--muted,\s*\.maneuver-insights__cell--indicative \{ opacity: 0\.6; \}/)
+  })
+
+  it('shows "—" without muting for an empty group', () => {
+    const primary = aggregatePreparedTracePopulation(angled([['left', 70], ['left', 72], ['left', 74]]), 40, 100)
+    const table = tableOf(renderToStaticMarkup(<ManeuverTraceChart primary={primary} band={{ minimum: 40, maximum: 100 }} />))
+    expect(rowOf(table, 'P')).toEqual(['72.0° (3)', '—'])
+    expect(table).not.toContain('maneuver-insights__cell--indicative')
   })
 
   it('reads a side below three traced maneuvers as unavailable', () => {

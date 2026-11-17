@@ -9,7 +9,7 @@ const GRID_HALF_SPAN = 25
 export const TRACE_MEDIAN_MIN_COVERAGE = 0.65
 export const TRACE_MEDIAN_MIN_MANEUVERS = 3
 export const TRACE_MEDIAN_MIN_CONTRIBUTORS = 3
-/** #202: minimum traced maneuvers for a per-side median event |ΔCOG|. */
+/** #202: traced maneuvers needed for a supported (non-indicative) median event |ΔCOG| and its comparisons. */
 export const TRACE_TURN_ANGLE_MIN_MANEUVERS = 3
 
 export type TurnSide = 'left' | 'right'
@@ -134,8 +134,11 @@ export interface TraceSideAggregate {
   status: 'ready' | 'insufficient_maneuvers' | 'no_eligible_maneuvers'
   traces: TracePoint[][][]
   median: TraceMedianPoint[]
-  /** #202: median of |signedChangeDeg| over all traced maneuvers of this side; null below the minimum. */
-  turnAngle: { medianDeg: number | null, count: number }
+  /**
+   * #202: median of |signedChangeDeg| over all traced maneuvers of this side; null only when empty.
+   * Below the minimum it is indicative (supported: false) and must not enter comparisons.
+   */
+  turnAngle: { medianDeg: number | null, count: number, supported: boolean }
 }
 
 export interface TraceAggregate {
@@ -180,8 +183,9 @@ function aggregateSide(side: TurnSide, traced: readonly { trace: PreparedManeuve
     traces: traces.map((trace) => trace.segments),
     median: medianPoints,
     turnAngle: {
-      medianDeg: turnAngles.length >= TRACE_TURN_ANGLE_MIN_MANEUVERS ? median(turnAngles) : null,
+      medianDeg: turnAngles.length > 0 ? median(turnAngles) : null,
       count: turnAngles.length,
+      supported: turnAngles.length >= TRACE_TURN_ANGLE_MIN_MANEUVERS,
     },
   }
 }
