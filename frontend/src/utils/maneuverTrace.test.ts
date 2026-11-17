@@ -9,6 +9,7 @@ import {
   projectLocalMetres,
   rotateToBisector,
   traceCenterAnchor,
+  turnAngleDifference,
   type PreparedManeuverTrace,
   type TracePoint,
 } from './maneuverTrace'
@@ -319,5 +320,67 @@ describe('time-aligned median and support (D2/D3)', () => {
       extract.mockRestore()
       index.mockRestore()
     }
+  })
+})
+
+describe('median event |ΔCOG| per turn side (#202)', () => {
+  function stub(side: 'left' | 'right', coverage = 1): PreparedManeuverTrace {
+    return { status: 'traced', side, nominalCoverage: coverage, segments: [], grid: Array(51).fill(null) }
+  }
+  function angles(entries: { side: 'left' | 'right', deg: number, coverage?: number }[],
+    extra: PreparedSogPopulation['maneuvers'] = []): PreparedSogPopulation {
+    const maneuvers = [...entries.map(({ side, deg, coverage }) => ({ courseChangeDeg: deg, nominalCoverage: 1, grid: [], trace: stub(side, coverage) })), ...extra]
+    return { detectedCount: maneuvers.length, windowEligibleCount: maneuvers.length, missingCourseCount: 0, maneuvers }
+  }
+
+  it('takes the median of all traced maneuvers per side, for odd and even counts', () => {
+    const aggregate = aggregatePreparedTracePopulation(angles([
+      { side: 'right', deg: 100 }, { side: 'right', deg: 80 }, { side: 'right', deg: 90 },
+      { side: 'left', deg: 110 }, { side: 'left', deg: 80 }, { side: 'left', deg: 100 }, { side: 'left', deg: 90 },
+    ]), 0, 180)
+    expect(aggregate.right.turnAngle).toEqual({ medianDeg: 90, count: 3 })
+    expect(aggregate.left.turnAngle).toEqual({ medianDeg: 95, count: 4 })
+  })
+
+  it('includes traced maneuvers below the spatial-median coverage rule, but never untraced ones', () => {
+    const aggregate = aggregatePreparedTracePopulation(angles(
+      [{ side: 'right', deg: 60, coverage: 0.2 }, { side: 'right', deg: 70, coverage: 0.5 }, { side: 'right', deg: 80 }],
+      [{ courseChangeDeg: 75, nominalCoverage: 1, grid: [], trace: { status: 'missing_center' } },
+        { courseChangeDeg: 75, nominalCoverage: 1, grid: [], trace: { status: 'ambiguous_turn' } }],
+    ), 0, 180)
+    expect(aggregate.right.medianEligibleCount).toBe(1)
+    expect(aggregate.right.status).toBe('insufficient_maneuvers')
+    expect(aggregate.right.turnAngle).toEqual({ medianDeg: 70, count: 3 })
+  })
+
+  it('withholds the value below three traced maneuvers but keeps the count', () => {
+    const aggregate = aggregatePreparedTracePopulation(angles([{ side: 'left', deg: 90 }, { side: 'left', deg: 95 }]), 0, 180)
+    expect(aggregate.left.turnAngle).toEqual({ medianDeg: null, count: 2 })
+    expect(aggregate.right.turnAngle).toEqual({ medianDeg: null, count: 0 })
+  })
+
+  it('responds to the shared |ΔCOG| band', () => {
+    const population = angles([50, 70, 90, 110].map((deg) => ({ side: 'right' as const, deg })))
+    expect(aggregatePreparedTracePopulation(population, 40, 100).right.turnAngle).toEqual({ medianDeg: 70, count: 3 })
+    expect(aggregatePreparedTracePopulation(population, 60, 120).right.turnAngle).toEqual({ medianDeg: 90, count: 3 })
+    expect(aggregatePreparedTracePopulation(population, 60, 100).right.turnAngle).toEqual({ medianDeg: null, count: 2 })
+  })
+
+  it('uses the prepared |signedChangeDeg| from real course references', () => {
+    const centers = [100, 200, 300]
+    const samples = [
+      ...turnTrack({ center: 100, entry: 350, exit: 70 }), ...turnTrack({ center: 200, entry: 10, exit: 100 }),
+      ...turnTrack({ center: 300, entry: 300, exit: 30 }),
+    ]
+    const aggregate = aggregatePreparedTracePopulation(prepareSogManeuverPopulation(centers.map(event), samples, fullWindow), 0, 180)
+    expect(aggregate.right.turnAngle.count).toBe(3)
+    expect(aggregate.right.turnAngle.medianDeg).toBeCloseTo(90, 6)
+  })
+
+  it('signs differences as first minus second and needs both operands', () => {
+    expect(turnAngleDifference(95, 90)).toBe(5)
+    expect(turnAngleDifference(85, 90)).toBe(-5)
+    expect(turnAngleDifference(null, 90)).toBeNull()
+    expect(turnAngleDifference(90, null)).toBeNull()
   })
 })

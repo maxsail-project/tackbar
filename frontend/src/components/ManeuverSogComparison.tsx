@@ -220,7 +220,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     </div>
     <ManeuverAngleRange range={range} onChange={setRange} />
     <p className="maneuver-profile__basis">Common |ΔCOG| filter from canonical course context; event ΔHDG/ΔCOG and HIGH/LOW evidence remain in the table.</p>
-    {signal === 'TRACE' && <ManeuverTraceChart primary={pTrace} comparison={comparison === undefined ? undefined : cTrace} />}
+    {signal === 'TRACE' && <ManeuverTraceChart primary={pTrace} comparison={comparison === undefined ? undefined : cTrace} band={range} />}
     {signal !== 'TRACE' && <>
     {p && countSummary('P', p, primary!.missingCourseCount)}
     {c && countSummary('C', c, comparison!.missingCourseCount)}

@@ -9,6 +9,8 @@ const GRID_HALF_SPAN = 25
 export const TRACE_MEDIAN_MIN_COVERAGE = 0.65
 export const TRACE_MEDIAN_MIN_MANEUVERS = 3
 export const TRACE_MEDIAN_MIN_CONTRIBUTORS = 3
+/** #202: minimum traced maneuvers for a per-side median event |ΔCOG|. */
+export const TRACE_TURN_ANGLE_MIN_MANEUVERS = 3
 
 export type TurnSide = 'left' | 'right'
 
@@ -132,6 +134,8 @@ export interface TraceSideAggregate {
   status: 'ready' | 'insufficient_maneuvers' | 'no_eligible_maneuvers'
   traces: TracePoint[][][]
   median: TraceMedianPoint[]
+  /** #202: median of |signedChangeDeg| over all traced maneuvers of this side; null below the minimum. */
+  turnAngle: { medianDeg: number | null, count: number }
 }
 
 export interface TraceAggregate {
@@ -151,7 +155,15 @@ function median(values: number[]): number {
   return values.length % 2 === 1 ? values[middle] : (values[middle - 1] + values[middle]) / 2
 }
 
-function aggregateSide(side: TurnSide, traces: PreparedManeuverTrace[]): TraceSideAggregate {
+/** Signed first − second (e.g. L − R, P − C), only when both operands are supported. */
+export function turnAngleDifference(first: number | null, second: number | null): number | null {
+  return first === null || second === null ? null : first - second
+}
+
+function aggregateSide(side: TurnSide, traced: readonly { trace: PreparedManeuverTrace, turnDeg: number }[]): TraceSideAggregate {
+  const traces = traced.map(({ trace }) => trace)
+  // Magnitudes lie in 0–180°, so an arithmetic median is valid here (not a course mean).
+  const turnAngles = traced.map(({ turnDeg }) => turnDeg)
   const eligible = traces.filter((trace) => trace.nominalCoverage >= TRACE_MEDIAN_MIN_COVERAGE)
   const status: TraceSideAggregate['status'] = eligible.length >= TRACE_MEDIAN_MIN_MANEUVERS ? 'ready'
     : eligible.length === 0 ? 'no_eligible_maneuvers' : 'insufficient_maneuvers'
@@ -172,6 +184,10 @@ function aggregateSide(side: TurnSide, traces: PreparedManeuverTrace[]): TraceSi
     status,
     traces: traces.map((trace) => trace.segments),
     median: medianPoints,
+    turnAngle: {
+      medianDeg: turnAngles.length >= TRACE_TURN_ANGLE_MIN_MANEUVERS ? median(turnAngles) : null,
+      count: turnAngles.length,
+    },
   }
 }
 
@@ -184,7 +200,7 @@ export function aggregatePreparedTracePopulation(
   let outsideBandCount = 0
   let ambiguousTurnCount = 0
   let missingCenterCount = 0
-  const traced: PreparedManeuverTrace[] = []
+  const traced: { trace: PreparedManeuverTrace, turnDeg: number }[] = []
   for (const maneuver of population.maneuvers) {
     if (maneuver.courseChangeDeg === null) continue
     if (maneuver.courseChangeDeg < minimumDegrees - 1e-9 || maneuver.courseChangeDeg > maximumDegrees + 1e-9) {
@@ -192,7 +208,8 @@ export function aggregatePreparedTracePopulation(
       continue
     }
     const trace = maneuver.trace
-    if (trace?.status === 'traced') traced.push(trace)
+    // courseChangeDeg is the prepared |signedChangeDeg| of the same course references.
+    if (trace?.status === 'traced') traced.push({ trace, turnDeg: maneuver.courseChangeDeg })
     else if (trace?.status === 'ambiguous_turn') ambiguousTurnCount += 1
     else missingCenterCount += 1
   }
@@ -203,7 +220,7 @@ export function aggregatePreparedTracePopulation(
     ambiguousTurnCount,
     missingCenterCount,
     tracedCount: traced.length,
-    left: aggregateSide('left', traced.filter((trace) => trace.side === 'left')),
-    right: aggregateSide('right', traced.filter((trace) => trace.side === 'right')),
+    left: aggregateSide('left', traced.filter(({ trace }) => trace.side === 'left')),
+    right: aggregateSide('right', traced.filter(({ trace }) => trace.side === 'right')),
   }
 }

@@ -3,6 +3,8 @@ import {
   TRACE_MEDIAN_MIN_CONTRIBUTORS,
   TRACE_MEDIAN_MIN_COVERAGE,
   TRACE_MEDIAN_MIN_MANEUVERS,
+  TRACE_TURN_ANGLE_MIN_MANEUVERS,
+  turnAngleDifference,
   type TraceAggregate,
   type TracePoint,
   type TraceSideAggregate,
@@ -79,9 +81,46 @@ function traceCounts(roleLetter: 'P' | 'C', trace: TraceAggregate) {
   </p>
 }
 
-export default function ManeuverTraceChart({ primary, comparison }: {
+function turnAngleCell(side: TraceSideAggregate | undefined) {
+  return side?.turnAngle.medianDeg == null ? '—' : `${side.turnAngle.medianDeg.toFixed(1)}° (${side.turnAngle.count})`
+}
+
+export function signedDegrees(value: number | null) {
+  if (value === null) return '—'
+  const rounded = value.toFixed(1)
+  if (Number(rounded) === 0) return '0.0°'
+  return `${value > 0 ? '+' : '−'}${Math.abs(value).toFixed(1)}°`
+}
+
+/** #202: median event |ΔCOG| per P/C × turn side, from the existing course references. */
+function turnAngleTable(primary: TraceAggregate | null, comparison: TraceAggregate | null | undefined,
+  band: { minimum: number, maximum: number } | undefined) {
+  const median = (trace: TraceAggregate | null | undefined, side: 'left' | 'right') => trace?.[side].turnAngle.medianDeg ?? null
+  const leftMinusRight = (trace: TraceAggregate | null | undefined) =>
+    signedDegrees(turnAngleDifference(median(trace, 'left'), median(trace, 'right')))
+  const primaryMinusComparison = (side: 'left' | 'right') => signedDegrees(turnAngleDifference(median(primary, side), median(comparison, side)))
+  const pLR = turnAngleDifference(median(primary, 'left'), median(primary, 'right'))
+  const cLR = turnAngleDifference(median(comparison, 'left'), median(comparison, 'right'))
+  return <section className="maneuver-insights" aria-label="Median event |ΔCOG| by turn side" data-trace-turn-angles="true">
+    <h3>Median event |ΔCOG| by turn side</h3>
+    <p>{band ? `|ΔCOG| band ${band.minimum}°–${band.maximum}° · ` : ''}per-event course change of all traced maneuvers (count), not the COG Insights Turn angle · at least {TRACE_TURN_ANGLE_MIN_MANEUVERS} per cell · L − R and P − C are signed differences</p>
+    <table className="maneuver-insights__table">
+      <thead><tr><th scope="col" aria-label="Activity" /><th scope="col">Left turns</th><th scope="col">Right turns</th><th scope="col">L − R</th></tr></thead>
+      <tbody>
+        <tr><th scope="row" style={{ color: ACTIVITY_COLORS.primary }}>P</th><td>{turnAngleCell(primary?.left)}</td><td>{turnAngleCell(primary?.right)}</td><td>{leftMinusRight(primary)}</td></tr>
+        {comparison !== undefined && <>
+          <tr><th scope="row" style={{ color: ACTIVITY_COLORS.comparison }}>C</th><td>{turnAngleCell(comparison?.left)}</td><td>{turnAngleCell(comparison?.right)}</td><td>{leftMinusRight(comparison)}</td></tr>
+          <tr className="maneuver-insights__compare"><th scope="row">P − C</th><td>{primaryMinusComparison('left')}</td><td>{primaryMinusComparison('right')}</td><td>{signedDegrees(turnAngleDifference(pLR, cLR))}</td></tr>
+        </>}
+      </tbody>
+    </table>
+  </section>
+}
+
+export default function ManeuverTraceChart({ primary, comparison, band }: {
   primary: TraceAggregate | null
   comparison?: TraceAggregate | null
+  band?: { minimum: number, maximum: number }
 }) {
   const roles = ([['comparison', comparison ?? null], ['primary', primary]] as const)
     .filter((entry): entry is readonly [Role, TraceAggregate] => entry[1] !== null)
@@ -145,6 +184,7 @@ export default function ManeuverTraceChart({ primary, comparison }: {
         </p>
       </div>
     </figure>
+    {turnAngleTable(primary, comparison, band)}
     <p className="maneuver-profile__basis" data-trace-reading-note="true"><strong>How to read:</strong> axes follow each maneuver's mean course (entry/exit bisector), not north or wind (no TWD); 1 m = 1 m. The lower arm is the approach before t=0 and the upper arm the exit; each arm leans from vertical by about half the turn angle, so wider arms mean larger turns. Thin lines are original GPS positions; bold lines are time-aligned medians per turn side, not a sailed track: a shorter median means less distance in the same time, not a tighter turn. A median needs {TRACE_MEDIAN_MIN_MANEUVERS} maneuvers with ≥{Math.round(TRACE_MEDIAN_MIN_COVERAGE * 100)}% position coverage and {TRACE_MEDIAN_MIN_CONTRIBUTORS} contributors at each drawn second; gaps remain open.</p>
   </>
 }
