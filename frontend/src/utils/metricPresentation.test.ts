@@ -42,7 +42,7 @@ describe('replay presentation', () => {
     expect(resolveReplayPresentation(windowSamples, windowEnd).heel).toBeNull()
 
     expect(formatSignedDegreeValue(7.2)).toBe('7.2°')
-    expect(formatSignedDegreeValue(-7.2)).toBe('-7.2°')
+    expect(formatSignedDegreeValue(-7.2)).toBe('−7.2°')
     expect(formatSignedDegreeValue(null)).toBe('—')
   })
 
@@ -143,7 +143,7 @@ describe('replay presentation', () => {
   })
 
   it('uses kt for Avg SOG and preserves unavailable presentation', () => {
-    expect(formatAverageSog(5.125)).toBe('5.13 kt')
+    expect(formatAverageSog(5.125)).toBe('5.1 kt')
     expect(formatAverageSog(null)).toBe('—')
   })
 })

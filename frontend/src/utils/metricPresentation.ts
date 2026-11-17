@@ -1,5 +1,6 @@
 import type { EnabledReplayMetric } from '../types/session'
 import type { ActivityTrack } from '../types/track'
+import { formatFixed, formatSog } from './numberFormat'
 import { interpolatePosition, nearestSample, type TrackPosition } from './replay'
 
 export interface ReplayPresentation {
@@ -41,13 +42,13 @@ export function formatMetricValue(
     return '—'
   }
 
-  return metric === 'SOG' ? `${value.toFixed(1)} kt` : `${value.toFixed(1)}°`
+  return metric === 'SOG' ? formatSog(value) : `${formatFixed(value, 1)}°`
 }
 
 export function formatSignedDegreeValue(value: number | null): string {
-  return value === null ? '—' : `${value.toFixed(1)}°`
+  return value === null ? '—' : `${formatFixed(value, 1)}°`
 }
 
 export function formatAverageSog(value: number | null): string {
-  return value === null ? '—' : `${value.toFixed(2)} kt`
+  return formatSog(value)
 }

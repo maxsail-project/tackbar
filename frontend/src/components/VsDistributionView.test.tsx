@@ -159,11 +159,11 @@ describe('VS distribution presentation', () => {
     }
     expect(markup).not.toMatch(/>N<\/text>|>E<\/text>|>S<\/text>|>W<\/text>/)
     expect(markup).not.toContain('vs-distribution__spoke')
-    expect(markup).toContain('>-10°</text>')
+    expect(markup).toContain('>−10°</text>')
     expect(markup).toContain('>0°</text>')
     expect(markup).toContain('>+10°</text>')
     for (const degrees of [-5, 5]) {
-      const label = degrees > 0 ? `+${degrees}°` : `${degrees}°`
+      const label = degrees > 0 ? `+${degrees}°` : `−${Math.abs(degrees)}°`
       expect(markup).toContain(`data-heel-guide="${degrees}"`)
       expect(markup).toContain(`data-heel-guide-label="${degrees}"`)
       expect(markup).toContain(`>${label}</text>`)
@@ -271,7 +271,7 @@ describe('VS distribution presentation', () => {
 
     const heelStart = markup.indexOf('Time-weighted signed HEEL semicircular distribution')
     const heelMarkup = markup.slice(heelStart)
-    expect(heelMarkup).toContain('>-20°</text>')
+    expect(heelMarkup).toContain('>−20°</text>')
     expect(heelMarkup).toContain('>+20°</text>')
     expect(heelMarkup).toContain('data-heel-bin="-20:-18"')
     expect(heelMarkup).not.toContain('data-heel-bin="42:44"')
@@ -293,7 +293,7 @@ describe('adaptive HEEL semicircle labels and guides', () => {
       />,
     )
     const heelMarkup = markup.slice(markup.indexOf('Time-weighted signed HEEL semicircular distribution'))
-    expect(heelMarkup).toContain(`>-${domain}°</text>`)
+    expect(heelMarkup).toContain(`>−${domain}°</text>`)
     expect(heelMarkup).toContain(`>+${domain}°</text>`)
     expect(heelMarkup.match(/data-guide="heel-angle"/g)).toHaveLength(guides.length)
     for (const degrees of guides) {
@@ -372,10 +372,10 @@ describe('TRIM boxplot presentation', () => {
     expect(trimMarkup).toContain(`stroke="${ACTIVITY_COLORS.comparison}"`)
     expect(trimMarkup).toContain(`stroke="${ACTIVITY_COLORS.primary}"`)
     expect(markup).not.toContain('P · Median 0°')
-    expect(markup).not.toContain('Q1–Q3 -2°–+2°')
+    expect(markup).not.toContain('Q1–Q3 −2°–+2°')
     expect(markup).not.toContain('Low outliers 10%')
     expect(markup).not.toContain('High outliers 10%')
-    expect(trimMarkup).toContain('lower whisker -2°')
+    expect(trimMarkup).toContain('lower whisker −2°')
     expect(trimMarkup).toContain('upper whisker +2°')
     expect(trimMarkup).toContain('low outliers 10%')
     expect(trimMarkup).toContain('high outliers 10%')

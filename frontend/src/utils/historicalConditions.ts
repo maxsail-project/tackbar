@@ -1,5 +1,6 @@
 import type { HistoricalConditionsSample } from '../types/session'
 import type { AnalysisWindowRange } from './analysisWindow'
+import { formatCompact, formatRounded } from './numberFormat'
 
 export function selectHistoricalConditionsSample(
   samples: HistoricalConditionsSample[],
@@ -36,7 +37,7 @@ function finite(value: number | null | undefined) {
 
 function compactNumber(value: number) {
   const rounded = Math.round(value * 10) / 10
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+  return formatCompact(rounded)
 }
 
 export type WeatherConditionIcon = 'sun' | 'cloud-sun' | 'cloud' | 'cloud-rain'
@@ -73,7 +74,7 @@ export function resolveHistoricalConditionsCompact(sample: HistoricalConditionsS
   ].some(finite)
   if (!hasDetail) return null
 
-  const label = finite(sample.air_temperature_c) ? `${Math.round(sample.air_temperature_c!)}°C` : 'Weather'
+  const label = finite(sample.air_temperature_c) ? `${formatRounded(sample.air_temperature_c!)}°C` : 'Weather'
   const condition = icon === 'sun' ? (validCode ? 'clear or mainly clear' : 'clear sky cover')
     : icon === 'cloud-sun' ? (validCode ? 'partly cloudy' : 'partly cloudy sky cover')
       : icon === 'cloud' ? (validCode ? 'overcast' : 'overcast sky cover')

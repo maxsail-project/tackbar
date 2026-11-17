@@ -288,8 +288,8 @@ describe('Analysis Window SOG timeline', () => {
     expect(markup).toContain('analysis-window__summary-table')
     expect(markup).toMatch(/P\/C<\/th>.*Avg SOG<\/th>.*Max SOG<\/th>.*Distance<\/th>.*Dom COG<\/th>.*Maneuvers<\/th>/)
     expect(markup).toContain('color:#168097')
-    expect(markup).toContain('5.20 kt')
-    expect(markup).toContain('6.00 kt')
+    expect(markup).toContain('5.2 kt')
+    expect(markup).toContain('6.0 kt')
     expect(markup).toContain('210 m')
     expect(markup).toContain('90°')
     expect(markup).toContain('<td>—</td>')
@@ -315,7 +315,7 @@ describe('Analysis Window SOG timeline', () => {
     expect(primaryOnly.match(/<tr><th scope="row"/g)).toHaveLength(1)
     expect(compared.match(/<tr><th scope="row"/g)).toHaveLength(2)
     expect(compared).toContain('color:#9a5aaf')
-    expect(compared).toContain('4.95 kt')
+    expect(compared).toContain('5.0 kt')
     expect(compared).toContain('198 m')
     expect(compared).toContain('90°')
     expect(compared).toContain('270°')
@@ -335,7 +335,7 @@ describe('Analysis Window SOG timeline', () => {
 
     expect(markup).toContain('<td>—</td>')
     expect(markup).toContain('210 m')
-    expect(markup).not.toContain('6.00 kt')
+    expect(markup).not.toContain('6.0 kt')
   })
 
   it('uses the Summary Dominant COG whole-degree rounding', () => {
@@ -381,7 +381,7 @@ describe('Analysis Window SOG timeline', () => {
     })
 
     for (const markup of [before, after]) {
-      expect(markup).toContain('5.20 kt')
+      expect(markup).toContain('5.2 kt')
       expect(markup).toContain('210 m')
       expect(markup).toContain('90°')
       expect(markup).not.toContain('Loss')

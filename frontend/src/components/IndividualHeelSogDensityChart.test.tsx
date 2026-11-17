@@ -62,7 +62,7 @@ describe('Individual HEEL versus SOG density chart', () => {
     expect(markup).toContain('data-heel-bin-count="40"')
     expect(markup).toContain('SOG (kt)')
     expect(markup).toContain('HEEL (°)')
-    expect(markup).toContain('>-40°<')
+    expect(markup).toContain('>−40°<')
     expect(markup).toContain('>+40°<')
     expect(markup).toContain('data-heel-zero-reference="true"')
     expect(markup).toContain('>0°<')

@@ -31,6 +31,7 @@ import {
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import type { InferredSessionStart } from '../utils/sessionStarts'
 import { formatAverageSog } from '../utils/metricPresentation'
+import { formatSog } from '../utils/numberFormat'
 
 const TIMELINE_POINT_BUDGET = 240
 const ANALYSIS_WINDOW_DRAG_THRESHOLD_PX = 6
@@ -90,7 +91,7 @@ export function AnalysisWindowCompactSummary({
 }) {
   const roleLabel = activityRole === 'primary' ? 'P' : 'C'
   const averageSog = metrics === null ? '—' : formatAverageSog(metrics.avgSogKnots)
-  const maximumSog = metrics?.maxSogKnots == null ? '—' : `${metrics.maxSogKnots.toFixed(2)} kt`
+  const maximumSog = formatSog(metrics?.maxSogKnots)
   const distance = metrics === null ? '—' : `${Math.round(metrics.distanceMeters)} m`
   const dominantCog = metrics?.dominantCogDegrees === null
     || metrics?.dominantCogDegrees === undefined

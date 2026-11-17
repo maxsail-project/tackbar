@@ -353,26 +353,27 @@ describe('Viewer TWD state', () => {
     const metricText = (key: string, role = 'primary') => section()!.querySelector(`[data-wind-metric="${key}"] [data-wind-metric-role="${role}"]`)?.textContent
     // COG 090° vs original modelled 91.6° → upwind, tack indeterminate.
     expect(reference()).toBe('TWD090° · Modelled')
-    expect(primaryRow()).toBe('P100%0%0%100% UPWIND')
+    expect(primaryRow()).toBe('P100%0%0% UPWIND')
     expect(metricText('time-starboard')).toBe('0%')
     expect(metricText('time-port')).toBe('0%')
+    expect(metricText('time-tack-unclear')).toBe('100%')
     expect(metricText('tack-check')).toBe('COG only')
     expect(metricText('twa-starboard')).toBeUndefined()
     expect(section()!.querySelector('[data-wind-role="comparison"]')).toBeNull()
     await click('[data-twd-gesture]')
     // Manual 355° → |TWA| 95° → reaching; no tack split.
     expect(reference()).toBe('TWD355° · Manual · Viewer')
-    expect(primaryRow()).toBe('P0%100%0%— REACHING')
+    expect(primaryRow()).toBe('P0%100%0% REACHING')
     expect(section()!.querySelector('[data-wind-metric="tack-check"]')).toBeNull()
     await click('[data-twd-auto]')
     expect(reference()).toBe('TWD090° · Modelled')
-    expect(primaryRow()).toBe('P100%0%0%100% UPWIND')
+    expect(primaryRow()).toBe('P100%0%0% UPWIND')
     await choose('Compare', 'b')
-    expect(section()!.querySelector('[data-wind-role="comparison"]')!.textContent).toBe('C100%0%0%100%')
+    expect(section()!.querySelector('[data-wind-role="comparison"]')!.textContent).toBe('C100%0%0%')
     await click('[data-narrow-window]')
     // Window midpoint now nearest the 180° sample: COG 090° → |TWA| 90° reaching.
     expect(reference()).toBe('TWD180° · Modelled')
-    expect(primaryRow()).toBe('P0%100%0%— REACHING')
+    expect(primaryRow()).toBe('P0%100%0% REACHING')
     expect(vi.mocked(api.createTemporarySessionShare)).not.toHaveBeenCalled()
   })
 
@@ -524,8 +525,8 @@ describe('Viewer TWD state', () => {
       expect(comparisonCells()).toEqual(['Upwind'])
       expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('b')
       // The shared window now covers the Upwind segment for both Activities.
-      expect(section().querySelector('[data-wind-role="primary"]')!.textContent).toBe('P100%0%0%100%')
-      expect(section().querySelector('[data-wind-role="comparison"]')!.textContent).toBe('C100%0%0%100%')
+      expect(section().querySelector('[data-wind-role="primary"]')!.textContent).toBe('P100%0%0%')
+      expect(section().querySelector('[data-wind-role="comparison"]')!.textContent).toBe('C100%0%0%')
       expect(section().querySelector('[data-wind-conclusion-title]')!.textContent).toBe('UPWIND')
     })
 
@@ -627,7 +628,7 @@ describe('Viewer TWD state', () => {
     expect(button('Increase TWD by 5°').querySelector('svg')).not.toBeNull()
     expect(section().querySelector('[aria-label="Reset TWD to modelled"]')).toBeNull()
     expect(mapTwd()).toBe('90')
-    expect(primaryRow()).toBe('P100%0%0%100% UPWIND')
+    expect(primaryRow()).toBe('P100%0%0% UPWIND')
     expect(detail()).toBeNull()
     expect(valueButton().getAttribute('aria-expanded')).toBe('false')
     // +5° from the section: 95° (|TWA| 5° off still upwind), map and reference follow.

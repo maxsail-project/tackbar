@@ -129,7 +129,7 @@ export default function SogSignalChart({
       <div className="metric-chart__heading">
         <div>
           <strong>SOG over GPS time</strong>
-          <span>knots · UTC</span>
+          <span>kt · UTC</span>
         </div>
         <ul className="sog-signal-chart__legend" aria-label="SOG line roles">
           <li>

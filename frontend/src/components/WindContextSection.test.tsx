@@ -116,7 +116,7 @@ describe('WindContextSection', () => {
     expect(markup.match(/<table class="wind-metric-table"/g)).toHaveLength(1)
     expect(markup).not.toMatch(/aria-label="(Wind sector composition|Upwind tack split|Progress relative to the wind|Downwind readings)"/)
     expect(metricKeys(markup)).toEqual([
-      'upwind-share', 'progress', 'distance', 'efficiency', 'time-starboard', 'time-port',
+      'upwind-share', 'progress', 'distance', 'efficiency', 'time-starboard', 'time-port', 'time-tack-unclear',
       'twa-starboard', 'twa-port', 'axis', 'tack-angle', 'tack-check',
     ])
     expect(metric(markup, 'upwind-share')).toEqual(['82%'])
@@ -125,6 +125,9 @@ describe('WindContextSection', () => {
     expect(metric(markup, 'efficiency')).toEqual(['68%'])
     expect(metric(markup, 'time-starboard')).toEqual(['55%'])
     expect(metric(markup, 'time-port')).toEqual(['40%'])
+    // #204: indeterminate upwind-tack share, same denominator as the two tack rows.
+    expect(metric(markup, 'time-tack-unclear')).toEqual(['5%'])
+    expect(text(markup)).toContain('Time tack unclear')
     expect(metric(markup, 'twa-starboard')).toEqual(['42°'])
     expect(metric(markup, 'twa-port')).toEqual(['45°'])
     expect(metric(markup, 'axis')).toEqual(['108° (+3)'])
@@ -196,11 +199,20 @@ describe('WindContextSection', () => {
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={unavailable}
     />)
     expect(metric(markup, 'time-starboard')).toEqual(['55%', '—'])
+    expect(metric(markup, 'time-tack-unclear')).toEqual(['5%', '—'])
     expect(metric(markup, 'tack-check')).toEqual(['HDG ✓', '—'])
     const primaryOnly = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
     />)
     expect(primaryOnly).not.toMatch(/data-wind-metric-role="comparison"/)
+  })
+
+  it('drops the Time tack unclear row with the other tack rows when every shown Activity reads —', () => {
+    const markup = renderToStaticMarkup(<WindContextSection
+      effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={{ ...upwind, upwindTack: null }}
+    />)
+    expect(metricKeys(markup)).toEqual(['upwind-share'])
+    expect(text(markup)).not.toContain('Time tack unclear')
   })
 
   const withAxis = (degrees: number, offsetDegrees: number, tackAngleDegrees = 78): WindContextResult => ({
@@ -396,9 +408,9 @@ describe('WindContextSection', () => {
     expect(toggle).not.toBeNull()
     expect(markup).toContain(`<div id="${toggle![1]}" hidden="" data-wind-breakdown="true">`)
     const breakdown = text(markup.slice(markup.indexOf('data-wind-breakdown'), markup.indexOf('id="', markup.indexOf('data-wind-breakdown') + 20)))
-    expect(breakdown).toContain('P/C Upwind Reaching Downwind Indet.')
-    expect(breakdown).toContain('P 82% 12% 6% 5%')
-    expect(breakdown).toContain('C 10% 10% 80% —')
+    // #204: only the three sector shares of moving time; the tack-unclear share lives in the upwind rows.
+    expect(breakdown).toContain('P/C Upwind Reaching Downwind P 82% 12% 6% C 10% 10% 80%')
+    expect(breakdown).not.toContain('Indet')
     expect(breakdown).not.toContain('Window')
   })
 
@@ -435,8 +447,9 @@ describe('WindContextSection', () => {
     const lines = [...popover.matchAll(/<p class="maneuver-evidence__secondary"[^>]*>(.*?)<\/p>/g)].map((match) => match[1].replace(/<[^>]+>/g, '').replace('&#x27;', "'"))
     expect(text(popover)).toContain('Wind analysis notes')
     expect(lines).toEqual([
-      'Sectors: COG vs effective TWD, over moving time (SOG ≥ 1.5 kn).',
+      'Sectors: COG vs effective TWD, over moving time (SOG ≥ 1.5 kt).',
       'Tacks: upwind only; HDG/HEEL only confirm them.',
+      'Tack unclear: upwind time with TWA too close to the wind to assign a tack.',
       'Axis: estimated bisector of the upwind tacks; not applied to TWD.',
       "Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats' average speed along that axis. Along the wind axis, not toward a mark; gap error grows with lateral separation.",
       'Depth / Gybe angle: mean downwind TWA / angle between the two downwind courses.',

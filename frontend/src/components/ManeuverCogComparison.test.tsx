@@ -53,7 +53,7 @@ describe('maneuver signal selection', () => {
     expect(html).toContain('data-profile-series="primary-raw"')
     expect(html).toContain('data-profile-series="comparison-smoothed"')
     expect(html).toContain('40 °')
-    expect(html).toContain('-40 °')
+    expect(html).toContain('−40 °')
     expect(html).toContain('not geographic course')
     expect(html).toContain('data-maneuver-center="true"')
     expect(html).toContain('COG Maneuver Insights')

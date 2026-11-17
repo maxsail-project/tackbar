@@ -1,5 +1,6 @@
 import type { ActivityManeuverAnalytics, Maneuver } from '../types/maneuver'
 import type { AnalysisWindowRange } from './analysisWindow'
+import { MINUS_SIGN, formatRounded, formatSogNumber } from './numberFormat'
 import { timestampToMilliseconds } from './replay'
 
 export type ManeuverActivityRole = 'primary' | 'comparison'
@@ -71,17 +72,17 @@ export function deriveDisplayManeuvers(
 
 export function formatHeadingChange(headingChangeDegrees: number) {
   const rounded = Math.round(headingChangeDegrees)
-  return rounded < 0 ? `−${Math.abs(rounded)}` : `+${rounded}`
+  return rounded < 0 ? `${MINUS_SIGN}${Math.abs(rounded)}` : `+${rounded}`
 }
 
 export function formatSeconds(value: number | null | undefined) {
-  return value == null ? '—' : Math.round(value).toString()
+  return value == null ? '—' : formatRounded(value)
 }
 
 export function formatKnots(value: number | null | undefined) {
-  return value == null ? '—' : value.toFixed(1)
+  return formatSogNumber(value)
 }
 
 export function formatMetres(value: number | null | undefined) {
-  return value == null ? '—' : Math.round(value).toString()
+  return value == null ? '—' : formatRounded(value)
 }

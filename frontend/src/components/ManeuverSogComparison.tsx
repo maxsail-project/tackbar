@@ -25,6 +25,7 @@ import ManeuverAngleRange, { type AngleBand } from './ManeuverAngleRange'
 import ManeuverTraceChart from './ManeuverTraceChart'
 import { aggregatePreparedTracePopulation } from '../utils/maneuverTrace'
 import { roundedInsightComparison } from '../utils/insightComparison'
+import { formatFixed, formatSog, withTypographicMinus } from '../utils/numberFormat'
 
 export function supportedSogPoints(profile: TypicalSogProfile): SogChartPoint[] {
   return profile.grid.map((point) => ({
@@ -74,8 +75,7 @@ function countSummary(role: 'P' | 'C', profile: Pick<TypicalSogProfile, 'windowE
 }
 
 function insightValue(value: number | null) {
-  if (value === null) return '—'
-  return `${value.toFixed(1)} kt`
+  return formatSog(value)
 }
 
 interface InsightColumn {
@@ -110,7 +110,7 @@ function recoveryMarker(role: 'P' | 'C', recovery: SogProfileRecovery, bounds: S
   if (coincident) markerOffset = role === 'P' ? (x > 990 ? -12 : -5) : (x > 990 ? -3 : 5)
   const markerX = x + markerOffset
   return <g key={role} data-profile-recovery={role} aria-label={`${role} profile recovery at +${recovery.offsetSeconds} seconds`}>
-    <title>{`${role} profile recovery at +${recovery.offsetSeconds} seconds, ${recovery.sogKnots.toFixed(1)} knots`}</title>
+    <title>{`${role} profile recovery at +${recovery.offsetSeconds} seconds, ${formatSog(recovery.sogKnots)}`}</title>
     <line data-profile-recovery-guide={role} x1={x} x2={x} y1="8" y2="192" stroke={color} strokeOpacity="0.22" strokeWidth="1" vectorEffect="non-scaling-stroke" />
     <circle cx={markerX} cy={y} r="5" fill={color} stroke="white" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
   </g>
@@ -136,7 +136,7 @@ function recoveryText(role: 'P' | 'C', recovery: SogProfileRecovery) {
 
 function cogValue(value: number | null, unit: '°' | 's', signed = false) {
   if (value === null) return '—'
-  return `${signed && value >= 0 ? '+' : ''}${value.toFixed(1)}${unit}`
+  return `${signed && value >= 0 ? '+' : ''}${formatFixed(value, 1)}${unit}`
 }
 
 export { roundedInsightComparison }
@@ -154,7 +154,7 @@ function heelInsight(label: string, metric: keyof HeelManeuverInsights,
   const p = primary?.[metric] ?? null
   const c = comparison?.[metric] ?? null
   const value = (number: number | null) => number === null ? '—'
-    : `${metric === 'heelVariation' && number > 0 ? '+' : ''}${number.toFixed(1)}°`
+    : `${metric === 'heelVariation' && number > 0 ? '+' : ''}${formatFixed(number, 1)}°`
   return { label, primary: value(p), comparison: value(c), reading: roundedInsightComparison(p, c, '°') }
 }
 
@@ -209,7 +209,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
   return <section className="maneuver-profile" aria-label={signal === 'TRACE' ? 'Maneuver trace comparison' : `Typical ${signal} maneuver comparison`}>
     {signal === 'TRACE' ? <div className="metric-chart__heading"><div><strong>Maneuver paths</strong><span>Metres, 1 m = 1 m · t=0 at origin · bisector aligned, forward up</span></div>
       <span>Individual thin · median bold</span></div>
-    : <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median knots' : signal === 'COG' ? 'Median relative course change (°)' : 'Median |HEEL| (°), magnitude of signed inclination'} · relative to event center</span></div>
+    : <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median kt' : signal === 'COG' ? 'Median relative course change (°)' : 'Median |HEEL| (°), magnitude of signed inclination'} · relative to event center</span></div>
       <span>Raw thin · smoothed bold</span></div>}
     <div className="metric-options" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }} role="group" aria-label="Maneuver profile signal">
       {(['SOG', 'COG', 'HEEL', 'TRACE'] as const).map((option) => <button type="button" key={option} className={signal === option ? 'is-active' : ''}
@@ -225,7 +225,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
     {!c && comparison !== undefined && <p className="maneuver-profile__count">C profile data unavailable.</p>}
     <div className="metric-chart__canvas metric-chart__canvas--sog">
       <div className="sog-signal-chart">
-        <div className="sog-signal-chart__y-axis" aria-hidden="true"><span>{bounds.maximum} {signal === 'SOG' ? 'kt' : '°'}</span><span>{((bounds.minimum + bounds.maximum) / 2).toFixed(1)} {signal === 'SOG' ? 'kt' : '°'}</span><span>{bounds.minimum} {signal === 'SOG' ? 'kt' : '°'}</span></div>
+        <div className="sog-signal-chart__y-axis" aria-hidden="true"><span>{withTypographicMinus(String(bounds.maximum))} {signal === 'SOG' ? 'kt' : '°'}</span><span>{formatFixed((bounds.minimum + bounds.maximum) / 2, 1)} {signal === 'SOG' ? 'kt' : '°'}</span><span>{withTypographicMinus(String(bounds.minimum))} {signal === 'SOG' ? 'kt' : '°'}</span></div>
         <div className="sog-signal-chart__plot"><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label={`Median ${signal === 'SOG' ? 'SOG' : signal === 'COG' ? 'relative COG turn' : 'absolute HEEL magnitude'} by seconds from maneuver center`}>
           <g className="sog-signal-chart__grid" aria-hidden="true"><line x1="0" x2="1000" y1="8" y2="8" /><line x1="0" x2="1000" y1="100" y2="100" /><line x1="0" x2="1000" y1="192" y2="192" /></g>
           <line data-maneuver-center="true" x1="500" x2="500" y1="8" y2="192" />

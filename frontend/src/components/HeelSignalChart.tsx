@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { HEEL_SIGNAL_TUNING } from '../config/heelSignal'
 import type { TrackSample } from '../types/track'
+import { formatCompact } from '../utils/numberFormat'
 import {
   buildHeelChartPoints,
   buildHeelBuckets,
@@ -46,7 +47,7 @@ function resolveSignalRange(
 }
 
 function axisHeel(value: number) {
-  return `${Number.isInteger(value) ? value : value.toFixed(1)}°`
+  return `${formatCompact(value)}°`
 }
 
 export default function HeelSignalChart({

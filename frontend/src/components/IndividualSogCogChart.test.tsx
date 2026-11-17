@@ -75,7 +75,7 @@ describe('Individual SOG + COG chart', () => {
     const markup = renderChart()
 
     expect(markup).toContain('<svg')
-    expect(markup).toContain('SOG (kn)')
+    expect(markup).toContain('SOG (kt)')
     expect(markup).toContain('COG (°)')
     expect(markup).toContain('>360°<')
     expect(markup).toContain('>0°<')

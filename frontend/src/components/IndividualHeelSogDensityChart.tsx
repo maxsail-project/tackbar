@@ -1,4 +1,5 @@
 import { HEEL_SOG_DENSITY_CONFIG } from '../config/heelSogDensity'
+import { withTypographicMinus } from '../utils/numberFormat'
 import type {
   ActivityHeelSogDensity,
   HeelSogDensityGeometry,
@@ -140,7 +141,7 @@ export default function IndividualHeelSogDensityChart({
                     y2={y}
                   />
                   <text x={plotMargin.left - 8} y={y + 4} textAnchor="end">
-                    {tick > 0 ? '+' : ''}{tick}°
+                    {tick > 0 ? '+' : ''}{withTypographicMinus(String(tick))}°
                   </text>
                 </g>
               )

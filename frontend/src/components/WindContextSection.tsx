@@ -23,6 +23,7 @@ import {
   type WindProgress,
 } from '../utils/windProgress'
 import type { WindSegment } from '../utils/windSegments'
+import { MINUS_SIGN, formatRounded } from '../utils/numberFormat'
 import { TwdDetail, TwdStepper } from './TwdControl'
 import WindSegmentsList, { countListedWindSegments, formatWindSegmentCount } from './WindSegmentsSection'
 
@@ -72,7 +73,7 @@ function formatMeanTwa(value: number | null) {
 function formatSignedDegrees(value: number) {
   const rounded = Math.round(value)
   if (rounded === 0) return '0'
-  return rounded < 0 ? `−${Math.abs(rounded)}` : `+${rounded}`
+  return rounded < 0 ? `${MINUS_SIGN}${Math.abs(rounded)}` : `+${rounded}`
 }
 
 function formatAxis(axis: TackAxis | null) {
@@ -84,7 +85,7 @@ function formatTackAngle(axis: TackAxis | null) {
 }
 
 function formatMetres(value: number | null) {
-  return value === null ? '—' : `${Math.round(value)} m`
+  return value === null ? '—' : `${formatRounded(value)} m`
 }
 
 function formatDegrees(value: number | null) {
@@ -133,6 +134,7 @@ export function buildWindMetricRows(
       row('efficiency', 'Efficiency', efficiency),
       row('time-starboard', 'Time on starboard', (role) => { const value = tack(role); return value ? formatWindShare(value.shares.starboard) : '—' }),
       row('time-port', 'Time on port', (role) => { const value = tack(role); return value ? formatWindShare(value.shares.port) : '—' }),
+      row('time-tack-unclear', 'Time tack unclear', (role) => { const value = tack(role); return value ? formatWindShare(value.shares.indeterminate) : '—' }),
       row('twa-starboard', 'TWA on starboard', (role) => formatMeanTwa(tack(role)?.meanAbsTwaDegrees.starboard ?? null)),
       row('twa-port', 'TWA on port', (role) => formatMeanTwa(tack(role)?.meanAbsTwaDegrees.port ?? null)),
       row('axis', 'Axis', (role) => formatAxis(tack(role)?.axis ?? null)),
@@ -366,7 +368,6 @@ export default function WindContextSection({
                 <th scope="col">Upwind</th>
                 <th scope="col">Reaching</th>
                 <th scope="col">Downwind</th>
-                <th scope="col">Indet.</th>
               </tr></thead>
               <tbody>
                 {rows.map(({ role, result }) => (
@@ -375,7 +376,6 @@ export default function WindContextSection({
                     <td>{formatWindShare(result.sectorShares?.upwind)}</td>
                     <td>{formatWindShare(result.sectorShares?.reaching)}</td>
                     <td>{formatWindShare(result.sectorShares?.downwind)}</td>
-                    <td>{formatWindShare(result.upwindTack?.shares.indeterminate)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -388,8 +388,9 @@ export default function WindContextSection({
           onToggle={(event) => setNotesExpanded(event.newState === 'open')}
         >
           <h3 id={`${notesId}-title`}>Wind analysis notes</h3>
-          <p className="maneuver-evidence__secondary">Sectors: COG vs effective TWD, over moving time (SOG ≥ {WIND_CONTEXT_CONFIG.movingMinSogKnots} kn).</p>
+          <p className="maneuver-evidence__secondary">Sectors: COG vs effective TWD, over moving time (SOG ≥ {WIND_CONTEXT_CONFIG.movingMinSogKnots} kt).</p>
           <p className="maneuver-evidence__secondary">Tacks: upwind only; HDG/HEEL only confirm them.</p>
+          <p className="maneuver-evidence__secondary">Tack unclear: upwind time with TWA too close to the wind to assign a tack.</p>
           <p className="maneuver-evidence__secondary" id={axisHelpId}>Axis: estimated bisector of the upwind tacks; not applied to TWD.</p>
           <p className="maneuver-evidence__secondary">Progress: net distance along the wind axis; not VMG. Seconds convert the metre difference using both boats&apos; average speed along that axis. Along the wind axis, not toward a mark; gap error grows with lateral separation.</p>
           <p className="maneuver-evidence__secondary">Depth / Gybe angle: mean downwind TWA / angle between the two downwind courses.</p>

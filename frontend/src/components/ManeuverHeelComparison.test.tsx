@@ -65,7 +65,7 @@ describe('typical HEEL chart selection', () => {
     expect(html).toContain('HEEL variation')
     expect(html).toContain('Exit HEEL')
     expect(html).toContain('<td>+2.0°</td>')
-    expect(html).toContain('<td>-2.0°</td>')
+    expect(html).toContain('<td>−2.0°</td>')
     expect(html).toContain('P +4.0°')
     expect(html).toMatch(/<th scope="row" aria-label="Comparison"><\/th><td>C \+6\.0°<\/td><td>P \+4\.0°<\/td><td>C \+6\.0°<\/td>/)
     expect(html).toContain('not signed side or peak excursion')

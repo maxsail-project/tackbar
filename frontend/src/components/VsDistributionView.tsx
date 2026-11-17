@@ -3,6 +3,7 @@ import { ACTIVITY_COLORS } from '../config/activityColors'
 import { VS_CONFIG } from '../config/vs'
 import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
+import { MINUS_SIGN } from '../utils/numberFormat'
 import {
   calculateVsDistributions,
   type ActivityVsDistribution,
@@ -425,7 +426,7 @@ function heelSectorPath(
 
 function formatSignedDegrees(value: number) {
   const formatted = Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 1 })
-  if (value < 0) return `-${formatted}°`
+  if (value < 0) return `${MINUS_SIGN}${formatted}°`
   if (value > 0) return `+${formatted}°`
   return '0°'
 }

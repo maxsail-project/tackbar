@@ -1,6 +1,7 @@
 import type { SummaryMetrics } from '../utils/summaryMetrics'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import { formatAverageSog } from '../utils/metricPresentation'
+import { MINUS_SIGN, formatSog } from '../utils/numberFormat'
 
 interface ComparisonTableProps {
   primaryLabel: string
@@ -24,7 +25,7 @@ function formatNullable(
 
 function formatSignedDegrees(value: number | null) {
   if (value === null) return '—'
-  const sign = value > 0 ? '+' : '−'
+  const sign = value > 0 ? '+' : MINUS_SIGN
   return `${sign}${Math.abs(value).toFixed(1)}°`
 }
 
@@ -39,7 +40,7 @@ const rows: SummaryRow[] = [
   },
   {
     label: 'Max SOG',
-    format: (metrics) => formatNullable(metrics.maxSogKnots, 2, ' kt'),
+    format: (metrics) => formatSog(metrics.maxSogKnots),
   },
   {
     label: 'Dominant COG',

@@ -177,7 +177,7 @@ export default function IndividualSogCogChart({
       <div className="metric-chart__heading metric-chart__heading--signal">
         <div>
           <strong>SOG + COG over GPS time</strong>
-          <span>knots · degrees · UTC</span>
+          <span>kt · degrees · UTC</span>
         </div>
         <IndividualSogCogLegend />
       </div>
@@ -186,11 +186,11 @@ export default function IndividualSogCogChart({
         <div className="individual-sog-cog-signal">
             <IndividualSogCogYAxis
               side="left"
-              label="SOG (kn)"
+              label="SOG (kt)"
               ticks={[
-                `${chart.sogMaximum} kn`,
-                `${Number.isInteger(chart.sogMaximum / 2) ? chart.sogMaximum / 2 : (chart.sogMaximum / 2).toFixed(1)} kn`,
-                '0 kn',
+                `${chart.sogMaximum} kt`,
+                `${Number.isInteger(chart.sogMaximum / 2) ? chart.sogMaximum / 2 : (chart.sogMaximum / 2).toFixed(1)} kt`,
+                '0 kt',
               ]}
             />
             <div className="individual-sog-cog-signal__plot">
