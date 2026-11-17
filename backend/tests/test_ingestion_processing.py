@@ -414,6 +414,164 @@ def test_existing_session_does_not_trigger_automatic_context_enrichment(
     assert calls == 1
 
 
+def _distinct_fixture_bytes() -> bytes:
+    """Same track, different attachment bytes, so it becomes a separate Activity."""
+    return gzip.compress(gzip.decompress(FIXTURE_PATH.read_bytes()), mtime=1)
+
+
+def _geographic_context(
+    label: str | None,
+    country: str | None,
+    region: str | None = None,
+    country_code: str | None = None,
+) -> GeographicContext:
+    return GeographicContext(
+        label=label,
+        region=region,
+        country=country,
+        country_code=country_code,
+        provider="geoapify",
+        resolved_at=datetime(2026, 10, 18, 10, tzinfo=timezone.utc),
+    )
+
+
+def _install_queued_geocoder(
+    monkeypatch: pytest.MonkeyPatch,
+    results: list[object],
+) -> tuple[list[tuple[float, float]], list[int]]:
+    calls: list[tuple[float, float]] = []
+    conditions_calls: list[int] = []
+
+    class Geocoder:
+        def reverse(self, latitude, longitude):
+            calls.append((latitude, longitude))
+            result = results.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+    class Conditions:
+        def fetch(self, *_args):
+            conditions_calls.append(1)
+            return None
+
+    monkeypatch.setattr(
+        "app.services.ingestion_processing.automatic_session_enrichment_service",
+        lambda current_sessions, current_activities: SessionEnrichmentService(
+            current_sessions,
+            current_activities,
+            geocoding=Geocoder(),
+            conditions=Conditions(),
+        ),
+    )
+    return calls, conditions_calls
+
+
+def test_match_into_existing_session_completes_missing_city(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    calls, conditions_calls = _install_queued_geocoder(monkeypatch, [
+        _geographic_context(None, "Spain"),
+        _geographic_context("Valencia", "spain ", "Comunitat Valenciana", "es"),
+    ])
+
+    first = process_provider_email(
+        "ovh", _email(FIXTURE_PATH.read_bytes(), provider_message_id="456:c-1"),
+        sailors, boats, activities, sessions, history,
+    )
+    second = process_provider_email(
+        "ovh", _email(_distinct_fixture_bytes(), provider_message_id="456:c-2"),
+        sailors, boats, activities, sessions, history,
+    )
+
+    assert first is not None and first.session_match.status == "created"
+    assert second is not None and second.session_match.status == "matched"
+    assert second.activity.id != first.activity.id
+    assert calls == [
+        (first.activity.start_lat, first.activity.start_lon),
+        (second.activity.start_lat, second.activity.start_lon),
+    ]
+    assert conditions_calls == [1]
+    assert second.session_match.session.location_label == "Valencia"
+    persisted = sessions.get_by_id(first.session_match.session.id)
+    assert persisted is not None
+    assert persisted.activity_ids == [first.activity.id, second.activity.id]
+    assert (
+        persisted.location_label, persisted.location_region,
+        persisted.location_country, persisted.location_country_code,
+        persisted.location_source_activity_id,
+    ) == ("Valencia", "Comunitat Valenciana", "spain ", "es", second.activity.id)
+
+
+def test_match_into_session_with_city_does_not_call_geocoding(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    calls, conditions_calls = _install_queued_geocoder(monkeypatch, [
+        _geographic_context("Valencia", "Spain"),
+    ])
+
+    first = process_provider_email(
+        "ovh", _email(FIXTURE_PATH.read_bytes(), provider_message_id="456:k-1"),
+        sailors, boats, activities, sessions, history,
+    )
+    second = process_provider_email(
+        "ovh", _email(_distinct_fixture_bytes(), provider_message_id="456:k-2"),
+        sailors, boats, activities, sessions, history,
+    )
+
+    assert first is not None and second is not None
+    assert second.session_match.status == "matched"
+    assert len(calls) == 1
+    assert conditions_calls == [1]
+    persisted = sessions.get_by_id(first.session_match.session.id)
+    assert persisted is not None
+    assert persisted.location_source_activity_id == first.activity.id
+
+
+def test_match_time_geocoding_failure_keeps_ingestion_and_membership(
+    temporary_json_file: Callable[[str, object], Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sailors, boats, activities, sessions, history = _repositories(
+        temporary_json_file
+    )
+    calls, conditions_calls = _install_queued_geocoder(monkeypatch, [
+        _geographic_context(None, "Spain"),
+        TimeoutError("geocoding unavailable"),
+    ])
+
+    first = process_provider_email(
+        "ovh", _email(FIXTURE_PATH.read_bytes(), provider_message_id="456:f-1"),
+        sailors, boats, activities, sessions, history,
+    )
+    second = process_provider_email(
+        "ovh", _email(_distinct_fixture_bytes(), provider_message_id="456:f-2"),
+        sailors, boats, activities, sessions, history,
+    )
+
+    assert first is not None and second is not None
+    assert second.session_match.status == "matched"
+    assert len(calls) == 2
+    assert conditions_calls == [1]
+    persisted = sessions.get_by_id(first.session_match.session.id)
+    assert persisted is not None
+    assert persisted.activity_ids == [first.activity.id, second.activity.id]
+    assert persisted.location_label is None
+    assert persisted.location_country == "Spain"
+    assert persisted.location_source_activity_id == first.activity.id
+    assert [record["status"] for record in history.records()] == [
+        "processed", "processed",
+    ]
+
+
 def test_eager_analytics_selects_low_without_hdg_when_movement_is_usable(
     temporary_json_file: Callable[[str, object], Path],
 ) -> None:

@@ -869,3 +869,217 @@ def test_admin_geography_refresh_does_not_require_conditions_success(
     assert persisted.location_country == "New country"
     assert persisted.location_provider == "geoapify"
     assert persisted.historical_conditions is None
+
+
+def _matched_repositories(
+    temporary_json_file: Callable[[str, object], Path],
+    **existing_fields: object,
+) -> tuple[ActivityRepository, SessionRepository]:
+    activities = ActivityRepository(temporary_json_file("match-activities", [
+        _activity(),
+        {
+            **_activity("activity-b"),
+            "start_lat": 39.47,
+            "start_lon": -0.33,
+            "attachment_sha256": "b" * 64,
+        },
+    ]))
+    sessions = SessionRepository(temporary_json_file("match-sessions", [{
+        "id": "session-a",
+        "activity_ids": ["activity-a", "activity-b"],
+        "created_at": _time(10, 17, 13).isoformat(),
+        "expires_at": _time(12, 17, 13).isoformat(),
+        "capability_token": "keep-token",
+        "capability_revoked": False,
+    }]))
+    session = sessions.get_by_id("session-a")
+    assert session is not None
+    sessions.replace(replace(session, **existing_fields))
+    return activities, sessions
+
+
+class _RecordingGeocoder:
+    def __init__(self, result: GeographicContext | None) -> None:
+        self.result = result
+        self.calls: list[tuple[float, float]] = []
+
+    def reverse(self, latitude: float, longitude: float) -> GeographicContext | None:
+        self.calls.append((latitude, longitude))
+        return self.result
+
+
+def _context(
+    label: str | None,
+    region: str | None,
+    country: str | None,
+    country_code: str | None,
+) -> GeographicContext:
+    return GeographicContext(
+        label, region, country, country_code,
+        provider="geoapify", resolved_at=_time(10, 18, 9),
+    )
+
+
+_COUNTRY_ONLY = {
+    "location_country": "Spain",
+    "location_provider": "old-provider",
+    "location_resolved_at": _time(10, 17, 14),
+    "location_source_activity_id": "activity-a",
+}
+
+
+def test_match_completion_adds_city_to_country_only_session(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _matched_repositories(temporary_json_file, **_COUNTRY_ONLY)
+    geocoder = _RecordingGeocoder(
+        _context("Valencia", "Comunitat Valenciana", " SPAIN ", "es"),
+    )
+    conditions_calls = 0
+
+    class Conditions:
+        def fetch(self, *_args):
+            nonlocal conditions_calls
+            conditions_calls += 1
+            return None
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder, conditions=Conditions(),
+    ).complete_matched_session_geography("session-a", "activity-b")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert geocoder.calls == [(39.47, -0.33)]
+    assert conditions_calls == 0
+    assert (
+        persisted.location_label, persisted.location_region,
+        persisted.location_country, persisted.location_country_code,
+        persisted.location_provider, persisted.location_resolved_at,
+        persisted.location_source_activity_id,
+    ) == (
+        "Valencia", "Comunitat Valenciana", " SPAIN ", "es",
+        "geoapify", _time(10, 18, 9), "activity-b",
+    )
+    assert persisted.capability_token == "keep-token"
+    assert persisted.activity_ids == ["activity-a", "activity-b"]
+
+
+def test_match_completion_accepts_usable_city_for_empty_context(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _matched_repositories(temporary_json_file)
+    geocoder = _RecordingGeocoder(_context("Valencia", None, None, None))
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder,
+    ).complete_matched_session_geography("session-a", "activity-b")
+
+    persisted = sessions.get_by_id("session-a")
+    assert persisted is not None
+    assert persisted.location_label == "Valencia"
+    assert persisted.location_source_activity_id == "activity-b"
+
+
+@pytest.mark.parametrize(
+    ("existing_fields", "result"),
+    [
+        (_COUNTRY_ONLY, _context("Lisboa", None, "Portugal", "pt")),
+        (_COUNTRY_ONLY, _context(None, "Comunitat Valenciana", "Spain", "es")),
+        (_COUNTRY_ONLY, _context("  ", "Comunitat Valenciana", "Spain", "es")),
+        (_COUNTRY_ONLY, _context("Valencia", None, None, "es")),
+        (_COUNTRY_ONLY, None),
+        (
+            {**_COUNTRY_ONLY, "location_region": "Comunitat Valenciana"},
+            _context("Valencia", "Region de Murcia", "Spain", "es"),
+        ),
+        (
+            {**_COUNTRY_ONLY, "location_country_code": "es"},
+            _context("Valencia", None, "Spain", None),
+        ),
+        ({}, _context(None, None, "Spain", "es")),
+    ],
+)
+def test_match_completion_discards_non_additive_or_cityless_results(
+    temporary_json_file: Callable[[str, object], Path],
+    existing_fields: dict[str, object],
+    result: GeographicContext | None,
+) -> None:
+    activities, sessions = _matched_repositories(temporary_json_file, **existing_fields)
+    before = sessions.get_by_id("session-a")
+    geocoder = _RecordingGeocoder(result)
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder,
+    ).complete_matched_session_geography("session-a", "activity-b")
+
+    assert geocoder.calls == [(39.47, -0.33)]
+    assert SessionRepository(sessions.path).get_by_id("session-a") == before
+
+
+def test_match_completion_skips_provider_when_city_exists(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _matched_repositories(
+        temporary_json_file, location_label="Valencia",
+    )
+    before = sessions.get_by_id("session-a")
+
+    class UnexpectedGeocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            raise AssertionError("A Session with a city must not be geocoded on match")
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=UnexpectedGeocoder(),
+    ).complete_matched_session_geography("session-a", "activity-b")
+
+    assert sessions.get_by_id("session-a") == before
+
+
+@pytest.mark.parametrize(
+    "concurrent_change",
+    [{"location_label": "Burjassot"}, {"location_country": "Portugal"}],
+)
+def test_match_completion_checks_latest_persisted_session_before_writing(
+    temporary_json_file: Callable[[str, object], Path],
+    concurrent_change: dict[str, str],
+) -> None:
+    activities, sessions = _matched_repositories(temporary_json_file, **_COUNTRY_ONLY)
+
+    class Geocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            current = sessions.get_by_id("session-a")
+            assert current is not None
+            sessions.replace(replace(current, **concurrent_change))
+            return _context("Valencia", None, "Spain", "es")
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=Geocoder(),
+    ).complete_matched_session_geography("session-a", "activity-b")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert persisted.location_source_activity_id == "activity-a"
+    for field_name, value in concurrent_change.items():
+        assert getattr(persisted, field_name) == value
+    assert persisted.location_label != "Valencia"
+
+
+@pytest.mark.parametrize("failing", [False, True])
+def test_match_completion_unavailable_or_failed_provider_preserves_session(
+    temporary_json_file: Callable[[str, object], Path],
+    failing: bool,
+) -> None:
+    activities, sessions = _matched_repositories(temporary_json_file, **_COUNTRY_ONLY)
+    before = sessions.get_by_id("session-a")
+
+    class FailingGeocoder:
+        def reverse(self, _latitude: float, _longitude: float) -> GeographicContext:
+            raise TimeoutError("geocoding unavailable")
+
+    SessionEnrichmentService(
+        sessions,
+        activities,
+        geocoding=FailingGeocoder() if failing else None,
+    ).complete_matched_session_geography("session-a", "activity-b")
+
+    assert sessions.get_by_id("session-a") == before

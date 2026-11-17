@@ -63,6 +63,23 @@ class SessionEnrichmentService:
             session_id,
         )
 
+    def complete_matched_session_geography(
+        self,
+        session_id: str,
+        activity_id: str,
+    ) -> None:
+        """Best-effort additive city completion after a match into an existing Session."""
+        try:
+            result = self._complete_geography(session_id, activity_id)
+        except Exception:
+            result = "failed"
+        log = logger.warning if result == "failed" else logger.info
+        log(
+            "Match-time Session geographic completion %s for Session %s",
+            result,
+            session_id,
+        )
+
     def enrich_from_admin(self, session_id: str) -> None:
         session = self.sessions.get_by_id(session_id)
         if session is None:
@@ -129,6 +146,61 @@ class SessionEnrichmentService:
         ))
         return "persisted"
 
+    def _complete_geography(self, session_id: str, activity_id: str) -> str:
+        session = self.sessions.get_by_id(session_id)
+        if session is None:
+            return "unavailable (Session missing)"
+        if _populated(session.location_label):
+            return "skipped (city already persisted)"
+        if self.geocoding is None:
+            return "unavailable (provider not configured)"
+        activity = self.activities.get_by_id(activity_id)
+        if activity is None or activity_id not in session.activity_ids:
+            return "unavailable (matched Activity missing)"
+        try:
+            context = self.geocoding.reverse(activity.start_lat, activity.start_lon)
+        except Exception:
+            return "failed"
+        if context is None:
+            return "returned no usable result"
+        current = self.sessions.get_by_id(session_id)
+        if current is None or activity_id not in current.activity_ids:
+            return "skipped (Session changed)"
+        if _populated(current.location_label):
+            return "skipped (Session changed)"
+        if not _populated(context.label):
+            return "skipped (no city in result)"
+        existing_fields = (
+            current.location_label,
+            current.location_region,
+            current.location_country,
+            current.location_country_code,
+        )
+        replacement_fields = (
+            context.label,
+            context.region,
+            context.country,
+            context.country_code,
+        )
+        for existing, replacement in zip(existing_fields, replacement_fields):
+            if not _populated(existing):
+                continue
+            if not _populated(replacement):
+                return "skipped (incomplete geographic result)"
+            if _normalized(existing) != _normalized(replacement):
+                return "skipped (result changes existing value)"
+        self.sessions.replace(replace(
+            current,
+            location_label=context.label,
+            location_region=context.region,
+            location_country=context.country,
+            location_country_code=context.country_code,
+            location_provider=context.provider,
+            location_resolved_at=context.resolved_at,
+            location_source_activity_id=activity.id,
+        ))
+        return "persisted"
+
     def _refresh_conditions(self, session_id: str) -> str:
         if self.conditions is None:
             return "unavailable (provider not configured)"
@@ -179,6 +251,14 @@ class SessionEnrichmentService:
             if source is not None
         ]
         return f"persisted ({' + '.join(sources)})"
+
+
+def _populated(value: str | None) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _normalized(value: str) -> str:
+    return value.strip().casefold()
 
 
 def configured_geocoding_provider() -> GeocodingProvider | None:

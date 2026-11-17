@@ -533,6 +533,17 @@ def _process_activity(
         refreshed_session = sessions.get_by_id(session_match.session.id)
         if refreshed_session is not None:
             session_match.session = refreshed_session
+    elif session_match.status == "matched":
+        automatic_session_enrichment_service(
+            sessions,
+            activities,
+        ).complete_matched_session_geography(
+            session_match.session.id,
+            stored_activity.id,
+        )
+        refreshed_session = sessions.get_by_id(session_match.session.id)
+        if refreshed_session is not None:
+            session_match.session = refreshed_session
     _attempt_maneuver_analytics_generation(stored_activity.id, storage)
     return IngestionProcessingResult(
         sailor=sailor,
