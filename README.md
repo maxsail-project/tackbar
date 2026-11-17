@@ -156,6 +156,7 @@ The Viewer offers:
 * Individual Analysis per Activity (SOG + COG over time, HEEL × SOG density);
 * neutral maneuver evidence: HIGH when heading is available, LOW from course
   and speed;
+* temporal and TRACE spatial maneuver profiles for comparing supported turns;
 * source-aware wind references, Session location and, when available,
   historical conditions;
 * wind-relative segments and window analysis, including tack context and
@@ -435,6 +436,8 @@ El Viewer ofrece:
 * Individual Analysis por Activity (SOG + COG en el tiempo, densidad HEEL × SOG);
 * evidencia neutral de maniobras: HIGH cuando hay heading, LOW a partir de
   rumbo y velocidad;
+* perfiles temporales y espaciales TRACE de maniobras para comparar giros con
+  evidencia suficiente;
 * referencias de viento con procedencia, ubicación de la Session y, cuando
   existan, condiciones históricas;
 * segmentos y análisis de la ventana relativos al viento, incluidos el contexto

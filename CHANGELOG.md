@@ -2,6 +2,70 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.23 Californian — Between the Lines
+
+### English
+
+This release makes maneuver paths easier to compare, improves Viewer distributions and numeric presentation, and completes missing Session city context when later tracks join.
+
+### Added
+
+* **TRACE** joins the Maneuver Profiles options with spatial paths aligned to each maneuver's entry/exit course bisector. Thin individual paths remain visible when the separate P/C and left/right median paths lack support. A companion table shows the median event `|ΔCOG|` and contributing count for each turn side; groups of one or two are marked indicative. TRACE uses the shared Analysis Window and angle band, and does not infer tack, gybe or wind direction.
+* When a later Activity matches an existing Session without a city, TackBar makes one best-effort lookup from that Activity's start position. A city is saved only if the result adds one while retaining every previously populated geographic value; the geographic fields and provenance are replaced together. A Session with a city needs no lookup, and weather/marine conditions are not refreshed by matching.
+
+### Changed
+
+* The VS HEEL semicircle uses a symmetric P/C domain based on the 95% valid-time `|HEEL|`, rounded to 2° bins and bounded to ±10°–±40°, with a coverage-preserving widening rule. Valid HEEL time outside the selected domain still lowers coverage. The TRIM boxplot has regular signed-degree ticks and light reference lines while retaining its statistics and shared axis.
+* Viewer analysis and summary tables use proportional tabular numerals; live map readouts retain monospace. Displayed speed uses `kt` and one-decimal SOG, with consistent unit spacing, compact seconds and typographic minus signs. Wind Analysis moves indeterminate upwind-tack time from Sector breakdown to **Time tack unclear** beside the other tack-time rows. Calculations, stored values and API fields are unchanged.
+* SonarQube CI now runs frontend typecheck and production build alongside tests and analysis.
+
+### Issues
+
+- [#197](https://github.com/maxsail-project/tackbar/issues/197) — [#197] Fit Heel distribution domain to observed heel
+- [#198](https://github.com/maxsail-project/tackbar/issues/198) — [#198] Use a regular reference scale on the TRIM boxplot axis
+- [#199](https://github.com/maxsail-project/tackbar/issues/199) — [#199] Complete missing Session city from later matched Activities
+- [#201](https://github.com/maxsail-project/tackbar/issues/201) — [#201] Add bisector-aligned spatial maneuver trajectory profiles
+- [#202](https://github.com/maxsail-project/tackbar/issues/202) — [#202] Show median turn angle per turn side in TRACE
+- [#203](https://github.com/maxsail-project/tackbar/issues/203) — [#203] Define one numeric typography rule for Viewer tables
+- [#204](https://github.com/maxsail-project/tackbar/issues/204) — [#204] Align numeric presentation across Viewer sections
+
+### Validation
+
+The completed Issues record focused implementation checks and product-owner acceptance. At candidate `370c2e8`, [SonarQube CI](https://github.com/maxsail-project/tackbar/actions/runs/44195279070) passed backend and frontend tests with coverage, frontend typecheck, the quality-gated scan and production build. Release preparation checks Issue completion and commit inclusion, documentation, bilingual consistency, publication absence, exact release-body correspondence and `git diff --check`; it does not repeat product tests. TRACE spatial medians need at least three supported maneuvers per role and turn side, and turn-side angles are conditioned by the selected angle band. The matched-Activity city completion was accepted with fake-provider tests; behavior against a real Geoapify response and real tracks was not manually verified before release.
+
+---
+
+### Español
+
+Esta versión facilita comparar las trayectorias de maniobras, mejora las distribuciones y la presentación numérica del Viewer, y completa la ciudad de una Session cuando se incorporan tracks posteriores.
+
+### Añadido
+
+* **TRACE** se incorpora a Maneuver Profiles con trayectorias espaciales alineadas con la bisectriz de los rumbos de entrada y salida de cada maniobra. Las trayectorias individuales finas siguen visibles cuando faltan datos para las medianas separadas por P/C y giro izquierdo/derecho. Una tabla muestra la mediana de `|ΔCOG|` por evento y el recuento de cada lado; los grupos de una o dos maniobras se marcan como indicativos. TRACE usa la Analysis Window y el filtro angular compartidos, sin inferir virada, trasluchada ni dirección del viento.
+* Cuando una Activity posterior se asocia a una Session existente sin ciudad, TackBar hace una consulta geográfica de mejor esfuerzo desde la posición inicial de esa Activity. Solo guarda la ciudad si el resultado la añade y conserva todos los valores geográficos previamente poblados; los campos y su procedencia se sustituyen juntos. Una Session que ya tiene ciudad no necesita esa consulta, y el matching no actualiza las condiciones meteorológicas o marinas.
+
+### Cambiado
+
+* El semicírculo VS de HEEL usa un dominio simétrico común a P/C basado en el `|HEEL|` del 95% del tiempo válido, redondeado a intervalos de 2° y limitado a ±10°–±40°, con ampliación para conservar la elegibilidad. El tiempo válido fuera del dominio elegido sigue reduciendo la cobertura. El boxplot de TRIM incorpora marcas regulares en grados con signo y líneas de referencia suaves, manteniendo sus estadísticas y eje compartido.
+* Las tablas de análisis y resumen del Viewer usan cifras tabulares proporcionales; las lecturas en directo del mapa conservan el tipo monoespaciado. La velocidad visible usa `kt` y SOG con un decimal, con espaciado de unidades, segundos compactos y signo menos tipográfico coherentes. Wind Analysis mueve el tiempo de bordo indeterminado de Sector breakdown a **Time tack unclear**, junto a las otras filas de tiempo por bordo. Los cálculos, valores almacenados y campos de API no cambian.
+* CI de SonarQube ejecuta ahora el typecheck y el build de producción del frontend junto con las pruebas y el análisis.
+
+### Issues
+
+- [#197](https://github.com/maxsail-project/tackbar/issues/197) — [#197] Fit Heel distribution domain to observed heel
+- [#198](https://github.com/maxsail-project/tackbar/issues/198) — [#198] Use a regular reference scale on the TRIM boxplot axis
+- [#199](https://github.com/maxsail-project/tackbar/issues/199) — [#199] Complete missing Session city from later matched Activities
+- [#201](https://github.com/maxsail-project/tackbar/issues/201) — [#201] Add bisector-aligned spatial maneuver trajectory profiles
+- [#202](https://github.com/maxsail-project/tackbar/issues/202) — [#202] Show median turn angle per turn side in TRACE
+- [#203](https://github.com/maxsail-project/tackbar/issues/203) — [#203] Define one numeric typography rule for Viewer tables
+- [#204](https://github.com/maxsail-project/tackbar/issues/204) — [#204] Align numeric presentation across Viewer sections
+
+### Validación
+
+Los Issues completados registran pruebas focalizadas de implementación y la aceptación del propietario del producto. En el candidato `370c2e8`, [CI SonarQube](https://github.com/maxsail-project/tackbar/actions/runs/44195279070) superó las pruebas backend y frontend con cobertura, el typecheck del frontend, el análisis con control de calidad y el build de producción. La preparación comprueba el cierre e inclusión de Issues, la documentación, la coherencia bilingüe, la ausencia de publicación, la correspondencia exacta del cuerpo de la release y `git diff --check`; no repite las pruebas del producto. Las medianas espaciales TRACE requieren al menos tres maniobras con evidencia por rol y lado de giro, y los ángulos por lado dependen del filtro angular elegido. La incorporación de la ciudad mediante una Activity asociada se aceptó con pruebas de proveedor simulado; no se verificó manualmente con una respuesta real de Geoapify y tracks reales antes de la release.
+
+---
+
 ## v0.7.22 Californian — Gone with the Wind
 
 ### English
