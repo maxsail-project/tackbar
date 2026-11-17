@@ -3,9 +3,11 @@
 /** Typographic minus sign (U+2212) used for every displayed negative number. */
 export const MINUS_SIGN = '−'
 
-/** Replaces a leading ASCII hyphen-minus with the typographic minus. */
+/** Replaces a leading ASCII hyphen-minus with the typographic minus; a value that displays as zero stays unsigned. */
 export function withTypographicMinus(text: string) {
-  return text.startsWith('-') ? `${MINUS_SIGN}${text.slice(1)}` : text
+  if (!text.startsWith('-')) return text
+  const magnitude = text.slice(1)
+  return /^0(\.0+)?$/.test(magnitude) ? magnitude : `${MINUS_SIGN}${magnitude}`
 }
 
 /** `value.toFixed(fractionDigits)` with the typographic minus. */

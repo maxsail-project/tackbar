@@ -226,9 +226,9 @@ describe('P-perspective gain and gaps at the same instants', () => {
   it('is Similar within 5 s regardless of direction', () => {
     const upwind = pair(0, 'upwind', { from: [0, 0], to: [400, 0] }, { from: [0, 0], to: [396, 0] })
     expect(upwind.status).toBe('similar')
-    expect(formatProgressDifference(upwind)).toBe('P and C made similar progress to windward (within 5 s).')
+    expect(formatProgressDifference(upwind)).toBe('P and C made similar progress to windward (within 5s).')
     const downwind = pair(0, 'downwind', { from: [0, 0], to: [396, 0] }, { from: [0, 0], to: [400, 0] })
-    expect(formatProgressDifference(downwind)).toBe('P and C made similar progress to leeward (within 5 s).')
+    expect(formatProgressDifference(downwind)).toBe('P and C made similar progress to leeward (within 5s).')
     const beyond = pair(0, 'upwind', { from: [0, 0], to: [410, 0] }, { from: [0, 0], to: [400, 0] })
     expect(beyond.seconds).toBeGreaterThan(5)
     expect(beyond.status).toBe('difference')

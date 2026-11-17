@@ -209,7 +209,7 @@ export default function ManeuverSogComparison({ primary, comparison }: {
   return <section className="maneuver-profile" aria-label={signal === 'TRACE' ? 'Maneuver trace comparison' : `Typical ${signal} maneuver comparison`}>
     {signal === 'TRACE' ? <div className="metric-chart__heading"><div><strong>Maneuver paths</strong><span>Metres, 1 m = 1 m · t=0 at origin · bisector aligned, forward up</span></div>
       <span>Individual thin · median bold</span></div>
-    : <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median kt' : signal === 'COG' ? 'Median relative course change (°)' : 'Median |HEEL| (°), magnitude of signed inclination'} · relative to event center</span></div>
+    : <div className="metric-chart__heading"><div><strong>Typical {signal} through a maneuver</strong><span>{signal === 'SOG' ? 'Median SOG (kt)' : signal === 'COG' ? 'Median relative course change (°)' : 'Median |HEEL| (°), magnitude of signed inclination'} · relative to event center</span></div>
       <span>Raw thin · smoothed bold</span></div>}
     <div className="metric-options" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }} role="group" aria-label="Maneuver profile signal">
       {(['SOG', 'COG', 'HEEL', 'TRACE'] as const).map((option) => <button type="button" key={option} className={signal === option ? 'is-active' : ''}

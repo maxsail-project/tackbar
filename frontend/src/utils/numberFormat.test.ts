@@ -25,6 +25,18 @@ describe('Viewer number presentation (#204)', () => {
     expect(formatRounded(-0.4)).toBe('0')
   })
 
+  it('never displays a signed zero', () => {
+    expect(formatFixed(-0.04, 1)).toBe('0.0')
+    expect(formatFixed(-0.004, 2)).toBe('0.00')
+    expect(formatFixed(-0, 1)).toBe('0.0')
+    expect(formatFixed(-0.05, 1)).toBe('−0.1')
+    expect(withTypographicMinus('-0.0')).toBe('0.0')
+    expect(withTypographicMinus('-0')).toBe('0')
+    expect(formatSogNumber(-0.04)).toBe('0.0')
+    expect(formatSignedFixed(-0.04, 1)).toBe('0.0')
+    expect(formatRounded(-0.4)).toBe('0')
+  })
+
   it('signs non-zero values explicitly and keeps zero unsigned', () => {
     expect(formatSignedFixed(1.5, 1)).toBe('+1.5')
     expect(formatSignedFixed(-1.5, 1)).toBe('−1.5')

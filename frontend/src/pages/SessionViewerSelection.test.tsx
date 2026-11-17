@@ -396,7 +396,7 @@ describe('Viewer TWD state', () => {
     expect(progressRow('primary')).toBe('1108 m')
     await choose('Compare', 'b')
     expect(progressRow('comparison')).toBe('1108 m')
-    expect(section().querySelector('[data-wind-progress-difference]')!.textContent).toBe('P and C made similar progress to windward (within 5 s).')
+    expect(section().querySelector('[data-wind-progress-difference]')!.textContent).toBe('P and C made similar progress to windward (within 5s).')
     expect(section().querySelector('[data-wind-progress-gaps]')!.textContent)
       .toMatch(/^At \d\d:\d\d:\d\d P level with C → at \d\d:\d\d:\d\d level with C$/)
     expect(section().querySelector('[data-wind-metric="depth"]')).toBeNull()

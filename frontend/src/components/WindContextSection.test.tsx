@@ -339,7 +339,7 @@ describe('WindContextSection', () => {
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={upwind}
       primaryProgress={progress('upwind', 609, 893, 2)} comparisonProgress={progress('upwind', 600, 814, 2)}
     />)
-    expect(text(similar)).toContain('P and C made similar progress to windward (within 5 s).')
+    expect(text(similar)).toContain('P and C made similar progress to windward (within 5s).')
     const ineligible = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind} comparison={upwind}
       primaryProgress={progress('upwind', 609, 893, 2)}

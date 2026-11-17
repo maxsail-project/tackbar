@@ -209,7 +209,7 @@ function formatUtcTime(timeMs: number) {
 
 export function formatProgressDifference(difference: ProgressDifference) {
   const direction = difference.sector === 'upwind' ? 'windward' : 'leeward'
-  if (difference.status === 'similar') return `P and C made similar progress to ${direction} (within 5 s).`
+  if (difference.status === 'similar') return `P and C made similar progress to ${direction} (within 5s).`
   const verb = difference.gainMeters >= 0 ? 'gained' : 'lost'
   const meters = Math.round(Math.abs(difference.gainMeters))
   const seconds = Math.round(difference.seconds)

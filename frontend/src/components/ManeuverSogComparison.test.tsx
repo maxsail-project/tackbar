@@ -54,6 +54,7 @@ describe('maneuver SOG comparison', () => {
     expect(html).not.toContain('SOG drop')
     expect(html).not.toContain('detected')
     expect(html).toContain('t=0')
+    expect(html).toContain('Median SOG (kt)')
     expect(html).toContain('<span>−25s</span><span>t=0</span><span>+25s</span>')
   })
 
