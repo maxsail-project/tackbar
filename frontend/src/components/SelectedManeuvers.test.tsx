@@ -60,12 +60,14 @@ describe('Selected Maneuvers strip', () => {
     expect(markup).toContain('Previous selected maneuver, P')
     expect(markup).not.toContain('selected-maneuvers__number')
     const row = markup.match(/<tbody><tr>(.*?)<\/tr>/)?.[1] ?? ''
-    expect(row).toMatch(/10:00:05.*8 m\/3 s.*12 s.*5\.1\/3\.2\/5\.4 kt.*−91°/)
+    expect(row).toMatch(/10:00:05.*8 m · 3s.*>12s<.*5\.1\/3\.2\/5\.4 kt.*−91°/)
     expect(markup).toContain('+90°')
     expect(markup).toContain('Entry SOG 5.1 knots, Minimum SOG 3.2 knots, Exit SOG 5.4 knots')
     expect(markup).not.toMatch(/ΔHDG|ΔCOG|DUR/)
     expect(row).not.toContain('Loss 8 m')
     expect(row).not.toContain('Rec 12 s')
+    expect(row).toContain('Loss distance 8 m; equivalent Loss time 3 s')
+    expect(row).toContain('aria-label="Recovery 12 s"')
     expect(markup).not.toContain('HIGH')
     expect(markup).not.toContain('LOW')
   })
@@ -83,7 +85,7 @@ describe('Selected Maneuvers strip', () => {
       })}
       previous={null}
     />)
-    expect(markup).toContain('>—/—</td>')
+    expect(markup).toContain('>— · —</td>')
     expect(markup).toContain('>—</td>')
     expect(markup).toContain('>—/—/—</td>')
     expect(markup).toContain('Entry SOG —, Minimum SOG —, Exit SOG —')

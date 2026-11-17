@@ -17,6 +17,10 @@ function withUnit(value: string, unit: string) {
   return value === '—' ? value : `${value} ${unit}`
 }
 
+function compactSeconds(value: string) {
+  return value === '—' ? value : `${value}s`
+}
+
 function ManeuverRow({ event, position }: {
   event: DisplayManeuver | null
   position: 'Latest' | 'Previous'
@@ -38,6 +42,8 @@ function ManeuverRow({ event, position }: {
   const lossDistance = withUnit(formatMetres(maneuver.speed_loss_distance_m), 'm')
   const lossTime = withUnit(formatSeconds(maneuver.speed_loss_time_s), 's')
   const recovery = withUnit(formatSeconds(maneuver.recovery_time_s), 's')
+  const lossText = `${lossDistance} · ${compactSeconds(formatSeconds(maneuver.speed_loss_time_s))}`
+  const recoveryText = compactSeconds(formatSeconds(maneuver.recovery_time_s))
   const entrySog = formatKnots(maneuver.sog_entry_kn)
   const minimumSog = formatKnots(maneuver.sog_min_kn)
   const exitSog = formatKnots(maneuver.sog_exit_kn)
@@ -49,8 +55,8 @@ function ManeuverRow({ event, position }: {
   return <tr>
     <th scope="row" className="selected-maneuvers__role" style={{ color: ACTIVITY_COLORS[event.activityRole] }} aria-label={`${position} selected maneuver, ${role}`}>{role}</th>
     <td aria-label={`UTC time ${formatGpsTime(event.centerTimeMs)}`}>{formatGpsTime(event.centerTimeMs)}</td>
-    <td aria-label={`Loss distance ${lossDistance}; equivalent Loss time ${lossTime}`}>{lossDistance}/{lossTime}</td>
-    <td className="selected-maneuvers__recovery" aria-label={`Recovery ${recovery}`}>{recovery}</td>
+    <td aria-label={`Loss distance ${lossDistance}; equivalent Loss time ${lossTime}`}>{lossText}</td>
+    <td className="selected-maneuvers__recovery" aria-label={`Recovery ${recovery}`}>{recoveryText}</td>
     <td className="selected-maneuvers__sog" aria-label={`Entry SOG ${withUnit(formatKnots(maneuver.sog_entry_kn), 'knots')}, Minimum SOG ${withUnit(formatKnots(maneuver.sog_min_kn), 'knots')}, Exit SOG ${withUnit(formatKnots(maneuver.sog_exit_kn), 'knots')}`}>
       {sogDisplay}
     </td>
