@@ -125,7 +125,7 @@ The overview is non-normative and must not introduce or override product contrac
 ## Git, release and production safety
 
 Normal development staging, commits, merges and pushes are human-controlled unless
-expressly authorized. On ordinary tasks, coding agents must not stage, commit, push, tag
+expressly authorized, including through the Issue-scoped continuous delivery mode below. On ordinary tasks, coding agents must not stage, commit, push, tag
 or release. Never stage broadly with `git add .`, `git add -A` or equivalent; use exact
 intended paths when staging is authorized.
 
@@ -147,3 +147,64 @@ path. Do not add a Release Finalizer, mandatory post-release Issue or documentat
 Preserve published history and use durable release facts, not transient “deployment
 pending” language. v0.7.x tags use semantic version only; the established Californian
 release name remains in force, and no v0.8 family name has been decided.
+
+## Issue-scoped continuous delivery mode
+
+Continuous delivery mode is opt-in. It applies only to one Issue for which the product
+owner has recorded an explicit continuous-mode authorization as a comment on that Issue.
+There is no standing or type-wide authorization; without that comment, every other rule
+in this file applies unchanged.
+
+**Eligibility.** Only Issues in `Ready for implementation` with closed decisions and an
+impact of Low or Medium. High-impact Issues follow the ordinary flow. The impact is the one
+fixed in the implementation prompt header.
+
+**Chain.** Under the authorization, the AI assistant may: prepare the implementation
+prompt; have a separate implementation agent implement it; review the diff against the
+Issue; stage exact paths, commit and push; verify CI on the exact pushed SHA; post a
+reconciliation comment; and continue as follows:
+
+- **Low:** close the Issue as `completed` on automated evidence (the authorization
+  pre-accepts the increment), then act as Release Preparer and Release Publisher for the
+  next patch release.
+- **Medium:** pause for the product owner's manual test. Focused corrections within the
+  approved scope may follow product-owner findings, each with its own commit and CI
+  verification. Resume only after the product owner records **PASS** or explicitly
+  accepts the risk on the Issue; then close as `completed`, prepare and publish.
+
+**Independence, model and effort.** The implementation agent has its own context and does
+not review or accept its own work. The prompt header's `Recommended development
+model/tool`, approved through the authorization, is binding: launch the implementation
+agent with that model and reasoning effort set explicitly. The reconciliation records the
+model and effort actually used, or states that they could not be set or verified. If they
+cannot be set, stop and report rather than using defaults.
+
+**Stop conditions.** Stop and report on a CI failure, failing focused tests, a diff outside
+the approved scope, an unresolved product question, a Medium finding that needs new scope
+or a product decision, or a remote `main` that has moved incompatibly. For automated
+failures, at most one focused micro-fix within the approved scope is allowed before
+stopping; no retry loops.
+
+**Branches.** Simple increments go directly to `main`. Complex work uses a branch with a
+draft pull request for CI and is merged only when its last run, including the quality
+gate, has passed.
+
+**Release identity.** By default one continuous-mode Issue produces one patch release:
+the latest published `v0.<family>.<patch>` tag plus one patch. The current family is
+the family of the latest published tag. The
+release subtitle is decided at Issue level and recorded in the Issue; without it, pause
+before release preparation. Stop if the derived tag already exists, if the latest tag is
+not in the history of `main`, or if the range contains no newly completed Issue. Grouping
+several Issues into one release is decided by the product owner case by case. Opening a
+new family (`v0.<n+1>.0`) is never derived: it is an explicit release through the
+ordinary flow, with the family name and subtitle chosen by the product owner, and its
+preparation updates the family naming statement in this file. Later patches of that
+family may then use the default chain.
+
+**Publication.** Publication is executed by whoever has the required permissions: the
+assistant when its session can push tags and create Releases, otherwise the product owner
+or another authorized agent using the exact commands and body the assistant prepared.
+Release preparation and publication keep their procedures, checks and forbidden actions
+in `agents/release-preparer.md`, `agents/release-publisher.md` and
+`docs/workflows/release-preparation-workflow.md`. Publication still does not authorize
+deployment beyond the existing workflow triggered by a published Release.

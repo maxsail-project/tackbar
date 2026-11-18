@@ -43,6 +43,12 @@ Publish v0.7.4
 
 is sufficient authorization for these narrow publication operations.
 
+Under the Issue-scoped continuous delivery mode defined in `AGENTS.md`, a recorded
+product-owner continuous-mode authorization that covers publication is equivalent to
+that invocation for the version prepared and recorded by the Release Preparer in the
+same chain. All preconditions, procedure steps and failure conditions in this
+definition still apply.
+
 Do not request another confirmation immediately before creating or pushing the
 tag or creating the GitHub Release.
 

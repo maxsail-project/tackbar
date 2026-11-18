@@ -54,6 +54,14 @@ Prepare v0.7.4
 is sufficient authorization for these narrow preparation operations when the
 release identity can be resolved unambiguously from repository evidence.
 
+Under the Issue-scoped continuous delivery mode defined in `AGENTS.md`, a recorded
+product-owner continuous-mode authorization that covers release preparation is
+equivalent to that invocation for the next patch release. The version is derived as
+the latest published tag plus one patch within the current family and the subtitle is
+the one recorded in the delivering Issue. Applying this derivation is not choosing a
+version. All preconditions, procedure steps and failure conditions in this definition
+still apply, together with the continuous-mode safeguards in `AGENTS.md`.
+
 That invocation also supplies the documentation authority above. The Release
 Preparer does not need separate per-file approval to update genuinely
 release-relevant files, including `README.md`, `ROADMAP.md`, `CHANGELOG.md`,
@@ -555,7 +563,9 @@ If the published release is later deployed, the successful production
 deployment workflow run—not a follow-up documentation commit—is the
 authoritative deployment evidence.
 
-Do not invoke the Release Publisher automatically.
+Do not invoke the Release Publisher automatically, except when a continuous-mode
+authorization recorded under `AGENTS.md` also covers publication; then publication
+follows `agents/release-publisher.md` as a separate role step.
 
 Publication requires a separate explicit instruction:
 
@@ -586,7 +596,7 @@ The Release Preparer must not:
 - change Session semantics;
 - publish Git tags;
 - create GitHub Releases;
-- invoke publication automatically;
+- invoke publication automatically outside an authorized continuous-mode chain;
 - deploy production;
 - modify production runtime state or configuration;
 - stage unrelated files;

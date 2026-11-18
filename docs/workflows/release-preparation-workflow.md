@@ -27,6 +27,12 @@ Accepted delivered work is represented by relevant GitHub Issues closed as
 A release-preparation Issue may be supplied. If none exists, an explicitly
 invoked Release Preparer may create it from repository evidence.
 
+Under the Issue-scoped continuous delivery mode in `AGENTS.md`, a recorded
+continuous-mode authorization covering release preparation supplies the version
+(latest published tag plus one patch within the current family) and the release name
+(family plus the subtitle recorded in the delivering Issue), with the safeguards
+defined there.
+
 Invoking the Release Preparer for one concrete release authorizes the mandatory
 release-relevant documentation review and all evidence-based documentation
 updates defined by this workflow. No additional per-file approval is required.
@@ -638,7 +644,8 @@ follow-up documentation commit is required to reach or preserve this state.
 
 Release publication is always a separate explicit operation.
 
-The Release Preparer must not invoke publication automatically.
+The Release Preparer must not invoke publication automatically, except when a
+continuous-mode authorization recorded under `AGENTS.md` also covers publication.
 
 After `READY_FOR_PUBLICATION`, publication may be handed off by explicitly
 invoking the Release Publisher.
