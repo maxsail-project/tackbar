@@ -139,7 +139,8 @@ export default function WindSegmentsList({
                 {activeFilter === 'all' ? 'No segments for P in this Analysis Window.' : `No ${filterFullLabel(activeFilter)} segments in this window`}
               </p>
             ) : (
-            <table className="wind-context-table wind-segments__table" aria-label="P wind segments">
+            <div className="wind-segments__table-wrap">
+            <table className="wind-segments__table" aria-label="P wind segments">
               <thead><tr>
                 <th scope="col" className="wind-segments__segment-column" aria-label="P segment">P</th>
                 <th scope="col">Time (UTC)</th>
@@ -188,6 +189,7 @@ export default function WindSegmentsList({
                 })}
               </tbody>
             </table>
+            </div>
             )}
           </>
         )}
