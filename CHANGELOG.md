@@ -2,6 +2,44 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.24 Californian — You Are Here
+
+### English
+
+This release lets an explicit Admin **Enrich Session** recover a missing Session city from any member Activity, not only the one that created the Session.
+
+### Changed
+
+* Admin **Enrich Session** looks up the creator Activity's start position first. If that result is not accepted with a city, it tries the other member Activities' start positions in Session order, with at most one lookup each, and keeps the first accepted result that has a city, recording that Activity as the location source. Acceptance still requires keeping every currently populated geographic field. If no member yields a city, the outcome is the same as before. Weather/marine conditions, automatic new-Session enrichment and match-time city completion are unchanged.
+
+### Issues
+
+- [#206](https://github.com/maxsail-project/tackbar/issues/206) — [#206] Try member Activities for missing city in Admin Enrich Session
+
+### Validation
+
+The completed Issue records focused implementation tests and product-owner acceptance, including a manual Admin Enrich Session check on a real country-only, multi-Activity Session. At candidate `e9b5e62`, [SonarQube CI](https://github.com/maxsail-project/tackbar/actions/runs/44271596894) passed backend and frontend tests with coverage, frontend typecheck, the quality-gated scan and production build. Release preparation checks Issue completion and commit inclusion, documentation, bilingual consistency, publication absence, exact release-body correspondence and `git diff --check`; it does not repeat product tests.
+
+---
+
+### Español
+
+Esta versión permite que la acción explícita **Enrich Session** de Admin recupere la ciudad que falta en una Session a partir de cualquiera de sus Activities, no solo de la que la creó.
+
+### Cambiado
+
+* **Enrich Session** en Admin consulta primero la posición inicial de la Activity creadora. Si ese resultado no se acepta con ciudad, prueba las posiciones iniciales de las demás Activities en el orden de la Session, con una consulta como máximo por cada una, y conserva el primer resultado aceptado que tenga ciudad, registrando esa Activity como origen de la ubicación. La aceptación sigue exigiendo conservar todos los campos geográficos ya poblados. Si ninguna Activity aporta ciudad, el resultado es el mismo que antes. Las condiciones meteorológicas y marinas, el enriquecimiento automático de Sessions nuevas y la completación de ciudad al asociar no cambian.
+
+### Issues
+
+- [#206](https://github.com/maxsail-project/tackbar/issues/206) — [#206] Try member Activities for missing city in Admin Enrich Session
+
+### Validación
+
+El Issue completado registra pruebas focalizadas de implementación y la aceptación del propietario del producto, incluida una comprobación manual de Enrich Session en Admin sobre una Session real con solo país y varias Activities. En el candidato `e9b5e62`, [CI SonarQube](https://github.com/maxsail-project/tackbar/actions/runs/44271596894) superó las pruebas de backend y frontend con cobertura, el typecheck del frontend, el análisis con quality gate y el build de producción. La preparación de la versión comprueba el cierre de los Issues y la inclusión de commits, la documentación, la coherencia bilingüe, la ausencia de publicación, la correspondencia exacta del cuerpo de la release y `git diff --check`; no repite las pruebas de producto.
+
+---
+
 ## v0.7.23 Californian — Between the Lines
 
 ### English
