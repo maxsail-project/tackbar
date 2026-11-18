@@ -59,8 +59,11 @@ vi.mock('../components/MetricChart', () => ({ default: () => null }))
 vi.mock('../components/IndividualAnalysis', () => ({ default: () => <section data-viewer-section="individual-analysis" /> }))
 vi.mock('../components/MetricSelector', () => ({ default: () => <section data-viewer-section="track-analysis" />, DEFAULT_VIEWER_METRIC_VIEW: 'VS' }))
 vi.mock('../components/ManeuverEventTable', () => ({
-  default: ({ events, onSelect }: { events: DisplayManeuver[], onSelect: (event: DisplayManeuver) => void }) =>
-    <section data-viewer-section="maneuver-analysis">{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</section>,
+  default: ({ events, onSelect, windSectors, sectorFilterResetKey }: {
+    events: DisplayManeuver[], onSelect: (event: DisplayManeuver) => void,
+    windSectors?: ReadonlyMap<string, unknown> | null, sectorFilterResetKey?: string,
+  }) =>
+    <section data-viewer-section="maneuver-analysis" data-sector-available={windSectors !== null && windSectors !== undefined} data-sector-reset-key={sectorFilterResetKey}>{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</section>,
 }))
 vi.mock('../components/AnalysisWindow', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../components/AnalysisWindow')>()),
@@ -1076,6 +1079,43 @@ describe('Viewer selected maneuver interactions', () => {
     expect(two).not.toBe(one)
     expect(two).toHaveLength(2)
     expect(two![0].geoJson).not.toBe(one![0].geoJson)
+  })
+
+  it('provides maneuver wind sectors only with a TWD reference, including a manual-only correction (#211.1)', async () => {
+    await mountViewer('original', session)
+    const table = () => container.querySelector<HTMLElement>('[data-viewer-section="maneuver-analysis"]')!
+    expect(table().dataset.sectorAvailable).toBe('false')
+    await click('[data-twd-gesture]')
+    expect(table().dataset.sectorAvailable).toBe('true')
+    await click('[data-twd-auto]')
+    expect(table().dataset.sectorAvailable).toBe('false')
+  })
+
+  it.each(['original', 'temporary'] as const)('changes the sector filter reset key on every Analysis Window and Activity change on %s access (#211.1)', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const table = () => container.querySelector<HTMLElement>('[data-viewer-section="maneuver-analysis"]')!
+    expect(table().dataset.sectorAvailable).toBe('true')
+    const keys = [table().dataset.sectorResetKey]
+    const expectNewKey = () => {
+      const key = table().dataset.sectorResetKey
+      expect(key).toBeDefined()
+      expect(keys).not.toContain(key)
+      keys.push(key)
+    }
+    await click('[data-change-window]')
+    expectNewKey()
+    await click('[data-narrow-window]')
+    expectNewKey()
+    await click('[data-reset-window]')
+    expectNewKey()
+    await choose('Compare', 'b')
+    expectNewKey()
+    await choose('Compare', '')
+    expectNewKey()
+    await choose('My track', 'c')
+    expectNewKey()
+    await choose('My track', 'a')
+    expectNewKey()
   })
 
   it('recomputes highlight geometry when Primary, Comparison or the Analysis Window change', async () => {

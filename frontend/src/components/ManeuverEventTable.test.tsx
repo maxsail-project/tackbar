@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
+import type { ManeuverWindSector } from '../utils/maneuverWindSector'
 import ManeuverEventTable, {
   ManeuverEventRow,
   sortManeuverEvents,
@@ -66,7 +67,7 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain(`C · ${comparison} evidence`)
     expect(markup.indexOf('id="maneuver-title"')).toBeLessThan(markup.indexOf('class="maneuver-evidence"'))
     expect(markup.indexOf('class="maneuver-evidence"')).toBeLessThan(markup.indexOf('<table'))
-    expect(cellTexts(markup, 'th')).toHaveLength(10)
+    expect(cellTexts(markup, 'th')).toHaveLength(11)
     expect(cellTexts(markup, 'td').join(' ')).not.toContain('evidence')
   })
 
@@ -193,6 +194,7 @@ describe('ManeuverEventTable', () => {
     expect(cellTexts(markup, 'th')).toEqual([
       'Time ASC',
       'Act',
+      'Sector',
       'Loss (m)',
       'Loss (s)',
       'Rec (s)',
@@ -205,6 +207,7 @@ describe('ManeuverEventTable', () => {
     expect(cellTexts(markup, 'td')).toEqual([
       '08:47:59',
       'P',
+      '—',
       '9',
       '3',
       '12',
@@ -215,7 +218,7 @@ describe('ManeuverEventTable', () => {
       '10',
     ])
     expect(markup).toMatch(
-      /maneuver-event-table__time-column.*maneuver-event-table__activity-column.*maneuver-event-table__loss-column.*span="2".*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*span="3".*maneuver-event-table__heading-column.*maneuver-event-table__duration-column/,
+      /maneuver-event-table__time-column.*maneuver-event-table__activity-column.*maneuver-event-table__sector-column.*maneuver-event-table__loss-column.*span="2".*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*span="3".*maneuver-event-table__heading-column.*maneuver-event-table__duration-column/,
     )
   })
 
@@ -378,10 +381,13 @@ describe('ManeuverEventTable', () => {
         events={[unavailable]}
         primaryStatus="available"
         onSelect={() => undefined}
+        windSectors={new Map<string, ManeuverWindSector>([[maneuverSelectionKey(unavailable), { kind: 'single', sector: 'upwind' }]])}
       />,
     )
 
+    // Six unavailable metrics; the available Sector reads Up.
     expect(cellTexts(markup, 'td').join('').match(/—/g)).toHaveLength(6)
+    expect(cellTexts(markup, 'td')[2]).toBe('Up')
   })
 
   it('shows the empty Analysis Window state for available analytics', () => {

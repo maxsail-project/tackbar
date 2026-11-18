@@ -9,6 +9,15 @@ import {
   formatSeconds,
   maneuverSelectionKey,
 } from '../utils/maneuverEvents'
+import {
+  formatManeuverSectorFilterFull,
+  formatManeuverSectorFilterShort,
+  formatManeuverWindSector,
+  formatManeuverWindSectorFull,
+  maneuverMatchesSectorFilter,
+  type ManeuverSectorFilter,
+  type ManeuverWindSector,
+} from '../utils/maneuverWindSector'
 import { formatGpsTime } from '../utils/replay'
 
 export type ManeuverPresentationStatus =
@@ -25,6 +34,19 @@ interface ManeuverEventTableProps {
   comparisonDetectorMode?: ActivityManeuverAnalytics['detector_mode']
   selectedManeuverKey?: string | null
   onSelect: (event: DisplayManeuver) => void
+  /**
+   * Per-maneuver wind sector context keyed by `maneuverSelectionKey` (#211.1). `null` (default)
+   * means no TWD reference: the Sector column reads `—` and the sector filter is absent.
+   */
+  windSectors?: ReadonlyMap<string, ManeuverWindSector> | null
+  /** Changing this (Activity selection or Analysis Window change) resets the sector filter to All. */
+  sectorFilterResetKey?: string
+}
+
+const SECTOR_FILTERS: ManeuverSectorFilter[] = ['all', 'upwind', 'reaching', 'downwind', 'transition']
+
+export function formatManeuverCount(count: number) {
+  return `${count} ${count === 1 ? 'maneuver' : 'maneuvers'}`
 }
 
 export type ManeuverSortDirection = 'asc' | 'desc'
@@ -65,10 +87,12 @@ export function ManeuverEventRow({
   event,
   selected,
   onSelect,
+  windSector = null,
 }: {
   event: DisplayManeuver
   selected: boolean
   onSelect: (event: DisplayManeuver) => void
+  windSector?: ManeuverWindSector | null
 }) {
   const label = roleLabel(event.activityRole)
 
@@ -95,6 +119,13 @@ export function ManeuverEventRow({
       >
         {label}
       </td>
+      <td
+        className="maneuver-event-table__sector"
+        data-maneuver-sector={windSector === null ? 'unavailable' : windSector.kind}
+        title={windSector === null ? undefined : formatManeuverWindSectorFull(windSector)}
+      >
+        {formatManeuverWindSector(windSector)}
+      </td>
       <td>{formatMetres(event.maneuver.speed_loss_distance_m)}</td>
       <td>{formatSeconds(event.maneuver.speed_loss_time_s)}</td>
       <td>{formatSeconds(event.maneuver.recovery_time_s)}</td>
@@ -119,6 +150,8 @@ export default function ManeuverEventTable({
   comparisonDetectorMode,
   selectedManeuverKey = null,
   onSelect,
+  windSectors = null,
+  sectorFilterResetKey = '',
 }: ManeuverEventTableProps) {
   const [expanded, setExpanded] = useState(false)
   const [helpExpanded, setHelpExpanded] = useState(false)
@@ -140,6 +173,22 @@ export default function ManeuverEventTable({
     () => sortManeuverEvents(events, sortDirection),
     [events, sortDirection],
   )
+  // Ephemeral sector filter tied to the reset key it was chosen for; a new key falls back to All.
+  const [sectorFilterState, setSectorFilterState] = useState<{ key: string, value: ManeuverSectorFilter }>(
+    { key: sectorFilterResetKey, value: 'all' },
+  )
+  const activeSectorFilter: ManeuverSectorFilter = windSectors !== null
+    && sectorFilterState.key === sectorFilterResetKey ? sectorFilterState.value : 'all'
+  const sectorOf = (event: DisplayManeuver) => windSectors?.get(maneuverSelectionKey(event)) ?? null
+  const sectorCounts = new Map<ManeuverSectorFilter, number>(SECTOR_FILTERS.map((filter) => [
+    filter,
+    events.filter((event) => maneuverMatchesSectorFilter(sectorOf(event), filter)).length,
+  ]))
+  // The filter narrows the table only; it never changes the Analysis Window or other sections.
+  const visibleEvents = activeSectorFilter === 'all'
+    ? sortedEvents
+    : sortedEvents.filter((event) => maneuverMatchesSectorFilter(sectorOf(event), activeSectorFilter))
+  const showSectorFilter = windSectors !== null && (events.length > 0 || activeSectorFilter !== 'all')
 
   return (
     <section className="content-section maneuver-section" aria-labelledby="maneuver-title">
@@ -204,12 +253,43 @@ export default function ManeuverEventTable({
             )}
           </div>
 
-          {events.length > 0 ? (
+          {showSectorFilter && (
+            <div
+              className="wind-segments__filter"
+              role="group"
+              aria-label="Filter maneuvers by wind sector"
+            >
+              {SECTOR_FILTERS.map((filter) => {
+                const count = sectorCounts.get(filter) ?? 0
+                return (
+                  <button
+                    key={filter}
+                    type="button"
+                    className="wind-segments__filter-option"
+                    data-maneuver-sector-filter={filter}
+                    aria-pressed={activeSectorFilter === filter}
+                    aria-label={`${formatManeuverSectorFilterFull(filter)}, ${formatManeuverCount(count)}`}
+                    disabled={count === 0 && activeSectorFilter !== filter}
+                    onClick={() => setSectorFilterState({ key: sectorFilterResetKey, value: filter })}
+                  >
+                    {formatManeuverSectorFilterShort(filter)} {count}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {activeSectorFilter !== 'all' && visibleEvents.length === 0 ? (
+            <p className="maneuver-empty" data-maneuver-sector-empty>
+              {`No ${formatManeuverSectorFilterFull(activeSectorFilter)} maneuvers in this window`}
+            </p>
+          ) : events.length > 0 ? (
             <div className="maneuver-event-table-wrap">
               <table className="maneuver-event-table" aria-label="Detected maneuvers">
                 <colgroup>
                   <col className="maneuver-event-table__time-column" />
                   <col className="maneuver-event-table__activity-column" />
+                  <col className="maneuver-event-table__sector-column" />
                   <col className="maneuver-event-table__loss-column" span={2} />
                   <col className="maneuver-event-table__recovery-column" />
                   <col className="maneuver-event-table__sog-column" span={3} />
@@ -229,6 +309,7 @@ export default function ManeuverEventTable({
                       </button>
                     </th>
                     <th scope="col">Act</th>
+                    <th scope="col">Sector</th>
                     <th scope="col">Loss (m)</th>
                     <th scope="col">Loss (s)</th>
                     <th scope="col">Rec (s)</th>
@@ -240,12 +321,13 @@ export default function ManeuverEventTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedEvents.map((event) => (
+                  {visibleEvents.map((event) => (
                     <ManeuverEventRow
                       key={`${event.activityRole}:${event.maneuver.start_time}:${event.maneuver.center_time}:${event.maneuver.end_time}`}
                       event={event}
                       selected={maneuverSelectionKey(event) === selectedManeuverKey}
                       onSelect={onSelect}
+                      windSector={sectorOf(event)}
                     />
                   ))}
                 </tbody>

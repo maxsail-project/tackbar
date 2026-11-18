@@ -1920,7 +1920,7 @@ input:focus-visible {
 
 .maneuver-event-table {
   width: 100%;
-  min-width: 774px;
+  min-width: 870px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.8rem;
@@ -1933,6 +1933,10 @@ input:focus-visible {
 
 .maneuver-event-table__activity-column {
   width: 40px;
+}
+
+.maneuver-event-table__sector-column {
+  width: 96px;
 }
 
 .maneuver-event-table__heading-column {
@@ -1968,6 +1972,11 @@ input:focus-visible {
 .maneuver-event-table th:nth-child(n + 3),
 .maneuver-event-table td:nth-child(n + 3) {
   text-align: right;
+}
+
+.maneuver-event-table th:nth-child(3),
+.maneuver-event-table td:nth-child(3) {
+  text-align: left;
 }
 
 .maneuver-event-table th {
