@@ -18,6 +18,15 @@ import {
   type ManeuverSectorFilter,
   type ManeuverWindSector,
 } from '../utils/maneuverWindSector'
+import {
+  deriveManeuverLossBands,
+  formatManeuverLossBand,
+  formatManeuverLossBandFilter,
+  MANEUVER_LOSS_BANDS,
+  maneuverMatchesLossBandFilter,
+  type ManeuverLossBand,
+  type ManeuverLossBandFilter,
+} from '../utils/maneuverLossBands'
 import { formatGpsTime } from '../utils/replay'
 
 export type ManeuverPresentationStatus =
@@ -39,11 +48,21 @@ interface ManeuverEventTableProps {
    * means no TWD reference: the Sector column reads `—` and the sector filter is absent.
    */
   windSectors?: ReadonlyMap<string, ManeuverWindSector> | null
-  /** Changing this (Activity selection or Analysis Window change) resets the sector filter to All. */
+  /**
+   * Changing this (Activity selection or Analysis Window change) resets the sector filter and the
+   * loss band filter (#211.2) to All.
+   */
   sectorFilterResetKey?: string
 }
 
 const SECTOR_FILTERS: ManeuverSectorFilter[] = ['all', 'upwind', 'reaching', 'downwind', 'transition']
+const LOSS_BAND_FILTERS: ManeuverLossBandFilter[] = ['all', ...MANEUVER_LOSS_BANDS]
+
+/** Neutral shape marker for High/Low loss (filled/hollow); Typical has none. Decorative only. */
+function LossBandMarker({ band }: { band: ManeuverLossBand }) {
+  if (band === 'typical') return null
+  return <span className={`maneuver-loss-band__marker maneuver-loss-band__marker--${band}`} aria-hidden="true" />
+}
 
 export function formatManeuverCount(count: number) {
   return `${count} ${count === 1 ? 'maneuver' : 'maneuvers'}`
@@ -88,11 +107,14 @@ export function ManeuverEventRow({
   selected,
   onSelect,
   windSector = null,
+  lossBand = null,
 }: {
   event: DisplayManeuver
   selected: boolean
   onSelect: (event: DisplayManeuver) => void
   windSector?: ManeuverWindSector | null
+  /** Descriptive loss band (#211.2) shown on the Loss (s) cell; null means unbanded. */
+  lossBand?: ManeuverLossBand | null
 }) {
   const label = roleLabel(event.activityRole)
 
@@ -127,7 +149,19 @@ export function ManeuverEventRow({
         {formatManeuverWindSector(windSector)}
       </td>
       <td>{formatMetres(event.maneuver.speed_loss_distance_m)}</td>
-      <td>{formatSeconds(event.maneuver.speed_loss_time_s)}</td>
+      {lossBand === null ? (
+        <td>{formatSeconds(event.maneuver.speed_loss_time_s)}</td>
+      ) : (
+        <td
+          className={`maneuver-loss-band maneuver-loss-band--${lossBand}`}
+          data-maneuver-loss-band={lossBand}
+          title={formatManeuverLossBand(lossBand)}
+        >
+          <LossBandMarker band={lossBand} />
+          {formatSeconds(event.maneuver.speed_loss_time_s)}
+          <span className="maneuver-event-table__sr-only">{` · ${formatManeuverLossBand(lossBand)}`}</span>
+        </td>
+      )}
       <td>{formatSeconds(event.maneuver.recovery_time_s)}</td>
       <td>{formatKnots(event.maneuver.sog_entry_kn)}</td>
       <td>{formatKnots(event.maneuver.sog_min_kn)}</td>
@@ -189,6 +223,34 @@ export default function ManeuverEventTable({
     ? sortedEvents
     : sortedEvents.filter((event) => maneuverMatchesSectorFilter(sectorOf(event), activeSectorFilter))
   const showSectorFilter = windSectors !== null && (events.length > 0 || activeSectorFilter !== 'all')
+  // #211.2: bands are recomputed per Activity over the currently listed maneuvers (after the
+  // sector filter, never after the band filter).
+  const sectorListedEvents = useMemo(
+    () => activeSectorFilter === 'all'
+      ? events
+      : events.filter((event) => maneuverMatchesSectorFilter(
+        windSectors?.get(maneuverSelectionKey(event)) ?? null,
+        activeSectorFilter,
+      )),
+    [events, windSectors, activeSectorFilter],
+  )
+  const lossBands = useMemo(() => deriveManeuverLossBands(sectorListedEvents), [sectorListedEvents])
+  const bandOf = (event: DisplayManeuver) => lossBands.get(maneuverSelectionKey(event)) ?? null
+  // Ephemeral band filter sharing the sector filter's reset key; a sector change does not reset it.
+  const [bandFilterState, setBandFilterState] = useState<{ key: string, value: ManeuverLossBandFilter }>(
+    { key: sectorFilterResetKey, value: 'all' },
+  )
+  const activeBandFilter: ManeuverLossBandFilter = bandFilterState.key === sectorFilterResetKey
+    ? bandFilterState.value
+    : 'all'
+  const bandCounts = new Map<ManeuverLossBandFilter, number>(LOSS_BAND_FILTERS.map((filter) => [
+    filter,
+    sectorListedEvents.filter((event) => maneuverMatchesLossBandFilter(bandOf(event), filter)).length,
+  ]))
+  const tableEvents = activeBandFilter === 'all'
+    ? visibleEvents
+    : visibleEvents.filter((event) => maneuverMatchesLossBandFilter(bandOf(event), activeBandFilter))
+  const showBandFilter = lossBands.size > 0 || activeBandFilter !== 'all'
 
   return (
     <section className="content-section maneuver-section" aria-labelledby="maneuver-title">
@@ -279,9 +341,40 @@ export default function ManeuverEventTable({
             </div>
           )}
 
+          {showBandFilter && (
+            <div
+              className="wind-segments__filter maneuver-loss-band-filter"
+              role="group"
+              aria-label="Filter maneuvers by loss band"
+            >
+              {LOSS_BAND_FILTERS.map((filter) => {
+                const count = bandCounts.get(filter) ?? 0
+                return (
+                  <button
+                    key={filter}
+                    type="button"
+                    className="wind-segments__filter-option"
+                    data-maneuver-band-filter={filter}
+                    aria-pressed={activeBandFilter === filter}
+                    aria-label={`${formatManeuverLossBandFilter(filter)}, ${formatManeuverCount(count)}`}
+                    disabled={count === 0 && activeBandFilter !== filter}
+                    onClick={() => setBandFilterState({ key: sectorFilterResetKey, value: filter })}
+                  >
+                    {filter !== 'all' && <LossBandMarker band={filter} />}
+                    {formatManeuverLossBandFilter(filter)} {count}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {activeSectorFilter !== 'all' && visibleEvents.length === 0 ? (
             <p className="maneuver-empty" data-maneuver-sector-empty>
               {`No ${formatManeuverSectorFilterFull(activeSectorFilter)} maneuvers in this window`}
+            </p>
+          ) : activeBandFilter !== 'all' && tableEvents.length === 0 ? (
+            <p className="maneuver-empty" data-maneuver-band-empty>
+              {`No ${formatManeuverLossBandFilter(activeBandFilter)} maneuvers in this window`}
             </p>
           ) : events.length > 0 ? (
             <div className="maneuver-event-table-wrap">
@@ -321,13 +414,14 @@ export default function ManeuverEventTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleEvents.map((event) => (
+                  {tableEvents.map((event) => (
                     <ManeuverEventRow
                       key={`${event.activityRole}:${event.maneuver.start_time}:${event.maneuver.center_time}:${event.maneuver.end_time}`}
                       event={event}
                       selected={maneuverSelectionKey(event) === selectedManeuverKey}
                       onSelect={onSelect}
                       windSector={sectorOf(event)}
+                      lossBand={bandOf(event)}
                     />
                   ))}
                 </tbody>

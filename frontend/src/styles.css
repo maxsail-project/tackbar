@@ -2031,6 +2031,48 @@ input:focus-visible {
   font-weight: 900;
 }
 
+/* #211.2: descriptive loss bands on the Loss (s) cell — neutral, no P/C colours, no red/green. */
+.maneuver-event-table__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.maneuver-event-table td.maneuver-loss-band {
+  position: relative;
+}
+
+.maneuver-event-table td.maneuver-loss-band--high {
+  background: #e7ecee;
+  font-weight: 700;
+}
+
+.maneuver-event-table td.maneuver-loss-band--low {
+  background: #f3f6f7;
+}
+
+.maneuver-loss-band__marker {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border: 1.5px solid #4f646b;
+  border-radius: 50%;
+  vertical-align: 0.05em;
+}
+
+.maneuver-loss-band__marker--high {
+  background: #4f646b;
+}
+
+.maneuver-loss-band__marker--low {
+  background: transparent;
+}
+
 .comparison-table-wrap {
   width: 100%;
   margin-top: 12px;
