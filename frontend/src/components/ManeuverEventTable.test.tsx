@@ -174,7 +174,7 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('hidden=""')
   })
 
-  it('retains compact columns, default ASC sorting, and event actions when expanded', () => {
+  it('retains compact columns, default ascending Time sorting, and event actions when expanded', () => {
     const markup = renderToStaticMarkup(
       <ManeuverEventTable
         events={[event]}
@@ -190,9 +190,9 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('\u221291')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
     expect(markup).toContain('aria-sort="ascending"')
-    expect(markup).toContain('Time ASC')
+    expect(markup).toContain('Time<span aria-hidden="true"> ↑</span>')
     expect(cellTexts(markup, 'th')).toEqual([
-      'Time ASC',
+      'Time ↑',
       'Act',
       'Sector',
       'Loss (m)',

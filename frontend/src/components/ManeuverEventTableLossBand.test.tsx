@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
-import { maneuverAtMinute } from '../utils/maneuverTestFixtures'
+import { MANEUVER_FIXTURE_BASE_MS, maneuverAtMinute } from '../utils/maneuverTestFixtures'
 import type { ManeuverWindSector } from '../utils/maneuverWindSector'
-import ManeuverEventTable from './ManeuverEventTable'
+import ManeuverEventTable, { sortManeuverEventsByLossTime } from './ManeuverEventTable'
 import { setupManeuverEventTableHarness } from './maneuverEventTableTestUtils'
 
 function eventAt(
@@ -34,7 +34,6 @@ const sectors = new Map<string, ManeuverWindSector>([
   ...reachP.map((event): [string, ManeuverWindSector] => [maneuverSelectionKey(event), { kind: 'single', sector: 'reaching' }]),
 ])
 
-const BANDS = ['all', 'high', 'typical', 'low']
 const time = (minute: number) => `08:${String(minute).padStart(2, '0')}:00`
 
 function lossTimeCells(markup: string) {
@@ -42,12 +41,14 @@ function lossTimeCells(markup: string) {
   return rows.map((row) => [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)][4][0])
 }
 
-describe('Maneuver Analysis loss band styling (#211.2)', () => {
+const staticMarkup = (tableEvents: DisplayManeuver[]) => renderToStaticMarkup(<ManeuverEventTable
+  events={tableEvents} primaryStatus="available" comparisonStatus="available" onSelect={vi.fn()}
+  windSectors={sectors} sectorFilterResetKey="k"
+/>)
+
+describe('Maneuver Analysis loss band markers (#211.2)', () => {
   it('marks the Loss (s) cell of banded maneuvers with a neutral marker and accessible text, without a new column', () => {
-    const markup = renderToStaticMarkup(<ManeuverEventTable
-      events={events} primaryStatus="available" comparisonStatus="available" onSelect={vi.fn()}
-      windSectors={sectors} sectorFilterResetKey="k"
-    />)
+    const markup = staticMarkup(events)
     const headers = [...markup.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)]
     expect(headers).toHaveLength(11)
     expect(markup).not.toMatch(/<th[^>]*>[^<]*(band|High loss)/i)
@@ -66,161 +67,133 @@ describe('Maneuver Analysis loss band styling (#211.2)', () => {
     expect(markup).not.toMatch(/score|rank|better|worse|best|worst/i)
   })
 
-  it('adds no band styling or band filter below the minimum population', () => {
-    const markup = renderToStaticMarkup(<ManeuverEventTable
-      events={upwindP.slice(0, 7)} primaryStatus="available" onSelect={vi.fn()}
-      windSectors={sectors} sectorFilterResetKey="k"
-    />)
+  it('adds no band markers and no legend below the minimum population', () => {
+    const markup = staticMarkup(upwindP.slice(0, 7))
     expect(markup).not.toContain('data-maneuver-loss-band')
+    expect(markup).not.toContain('maneuver-loss-band__marker')
+    expect(markup).toContain('data-maneuver-sector-filter')
+  })
+
+  it('shows a one-line marker legend below the table, and no band filter', () => {
+    const markup = staticMarkup(events)
+    const legend = markup.match(/<p class="maneuver-loss-band-legend"[^>]*>([\s\S]*?)<\/p>/)!
+    expect(markup.indexOf('</table>')).toBeLessThan(markup.indexOf('maneuver-loss-band-legend'))
+    expect(legend[1].replace(/<[^>]+>/g, '')).toBe('High loss, Low loss · within each Activity')
+    expect(legend[1]).toContain('<span class="maneuver-loss-band__marker maneuver-loss-band__marker--high" aria-hidden="true"></span>High loss')
+    expect(legend[1]).toContain('<span class="maneuver-loss-band__marker maneuver-loss-band__marker--low" aria-hidden="true"></span>Low loss')
     expect(markup).not.toContain('data-maneuver-band-filter')
     expect(markup).not.toContain('Filter maneuvers by loss band')
-    expect(markup).toContain('data-maneuver-sector-filter')
+    expect(markup).not.toContain('data-maneuver-band-empty')
+  })
+
+  it('styles bands with markers only: no cell tint or bold for High or Low loss', () => {
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(css).not.toMatch(/maneuver-loss-band--(high|low)\s*\{/)
+    expect(css).toMatch(/\.maneuver-loss-band__marker--high \{\s*background: #4f646b;\s*\}/)
+    expect(css).toMatch(/\.maneuver-loss-band__marker--low \{\s*background: transparent;\s*\}/)
   })
 })
 
-describe('Maneuver Analysis loss band filter (#211.2)', () => {
+describe('sortManeuverEventsByLossTime (#211.2 D12)', () => {
+  it('sorts P and C together by unrounded Loss time, ties chronologically and unavailable last', () => {
+    const finer = eventAt(20, 'comparison', 3.4)
+    const nan = eventAt(21, 'primary', Number.NaN)
+    const input = [noLossP, nan, comparisonC[2], finer, upwindP[3], upwindP[0]]
+    const minutes = (sorted: DisplayManeuver[]) => sorted.map((event) => (event.centerTimeMs - MANEUVER_FIXTURE_BASE_MS) / 60_000)
+    // Loss 5 (m1), 3.4 (m20 C), 3 (m4 P) and 3 (m12 C) tie chronologically; m9 and m21 stay last.
+    expect(minutes(sortManeuverEventsByLossTime(input, 'desc'))).toEqual([1, 20, 4, 12, 9, 21])
+    expect(minutes(sortManeuverEventsByLossTime(input, 'asc'))).toEqual([4, 12, 20, 1, 9, 21])
+  })
+})
+
+describe('Maneuver Analysis Loss (s) sorting and legend (#211.2)', () => {
   const harness = setupManeuverEventTableHarness({ events, windSectors: sectors })
-  const { render, rows, rowTimes, click } = harness
+  const { render, rowTimes, click } = harness
   let container: HTMLDivElement
   beforeEach(() => {
     container = harness.container
   })
 
-  const bandOption = (filter: string) => container.querySelector<HTMLButtonElement>(`[data-maneuver-band-filter="${filter}"]`)!
   const sectorOption = (filter: string) => container.querySelector<HTMLButtonElement>(`[data-maneuver-sector-filter="${filter}"]`)!
-  const bandGroup = () => container.querySelector<HTMLElement>('[aria-label="Filter maneuvers by loss band"]')
-  const rowBands = () => rows().map((row) => row.querySelectorAll('td')[4].getAttribute('data-maneuver-loss-band'))
-  const bandTexts = () => BANDS.map((filter) => bandOption(filter).textContent)
-  const emptyState = () => container.querySelector('[data-maneuver-band-empty]')
+  const headerCell = (label: string) => [...container.querySelectorAll<HTMLTableCellElement>('thead th')]
+    .find((cell) => cell.textContent!.startsWith(label))!
+  const sortButton = (label: string) => headerCell(label).querySelector<HTMLButtonElement>('button')!
+  const legend = () => container.querySelector('[data-maneuver-loss-band-legend]')
+  const headerState = (label: string) => [
+    headerCell(label).getAttribute('aria-sort'),
+    sortButton(label).textContent,
+    sortButton(label).getAttribute('aria-label'),
+  ]
+  const lossDescending = [15, 14, 13, 3, 7, 5, 1, 8, 4, 12, 6, 11, 2, 10, 9].map(time)
+  const lossAscending = [2, 10, 6, 11, 4, 12, 8, 1, 5, 7, 3, 13, 14, 15, 9].map(time)
+  const chronological = Array.from({ length: 15 }, (_, index) => time(index + 1))
 
-  it('offers All · High loss · Typical · Low loss below the sector filter, with counts, accessible names and markers', async () => {
+  it('sorts by Loss (s) largest first, then reverses, with direction indicator and aria-sort', async () => {
     await render()
-    const group = bandGroup()!
-    expect(group.getAttribute('role')).toBe('group')
-    expect(group.classList.contains('wind-segments__filter')).toBe(true)
-    expect(bandTexts()).toEqual(['All 15', 'High loss 3', 'Typical 5', 'Low loss 3'])
-    expect(BANDS.map((filter) => bandOption(filter).getAttribute('aria-label'))).toEqual([
-      'All, 15 maneuvers', 'High loss, 3 maneuvers', 'Typical, 5 maneuvers', 'Low loss, 3 maneuvers',
-    ])
-    expect(BANDS.map((filter) => bandOption(filter).getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false', 'false'])
-    expect([...group.querySelectorAll('button')].every((button) => button.classList.contains('wind-segments__filter-option'))).toBe(true)
-    // The options carry the same markers as the cells, so they serve as the legend.
-    expect(bandOption('high').querySelector('.maneuver-loss-band__marker--high')!.getAttribute('aria-hidden')).toBe('true')
-    expect(bandOption('low').querySelector('.maneuver-loss-band__marker--low')).not.toBeNull()
-    expect(bandOption('typical').querySelector('.maneuver-loss-band__marker')).toBeNull()
-    expect(bandOption('all').querySelector('.maneuver-loss-band__marker')).toBeNull()
-    // Directly below the sector filter and above the table.
-    const sectorGroup = container.querySelector('[aria-label="Filter maneuvers by wind sector"]')!
-    expect(sectorGroup.nextElementSibling).toBe(group)
-    expect(group.compareDocumentPosition(container.querySelector('.maneuver-event-table')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(rowTimes()).toEqual(chronological)
+    expect(headerState('Time')).toEqual(['ascending', 'Time ↑', 'Sort maneuvers by time descending'])
+    expect(headerState('Loss (s)')).toEqual([null, 'Loss (s)', 'Sort maneuvers by Loss time, largest first'])
+    expect(container.querySelectorAll('thead th[aria-sort]')).toHaveLength(1)
+    await click(sortButton('Loss (s)'))
+    expect(rowTimes()).toEqual(lossDescending)
+    expect(headerState('Loss (s)')).toEqual(['descending', 'Loss (s) ↓', 'Sort maneuvers by Loss time, smallest first'])
+    expect(headerState('Time')).toEqual([null, 'Time', 'Sort maneuvers by time ascending'])
+    await click(sortButton('Loss (s)'))
+    expect(rowTimes()).toEqual(lossAscending)
+    expect(headerState('Loss (s)')).toEqual(['ascending', 'Loss (s) ↑', 'Sort maneuvers by Loss time, largest first'])
+    expect(container.querySelectorAll('thead th[aria-sort]')).toHaveLength(1)
   })
 
-  it('narrows the table only; unbanded maneuvers appear only under All', async () => {
+  it('returns to chronological order from Time, keeping its own direction toggle', async () => {
+    await render()
+    await click(sortButton('Time'))
+    expect(headerState('Time')).toEqual(['descending', 'Time ↓', 'Sort maneuvers by time ascending'])
+    await click(sortButton('Loss (s)'))
+    await click(sortButton('Loss (s)'))
+    expect(rowTimes()).toEqual(lossAscending)
+    // Back to Time in its current (descending) direction; Loss starts largest first again.
+    await click(sortButton('Time'))
+    expect(rowTimes()).toEqual([...chronological].reverse())
+    expect(headerState('Time')).toEqual(['descending', 'Time ↓', 'Sort maneuvers by time ascending'])
+    expect(headerState('Loss (s)')).toEqual([null, 'Loss (s)', 'Sort maneuvers by Loss time, largest first'])
+    await click(sortButton('Time'))
+    expect(rowTimes()).toEqual(chronological)
+    await click(sortButton('Loss (s)'))
+    expect(rowTimes()).toEqual(lossDescending)
+  })
+
+  it('keeps the Loss sort and row selection across sector filter and reset key changes', async () => {
     const onSelect = vi.fn()
-    await render({ onSelect })
-    expect(rows()).toHaveLength(15)
-    await click(bandOption('high'))
-    expect(bandOption('high').getAttribute('aria-pressed')).toBe('true')
-    expect(rowTimes()).toEqual([time(13), time(14), time(15)])
-    await click(bandOption('low'))
-    expect(rowTimes()).toEqual([time(2), time(4), time(6)])
-    await click(bandOption('typical'))
-    expect(rowTimes()).toEqual([time(1), time(3), time(5), time(7), time(8)])
-    expect(rowBands()).toEqual(Array(5).fill('typical'))
-    // Counts stay those of the listed maneuvers while filtered; the sector filter is untouched.
-    expect(bandTexts()).toEqual(['All 15', 'High loss 3', 'Typical 5', 'Low loss 3'])
+    await render({ onSelect, selectedKey: maneuverSelectionKey(upwindP[2]) })
+    await click(sortButton('Loss (s)'))
+    await click(sectorOption('upwind'))
+    expect(rowTimes()).toEqual([3, 7, 5, 1, 8, 4, 6, 2, 9].map(time))
+    expect(container.querySelector('[aria-selected="true"]')!.querySelector('td')!.textContent).toBe(time(3))
+    await render({ onSelect, selectedKey: maneuverSelectionKey(upwindP[2]), resetKey: 'k2' })
     expect(sectorOption('all').getAttribute('aria-pressed')).toBe('true')
-    await click(bandOption('all'))
-    expect(rows()).toHaveLength(15)
+    expect(rowTimes()).toEqual(lossDescending)
+    expect(headerCell('Loss (s)').getAttribute('aria-sort')).toBe('descending')
     expect(onSelect).not.toHaveBeenCalled()
-    expect(container.querySelector('.maneuver-evidence')!.textContent).toContain('P · HIGH evidence')
   })
 
-  it('keeps sorting, row selection and P/C attribution inside the band-filtered table', async () => {
-    const onSelect = vi.fn()
-    await render({ onSelect, selectedKey: maneuverSelectionKey(reachP[2]) })
-    await click(bandOption('high'))
-    await click(container.querySelector<HTMLButtonElement>('.maneuver-event-table__sort')!)
-    expect(rowTimes()).toEqual([time(15), time(14), time(13)])
-    expect(rows().map((row) => row.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false'])
-    expect(rows()[0].className).toContain('maneuver-event-table__row--primary')
-    await act(async () => rows()[1].click())
-    expect(onSelect).toHaveBeenCalledWith(reachP[1])
-  })
-
-  it('recomputes bands over the sector-filtered list without resetting the band filter', async () => {
+  it('shows the legend only while a listed maneuver has a band (bands follow the sector filter)', async () => {
     await render()
-    await click(bandOption('high'))
-    expect(rowTimes()).toEqual([time(13), time(14), time(15)])
-    // Up lists P m1–m9 only: P's eight Loss times 1…8 give cuts 2.75 and 6.25.
-    await click(sectorOption('upwind'))
-    expect(bandOption('high').getAttribute('aria-pressed')).toBe('true')
-    expect(bandTexts()).toEqual(['All 9', 'High loss 2', 'Typical 4', 'Low loss 2'])
-    expect(rowTimes()).toEqual([time(3), time(7)])
-    await click(bandOption('low'))
-    expect(rowTimes()).toEqual([time(2), time(6)])
-    await click(bandOption('all'))
-    expect(rowBands()).toEqual(['typical', 'low', 'high', 'typical', 'typical', 'low', 'high', 'typical', null])
-  })
-
-  it('keeps a selected band without listed maneuvers selected and shows its empty state', async () => {
-    await render()
-    await click(bandOption('high'))
-    // Reach lists only three P maneuvers: below the minimum, so no bands.
+    expect(legend()).not.toBeNull()
+    // Reach lists three P maneuvers: below the minimum population, so no bands and no legend.
     await click(sectorOption('reaching'))
-    expect(bandGroup()).not.toBeNull()
-    expect(bandTexts()).toEqual(['All 3', 'High loss 0', 'Typical 0', 'Low loss 0'])
-    expect(bandOption('high').getAttribute('aria-pressed')).toBe('true')
-    expect(bandOption('high').disabled).toBe(false)
-    expect(BANDS.map((filter) => bandOption(filter).disabled)).toEqual([false, false, true, true])
-    expect(emptyState()!.textContent).toBe('No High loss maneuvers in this window')
-    expect(container.querySelector('.maneuver-event-table')).toBeNull()
-    // All brings back every listed (unbanded) maneuver and the band filter disappears.
-    await click(bandOption('all'))
-    expect(emptyState()).toBeNull()
-    expect(rowTimes()).toEqual([time(13), time(14), time(15)])
-    expect(rowBands()).toEqual([null, null, null])
-    expect(bandGroup()).toBeNull()
-  })
-
-  it('keeps an active band filter and its empty state when no maneuvers are listed', async () => {
-    await render({ windSectors: null })
-    await click(bandOption('low'))
-    await render({ windSectors: null, events: [] })
-    expect(bandOption('low').getAttribute('aria-pressed')).toBe('true')
-    expect(emptyState()!.textContent).toBe('No Low loss maneuvers in this window')
-    expect(container.textContent).not.toContain('No maneuvers detected in this Analysis Window.')
-  })
-
-  it('resets to All on the shared reset key (Activity or Analysis Window change)', async () => {
-    await render({ resetKey: 'a::1' })
+    expect(rowTimes()).toEqual([13, 14, 15].map(time))
+    expect(container.querySelector('[data-maneuver-loss-band]')).toBeNull()
+    expect(legend()).toBeNull()
     await click(sectorOption('upwind'))
-    await click(bandOption('low'))
-    expect(rowTimes()).toEqual([time(2), time(6)])
-    await render({ resetKey: 'a::2' })
-    expect(sectorOption('all').getAttribute('aria-pressed')).toBe('true')
-    expect(bandOption('all').getAttribute('aria-pressed')).toBe('true')
-    expect(rows()).toHaveLength(15)
-    // Without a TWD reference the band filter still resets with the key.
-    await render({ resetKey: 'a::2', windSectors: null })
-    await click(bandOption('high'))
-    await render({ resetKey: 'a:b:3', windSectors: null })
-    expect(bandOption('all').getAttribute('aria-pressed')).toBe('true')
+    expect(legend()).not.toBeNull()
   })
 
-  it('bands the Analysis Window events without a TWD reference (no sector filter)', async () => {
+  it('bands and legends the Analysis Window events without a TWD reference', async () => {
     await render({ windSectors: null })
     expect(container.querySelector('[data-maneuver-sector-filter]')).toBeNull()
-    expect(bandGroup()).not.toBeNull()
-    expect(bandTexts()).toEqual(['All 15', 'High loss 3', 'Typical 5', 'Low loss 3'])
-    await click(bandOption('high'))
-    expect(rowTimes()).toEqual([time(13), time(14), time(15)])
-  })
-
-  it('shows no band filter when no listed maneuver has a band', async () => {
-    await render({ events: [...comparisonC, noLossP, ...reachP] })
-    expect(bandGroup()).toBeNull()
-    expect(container.querySelector('[data-maneuver-loss-band]')).toBeNull()
-    expect(rows()).toHaveLength(7)
+    expect(legend()).not.toBeNull()
+    expect(container.querySelectorAll('[data-maneuver-loss-band="high"]')).toHaveLength(3)
+    await render({ windSectors: null, events: [...comparisonC, noLossP, ...reachP] })
+    expect(legend()).toBeNull()
   })
 })

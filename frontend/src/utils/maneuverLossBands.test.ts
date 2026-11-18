@@ -6,11 +6,9 @@ import {
   classifyManeuverLossTime,
   deriveManeuverLossBands,
   formatManeuverLossBand,
-  formatManeuverLossBandFilter,
   interpolatedQuantile,
   MANEUVER_LOSS_BANDS,
   maneuverLossTimeSeconds,
-  maneuverMatchesLossBandFilter,
   type ManeuverLossBand,
 } from './maneuverLossBands'
 import { maneuverAtMinute } from './maneuverTestFixtures'
@@ -159,18 +157,8 @@ describe('deriveManeuverLossBands', () => {
   })
 })
 
-describe('loss band labels and filter matching', () => {
+describe('loss band labels', () => {
   it('orders and labels bands High loss · Typical · Low loss', () => {
     expect(MANEUVER_LOSS_BANDS.map(formatManeuverLossBand)).toEqual(['High loss', 'Typical', 'Low loss'])
-    expect(formatManeuverLossBandFilter('all')).toBe('All')
-    expect(formatManeuverLossBandFilter('high')).toBe('High loss')
-  })
-
-  it('matches unbanded maneuvers only under All', () => {
-    expect(maneuverMatchesLossBandFilter(null, 'all')).toBe(true)
-    expect(maneuverMatchesLossBandFilter(undefined, 'typical')).toBe(false)
-    expect(maneuverMatchesLossBandFilter('high', 'high')).toBe(true)
-    expect(maneuverMatchesLossBandFilter('high', 'low')).toBe(false)
-    expect(maneuverMatchesLossBandFilter('low', 'all')).toBe(true)
   })
 })

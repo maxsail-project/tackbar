@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { DisplayManeuver, ManeuverActivityRole } from '../utils/maneuverEvents'
@@ -21,11 +21,8 @@ import {
 import {
   deriveManeuverLossBands,
   formatManeuverLossBand,
-  formatManeuverLossBandFilter,
-  MANEUVER_LOSS_BANDS,
-  maneuverMatchesLossBandFilter,
+  maneuverLossTimeSeconds,
   type ManeuverLossBand,
-  type ManeuverLossBandFilter,
 } from '../utils/maneuverLossBands'
 import { formatGpsTime } from '../utils/replay'
 
@@ -48,24 +45,16 @@ interface ManeuverEventTableProps {
    * means no TWD reference: the Sector column reads `—` and the sector filter is absent.
    */
   windSectors?: ReadonlyMap<string, ManeuverWindSector> | null
-  /**
-   * Changing this (Activity selection or Analysis Window change) resets the sector filter and the
-   * loss band filter (#211.2) to All.
-   */
+  /** Changing this (Activity selection or Analysis Window change) resets the sector filter to All. */
   sectorFilterResetKey?: string
 }
 
 const SECTOR_FILTERS: ManeuverSectorFilter[] = ['all', 'upwind', 'reaching', 'downwind', 'transition']
-const LOSS_BAND_FILTERS: ManeuverLossBandFilter[] = ['all', ...MANEUVER_LOSS_BANDS]
 
 /** Neutral shape marker for High/Low loss (filled/hollow); Typical has none. Decorative only. */
 function LossBandMarker({ band }: { band: ManeuverLossBand }) {
   if (band === 'typical') return null
   return <span className={`maneuver-loss-band__marker maneuver-loss-band__marker--${band}`} aria-hidden="true" />
-}
-
-function lossBandFilterMarker(filter: ManeuverLossBandFilter) {
-  return filter === 'all' ? null : <LossBandMarker band={filter} />
 }
 
 /**
@@ -90,35 +79,31 @@ function countByFilter<F extends string>(
 }
 
 /**
- * Shared Maneuver Analysis filter group (wind sector #211.1, loss band #211.2): single-select
- * options with counts among listed maneuvers, full accessible names, and options without
- * maneuvers disabled unless selected. Reuses the Wind Segments filter styling.
+ * Maneuver Analysis filter group (wind sector #211.1): single-select options with counts among
+ * listed maneuvers, full accessible names, and options without maneuvers disabled unless
+ * selected. Reuses the Wind Segments filter styling.
  */
 function ManeuverFilterGroup<F extends string>({
   label,
-  className = 'wind-segments__filter',
   filters,
   active,
   counts,
   dataAttribute,
   shortLabel,
   fullLabel,
-  marker,
   onChange,
 }: {
   label: string
-  className?: string
   filters: readonly F[]
   active: F
   counts: ReadonlyMap<F, number>
   dataAttribute: `data-${string}`
   shortLabel: (filter: F) => string
   fullLabel: (filter: F) => string
-  marker?: (filter: F) => ReactNode
   onChange: (filter: F) => void
 }) {
   return (
-    <div className={className} role="group" aria-label={label}>
+    <div className="wind-segments__filter" role="group" aria-label={label}>
       {filters.map((filter) => {
         const count = counts.get(filter) ?? 0
         return (
@@ -132,7 +117,6 @@ function ManeuverFilterGroup<F extends string>({
             disabled={count === 0 && active !== filter}
             onClick={() => onChange(filter)}
           >
-            {marker?.(filter)}
             {shortLabel(filter)} {count}
           </button>
         )
@@ -146,33 +130,120 @@ export function formatManeuverCount(count: number) {
 }
 
 export type ManeuverSortDirection = 'asc' | 'desc'
+export type ManeuverSortColumn = 'time' | 'loss'
+
+/** Ephemeral table sort (#211.2 D12): the active column plus each column's own direction. */
+export interface ManeuverSortState {
+  column: ManeuverSortColumn
+  timeDirection: ManeuverSortDirection
+  lossDirection: ManeuverSortDirection
+}
+
+export const INITIAL_MANEUVER_SORT: ManeuverSortState = { column: 'time', timeDirection: 'asc', lossDirection: 'desc' }
+
+function compareManeuverTime(first: DisplayManeuver, second: DisplayManeuver, direction: ManeuverSortDirection) {
+  const timeDifference = first.centerTimeMs - second.centerTimeMs
+  if (timeDifference !== 0) return direction === 'asc' ? timeDifference : -timeDifference
+  if (first.activityRole !== second.activityRole) {
+    return first.activityRole === 'primary' ? -1 : 1
+  }
+  const startDifference = first.maneuver.start_time.localeCompare(
+    second.maneuver.start_time,
+  )
+  if (startDifference !== 0) return startDifference
+  return first.maneuver.end_time.localeCompare(second.maneuver.end_time)
+}
 
 export function sortManeuverEvents(
   events: DisplayManeuver[],
   direction: ManeuverSortDirection,
 ) {
-  const timeMultiplier = direction === 'asc' ? 1 : -1
+  return [...events].sort((first, second) => compareManeuverTime(first, second, direction))
+}
 
+/**
+ * Sorts P and C together by unrounded equivalent Loss time. Maneuvers without a finite Loss time
+ * are always last; ties (and the unavailable group) follow ascending chronological order.
+ */
+export function sortManeuverEventsByLossTime(
+  events: DisplayManeuver[],
+  direction: ManeuverSortDirection,
+) {
   return [...events].sort((first, second) => {
-    const timeDifference = first.centerTimeMs - second.centerTimeMs
-    if (timeDifference !== 0) return timeDifference * timeMultiplier
-    if (first.activityRole !== second.activityRole) {
-      return first.activityRole === 'primary' ? -1 : 1
+    const firstLoss = maneuverLossTimeSeconds(first)
+    const secondLoss = maneuverLossTimeSeconds(second)
+    if (firstLoss === null || secondLoss === null) {
+      if (firstLoss !== secondLoss) return firstLoss === null ? 1 : -1
+    } else if (firstLoss !== secondLoss) {
+      return direction === 'asc' ? firstLoss - secondLoss : secondLoss - firstLoss
     }
-    const startDifference = first.maneuver.start_time.localeCompare(
-      second.maneuver.start_time,
-    )
-    if (startDifference !== 0) return startDifference
-    return first.maneuver.end_time.localeCompare(second.maneuver.end_time)
+    return compareManeuverTime(first, second, 'asc')
   })
+}
+
+/**
+ * Activating the active column reverses its direction. Activating Time from Loss returns to
+ * chronological order in Time's current direction; activating Loss from Time starts with the
+ * largest Loss time first.
+ */
+export function activatedManeuverSort(state: ManeuverSortState, column: ManeuverSortColumn): ManeuverSortState {
+  if (column === 'time') {
+    return state.column === 'time'
+      ? { ...state, timeDirection: toggledSortDirection(state.timeDirection) }
+      : { ...state, column: 'time' }
+  }
+  return state.column === 'loss'
+    ? { ...state, lossDirection: toggledSortDirection(state.lossDirection) }
+    : { ...state, column: 'loss', lossDirection: 'desc' }
 }
 
 export function toggledExpandedState(expanded: boolean) {
   return !expanded
 }
 
-export function toggledSortDirection(direction: ManeuverSortDirection) {
+export function toggledSortDirection(direction: ManeuverSortDirection): ManeuverSortDirection {
   return direction === 'asc' ? 'desc' : 'asc'
+}
+
+/** Sortable header: visible direction arrow and `aria-sort` only on the active column. */
+function SortableHeader({
+  label,
+  active,
+  direction,
+  actionLabel,
+  onActivate,
+}: {
+  label: string
+  active: boolean
+  direction: ManeuverSortDirection
+  actionLabel: string
+  onActivate: () => void
+}) {
+  return (
+    <th scope="col" aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : undefined}>
+      <button
+        type="button"
+        className="maneuver-event-table__sort"
+        aria-label={actionLabel}
+        onClick={onActivate}
+      >
+        {label}
+        {active && <span aria-hidden="true">{direction === 'asc' ? ' ↑' : ' ↓'}</span>}
+      </button>
+    </th>
+  )
+}
+
+/** Marker legend below the table (#211.2 D10); markers are decorative, the text is read. */
+function LossBandLegend() {
+  return (
+    <p className="maneuver-loss-band-legend" data-maneuver-loss-band-legend>
+      <span className="maneuver-loss-band-legend__item"><LossBandMarker band="high" />{formatManeuverLossBand('high')}</span>
+      <span className="maneuver-event-table__sr-only">, </span>
+      <span className="maneuver-loss-band-legend__item"><LossBandMarker band="low" />{formatManeuverLossBand('low')}</span>
+      <span> · within each Activity</span>
+    </p>
+  )
 }
 
 function roleLabel(role: ManeuverActivityRole) {
@@ -266,7 +337,7 @@ export default function ManeuverEventTable({
 }: ManeuverEventTableProps) {
   const [expanded, setExpanded] = useState(false)
   const [helpExpanded, setHelpExpanded] = useState(false)
-  const [sortDirection, setSortDirection] = useState<ManeuverSortDirection>('asc')
+  const [sort, setSort] = useState<ManeuverSortState>(INITIAL_MANEUVER_SORT)
   const contentId = useId()
   const helpId = useId()
   const helpRef = useRef<HTMLDivElement>(null)
@@ -281,9 +352,14 @@ export default function ManeuverEventTable({
     (status) => status === 'available',
   )
   const sortedEvents = useMemo(
-    () => sortManeuverEvents(events, sortDirection),
-    [events, sortDirection],
+    () => sort.column === 'time'
+      ? sortManeuverEvents(events, sort.timeDirection)
+      : sortManeuverEventsByLossTime(events, sort.lossDirection),
+    [events, sort],
   )
+  const activateSort = (column: ManeuverSortColumn) => setSort((current) => activatedManeuverSort(current, column))
+  const timeSortAction = sort.column === 'time' ? toggledSortDirection(sort.timeDirection) : sort.timeDirection
+  const lossSortAction = sort.column === 'loss' ? toggledSortDirection(sort.lossDirection) : 'desc'
   // Ephemeral sector filter tied to the reset key it was chosen for; a new key falls back to All.
   const [chosenSectorFilter, setSectorFilter] = useResettableFilter<ManeuverSectorFilter>(sectorFilterResetKey)
   const activeSectorFilter: ManeuverSectorFilter = windSectors !== null ? chosenSectorFilter : 'all'
@@ -295,7 +371,7 @@ export default function ManeuverEventTable({
     : sortedEvents.filter((event) => maneuverMatchesSectorFilter(sectorOf(event), activeSectorFilter))
   const showSectorFilter = windSectors !== null && (events.length > 0 || activeSectorFilter !== 'all')
   // #211.2: bands are recomputed per Activity over the currently listed maneuvers (after the
-  // sector filter, never after the band filter).
+  // sector filter).
   const sectorListedEvents = useMemo(
     () => activeSectorFilter === 'all'
       ? events
@@ -307,13 +383,6 @@ export default function ManeuverEventTable({
   )
   const lossBands = useMemo(() => deriveManeuverLossBands(sectorListedEvents), [sectorListedEvents])
   const bandOf = (event: DisplayManeuver) => lossBands.get(maneuverSelectionKey(event)) ?? null
-  // Ephemeral band filter sharing the sector filter's reset key; a sector change does not reset it.
-  const [activeBandFilter, setBandFilter] = useResettableFilter<ManeuverLossBandFilter>(sectorFilterResetKey)
-  const bandCounts = countByFilter(LOSS_BAND_FILTERS, sectorListedEvents, (event, filter) => maneuverMatchesLossBandFilter(bandOf(event), filter))
-  const tableEvents = activeBandFilter === 'all'
-    ? visibleEvents
-    : visibleEvents.filter((event) => maneuverMatchesLossBandFilter(bandOf(event), activeBandFilter))
-  const showBandFilter = lossBands.size > 0 || activeBandFilter !== 'all'
 
   return (
     <section className="content-section maneuver-section" aria-labelledby="maneuver-title">
@@ -391,30 +460,12 @@ export default function ManeuverEventTable({
             />
           )}
 
-          {showBandFilter && (
-            <ManeuverFilterGroup
-              label="Filter maneuvers by loss band"
-              className="wind-segments__filter maneuver-loss-band-filter"
-              filters={LOSS_BAND_FILTERS}
-              active={activeBandFilter}
-              counts={bandCounts}
-              dataAttribute="data-maneuver-band-filter"
-              shortLabel={formatManeuverLossBandFilter}
-              fullLabel={formatManeuverLossBandFilter}
-              marker={lossBandFilterMarker}
-              onChange={setBandFilter}
-            />
-          )}
-
           {activeSectorFilter !== 'all' && visibleEvents.length === 0 ? (
             <p className="maneuver-empty" data-maneuver-sector-empty>
               {`No ${formatManeuverSectorFilterFull(activeSectorFilter)} maneuvers in this window`}
             </p>
-          ) : activeBandFilter !== 'all' && tableEvents.length === 0 ? (
-            <p className="maneuver-empty" data-maneuver-band-empty>
-              {`No ${formatManeuverLossBandFilter(activeBandFilter)} maneuvers in this window`}
-            </p>
           ) : events.length > 0 ? (
+            <>
             <div className="maneuver-event-table-wrap">
               <table className="maneuver-event-table" aria-label="Detected maneuvers">
                 <colgroup>
@@ -429,20 +480,23 @@ export default function ManeuverEventTable({
                 </colgroup>
                 <thead>
                   <tr>
-                    <th scope="col" aria-sort={sortDirection === 'asc' ? 'ascending' : 'descending'}>
-                      <button
-                        type="button"
-                        className="maneuver-event-table__sort"
-                        aria-label={`Sort maneuvers by time ${sortDirection === 'asc' ? 'descending' : 'ascending'}`}
-                        onClick={() => setSortDirection((current) => toggledSortDirection(current))}
-                      >
-                        Time {sortDirection.toUpperCase()}
-                      </button>
-                    </th>
+                    <SortableHeader
+                      label="Time"
+                      active={sort.column === 'time'}
+                      direction={sort.timeDirection}
+                      actionLabel={`Sort maneuvers by time ${timeSortAction === 'asc' ? 'ascending' : 'descending'}`}
+                      onActivate={() => activateSort('time')}
+                    />
                     <th scope="col">Act</th>
                     <th scope="col">Sector</th>
                     <th scope="col">Loss (m)</th>
-                    <th scope="col">Loss (s)</th>
+                    <SortableHeader
+                      label="Loss (s)"
+                      active={sort.column === 'loss'}
+                      direction={sort.lossDirection}
+                      actionLabel={`Sort maneuvers by Loss time, ${lossSortAction === 'desc' ? 'largest' : 'smallest'} first`}
+                      onActivate={() => activateSort('loss')}
+                    />
                     <th scope="col">Rec (s)</th>
                     <th scope="col">SOG in</th>
                     <th scope="col">SOG min</th>
@@ -452,7 +506,7 @@ export default function ManeuverEventTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {tableEvents.map((event) => (
+                  {visibleEvents.map((event) => (
                     <ManeuverEventRow
                       key={`${event.activityRole}:${event.maneuver.start_time}:${event.maneuver.center_time}:${event.maneuver.end_time}`}
                       event={event}
@@ -465,6 +519,8 @@ export default function ManeuverEventTable({
                 </tbody>
               </table>
             </div>
+            {lossBands.size > 0 && <LossBandLegend />}
+            </>
           ) : allSelectedAnalyticsAvailable ? (
             <p className="maneuver-empty">No maneuvers detected in this Analysis Window.</p>
           ) : null}

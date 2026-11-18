@@ -11,9 +11,7 @@ import { maneuverSelectionKey, type DisplayManeuver, type ManeuverActivityRole }
  */
 export type ManeuverLossBand = 'high' | 'typical' | 'low'
 
-export type ManeuverLossBandFilter = 'all' | ManeuverLossBand
-
-/** Display and filter order: High loss · Typical · Low loss. */
+/** Display order: High loss · Typical · Low loss. */
 export const MANEUVER_LOSS_BANDS: readonly ManeuverLossBand[] = ['high', 'typical', 'low']
 
 const BAND_LABELS: Record<ManeuverLossBand, string> = {
@@ -24,19 +22,6 @@ const BAND_LABELS: Record<ManeuverLossBand, string> = {
 
 export function formatManeuverLossBand(band: ManeuverLossBand) {
   return BAND_LABELS[band]
-}
-
-export function formatManeuverLossBandFilter(filter: ManeuverLossBandFilter) {
-  return filter === 'all' ? 'All' : BAND_LABELS[filter]
-}
-
-/** All matches every maneuver; others need that band, so unbanded maneuvers appear only under All. */
-export function maneuverMatchesLossBandFilter(
-  band: ManeuverLossBand | null | undefined,
-  filter: ManeuverLossBandFilter,
-) {
-  if (filter === 'all') return true
-  return band === filter
 }
 
 /** The unrounded equivalent Loss time when finite; otherwise the maneuver is not classified. */
