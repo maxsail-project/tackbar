@@ -68,7 +68,7 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain(`C · ${comparison} evidence`)
     expect(markup.indexOf('id="maneuver-title"')).toBeLessThan(markup.indexOf('class="maneuver-evidence"'))
     expect(markup.indexOf('class="maneuver-evidence"')).toBeLessThan(markup.indexOf('<table'))
-    expect(cellTexts(markup, 'th')).toHaveLength(11)
+    expect(cellTexts(markup, 'th')).toHaveLength(10)
     expect(cellTexts(markup, 'td').join(' ')).not.toContain('evidence')
   })
 
@@ -163,7 +163,7 @@ describe('ManeuverEventTable', () => {
     )
 
     expect(markup).toContain('Time')
-    expect(markup).toContain('Act')
+    expect(markup).toContain('<span class="maneuver-event-table__sr-only">Activity</span>')
     expect(markup).toContain('Δ (°)')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('−91')
@@ -185,42 +185,40 @@ describe('ManeuverEventTable', () => {
     )
 
     expect(markup).toContain('Time')
-    expect(markup).toContain('Act')
+    expect(markup).toContain('<span class="maneuver-event-table__sr-only">Activity</span>')
     expect(markup).toContain('\u0394 (\u00b0)')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('\u221291')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
     expect(markup).toContain('aria-sort="ascending"')
     expect(markup).toContain('Time<span class="maneuver-event-table__sort-indicator maneuver-event-table__sort-indicator--active" aria-hidden="true">▲</span>')
-    expect(markup).toContain('Loss (s)<span class="maneuver-event-table__sort-indicator" aria-hidden="true">⇅</span>')
+    expect(markup).toContain('Loss<span class="maneuver-event-table__sort-indicator" aria-hidden="true">⇅</span>')
     expect(cellTexts(markup, 'th')).toEqual([
       'Time▲',
-      'Act',
-      'Sector',
-      'Loss (m)',
-      'Loss (s)⇅',
+      'Activity',
+      'Loss⇅',
       'Rec (s)',
       'SOG in',
       'SOG min',
       'SOG out',
       'Δ (°)',
       'Dur (s)',
+      'Sector',
     ])
     expect(cellTexts(markup, 'td')).toEqual([
       '08:47:59',
       'P',
-      '—',
-      '9',
-      '3',
+      '3s · 9 m',
       '12',
       '5.2',
       '3.1',
       '5.1',
       'ΔHDG −91',
       '10',
+      '—',
     ])
     expect(markup).toMatch(
-      /maneuver-event-table__time-column.*maneuver-event-table__activity-column.*maneuver-event-table__sector-column.*maneuver-event-table__loss-column.*span="2".*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*span="3".*maneuver-event-table__heading-column.*maneuver-event-table__duration-column/,
+      /maneuver-event-table__time-column.*maneuver-event-table__activity-column.*maneuver-event-table__loss-column.*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*span="3".*maneuver-event-table__heading-column.*maneuver-event-table__duration-column.*maneuver-event-table__sector-column/,
     )
   })
 
@@ -387,9 +385,36 @@ describe('ManeuverEventTable', () => {
       />,
     )
 
-    // Six unavailable metrics; the available Sector reads Up.
+    // Six unavailable metrics (the combined Loss cell shows both parts); the available Sector reads Up, last.
     expect(cellTexts(markup, 'td').join('').match(/—/g)).toHaveLength(6)
-    expect(cellTexts(markup, 'td')[2]).toBe('Up')
+    expect(cellTexts(markup, 'td')[2]).toBe('— · —')
+    expect(cellTexts(markup, 'td')[9]).toBe('Up')
+  })
+
+  it('renders one combined Loss cell, time first, with partial and full unavailability', () => {
+    const withLoss = (distance: number | null, time: number | null) => ({
+      ...event, maneuver: { ...event.maneuver, speed_loss_distance_m: distance, speed_loss_time_s: time },
+    })
+    const lossCell = (markup: string) => markup.match(/<td aria-label="(Loss distance[^"]*)">([^<]*)<\/td>/)!.slice(1)
+    const render = (target: DisplayManeuver) => renderToStaticMarkup(
+      <ManeuverEventTable events={[target]} primaryStatus="available" onSelect={() => undefined} />,
+    )
+    expect(lossCell(render(withLoss(18, 8)))).toEqual(['Loss distance 18 m; equivalent Loss time 8 s', '8s · 18 m'])
+    expect(lossCell(render(withLoss(null, 8)))).toEqual(['Loss distance —; equivalent Loss time 8 s', '8s · —'])
+    expect(lossCell(render(withLoss(18, null)))).toEqual(['Loss distance 18 m; equivalent Loss time —', '— · 18 m'])
+    expect(lossCell(render(withLoss(null, null)))).toEqual(['Loss distance —; equivalent Loss time —', '— · —'])
+  })
+
+  it('keeps the P/C header untitled but named Activity, and orders the columns for mobile', () => {
+    const markup = renderToStaticMarkup(
+      <ManeuverEventTable events={[event]} primaryStatus="available" onSelect={() => undefined} />,
+    )
+    expect(markup).toContain('<th scope="col"><span class="maneuver-event-table__sr-only">Activity</span></th>')
+    expect(markup).not.toMatch(/>Act</)
+    expect(markup).not.toMatch(/Loss \((m|s)\)/)
+    expect(cellTexts(markup, 'th')[0]).toBe('Time▲')
+    expect(cellTexts(markup, 'th').at(-1)).toBe('Sector')
+    expect(markup.match(/<col /g)).toHaveLength(8)
   })
 
   it('shows the empty Analysis Window state for available analytics', () => {

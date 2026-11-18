@@ -5,10 +5,10 @@ import type { DisplayManeuver, ManeuverActivityRole } from '../utils/maneuverEve
 import {
   formatHeadingChange,
   formatKnots,
-  formatMetres,
   formatSeconds,
   maneuverSelectionKey,
 } from '../utils/maneuverEvents'
+import { formatManeuverLoss } from '../utils/maneuverLossFormat'
 import {
   formatManeuverSectorFilterFull,
   formatManeuverSectorFilterShort,
@@ -273,10 +273,11 @@ export function ManeuverEventRow({
   selected: boolean
   onSelect: (event: DisplayManeuver) => void
   windSector?: ManeuverWindSector | null
-  /** Descriptive loss band (#211.2) shown on the Loss (s) cell; null means unbanded. */
+  /** Descriptive loss band (#211.2) shown on the combined Loss cell; null means unbanded. */
   lossBand?: ManeuverLossBand | null
 }) {
   const label = roleLabel(event.activityRole)
+  const loss = formatManeuverLoss(event.maneuver)
 
   return (
     <tr
@@ -301,24 +302,17 @@ export function ManeuverEventRow({
       >
         {label}
       </td>
-      <td
-        className="maneuver-event-table__sector"
-        data-maneuver-sector={windSector === null ? 'unavailable' : windSector.kind}
-        title={windSector === null ? undefined : formatManeuverWindSectorFull(windSector)}
-      >
-        {formatManeuverWindSector(windSector)}
-      </td>
-      <td>{formatMetres(event.maneuver.speed_loss_distance_m)}</td>
       {lossBand === null ? (
-        <td>{formatSeconds(event.maneuver.speed_loss_time_s)}</td>
+        <td aria-label={loss.ariaLabel}>{loss.text}</td>
       ) : (
         <td
           className={`maneuver-loss-band maneuver-loss-band--${lossBand}`}
           data-maneuver-loss-band={lossBand}
           title={formatManeuverLossBand(lossBand)}
+          aria-label={`${loss.ariaLabel}; ${formatManeuverLossBand(lossBand)}`}
         >
           <LossBandMarker band={lossBand} />
-          {formatSeconds(event.maneuver.speed_loss_time_s)}
+          {loss.text}
           <span className="maneuver-event-table__sr-only">{` · ${formatManeuverLossBand(lossBand)}`}</span>
         </td>
       )}
@@ -332,6 +326,13 @@ export function ManeuverEventRow({
           ? `ΔCOG ${formatHeadingChange(event.maneuver.course_change_deg)}`
           : '—'}</td>
       <td>{formatSeconds(event.maneuver.duration_s)}</td>
+      <td
+        className="maneuver-event-table__sector"
+        data-maneuver-sector={windSector === null ? 'unavailable' : windSector.kind}
+        title={windSector === null ? undefined : formatManeuverWindSectorFull(windSector)}
+      >
+        {formatManeuverWindSector(windSector)}
+      </td>
     </tr>
   )
 }
@@ -483,12 +484,12 @@ export default function ManeuverEventTable({
                 <colgroup>
                   <col className="maneuver-event-table__time-column" />
                   <col className="maneuver-event-table__activity-column" />
-                  <col className="maneuver-event-table__sector-column" />
-                  <col className="maneuver-event-table__loss-column" span={2} />
+                  <col className="maneuver-event-table__loss-column" />
                   <col className="maneuver-event-table__recovery-column" />
                   <col className="maneuver-event-table__sog-column" span={3} />
                   <col className="maneuver-event-table__heading-column" />
                   <col className="maneuver-event-table__duration-column" />
+                  <col className="maneuver-event-table__sector-column" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -499,11 +500,9 @@ export default function ManeuverEventTable({
                       actionLabel={`Sort maneuvers by time ${timeSortAction === 'asc' ? 'ascending' : 'descending'}`}
                       onActivate={() => activateSort('time')}
                     />
-                    <th scope="col">Act</th>
-                    <th scope="col">Sector</th>
-                    <th scope="col">Loss (m)</th>
+                    <th scope="col"><span className="maneuver-event-table__sr-only">Activity</span></th>
                     <SortableHeader
-                      label="Loss (s)"
+                      label="Loss"
                       active={sort.column === 'loss'}
                       direction={sort.lossDirection}
                       actionLabel={`Sort maneuvers by Loss time, ${lossSortAction === 'desc' ? 'largest' : 'smallest'} first`}
@@ -515,6 +514,7 @@ export default function ManeuverEventTable({
                     <th scope="col">SOG out</th>
                     <th scope="col">Δ (°)</th>
                     <th scope="col">Dur (s)</th>
+                    <th scope="col">Sector</th>
                   </tr>
                 </thead>
                 <tbody>

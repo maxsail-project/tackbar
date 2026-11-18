@@ -37,7 +37,7 @@ const time = (minute: number) => `08:${String(minute).padStart(2, '0')}:00`
 
 function lossTimeCells(markup: string) {
   const rows = [...markup.matchAll(/<tr class="maneuver-event-table__row[^"]*"[^>]*>([\s\S]*?)<\/tr>/g)].map((match) => match[1])
-  return rows.map((row) => [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)][4][0])
+  return rows.map((row) => [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)][2][0])
 }
 
 const staticMarkup = (tableEvents: DisplayManeuver[]) => renderToStaticMarkup(<ManeuverEventTable
@@ -46,20 +46,20 @@ const staticMarkup = (tableEvents: DisplayManeuver[]) => renderToStaticMarkup(<M
 />)
 
 describe('Maneuver Analysis loss band markers (#211.2)', () => {
-  it('marks the Loss (s) cell of banded maneuvers with a neutral marker and accessible text, without a new column', () => {
+  it('marks the combined Loss cell of banded maneuvers with a neutral marker and accessible text, without a new column', () => {
     const markup = staticMarkup(events)
     const headers = [...markup.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)]
-    expect(headers).toHaveLength(11)
+    expect(headers).toHaveLength(10)
     expect(markup).not.toMatch(/<th[^>]*>[^<]*(band|High loss)/i)
     const cells = lossTimeCells(markup)
     expect(cells).toHaveLength(15)
     // m3 (8 s) among P's 11 Loss times 1…8, 20, 21, 22: cuts 3.5 and 14 → Typical.
-    expect(cells[2]).toBe('<td class="maneuver-loss-band maneuver-loss-band--typical" data-maneuver-loss-band="typical" title="Typical">8<span class="maneuver-event-table__sr-only"> · Typical</span></td>')
-    expect(cells[1]).toBe('<td class="maneuver-loss-band maneuver-loss-band--low" data-maneuver-loss-band="low" title="Low loss"><span class="maneuver-loss-band__marker maneuver-loss-band__marker--low" aria-hidden="true"></span>1<span class="maneuver-event-table__sr-only"> · Low loss</span></td>')
-    expect(cells[14]).toBe('<td class="maneuver-loss-band maneuver-loss-band--high" data-maneuver-loss-band="high" title="High loss"><span class="maneuver-loss-band__marker maneuver-loss-band__marker--high" aria-hidden="true"></span>22<span class="maneuver-event-table__sr-only"> · High loss</span></td>')
+    expect(cells[2]).toBe('<td class="maneuver-loss-band maneuver-loss-band--typical" data-maneuver-loss-band="typical" title="Typical" aria-label="Loss distance 9 m; equivalent Loss time 8 s; Typical">8s · 9 m<span class="maneuver-event-table__sr-only"> · Typical</span></td>')
+    expect(cells[1]).toBe('<td class="maneuver-loss-band maneuver-loss-band--low" data-maneuver-loss-band="low" title="Low loss" aria-label="Loss distance 9 m; equivalent Loss time 1 s; Low loss"><span class="maneuver-loss-band__marker maneuver-loss-band__marker--low" aria-hidden="true"></span>1s · 9 m<span class="maneuver-event-table__sr-only"> · Low loss</span></td>')
+    expect(cells[14]).toBe('<td class="maneuver-loss-band maneuver-loss-band--high" data-maneuver-loss-band="high" title="High loss" aria-label="Loss distance 9 m; equivalent Loss time 22 s; High loss"><span class="maneuver-loss-band__marker maneuver-loss-band__marker--high" aria-hidden="true"></span>22s · 9 m<span class="maneuver-event-table__sr-only"> · High loss</span></td>')
     // Unbanded: P without Loss time (unavailable stays unavailable) and C below the minimum population.
-    expect(cells[8]).toBe('<td>—</td>')
-    expect(cells.slice(9, 12)).toEqual(['<td>1</td>', '<td>2</td>', '<td>3</td>'])
+    expect(cells[8]).toBe('<td aria-label="Loss distance 9 m; equivalent Loss time —">— · 9 m</td>')
+    expect(cells.slice(9, 12)).toEqual([1, 2, 3].map((loss) => `<td aria-label="Loss distance 9 m; equivalent Loss time ${loss} s">${loss}s · 9 m</td>`))
     expect(markup.match(/data-maneuver-loss-band="/g)).toHaveLength(11)
     // Bands never use P/C colours on the Loss cell and never read as a score or ranking.
     expect(cells.join('')).not.toMatch(/style=/)
@@ -86,6 +86,16 @@ describe('Maneuver Analysis loss band markers (#211.2)', () => {
   })
 })
 
+describe('combined Loss cell with band (#211 D14)', () => {
+  it('puts the band dot before the value and names the band in the cell accessible name', () => {
+    const cell = lossTimeCells(staticMarkup(events))[14]
+    expect(cell.indexOf('maneuver-loss-band__marker--high')).toBeLessThan(cell.indexOf('22s · 9 m'))
+    expect(cell).toContain('aria-label="Loss distance 9 m; equivalent Loss time 22 s; High loss"')
+    expect(cell).toContain('title="High loss"')
+    expect(cell).toContain('<span class="maneuver-event-table__sr-only"> · High loss</span>')
+  })
+})
+
 describe('sortManeuverEventsByLossTime (#211.2 D12)', () => {
   it('sorts P and C together by unrounded Loss time, ties chronologically and unavailable last', () => {
     const finer = eventAt(20, 'comparison', 3.4)
@@ -98,7 +108,7 @@ describe('sortManeuverEventsByLossTime (#211.2 D12)', () => {
   })
 })
 
-describe('Maneuver Analysis Loss (s) sorting and legend (#211.2)', () => {
+describe('Maneuver Analysis Loss sorting and legend (#211.2)', () => {
   const harness = setupManeuverEventTableHarness({ events, windSectors: sectors })
   const { render, rowTimes, click } = harness
   let container: HTMLDivElement
@@ -120,19 +130,19 @@ describe('Maneuver Analysis Loss (s) sorting and legend (#211.2)', () => {
   const lossAscending = [2, 10, 6, 11, 4, 12, 8, 1, 5, 7, 3, 13, 14, 15, 9].map(time)
   const chronological = Array.from({ length: 15 }, (_, index) => time(index + 1))
 
-  it('sorts by Loss (s) largest first, then reverses, with direction indicator and aria-sort', async () => {
+  it('sorts by Loss largest first, then reverses, with direction indicator and aria-sort', async () => {
     await render()
     expect(rowTimes()).toEqual(chronological)
     expect(headerState('Time')).toEqual(['ascending', 'Time▲', 'Sort maneuvers by time descending'])
-    expect(headerState('Loss (s)')).toEqual([null, 'Loss (s)⇅', 'Sort maneuvers by Loss time, largest first'])
+    expect(headerState('Loss')).toEqual([null, 'Loss⇅', 'Sort maneuvers by Loss time, largest first'])
     expect(container.querySelectorAll('thead th[aria-sort]')).toHaveLength(1)
-    await click(sortButton('Loss (s)'))
+    await click(sortButton('Loss'))
     expect(rowTimes()).toEqual(lossDescending)
-    expect(headerState('Loss (s)')).toEqual(['descending', 'Loss (s)▼', 'Sort maneuvers by Loss time, smallest first'])
+    expect(headerState('Loss')).toEqual(['descending', 'Loss▼', 'Sort maneuvers by Loss time, smallest first'])
     expect(headerState('Time')).toEqual([null, 'Time⇅', 'Sort maneuvers by time ascending'])
-    await click(sortButton('Loss (s)'))
+    await click(sortButton('Loss'))
     expect(rowTimes()).toEqual(lossAscending)
-    expect(headerState('Loss (s)')).toEqual(['ascending', 'Loss (s)▲', 'Sort maneuvers by Loss time, largest first'])
+    expect(headerState('Loss')).toEqual(['ascending', 'Loss▲', 'Sort maneuvers by Loss time, largest first'])
     expect(container.querySelectorAll('thead th[aria-sort]')).toHaveLength(1)
   })
 
@@ -140,31 +150,31 @@ describe('Maneuver Analysis Loss (s) sorting and legend (#211.2)', () => {
     await render()
     await click(sortButton('Time'))
     expect(headerState('Time')).toEqual(['descending', 'Time▼', 'Sort maneuvers by time ascending'])
-    await click(sortButton('Loss (s)'))
-    await click(sortButton('Loss (s)'))
+    await click(sortButton('Loss'))
+    await click(sortButton('Loss'))
     expect(rowTimes()).toEqual(lossAscending)
     // Back to Time in its current (descending) direction; Loss starts largest first again.
     await click(sortButton('Time'))
     expect(rowTimes()).toEqual([...chronological].reverse())
     expect(headerState('Time')).toEqual(['descending', 'Time▼', 'Sort maneuvers by time ascending'])
-    expect(headerState('Loss (s)')).toEqual([null, 'Loss (s)⇅', 'Sort maneuvers by Loss time, largest first'])
+    expect(headerState('Loss')).toEqual([null, 'Loss⇅', 'Sort maneuvers by Loss time, largest first'])
     await click(sortButton('Time'))
     expect(rowTimes()).toEqual(chronological)
-    await click(sortButton('Loss (s)'))
+    await click(sortButton('Loss'))
     expect(rowTimes()).toEqual(lossDescending)
   })
 
   it('keeps the Loss sort and row selection across sector filter and reset key changes', async () => {
     const onSelect = vi.fn()
     await render({ onSelect, selectedKey: maneuverSelectionKey(upwindP[2]) })
-    await click(sortButton('Loss (s)'))
+    await click(sortButton('Loss'))
     await click(sectorOption('upwind'))
     expect(rowTimes()).toEqual([3, 7, 5, 1, 8, 4, 6, 2, 9].map(time))
     expect(container.querySelector('[aria-selected="true"]')!.querySelector('td')!.textContent).toBe(time(3))
     await render({ onSelect, selectedKey: maneuverSelectionKey(upwindP[2]), resetKey: 'k2' })
     expect(sectorOption('all').getAttribute('aria-pressed')).toBe('true')
     expect(rowTimes()).toEqual(lossDescending)
-    expect(headerCell('Loss (s)').getAttribute('aria-sort')).toBe('descending')
+    expect(headerCell('Loss').getAttribute('aria-sort')).toBe('descending')
     expect(onSelect).not.toHaveBeenCalled()
   })
 

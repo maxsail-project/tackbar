@@ -29,13 +29,14 @@ function sectorCells(markup: string) {
 }
 
 describe('Maneuver Analysis Sector column (#211.1)', () => {
-  it('shows the Sector column after Act with short labels, transitions and — for unavailable context', () => {
+  it('shows the Sector column last with short labels, transitions and — for unavailable context', () => {
     const markup = renderToStaticMarkup(<ManeuverEventTable
       events={events} primaryStatus="available" comparisonStatus="available" onSelect={vi.fn()}
       windSectors={sectors} sectorFilterResetKey="k"
     />)
     const headers = [...markup.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map((match) => match[1].replace(/<[^>]+>/g, ''))
-    expect(headers.slice(0, 3)).toEqual(['Time▲', 'Act', 'Sector'])
+    expect(headers.slice(0, 2)).toEqual(['Time▲', 'Activity'])
+    expect(headers.at(-1)).toBe('Sector')
     expect(sectorCells(markup)).toEqual(['Up', 'Up→Down', 'Reach', '—', 'Up'])
     expect(markup).toContain('data-maneuver-sector="transition" title="Upwind to Downwind"')
     expect(markup).toContain('data-maneuver-sector="unavailable">—</td>')

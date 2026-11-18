@@ -1932,7 +1932,7 @@ input:focus-visible {
 }
 
 .maneuver-event-table {
-  min-width: 870px;
+  min-width: 850px;
   table-layout: fixed;
 }
 
@@ -1961,8 +1961,9 @@ input:focus-visible {
   width: 90px;
 }
 
+/* Combined Loss: `● 12s · 145 m` plus the `Loss ▼` sort header. */
 .maneuver-event-table__loss-column {
-  width: 74px;
+  width: 130px;
 }
 
 .maneuver-event-table th,
@@ -1980,13 +1981,16 @@ input:focus-visible {
   text-align: center;
 }
 
-.maneuver-event-table th:nth-child(n + 3),
-.maneuver-event-table td:nth-child(n + 3) {
+.maneuver-event-table th:nth-child(n + 4),
+.maneuver-event-table td:nth-child(n + 4) {
   text-align: right;
 }
 
+/* Combined Loss (3rd) and Sector (last) are text-like and left-aligned. */
 .maneuver-event-table th:nth-child(3),
-.maneuver-event-table td:nth-child(3) {
+.maneuver-event-table td:nth-child(3),
+.maneuver-event-table th:last-child,
+.maneuver-event-table td:last-child {
   text-align: left;
 }
 
@@ -2075,7 +2079,7 @@ input:focus-visible {
   font-weight: 900;
 }
 
-/* #211.2: descriptive loss band markers on the Loss (s) cell — marker only, neutral, no P/C colours, no red/green. */
+/* #211.2: descriptive loss band markers on the combined Loss cell — marker only, neutral, no P/C colours, no red/green. */
 .maneuver-event-table__sr-only {
   position: absolute;
   width: 1px;
