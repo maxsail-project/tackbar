@@ -172,6 +172,12 @@ reconciliation comment; and continue as follows:
   verification. Resume only after the product owner records **PASS** or explicitly
   accepts the risk on the Issue; then close as `completed`, prepare and publish.
 
+The release steps apply only when the Issue's release-facing documentation impact is
+`Review during Release Preparation`. With `No impact` (for example governance, CI or
+internal documentation changes), the chain ends at closure as `completed` and the work
+enters the next release that has user-facing changes. The authorization may state a
+different outcome for a specific Issue.
+
 **Independence, model and effort.** The implementation agent has its own context and does
 not review or accept its own work. The prompt header's `Recommended development
 model/tool`, approved through the authorization, is binding: launch the implementation
