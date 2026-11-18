@@ -471,6 +471,16 @@ The preparation Issue must record at minimum:
 The release-preparation Issue exists to record the preparation process, not to
 approve product functionality already accepted through completed Issues.
 
+Whether the Release Preparer creates or locates the preparation Issue, it must
+carry `group:operations` as its only `group:*` label and `release-preparation`.
+The Release Preparer applies whichever of the two is missing, replaces any other
+`group:*` label with `group:operations`, leaves non-group labels unchanged, and
+verifies both labels on the Issue after creating or locating
+it and again before reporting `READY_FOR_PUBLICATION`. Issue template default
+labels apply only to the web form, so an Issue created through a connector or
+API must not be assumed to have them. These labels classify the preparation
+Issue only; they do not define release scope (see section 4).
+
 When release preparation completes successfully, the Release Preparer must:
 
 1. record the completed preparation result;

@@ -153,6 +153,16 @@ Use this deterministic order:
    - required release-preparation validation;
    - explicit non-goals.
 
+   Whether the Issue is created or located, ensure it carries
+   `group:operations` as its only `group:*` label and `release-preparation`.
+   Apply whichever of the two is missing, replace any other `group:*` label
+   with `group:operations`, and leave non-group labels unchanged. Issue
+   template default labels apply only to the web form, so do not assume that an
+   Issue created through a connector or API has them. After creating the
+   Issue, or after locating it, read its labels back and verify both are
+   present. These labels classify the preparation Issue only; they do not
+   define release scope.
+
 9. Perform the mandatory release-relevant documentation consistency review,
    classify every release-relevant document reviewed and any distinct finding
    within it, and reconcile documentation according to the shared preparation
@@ -237,6 +247,8 @@ Use this deterministic order:
 25. Verify that:
 
     - the release-preparation Issue is closed;
+    - the release-preparation Issue carries `release-preparation` and
+      `group:operations` as its only `group:*` label;
     - remote `main` still contains the exact preparation commit;
     - the requested tag does not exist;
     - the corresponding GitHub Release does not exist.
