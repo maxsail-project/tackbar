@@ -1932,38 +1932,38 @@ input:focus-visible {
 }
 
 .maneuver-event-table {
-  min-width: 850px;
+  min-width: 692px;
   table-layout: fixed;
 }
 
 .maneuver-event-table__time-column {
-  width: 88px;
+  width: 74px;
 }
 
 .maneuver-event-table__activity-column {
-  width: 40px;
+  width: 30px;
 }
 
 .maneuver-event-table__sector-column {
-  width: 96px;
+  width: 76px;
 }
 
 .maneuver-event-table__heading-column {
-  width: 110px;
+  width: 88px;
 }
 
 .maneuver-event-table__duration-column,
 .maneuver-event-table__recovery-column {
-  width: 58px;
+  width: 48px;
 }
 
 .maneuver-event-table__sog-column {
-  width: 90px;
+  width: 72px;
 }
 
-/* Combined Loss: `● 12s · 145 m` plus the `Loss ▼` sort header. */
+/* Combined Loss sized to its worst case `● 112s · 1145 m` (about 91px of content) plus the `Loss ▼` header. */
 .maneuver-event-table__loss-column {
-  width: 130px;
+  width: 112px;
 }
 
 .maneuver-event-table th,

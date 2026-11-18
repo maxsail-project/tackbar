@@ -197,24 +197,24 @@ describe('ManeuverEventTable', () => {
       'Time▲',
       'Activity',
       'Loss⇅',
-      'Rec (s)',
+      'Rec',
       'SOG in',
       'SOG min',
       'SOG out',
       'Δ (°)',
-      'Dur (s)',
+      'Dur',
       'Sector',
     ])
     expect(cellTexts(markup, 'td')).toEqual([
       '08:47:59',
       'P',
       '3s · 9 m',
-      '12',
+      '12s',
       '5.2',
       '3.1',
       '5.1',
       'ΔHDG −91',
-      '10',
+      '10s',
       '—',
     ])
     expect(markup).toMatch(
@@ -415,6 +415,8 @@ describe('ManeuverEventTable', () => {
     expect(cellTexts(markup, 'th')[0]).toBe('Time▲')
     expect(cellTexts(markup, 'th').at(-1)).toBe('Sector')
     expect(markup.match(/<col /g)).toHaveLength(8)
+    expect(cellTexts(markup, 'th').slice(3, 5)).toEqual(['Rec', 'SOG in'])
+    expect(markup).not.toMatch(/(Rec|Dur) \(s\)/)
   })
 
   it('shows the empty Analysis Window state for available analytics', () => {

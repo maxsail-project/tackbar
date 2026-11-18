@@ -8,7 +8,7 @@ import {
   formatSeconds,
   maneuverSelectionKey,
 } from '../utils/maneuverEvents'
-import { formatManeuverLoss } from '../utils/maneuverLossFormat'
+import { compactSeconds, formatManeuverLoss } from '../utils/maneuverLossFormat'
 import {
   formatManeuverSectorFilterFull,
   formatManeuverSectorFilterShort,
@@ -316,7 +316,7 @@ export function ManeuverEventRow({
           <span className="maneuver-event-table__sr-only">{` · ${formatManeuverLossBand(lossBand)}`}</span>
         </td>
       )}
-      <td>{formatSeconds(event.maneuver.recovery_time_s)}</td>
+      <td>{compactSeconds(formatSeconds(event.maneuver.recovery_time_s))}</td>
       <td>{formatKnots(event.maneuver.sog_entry_kn)}</td>
       <td>{formatKnots(event.maneuver.sog_min_kn)}</td>
       <td>{formatKnots(event.maneuver.sog_exit_kn)}</td>
@@ -325,7 +325,7 @@ export function ManeuverEventRow({
         : event.maneuver.course_change_deg !== null
           ? `ΔCOG ${formatHeadingChange(event.maneuver.course_change_deg)}`
           : '—'}</td>
-      <td>{formatSeconds(event.maneuver.duration_s)}</td>
+      <td>{compactSeconds(formatSeconds(event.maneuver.duration_s))}</td>
       <td
         className="maneuver-event-table__sector"
         data-maneuver-sector={windSector === null ? 'unavailable' : windSector.kind}
@@ -508,12 +508,12 @@ export default function ManeuverEventTable({
                       actionLabel={`Sort maneuvers by Loss time, ${lossSortAction === 'desc' ? 'largest' : 'smallest'} first`}
                       onActivate={() => activateSort('loss')}
                     />
-                    <th scope="col">Rec (s)</th>
+                    <th scope="col">Rec</th>
                     <th scope="col">SOG in</th>
                     <th scope="col">SOG min</th>
                     <th scope="col">SOG out</th>
                     <th scope="col">Δ (°)</th>
-                    <th scope="col">Dur (s)</th>
+                    <th scope="col">Dur</th>
                     <th scope="col">Sector</th>
                   </tr>
                 </thead>
