@@ -1243,7 +1243,7 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
             geo_calls.append((latitude, longitude))
             return GeographicContext(
                 label="Valencia" if len(geo_calls) == 1 else "Gandia",
-                region=None if len(geo_calls) == 3 else "Comunitat Valenciana",
+                region=None if len(geo_calls) >= 3 else "Comunitat Valenciana",
                 country="España",
                 country_code="es",
                 provider="geoapify",
@@ -1320,7 +1320,9 @@ def test_admin_enrich_session_persists_location_and_hourly_conditions(
     assert first.json["historical_conditions"]["marine_source"] is None
     assert first.json["historical_conditions"]["hourly"][0]["wind_speed_10m_kn"] == 12
     assert first.json["historical_conditions"]["hourly"][0]["weather_code"] == 2
-    assert geo_calls == [(0.1, -30.1)] * 3
+    # Third request: the creator result drops the region, so each remaining member
+    # Activity is tried once (#206) and also rejected before the creator fallback.
+    assert geo_calls == [(0.1, -30.1)] * 5
     assert len(conditions_calls) == 3
     assert conditions_calls[0] == (
         datetime(2026, 8, 10, 6, tzinfo=timezone.utc),

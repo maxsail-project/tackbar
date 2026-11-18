@@ -1083,3 +1083,298 @@ def test_match_completion_unavailable_or_failed_provider_preserves_session(
     ).complete_matched_session_geography("session-a", "activity-b")
 
     assert sessions.get_by_id("session-a") == before
+
+
+_MEMBER_START = {
+    "activity-a": (39.40, -0.30),
+    "activity-b": (39.47, -0.33),
+    "activity-c": (39.50, -0.35),
+}
+
+
+def _member_repositories(
+    temporary_json_file: Callable[[str, object], Path],
+    activity_ids: list[str],
+    **existing_fields: object,
+) -> tuple[ActivityRepository, SessionRepository]:
+    activities = ActivityRepository(temporary_json_file("member-activities", [
+        {
+            **_activity(activity_id),
+            "start_lat": latitude,
+            "start_lon": longitude,
+            "attachment_sha256": activity_id[-1] * 64,
+        }
+        for activity_id, (latitude, longitude) in _MEMBER_START.items()
+    ]))
+    sessions = SessionRepository(temporary_json_file("member-sessions", [{
+        "id": "session-a",
+        "activity_ids": activity_ids,
+        "created_at": _time(10, 17, 13).isoformat(),
+        "expires_at": _time(12, 17, 13).isoformat(),
+        "capability_token": "keep-token",
+        "capability_revoked": False,
+    }]))
+    session = sessions.get_by_id("session-a")
+    assert session is not None
+    sessions.replace(replace(session, **existing_fields))
+    return activities, sessions
+
+
+class _MemberGeocoder:
+    """Returns a per-Activity result (or raises) keyed by start coordinate."""
+
+    def __init__(
+        self,
+        results: dict[str, GeographicContext | None | Exception],
+        on_call: Callable[[str], None] | None = None,
+    ) -> None:
+        self.results = results
+        self.on_call = on_call
+        self.calls: list[str] = []
+
+    def reverse(self, latitude: float, longitude: float) -> GeographicContext | None:
+        activity_id = next(
+            key for key, start in _MEMBER_START.items() if start == (latitude, longitude)
+        )
+        self.calls.append(activity_id)
+        if self.on_call is not None:
+            self.on_call(activity_id)
+        result = self.results[activity_id]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+def _location(session) -> tuple[object, ...]:
+    return (
+        session.location_label, session.location_region,
+        session.location_country, session.location_country_code,
+        session.location_provider, session.location_resolved_at,
+        session.location_source_activity_id,
+    )
+
+
+def _resolved(label, region, country, country_code, hour: int) -> GeographicContext:
+    return GeographicContext(
+        label, region, country, country_code,
+        provider="geoapify", resolved_at=_time(10, 18, hour),
+    )
+
+
+@pytest.mark.parametrize("existing_fields", [{}, _COUNTRY_ONLY])
+def test_admin_enrichment_persists_city_from_next_member_when_creator_is_cityless(
+    temporary_json_file: Callable[[str, object], Path],
+    existing_fields: dict[str, object],
+) -> None:
+    activities, sessions = _member_repositories(
+        temporary_json_file, ["activity-a", "activity-b", "activity-c"],
+        **existing_fields,
+    )
+    geocoder = _MemberGeocoder({
+        "activity-a": _resolved(None, "Comunitat Valenciana", "Spain", "es", 9),
+        "activity-b": _resolved("Valencia", "Comunitat Valenciana", "Spain", "es", 10),
+        "activity-c": AssertionError("must stop at the first accepted city"),
+    })
+    conditions_calls = 0
+
+    class Conditions:
+        def fetch(self, *_args):
+            nonlocal conditions_calls
+            conditions_calls += 1
+            return None
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder, conditions=Conditions(),
+    ).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert geocoder.calls == ["activity-a", "activity-b"]
+    assert _location(persisted) == (
+        "Valencia", "Comunitat Valenciana", "Spain", "es",
+        "geoapify", _time(10, 18, 10), "activity-b",
+    )
+    assert persisted.activity_ids == ["activity-a", "activity-b", "activity-c"]
+    assert persisted.capability_token == "keep-token"
+    assert conditions_calls == 1
+
+
+def test_admin_enrichment_with_creator_city_makes_a_single_lookup(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _member_repositories(
+        temporary_json_file, ["activity-a", "activity-b"], **_COUNTRY_ONLY,
+    )
+    geocoder = _MemberGeocoder({
+        "activity-a": _resolved("Burjassot", None, "Spain", None, 9),
+        "activity-b": AssertionError("creator city must not trigger member lookups"),
+    })
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder,
+    ).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert geocoder.calls == ["activity-a"]
+    assert _location(persisted) == (
+        "Burjassot", None, "Spain", None, "geoapify", _time(10, 18, 9), "activity-a",
+    )
+
+
+def test_admin_enrichment_without_member_city_applies_creator_result(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _member_repositories(
+        temporary_json_file, ["activity-a", "activity-b", "activity-c"], **_COUNTRY_ONLY,
+    )
+    geocoder = _MemberGeocoder({
+        "activity-a": _resolved(None, "Comunitat Valenciana", "Spain", "es", 9),
+        "activity-b": _resolved("  ", None, "Spain", "es", 10),
+        "activity-c": None,
+    })
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder,
+    ).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert geocoder.calls == ["activity-a", "activity-b", "activity-c"]
+    assert _location(persisted) == (
+        None, "Comunitat Valenciana", "Spain", "es",
+        "geoapify", _time(10, 18, 9), "activity-a",
+    )
+
+
+@pytest.mark.parametrize(
+    "creator_result",
+    [
+        _resolved(None, None, "Spain", "es", 9),  # drops the populated region
+        None,
+        TimeoutError("creator lookup failed"),
+    ],
+)
+def test_admin_enrichment_without_member_city_preserves_prior_snapshot(
+    temporary_json_file: Callable[[str, object], Path],
+    creator_result: GeographicContext | None | Exception,
+) -> None:
+    activities, sessions = _member_repositories(
+        temporary_json_file, ["activity-a", "activity-b"],
+        **_COUNTRY_ONLY, location_region="Comunitat Valenciana",
+    )
+    before = sessions.get_by_id("session-a")
+    geocoder = _MemberGeocoder({
+        "activity-a": creator_result,
+        "activity-b": _resolved(None, "Comunitat Valenciana", "Spain", "es", 10),
+    })
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder,
+    ).enrich_from_admin("session-a")
+
+    assert geocoder.calls == ["activity-a", "activity-b"]
+    assert SessionRepository(sessions.path).get_by_id("session-a") == before
+
+
+def test_admin_enrichment_rejects_field_losing_member_and_tries_next(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _member_repositories(
+        temporary_json_file, ["activity-a", "activity-b", "activity-c"],
+        **_COUNTRY_ONLY, location_region="Comunitat Valenciana",
+    )
+    geocoder = _MemberGeocoder({
+        "activity-a": _resolved(None, "Comunitat Valenciana", "Spain", "es", 9),
+        "activity-b": _resolved("Valencia", None, "Spain", "es", 10),
+        "activity-c": _resolved("Paterna", "Comunitat Valenciana", "Spain", "es", 11),
+    })
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder,
+    ).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert geocoder.calls == ["activity-a", "activity-b", "activity-c"]
+    assert _location(persisted) == (
+        "Paterna", "Comunitat Valenciana", "Spain", "es",
+        "geoapify", _time(10, 18, 11), "activity-c",
+    )
+
+
+@pytest.mark.parametrize("failing_member", ["activity-a", "activity-b"])
+def test_admin_enrichment_member_failure_or_missing_record_does_not_stop_others(
+    temporary_json_file: Callable[[str, object], Path],
+    failing_member: str,
+) -> None:
+    activities, sessions = _member_repositories(
+        temporary_json_file,
+        ["activity-a", "activity-missing", "activity-b", "activity-a", "activity-c"],
+        **_COUNTRY_ONLY,
+    )
+    results: dict[str, GeographicContext | None | Exception] = {
+        "activity-a": _resolved(None, None, "Spain", "es", 9),
+        "activity-b": None,
+        "activity-c": _resolved("Valencia", None, "Spain", "es", 11),
+    }
+    results[failing_member] = TimeoutError("geocoding unavailable")
+    geocoder = _MemberGeocoder(results)
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder,
+    ).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert geocoder.calls == ["activity-a", "activity-b", "activity-c"]
+    assert persisted.location_label == "Valencia"
+    assert persisted.location_source_activity_id == "activity-c"
+
+
+def test_admin_enrichment_checks_latest_session_for_each_member_candidate(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _member_repositories(
+        temporary_json_file, ["activity-a", "activity-b", "activity-c"], **_COUNTRY_ONLY,
+    )
+
+    def add_region_during_second_lookup(activity_id: str) -> None:
+        if activity_id != "activity-b":
+            return
+        current = sessions.get_by_id("session-a")
+        assert current is not None
+        sessions.replace(replace(current, location_region="Newly persisted region"))
+
+    geocoder = _MemberGeocoder({
+        "activity-a": _resolved(None, None, "Spain", "es", 9),
+        "activity-b": _resolved("Valencia", None, "Spain", "es", 10),
+        "activity-c": _resolved("Paterna", "Comunitat Valenciana", "Spain", "es", 11),
+    }, on_call=add_region_during_second_lookup)
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=geocoder,
+    ).enrich_from_admin("session-a")
+
+    persisted = SessionRepository(sessions.path).get_by_id("session-a")
+    assert persisted is not None
+    assert geocoder.calls == ["activity-a", "activity-b", "activity-c"]
+    assert _location(persisted) == (
+        "Paterna", "Comunitat Valenciana", "Spain", "es",
+        "geoapify", _time(10, 18, 11), "activity-c",
+    )
+
+
+def test_admin_enrichment_unconfigured_provider_preserves_multi_member_snapshot(
+    temporary_json_file: Callable[[str, object], Path],
+) -> None:
+    activities, sessions = _member_repositories(
+        temporary_json_file, ["activity-a", "activity-b"], **_COUNTRY_ONLY,
+    )
+    before = sessions.get_by_id("session-a")
+
+    SessionEnrichmentService(
+        sessions, activities, geocoding=None,
+    ).enrich_from_admin("session-a")
+
+    assert SessionRepository(sessions.path).get_by_id("session-a") == before

@@ -3,12 +3,14 @@ from dataclasses import replace
 from datetime import timedelta
 
 from app.config import GeoapifyConfigurationError, load_geoapify_api_key
+from app.models import Session
 from app.repositories.activities import ActivityRepository
 from app.repositories.sessions import SessionRepository
 from app.services.session_matcher import derive_session_summary
 from app.session_context_providers.geocoding import (
     GeoapifyGeocodingProvider,
     GeocodingProvider,
+    GeographicContext,
 )
 from app.session_context_providers.historical_conditions import (
     HistoricalConditionsProvider,
@@ -84,7 +86,7 @@ class SessionEnrichmentService:
         session = self.sessions.get_by_id(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
-        self._enrich_geography(session_id, refresh_existing=True)
+        self._refresh_geography_from_members(session_id)
         self._refresh_conditions(session_id)
 
     def _enrich_geography(self, session_id: str, *, refresh_existing: bool = False) -> str:
@@ -111,6 +113,67 @@ class SessionEnrichmentService:
             return "skipped (Session changed)"
         if not refresh_existing and current.has_geographic_context:
             return "skipped (Session changed)"
+        return self._replace_geography_if_retained(current, context, activity.id)
+
+    def _refresh_geography_from_members(self, session_id: str) -> str:
+        """Admin geography refresh trying member Activities for a missing city.
+
+        The creator Activity is looked up first, then the remaining members in
+        persisted ``activity_ids`` order, at most once each. The first result that
+        has a nonblank city and passes the Admin retention rule against the latest
+        persisted Session is persisted. If none does, the creator result is applied
+        under the same rule, exactly as without member iteration.
+        """
+        session = self.sessions.get_by_id(session_id)
+        if session is None:
+            return "unavailable (Session missing)"
+        if self.geocoding is None:
+            return "unavailable (provider not configured)"
+        if not session.activity_ids:
+            return "unavailable (creator Activity missing)"
+        creator_id = session.activity_ids[0]
+        creator_context: GeographicContext | None = None
+        creator_result = "unavailable (creator Activity missing)"
+        attempted: set[str] = set()
+        for activity_id in session.activity_ids:
+            if activity_id in attempted:
+                continue
+            attempted.add(activity_id)
+            activity = self.activities.get_by_id(activity_id)
+            if activity is None:
+                continue
+            try:
+                context = self.geocoding.reverse(activity.start_lat, activity.start_lon)
+            except Exception:
+                if activity_id == creator_id:
+                    creator_result = "failed"
+                continue
+            if activity_id == creator_id:
+                creator_context = context
+                creator_result = "returned no usable result"
+            if context is None or not _populated(context.label):
+                continue
+            current = self.sessions.get_by_id(session_id)
+            if current is None:
+                return "skipped (Session changed)"
+            if self._replace_geography_if_retained(
+                current, context, activity.id,
+            ) == "persisted":
+                return "persisted"
+        if creator_context is None:
+            return creator_result
+        current = self.sessions.get_by_id(session_id)
+        if current is None:
+            return "skipped (Session changed)"
+        return self._replace_geography_if_retained(current, creator_context, creator_id)
+
+    def _replace_geography_if_retained(
+        self,
+        current: Session,
+        context: GeographicContext,
+        source_activity_id: str,
+    ) -> str:
+        """Apply the #195 rule to ``current`` and persist one atomic snapshot."""
         existing_fields = (
             current.location_label,
             current.location_region,
@@ -123,14 +186,10 @@ class SessionEnrichmentService:
             context.country,
             context.country_code,
         )
-
-        def populated(value: str | None) -> bool:
-            return isinstance(value, str) and bool(value.strip())
-
-        if not any(populated(value) for value in replacement_fields):
+        if not any(_populated(value) for value in replacement_fields):
             return "returned no usable result"
         if any(
-            populated(existing) and not populated(replacement)
+            _populated(existing) and not _populated(replacement)
             for existing, replacement in zip(existing_fields, replacement_fields)
         ):
             return "skipped (incomplete geographic result)"
@@ -142,7 +201,7 @@ class SessionEnrichmentService:
             location_country_code=context.country_code,
             location_provider=context.provider,
             location_resolved_at=context.resolved_at,
-            location_source_activity_id=activity.id,
+            location_source_activity_id=source_activity_id,
         ))
         return "persisted"
 
