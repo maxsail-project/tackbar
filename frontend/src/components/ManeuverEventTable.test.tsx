@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -471,4 +472,13 @@ describe('ManeuverEventTable', () => {
       expect(markup).not.toContain('No maneuvers detected')
     },
   )
+})
+
+describe('Maneuver Analysis loss band marker styles (#211.2)', () => {
+  it('styles bands with markers only: no cell tint or bold for High or Low loss', () => {
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(css).not.toMatch(/maneuver-loss-band--(high|low)\s*\{/)
+    expect(css).toMatch(/\.maneuver-loss-band__marker--high \{\s*background: #4f646b;\s*\}/)
+    expect(css).toMatch(/\.maneuver-loss-band__marker--low \{\s*background: transparent;\s*\}/)
+  })
 })

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
@@ -84,13 +83,6 @@ describe('Maneuver Analysis loss band markers (#211.2)', () => {
     expect(markup).not.toContain('data-maneuver-band-filter')
     expect(markup).not.toContain('Filter maneuvers by loss band')
     expect(markup).not.toContain('data-maneuver-band-empty')
-  })
-
-  it('styles bands with markers only: no cell tint or bold for High or Low loss', () => {
-    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
-    expect(css).not.toMatch(/maneuver-loss-band--(high|low)\s*\{/)
-    expect(css).toMatch(/\.maneuver-loss-band__marker--high \{\s*background: #4f646b;\s*\}/)
-    expect(css).toMatch(/\.maneuver-loss-band__marker--low \{\s*background: transparent;\s*\}/)
   })
 })
 
