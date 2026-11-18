@@ -1996,6 +1996,31 @@ input:focus-visible {
   background: transparent;
 }
 
+.maneuver-event-table th.maneuver-event-table__sortable {
+  padding-right: 4px;
+  padding-left: 4px;
+}
+
+.maneuver-event-table__sortable .maneuver-event-table__sort {
+  padding-right: 4px;
+  padding-left: 4px;
+  margin-right: -4px;
+  margin-left: -4px;
+}
+
+.maneuver-event-table__sort-indicator {
+  display: inline-block;
+  margin-left: 3px;
+  color: #7a9096;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.maneuver-event-table__sort-indicator--active {
+  color: #28788a;
+  font-size: 0.66rem;
+}
+
 .maneuver-event-table__row {
   cursor: pointer;
 }

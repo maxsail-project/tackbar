@@ -205,7 +205,10 @@ export function toggledSortDirection(direction: ManeuverSortDirection): Maneuver
   return direction === 'asc' ? 'desc' : 'asc'
 }
 
-/** Sortable header: visible direction arrow and `aria-sort` only on the active column. */
+/**
+ * Sortable header: a muted ⇅ while inactive, a solid ▲/▼ in the accent colour while active
+ * (decorative), and `aria-sort` only on the active column.
+ */
 function SortableHeader({
   label,
   active,
@@ -220,7 +223,11 @@ function SortableHeader({
   onActivate: () => void
 }) {
   return (
-    <th scope="col" aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : undefined}>
+    <th
+      scope="col"
+      className="maneuver-event-table__sortable"
+      aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : undefined}
+    >
       <button
         type="button"
         className="maneuver-event-table__sort"
@@ -228,7 +235,12 @@ function SortableHeader({
         onClick={onActivate}
       >
         {label}
-        {active && <span aria-hidden="true">{direction === 'asc' ? ' ↑' : ' ↓'}</span>}
+        <span
+          className={`maneuver-event-table__sort-indicator${active ? ' maneuver-event-table__sort-indicator--active' : ''}`}
+          aria-hidden="true"
+        >
+          {active ? (direction === 'asc' ? '▲' : '▼') : '⇅'}
+        </span>
       </button>
     </th>
   )

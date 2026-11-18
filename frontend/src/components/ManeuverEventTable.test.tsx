@@ -191,13 +191,14 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('\u221291')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
     expect(markup).toContain('aria-sort="ascending"')
-    expect(markup).toContain('Time<span aria-hidden="true"> ↑</span>')
+    expect(markup).toContain('Time<span class="maneuver-event-table__sort-indicator maneuver-event-table__sort-indicator--active" aria-hidden="true">▲</span>')
+    expect(markup).toContain('Loss (s)<span class="maneuver-event-table__sort-indicator" aria-hidden="true">⇅</span>')
     expect(cellTexts(markup, 'th')).toEqual([
-      'Time ↑',
+      'Time▲',
       'Act',
       'Sector',
       'Loss (m)',
-      'Loss (s)',
+      'Loss (s)⇅',
       'Rec (s)',
       'SOG in',
       'SOG min',
