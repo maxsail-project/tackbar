@@ -191,9 +191,13 @@ or a product decision, or a remote `main` that has moved incompatibly. For autom
 failures, at most one focused micro-fix within the approved scope is allowed before
 stopping; no retry loops.
 
-**Branches.** Simple increments go directly to `main`. Complex work uses a branch with a
-draft pull request for CI and is merged only when its last run, including the quality
-gate, has passed.
+**Branches.** Simple increments go directly to `main`. Complex work uses a `feature/…` or
+`fix/…` branch with one of two valid flows: (a) a draft pull request from the first push,
+merged through the pull request; or (b) branch push CI without a pull request, then a
+local merge to `main` and push. In both, merge only when the last run on the branch or
+pull request, including the quality gate, has passed, then verify the run on `main`.
+When a pull request is open, both the push and the pull-request runs may appear; both
+are acceptable.
 
 **Release identity.** By default one continuous-mode Issue produces one patch release:
 the latest published `v0.<family>.<patch>` tag plus one patch. The current family is
