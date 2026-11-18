@@ -1,38 +1,18 @@
 // @vitest-environment jsdom
 import { act } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DisplayManeuver } from '../utils/maneuverEvents'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
+import { maneuverAtMinute } from '../utils/maneuverTestFixtures'
 import type { ManeuverWindSector } from '../utils/maneuverWindSector'
 import ManeuverEventTable, { formatManeuverCount } from './ManeuverEventTable'
+import { setupManeuverEventTableHarness } from './maneuverEventTableTestUtils'
 
-const base = Date.parse('2031-06-15T08:00:00Z')
-
-function eventAt(minute: number, activityRole: DisplayManeuver['activityRole']): DisplayManeuver {
-  const centerTimeMs = base + minute * 60_000
-  return {
-    activityRole,
-    centerTimeMs,
-    maneuver: {
-      start_time: new Date(centerTimeMs - 2_000).toISOString(),
-      center_time: new Date(centerTimeMs).toISOString(),
-      end_time: new Date(centerTimeMs + 3_000).toISOString(),
-      heading_change_deg: 80,
-      course_change_deg: null,
-      peak_turn_rate_deg_s: null,
-      peak_turn_rate_time: null,
-      duration_s: 5,
-    },
-  }
-}
-
-const upP = eventAt(1, 'primary')
-const upDownC = eventAt(2, 'comparison')
-const reachP = eventAt(3, 'primary')
-const unknownP = eventAt(4, 'primary')
-const upC = eventAt(5, 'comparison')
+const upP = maneuverAtMinute(1, 'primary')
+const upDownC = maneuverAtMinute(2, 'comparison')
+const reachP = maneuverAtMinute(3, 'primary')
+const unknownP = maneuverAtMinute(4, 'primary')
+const upC = maneuverAtMinute(5, 'comparison')
 const events = [upC, unknownP, reachP, upDownC, upP]
 
 const sectors = new Map<string, ManeuverWindSector>([
@@ -90,45 +70,17 @@ describe('Maneuver Analysis Sector column (#211.1)', () => {
 })
 
 describe('Maneuver Analysis sector filter (#211.1)', () => {
+  const harness = setupManeuverEventTableHarness({ events, windSectors: sectors })
+  const { render, rowTimes, click } = harness
   let container: HTMLDivElement
-  let root: Root
-
   beforeEach(() => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-    container = document.createElement('div')
-    document.body.append(container)
-    root = createRoot(container)
+    container = harness.container
   })
 
-  afterEach(async () => {
-    await act(async () => root.unmount())
-    container.remove()
-  })
-
-  const render = (props: {
-    events?: DisplayManeuver[]
-    windSectors?: ReadonlyMap<string, ManeuverWindSector> | null
-    resetKey?: string
-    selectedKey?: string | null
-    onSelect?: (event: DisplayManeuver) => void
-  } = {}) => act(async () => root.render(<ManeuverEventTable
-    events={props.events ?? events}
-    primaryStatus="available"
-    comparisonStatus="available"
-    primaryDetectorMode="HIGH"
-    comparisonDetectorMode="LOW"
-    selectedManeuverKey={props.selectedKey ?? null}
-    onSelect={props.onSelect ?? vi.fn()}
-    windSectors={props.windSectors === undefined ? sectors : props.windSectors}
-    sectorFilterResetKey={props.resetKey ?? 'k1'}
-  />))
   const option = (filter: string) => container.querySelector<HTMLButtonElement>(`[data-maneuver-sector-filter="${filter}"]`)!
-  const rowTimes = () => [...container.querySelectorAll<HTMLTableRowElement>('.maneuver-event-table tbody tr')]
-    .map((row) => row.querySelector('td')!.textContent)
   const rowSectors = () => [...container.querySelectorAll<HTMLElement>('.maneuver-event-table tbody .maneuver-event-table__sector')]
     .map((cell) => cell.textContent)
   const emptyState = () => container.querySelector('[data-maneuver-sector-empty]')
-  const click = (button: HTMLButtonElement) => act(async () => button.click())
 
   it('offers All · Up · Reach · Down · Transition with counts, full accessible names and disabled empty options', async () => {
     await render()

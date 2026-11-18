@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { DisplayManeuver, ManeuverActivityRole } from '../utils/maneuverEvents'
@@ -62,6 +62,83 @@ const LOSS_BAND_FILTERS: ManeuverLossBandFilter[] = ['all', ...MANEUVER_LOSS_BAN
 function LossBandMarker({ band }: { band: ManeuverLossBand }) {
   if (band === 'typical') return null
   return <span className={`maneuver-loss-band__marker maneuver-loss-band__marker--${band}`} aria-hidden="true" />
+}
+
+function lossBandFilterMarker(filter: ManeuverLossBandFilter) {
+  return filter === 'all' ? null : <LossBandMarker band={filter} />
+}
+
+/**
+ * Ephemeral single-select filter tied to the reset key it was chosen for; a new key falls back
+ * to All without an effect or extra render.
+ */
+function useResettableFilter<F extends string>(resetKey: string) {
+  const [state, setState] = useState<{ key: string, value: F | 'all' }>({ key: resetKey, value: 'all' })
+  const active: F | 'all' = state.key === resetKey ? state.value : 'all'
+  return [active, (value: F | 'all') => setState({ key: resetKey, value })] as const
+}
+
+function countByFilter<F extends string>(
+  filters: readonly F[],
+  events: readonly DisplayManeuver[],
+  matches: (event: DisplayManeuver, filter: F) => boolean,
+) {
+  return new Map<F, number>(filters.map((filter) => [
+    filter,
+    events.filter((event) => matches(event, filter)).length,
+  ]))
+}
+
+/**
+ * Shared Maneuver Analysis filter group (wind sector #211.1, loss band #211.2): single-select
+ * options with counts among listed maneuvers, full accessible names, and options without
+ * maneuvers disabled unless selected. Reuses the Wind Segments filter styling.
+ */
+function ManeuverFilterGroup<F extends string>({
+  label,
+  className = 'wind-segments__filter',
+  filters,
+  active,
+  counts,
+  dataAttribute,
+  shortLabel,
+  fullLabel,
+  marker,
+  onChange,
+}: {
+  label: string
+  className?: string
+  filters: readonly F[]
+  active: F
+  counts: ReadonlyMap<F, number>
+  dataAttribute: `data-${string}`
+  shortLabel: (filter: F) => string
+  fullLabel: (filter: F) => string
+  marker?: (filter: F) => ReactNode
+  onChange: (filter: F) => void
+}) {
+  return (
+    <div className={className} role="group" aria-label={label}>
+      {filters.map((filter) => {
+        const count = counts.get(filter) ?? 0
+        return (
+          <button
+            key={filter}
+            type="button"
+            className="wind-segments__filter-option"
+            {...{ [dataAttribute]: filter }}
+            aria-pressed={active === filter}
+            aria-label={`${fullLabel(filter)}, ${formatManeuverCount(count)}`}
+            disabled={count === 0 && active !== filter}
+            onClick={() => onChange(filter)}
+          >
+            {marker?.(filter)}
+            {shortLabel(filter)} {count}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 export function formatManeuverCount(count: number) {
@@ -208,16 +285,10 @@ export default function ManeuverEventTable({
     [events, sortDirection],
   )
   // Ephemeral sector filter tied to the reset key it was chosen for; a new key falls back to All.
-  const [sectorFilterState, setSectorFilterState] = useState<{ key: string, value: ManeuverSectorFilter }>(
-    { key: sectorFilterResetKey, value: 'all' },
-  )
-  const activeSectorFilter: ManeuverSectorFilter = windSectors !== null
-    && sectorFilterState.key === sectorFilterResetKey ? sectorFilterState.value : 'all'
+  const [chosenSectorFilter, setSectorFilter] = useResettableFilter<ManeuverSectorFilter>(sectorFilterResetKey)
+  const activeSectorFilter: ManeuverSectorFilter = windSectors !== null ? chosenSectorFilter : 'all'
   const sectorOf = (event: DisplayManeuver) => windSectors?.get(maneuverSelectionKey(event)) ?? null
-  const sectorCounts = new Map<ManeuverSectorFilter, number>(SECTOR_FILTERS.map((filter) => [
-    filter,
-    events.filter((event) => maneuverMatchesSectorFilter(sectorOf(event), filter)).length,
-  ]))
+  const sectorCounts = countByFilter(SECTOR_FILTERS, events, (event, filter) => maneuverMatchesSectorFilter(sectorOf(event), filter))
   // The filter narrows the table only; it never changes the Analysis Window or other sections.
   const visibleEvents = activeSectorFilter === 'all'
     ? sortedEvents
@@ -237,16 +308,8 @@ export default function ManeuverEventTable({
   const lossBands = useMemo(() => deriveManeuverLossBands(sectorListedEvents), [sectorListedEvents])
   const bandOf = (event: DisplayManeuver) => lossBands.get(maneuverSelectionKey(event)) ?? null
   // Ephemeral band filter sharing the sector filter's reset key; a sector change does not reset it.
-  const [bandFilterState, setBandFilterState] = useState<{ key: string, value: ManeuverLossBandFilter }>(
-    { key: sectorFilterResetKey, value: 'all' },
-  )
-  const activeBandFilter: ManeuverLossBandFilter = bandFilterState.key === sectorFilterResetKey
-    ? bandFilterState.value
-    : 'all'
-  const bandCounts = new Map<ManeuverLossBandFilter, number>(LOSS_BAND_FILTERS.map((filter) => [
-    filter,
-    sectorListedEvents.filter((event) => maneuverMatchesLossBandFilter(bandOf(event), filter)).length,
-  ]))
+  const [activeBandFilter, setBandFilter] = useResettableFilter<ManeuverLossBandFilter>(sectorFilterResetKey)
+  const bandCounts = countByFilter(LOSS_BAND_FILTERS, sectorListedEvents, (event, filter) => maneuverMatchesLossBandFilter(bandOf(event), filter))
   const tableEvents = activeBandFilter === 'all'
     ? visibleEvents
     : visibleEvents.filter((event) => maneuverMatchesLossBandFilter(bandOf(event), activeBandFilter))
@@ -316,56 +379,31 @@ export default function ManeuverEventTable({
           </div>
 
           {showSectorFilter && (
-            <div
-              className="wind-segments__filter"
-              role="group"
-              aria-label="Filter maneuvers by wind sector"
-            >
-              {SECTOR_FILTERS.map((filter) => {
-                const count = sectorCounts.get(filter) ?? 0
-                return (
-                  <button
-                    key={filter}
-                    type="button"
-                    className="wind-segments__filter-option"
-                    data-maneuver-sector-filter={filter}
-                    aria-pressed={activeSectorFilter === filter}
-                    aria-label={`${formatManeuverSectorFilterFull(filter)}, ${formatManeuverCount(count)}`}
-                    disabled={count === 0 && activeSectorFilter !== filter}
-                    onClick={() => setSectorFilterState({ key: sectorFilterResetKey, value: filter })}
-                  >
-                    {formatManeuverSectorFilterShort(filter)} {count}
-                  </button>
-                )
-              })}
-            </div>
+            <ManeuverFilterGroup
+              label="Filter maneuvers by wind sector"
+              filters={SECTOR_FILTERS}
+              active={activeSectorFilter}
+              counts={sectorCounts}
+              dataAttribute="data-maneuver-sector-filter"
+              shortLabel={formatManeuverSectorFilterShort}
+              fullLabel={formatManeuverSectorFilterFull}
+              onChange={setSectorFilter}
+            />
           )}
 
           {showBandFilter && (
-            <div
+            <ManeuverFilterGroup
+              label="Filter maneuvers by loss band"
               className="wind-segments__filter maneuver-loss-band-filter"
-              role="group"
-              aria-label="Filter maneuvers by loss band"
-            >
-              {LOSS_BAND_FILTERS.map((filter) => {
-                const count = bandCounts.get(filter) ?? 0
-                return (
-                  <button
-                    key={filter}
-                    type="button"
-                    className="wind-segments__filter-option"
-                    data-maneuver-band-filter={filter}
-                    aria-pressed={activeBandFilter === filter}
-                    aria-label={`${formatManeuverLossBandFilter(filter)}, ${formatManeuverCount(count)}`}
-                    disabled={count === 0 && activeBandFilter !== filter}
-                    onClick={() => setBandFilterState({ key: sectorFilterResetKey, value: filter })}
-                  >
-                    {filter !== 'all' && <LossBandMarker band={filter} />}
-                    {formatManeuverLossBandFilter(filter)} {count}
-                  </button>
-                )
-              })}
-            </div>
+              filters={LOSS_BAND_FILTERS}
+              active={activeBandFilter}
+              counts={bandCounts}
+              dataAttribute="data-maneuver-band-filter"
+              shortLabel={formatManeuverLossBandFilter}
+              fullLabel={formatManeuverLossBandFilter}
+              marker={lossBandFilterMarker}
+              onChange={setBandFilter}
+            />
           )}
 
           {activeSectorFilter !== 'all' && visibleEvents.length === 0 ? (

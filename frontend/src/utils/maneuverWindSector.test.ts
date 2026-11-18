@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { Maneuver } from '../types/maneuver'
 import type { HistoricalConditions, HistoricalConditionsSample } from '../types/session'
 import type { TrackSample } from '../types/track'
 import type { DisplayManeuver } from './maneuverEvents'
 import { maneuverSelectionKey } from './maneuverEvents'
+import { displayManeuverAt } from './maneuverTestFixtures'
 import {
   classifyManeuverWindSector,
   deriveManeuverWindSectors,
@@ -34,17 +34,11 @@ function displayManeuver(
   activityRole: DisplayManeuver['activityRole'] = 'primary',
   centerSecond = 32,
 ): DisplayManeuver {
-  const maneuver: Maneuver = {
+  return displayManeuverAt(origin + centerSecond * 1000, activityRole, {
     start_time: utc(30),
-    center_time: utc(centerSecond),
     end_time: utc(35),
     heading_change_deg: 90,
-    course_change_deg: null,
-    peak_turn_rate_deg_s: null,
-    peak_turn_rate_time: null,
-    duration_s: 5,
-  }
-  return { activityRole, maneuver, centerTimeMs: origin + centerSecond * 1000 }
+  })
 }
 
 function weatherSample(time: string, direction: number): HistoricalConditionsSample {

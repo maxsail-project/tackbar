@@ -13,8 +13,8 @@ import {
   maneuverMatchesLossBandFilter,
   type ManeuverLossBand,
 } from './maneuverLossBands'
+import { maneuverAtMinute } from './maneuverTestFixtures'
 
-const base = Date.parse('2031-06-15T08:00:00Z')
 let sequence = 0
 
 function eventWithLoss(
@@ -22,22 +22,7 @@ function eventWithLoss(
   activityRole: DisplayManeuver['activityRole'] = 'primary',
 ): DisplayManeuver {
   sequence += 1
-  const centerTimeMs = base + sequence * 60_000
-  return {
-    activityRole,
-    centerTimeMs,
-    maneuver: {
-      start_time: new Date(centerTimeMs - 2_000).toISOString(),
-      center_time: new Date(centerTimeMs).toISOString(),
-      end_time: new Date(centerTimeMs + 3_000).toISOString(),
-      heading_change_deg: 80,
-      course_change_deg: null,
-      peak_turn_rate_deg_s: null,
-      peak_turn_rate_time: null,
-      duration_s: 5,
-      ...(lossTimeS === undefined ? {} : { speed_loss_time_s: lossTimeS }),
-    },
-  }
+  return maneuverAtMinute(sequence, activityRole, lossTimeS === undefined ? {} : { speed_loss_time_s: lossTimeS })
 }
 
 function bandsOf(events: DisplayManeuver[], bands: ReadonlyMap<string, ManeuverLossBand>) {

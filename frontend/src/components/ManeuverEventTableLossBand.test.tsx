@@ -1,38 +1,24 @@
 // @vitest-environment jsdom
 import { act } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
+import { maneuverAtMinute } from '../utils/maneuverTestFixtures'
 import type { ManeuverWindSector } from '../utils/maneuverWindSector'
 import ManeuverEventTable from './ManeuverEventTable'
-
-const base = Date.parse('2031-06-15T08:00:00Z')
+import { setupManeuverEventTableHarness } from './maneuverEventTableTestUtils'
 
 function eventAt(
   minute: number,
   activityRole: DisplayManeuver['activityRole'],
   lossTimeS: number | null,
 ): DisplayManeuver {
-  const centerTimeMs = base + minute * 60_000
-  return {
-    activityRole,
-    centerTimeMs,
-    maneuver: {
-      start_time: new Date(centerTimeMs - 2_000).toISOString(),
-      center_time: new Date(centerTimeMs).toISOString(),
-      end_time: new Date(centerTimeMs + 3_000).toISOString(),
-      heading_change_deg: 80,
-      course_change_deg: null,
-      peak_turn_rate_deg_s: null,
-      peak_turn_rate_time: null,
-      duration_s: 5,
-      speed_loss_distance_m: 9,
-      speed_loss_time_s: lossTimeS,
-      recovery_time_s: 12,
-    },
-  }
+  return maneuverAtMinute(minute, activityRole, {
+    speed_loss_distance_m: 9,
+    speed_loss_time_s: lossTimeS,
+    recovery_time_s: 12,
+  })
 }
 
 // P upwind m1–m8 (Loss 5, 1, 8, 3, 6, 2, 7, 4 s), P upwind m9 without Loss time,
@@ -93,47 +79,19 @@ describe('Maneuver Analysis loss band styling (#211.2)', () => {
 })
 
 describe('Maneuver Analysis loss band filter (#211.2)', () => {
+  const harness = setupManeuverEventTableHarness({ events, windSectors: sectors })
+  const { render, rows, rowTimes, click } = harness
   let container: HTMLDivElement
-  let root: Root
-
   beforeEach(() => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-    container = document.createElement('div')
-    document.body.append(container)
-    root = createRoot(container)
+    container = harness.container
   })
 
-  afterEach(async () => {
-    await act(async () => root.unmount())
-    container.remove()
-  })
-
-  const render = (props: {
-    events?: DisplayManeuver[]
-    windSectors?: ReadonlyMap<string, ManeuverWindSector> | null
-    resetKey?: string
-    selectedKey?: string | null
-    onSelect?: (event: DisplayManeuver) => void
-  } = {}) => act(async () => root.render(<ManeuverEventTable
-    events={props.events ?? events}
-    primaryStatus="available"
-    comparisonStatus="available"
-    primaryDetectorMode="HIGH"
-    comparisonDetectorMode="LOW"
-    selectedManeuverKey={props.selectedKey ?? null}
-    onSelect={props.onSelect ?? vi.fn()}
-    windSectors={props.windSectors === undefined ? sectors : props.windSectors}
-    sectorFilterResetKey={props.resetKey ?? 'k1'}
-  />))
   const bandOption = (filter: string) => container.querySelector<HTMLButtonElement>(`[data-maneuver-band-filter="${filter}"]`)!
   const sectorOption = (filter: string) => container.querySelector<HTMLButtonElement>(`[data-maneuver-sector-filter="${filter}"]`)!
   const bandGroup = () => container.querySelector<HTMLElement>('[aria-label="Filter maneuvers by loss band"]')
-  const rows = () => [...container.querySelectorAll<HTMLTableRowElement>('.maneuver-event-table tbody tr')]
-  const rowTimes = () => rows().map((row) => row.querySelector('td')!.textContent)
   const rowBands = () => rows().map((row) => row.querySelectorAll('td')[4].getAttribute('data-maneuver-loss-band'))
   const bandTexts = () => BANDS.map((filter) => bandOption(filter).textContent)
   const emptyState = () => container.querySelector('[data-maneuver-band-empty]')
-  const click = (button: HTMLButtonElement) => act(async () => button.click())
 
   it('offers All · High loss · Typical · Low loss below the sector filter, with counts, accessible names and markers', async () => {
     await render()
