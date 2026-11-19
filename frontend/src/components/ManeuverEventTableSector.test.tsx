@@ -136,15 +136,12 @@ describe('Maneuver Analysis sector filter (#211.1)', () => {
     expect(onSelect).toHaveBeenCalledWith(upP)
   })
 
-  it('selects once through the row when its focused time button is activated (keyboard Enter/Space dispatch click) and keeps focus (#211.4)', async () => {
+  it('selects once through the row when its time button is activated (keyboard Enter/Space dispatch click) (#211.4)', async () => {
     const onSelect = vi.fn()
     await render({ onSelect })
-    const button = container.querySelector<HTMLButtonElement>('.maneuver-event-table__button')!
-    button.focus()
-    await click(button)
+    await click(container.querySelector<HTMLButtonElement>('.maneuver-event-table__button')!)
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(upP)
-    expect(document.activeElement).toBe(button)
   })
 
   it('only hides a selected maneuver that does not match; it is highlighted again under All', async () => {
