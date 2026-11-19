@@ -1,11 +1,7 @@
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
-import {
-  formatHeadingChange,
-  formatKnots,
-  formatSeconds,
-} from '../utils/maneuverEvents'
-import { compactSeconds, formatManeuverLoss, withUnit } from '../utils/maneuverLossFormat'
+import { formatSeconds } from '../utils/maneuverEvents'
+import { compactSeconds, formatManeuverDirectionChange, formatManeuverLoss, formatManeuverSog, withUnit } from '../utils/maneuverCompactFormat'
 import { formatGpsTime } from '../utils/replay'
 
 interface SelectedManeuversProps {
@@ -25,30 +21,20 @@ function ManeuverRow({ event, position }: {
   }
 
   const maneuver = event.maneuver
-  const direction = maneuver.heading_change_deg !== null
-    ? `${formatHeadingChange(maneuver.heading_change_deg)}°`
-    : maneuver.course_change_deg !== null
-      ? `${formatHeadingChange(maneuver.course_change_deg)}°`
-      : '—'
+  const direction = formatManeuverDirectionChange(maneuver).text
   const role = event.activityRole === 'primary' ? 'P' : 'C'
   const loss = formatManeuverLoss(maneuver)
   const recovery = withUnit(formatSeconds(maneuver.recovery_time_s), 's')
   const recoveryText = compactSeconds(formatSeconds(maneuver.recovery_time_s))
-  const entrySog = formatKnots(maneuver.sog_entry_kn)
-  const minimumSog = formatKnots(maneuver.sog_min_kn)
-  const exitSog = formatKnots(maneuver.sog_exit_kn)
-  const sogTriplet = `${entrySog}/${minimumSog}/${exitSog}`
-  const sogDisplay = [entrySog, minimumSog, exitSog].every(value => value === '—')
-    ? sogTriplet
-    : `${sogTriplet} kt`
+  const sog = formatManeuverSog(maneuver)
 
   return <tr>
     <th scope="row" className="selected-maneuvers__role" style={{ color: ACTIVITY_COLORS[event.activityRole] }} aria-label={`${position} selected maneuver, ${role}`}>{role}</th>
     <td aria-label={`UTC time ${formatGpsTime(event.centerTimeMs)}`}>{formatGpsTime(event.centerTimeMs)}</td>
     <td aria-label={loss.ariaLabel}>{loss.text}</td>
     <td className="selected-maneuvers__recovery" aria-label={`Recovery ${recovery}`}>{recoveryText}</td>
-    <td className="selected-maneuvers__sog" aria-label={`Entry SOG ${withUnit(formatKnots(maneuver.sog_entry_kn), 'knots')}, Minimum SOG ${withUnit(formatKnots(maneuver.sog_min_kn), 'knots')}, Exit SOG ${withUnit(formatKnots(maneuver.sog_exit_kn), 'knots')}`}>
-      {sogDisplay}
+    <td className="selected-maneuvers__sog" aria-label={sog.ariaLabel}>
+      {sog.text}
     </td>
     <td aria-label={`Direction change ${direction}`}>{direction}</td>
   </tr>

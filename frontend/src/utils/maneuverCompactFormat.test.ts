@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compactSeconds, formatManeuverLoss, withUnit } from './maneuverLossFormat'
+import { compactSeconds, formatManeuverDirectionChange, formatManeuverLoss, formatManeuverSog, withUnit } from './maneuverCompactFormat'
 
 describe('formatManeuverLoss (#211 D14–D15)', () => {
   it('reads equivalent Loss time first, then Loss distance, with the Selected Maneuvers accessible name', () => {
@@ -26,5 +26,21 @@ describe('formatManeuverLoss (#211 D14–D15)', () => {
     expect(withUnit('—', 'm')).toBe('—')
     expect(compactSeconds('5')).toBe('5s')
     expect(compactSeconds('—')).toBe('—')
+  })
+})
+
+describe('formatManeuverSog and formatManeuverDirectionChange (#211 D17)', () => {
+  it('formats the SOG triplet with one trailing kt and knots in the accessible name', () => {
+    expect(formatManeuverSog({ sog_entry_kn: 6.7, sog_min_kn: 4, sog_exit_kn: 6.1 })).toEqual({
+      text: '6.7/4.0/6.1 kt',
+      ariaLabel: 'Entry SOG 6.7 knots, Minimum SOG 4.0 knots, Exit SOG 6.1 knots',
+    })
+    expect(formatManeuverSog({ sog_entry_kn: null, sog_min_kn: null, sog_exit_kn: null }).text).toBe('—/—/—')
+  })
+
+  it('prefers HDG, falls back to COG and reads — when neither exists', () => {
+    expect(formatManeuverDirectionChange({ heading_change_deg: -90.6, course_change_deg: 10 })).toEqual({ source: 'HDG', text: '−91°' })
+    expect(formatManeuverDirectionChange({ heading_change_deg: null, course_change_deg: 85 })).toEqual({ source: 'COG', text: '+85°' })
+    expect(formatManeuverDirectionChange({ heading_change_deg: null, course_change_deg: null })).toEqual({ source: null, text: '—' })
   })
 })

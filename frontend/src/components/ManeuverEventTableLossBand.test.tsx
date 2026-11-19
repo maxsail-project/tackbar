@@ -170,7 +170,7 @@ describe('Maneuver Analysis Loss sorting and legend (#211.2)', () => {
     await click(sortButton('Loss'))
     await click(sectorOption('upwind'))
     expect(rowTimes()).toEqual([3, 7, 5, 1, 8, 4, 6, 2, 9].map(time))
-    expect(container.querySelector('[aria-selected="true"]')!.querySelector('td')!.textContent).toBe(time(3))
+    expect(container.querySelector('[aria-selected="true"]')!.querySelector('td:nth-child(2)')!.textContent).toBe(time(3))
     await render({ onSelect, selectedKey: maneuverSelectionKey(upwindP[2]), resetKey: 'k2' })
     expect(sectorOption('all').getAttribute('aria-pressed')).toBe('true')
     expect(rowTimes()).toEqual(lossDescending)

@@ -150,7 +150,7 @@ describe('Maneuver Analysis sector filter (#211.1)', () => {
     expect(container.querySelector('[aria-selected="true"]')).toBeNull()
     await click(option('all'))
     const selected = container.querySelector<HTMLTableRowElement>('[aria-selected="true"]')!
-    expect(selected.querySelector('td')!.textContent).toBe('08:03:00')
+    expect(selected.querySelector('td:nth-child(2)')!.textContent).toBe('08:03:00')
   })
 
   it('keeps a selected option with no listed maneuvers selected and shows its empty state', async () => {

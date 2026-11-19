@@ -55,7 +55,7 @@ export function setupManeuverEventTableHarness(defaults: {
       sectorFilterResetKey={props.resetKey ?? 'k1'}
     />)),
     rows,
-    rowTimes: () => rows().map((row) => row.querySelector('td')!.textContent),
+    rowTimes: () => rows().map((row) => row.querySelector('td:nth-child(2)')!.textContent),
     click: (button: HTMLButtonElement) => act(async () => button.click()),
   }
 }

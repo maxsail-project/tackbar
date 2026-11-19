@@ -1932,7 +1932,7 @@ input:focus-visible {
 }
 
 .maneuver-event-table {
-  min-width: 692px;
+  min-width: 610px;
   table-layout: fixed;
 }
 
@@ -1949,7 +1949,7 @@ input:focus-visible {
 }
 
 .maneuver-event-table__heading-column {
-  width: 88px;
+  width: 94px;
 }
 
 .maneuver-event-table__duration-column,
@@ -1957,8 +1957,9 @@ input:focus-visible {
   width: 48px;
 }
 
+/* SOG triplet worst case `12.3/10.5/11.8 kt`. */
 .maneuver-event-table__sog-column {
-  width: 72px;
+  width: 128px;
 }
 
 /* Combined Loss sized to its worst case `● 112s · 1145 m` (about 91px of content) plus the `Loss ▼` header. */
@@ -1976,8 +1977,8 @@ input:focus-visible {
   white-space: nowrap;
 }
 
-.maneuver-event-table th:nth-child(2),
-.maneuver-event-table td:nth-child(2) {
+.maneuver-event-table th:nth-child(1),
+.maneuver-event-table td:nth-child(1) {
   text-align: center;
 }
 
@@ -1986,7 +1987,9 @@ input:focus-visible {
   text-align: right;
 }
 
-/* Combined Loss (3rd) and Sector (last) are text-like and left-aligned. */
+/* Time (2nd), combined Loss (3rd) and Sector (last) are left-aligned. */
+.maneuver-event-table th:nth-child(2),
+.maneuver-event-table td:nth-child(2),
 .maneuver-event-table th:nth-child(3),
 .maneuver-event-table td:nth-child(3),
 .maneuver-event-table th:last-child,

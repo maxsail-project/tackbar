@@ -145,8 +145,8 @@ describe('ManeuverEventTable', () => {
     const markup = renderToStaticMarkup(<ManeuverEventTable
       events={[low, event]} primaryStatus="available" comparisonStatus="available" onSelect={onSelect}
     />)
-    expect(markup).toContain('ΔHDG −91')
-    expect(markup).toContain('ΔCOG +85')
+    expect(markup).toContain('ΔHDG −91°')
+    expect(markup).toContain('ΔCOG +85°')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity C')
     const row = ManeuverEventRow({ event: low, selected: true, onSelect })
     row.props.onClick()
@@ -194,31 +194,27 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('Time<span class="maneuver-event-table__sort-indicator maneuver-event-table__sort-indicator--active" aria-hidden="true">▲</span>')
     expect(markup).toContain('Loss<span class="maneuver-event-table__sort-indicator" aria-hidden="true">⇅</span>')
     expect(cellTexts(markup, 'th')).toEqual([
-      'Time▲',
       'Activity',
+      'Time▲',
       'Loss⇅',
       'Rec',
-      'SOG in',
-      'SOG min',
-      'SOG out',
+      'SOG (in/min/out)',
       'Δ (°)',
       'Dur',
       'Sector',
     ])
     expect(cellTexts(markup, 'td')).toEqual([
-      '08:47:59',
       'P',
+      '08:47:59',
       '3s · 9 m',
       '12s',
-      '5.2',
-      '3.1',
-      '5.1',
-      'ΔHDG −91',
+      '5.2/3.1/5.1 kt',
+      'ΔHDG −91°',
       '10s',
       '—',
     ])
     expect(markup).toMatch(
-      /maneuver-event-table__time-column.*maneuver-event-table__activity-column.*maneuver-event-table__loss-column.*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*span="3".*maneuver-event-table__heading-column.*maneuver-event-table__duration-column.*maneuver-event-table__sector-column/,
+      /maneuver-event-table__activity-column.*maneuver-event-table__time-column.*maneuver-event-table__loss-column.*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*maneuver-event-table__heading-column.*maneuver-event-table__duration-column.*maneuver-event-table__sector-column/,
     )
   })
 
@@ -388,7 +384,7 @@ describe('ManeuverEventTable', () => {
     // Six unavailable metrics (the combined Loss cell shows both parts); the available Sector reads Up, last.
     expect(cellTexts(markup, 'td').join('').match(/—/g)).toHaveLength(6)
     expect(cellTexts(markup, 'td')[2]).toBe('— · —')
-    expect(cellTexts(markup, 'td')[9]).toBe('Up')
+    expect(cellTexts(markup, 'td')[7]).toBe('Up')
   })
 
   it('renders one combined Loss cell, time first, with partial and full unavailability', () => {
@@ -405,6 +401,30 @@ describe('ManeuverEventTable', () => {
     expect(lossCell(render(withLoss(null, null)))).toEqual(['Loss distance —; equivalent Loss time —', '— · —'])
   })
 
+  it('renders one combined SOG cell in the Selected Maneuvers format with partial and full unavailability', () => {
+    const withSog = (entry: number | null, minimum: number | null, exit: number | null) => ({
+      ...event, maneuver: { ...event.maneuver, sog_entry_kn: entry, sog_min_kn: minimum, sog_exit_kn: exit },
+    })
+    const sogCell = (target: DisplayManeuver) => renderToStaticMarkup(
+      <ManeuverEventTable events={[target]} primaryStatus="available" onSelect={() => undefined} />,
+    ).match(/<td aria-label="(Entry SOG[^"]*)">([^<]*)<\/td>/)!.slice(1)
+    expect(sogCell(withSog(12.3, 10.5, 11.8))).toEqual(['Entry SOG 12.3 knots, Minimum SOG 10.5 knots, Exit SOG 11.8 knots', '12.3/10.5/11.8 kt'])
+    expect(sogCell(withSog(null, 4.2, null))).toEqual(['Entry SOG —, Minimum SOG 4.2 knots, Exit SOG —', '—/4.2/— kt'])
+    expect(sogCell(withSog(null, null, null))).toEqual(['Entry SOG —, Minimum SOG —, Exit SOG —', '—/—/—'])
+  })
+
+  it('shows Δ with the degree unit for HDG and COG modes and — when unavailable', () => {
+    const delta = (heading: number | null, course: number | null) => cellTexts(renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[{ ...event, maneuver: { ...event.maneuver, heading_change_deg: heading, course_change_deg: course } }]}
+        primaryStatus="available" onSelect={() => undefined}
+      />,
+    ), 'td')[5]
+    expect(delta(-90.6, null)).toBe('ΔHDG −91°')
+    expect(delta(null, 85)).toBe('ΔCOG +85°')
+    expect(delta(null, null)).toBe('—')
+  })
+
   it('keeps the P/C header untitled but named Activity, and orders the columns for mobile', () => {
     const markup = renderToStaticMarkup(
       <ManeuverEventTable events={[event]} primaryStatus="available" onSelect={() => undefined} />,
@@ -412,10 +432,11 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('<th scope="col"><span class="maneuver-event-table__sr-only">Activity</span></th>')
     expect(markup).not.toMatch(/>Act</)
     expect(markup).not.toMatch(/Loss \((m|s)\)/)
-    expect(cellTexts(markup, 'th')[0]).toBe('Time▲')
+    expect(cellTexts(markup, 'th').slice(0, 2)).toEqual(['Activity', 'Time▲'])
+    expect(cellTexts(markup, 'td').slice(0, 2)).toEqual(['P', '08:47:59'])
     expect(cellTexts(markup, 'th').at(-1)).toBe('Sector')
     expect(markup.match(/<col /g)).toHaveLength(8)
-    expect(cellTexts(markup, 'th').slice(3, 5)).toEqual(['Rec', 'SOG in'])
+    expect(cellTexts(markup, 'th').slice(3, 5)).toEqual(['Rec', 'SOG (in/min/out)'])
     expect(markup).not.toMatch(/(Rec|Dur) \(s\)/)
   })
 
