@@ -98,6 +98,7 @@ import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
 import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeometry'
 import { inferSessionStarts } from '../utils/sessionStarts'
 import { inferSessionStartLines, visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
+import { prefersReducedMotion, revealMapIfNeeded } from '../utils/mapReveal'
 
 function useSessionRaceTimerEvents(access: SessionAccess) {
   const accessKey = `${access.kind}:${access.token}`
@@ -662,6 +663,7 @@ export function SessionViewer({
   const [maneuverSelectionHistory, setManeuverSelectionHistory] = useState<ManeuverSelectionHistory>([null, null])
   const playbackTimeRef = useRef(playbackTime)
   const mapFocusRequestIdRef = useRef(0)
+  const mapPanelRef = useRef<HTMLElement>(null)
   const [mapFocusRequest, setMapFocusRequest] = useState<MapFocusRequest | null>(null)
   const analysisWindowRef = useRef(analysisWindow)
   const speedRef = useRef(speed)
@@ -999,6 +1001,12 @@ export function SessionViewer({
     setMapFocusRequest(navigation.focusRequest)
   }
 
+  // Table rows only (#211.4): same selection as the timeline, plus bringing the map into view.
+  function selectManeuverFromTable(event: DisplayManeuver) {
+    selectManeuver(event)
+    revealMapIfNeeded(mapPanelRef.current, { reducedMotion: prefersReducedMotion() })
+  }
+
   function selectSessionStart(start: { time: number }) {
     scrubTo(start.time)
     mapFocusRequestIdRef.current += 1
@@ -1151,6 +1159,7 @@ export function SessionViewer({
         </section>
       ) : canReplay && primaryTrack ? (
         <TrackMap
+          panelRef={mapPanelRef}
           primaryVisibleSamples={primaryWindowSamples}
           comparisonVisibleSamples={comparisonWindowSamples}
           contextualActivities={contextualMapActivities}
@@ -1256,7 +1265,7 @@ export function SessionViewer({
                 comparisonActivityId,
               )}
           selectedManeuverKey={maneuverSelectionHistory[0]}
-          onSelect={selectManeuver}
+          onSelect={selectManeuverFromTable}
           windSectors={maneuverWindSectors}
           sectorFilterResetKey={`${primaryActivityId}:${comparisonActivityId ?? ''}:${maneuverSectorFilterResetToken}`}
         />

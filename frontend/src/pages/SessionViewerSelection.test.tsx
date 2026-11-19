@@ -29,7 +29,8 @@ vi.mock('../api/tackbarApi', () => ({
 }))
 let latestHighlights: SelectedManeuverHighlight[] | null = null
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset }: {
+  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset, panelRef }: {
+    panelRef?: { current: HTMLDivElement | null },
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
     focusRequest: { activityRole: string, requestId: number } | null,
     historicalConditionsSample: HistoricalConditionsSample | null,
@@ -40,7 +41,7 @@ vi.mock('../components/TrackMap', () => ({
   }) => {
     latestHighlights = selectedManeuverHighlights
     return (
-    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
+    <div ref={panelRef} data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
       <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
       <button data-tws-minus onClick={() => onTwsStep(-1)}>−1 kt</button><button data-tws-plus onClick={() => onTwsStep(1)}>+1 kt</button><button data-tws-reset onClick={onTwsReset}>Reset TWS</button>
       {selectedManeuverHighlights.map((highlight) =>
@@ -1006,6 +1007,44 @@ describe('Viewer selected maneuver interactions', () => {
     expect(focus().getAttribute('data-focus-role')).toBe('comparison')
     expect(Number(focus().getAttribute('data-focus-request'))).toBeGreaterThan(markerRequest)
     expect(selectedTimes()).toEqual(['10:00:06', '10:00:02'])
+  })
+
+  it('brings the map into view only from table rows, respecting visibility and reduced motion (#211.4)', async () => {
+    await mountViewer()
+    const map = container.querySelector<HTMLElement>('[data-map-playback-time]')!
+    let mapTop = -900
+    map.getBoundingClientRect = () => DOMRect.fromRect({ x: 0, y: mapTop, width: 360, height: 400 })
+    const scrollIntoView = vi.fn()
+    map.scrollIntoView = scrollIntoView
+    const playbackTime = () => Number(container.querySelector('output')?.getAttribute('data-playback-time'))
+
+    await click(marker(4))
+    await click('[data-start="S1"]')
+    await click('[data-change-window]')
+    await click('[data-reset-window]')
+    expect(scrollIntoView).not.toHaveBeenCalled()
+
+    const row = container.querySelector<HTMLButtonElement>('[data-table-event="' + (start + 2_000) + '"]')!
+    row.focus()
+    await click('[data-table-event="' + (start + 2_000) + '"]')
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+    expect(document.activeElement).toBe(row)
+    expect(playbackTime()).toBe(start + 2_000)
+    expect(selectedTimes()[0]).toBe('10:00:02')
+
+    window.matchMedia = vi.fn(() => ({ matches: true })) as unknown as typeof window.matchMedia
+    try {
+      await click('[data-table-event="' + (start + 4_000) + '"]')
+    } finally {
+      Reflect.deleteProperty(window, 'matchMedia')
+    }
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'auto', block: 'start', inline: 'nearest' })
+
+    mapTop = 100
+    await click('[data-table-event="' + (start + 2_000) + '"]')
+    expect(scrollIntoView).toHaveBeenCalledTimes(2)
+    expect(selectedTimes()).toEqual(['10:00:02', '10:00:04'])
   })
 
   it('clears both records when the Analysis Window changes while both events stay eligible', async () => {
