@@ -2,6 +2,50 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.26 Californian — How interesting. Tell me less.
+
+### English
+
+### Added
+
+* Open the latest published GitHub Release from the version in the public header or from **Release notes** in About TackBar. The header displays **Release notes** when no version is configured. Both links open in a new tab, so the current page and debrief stay open.
+
+### Changed
+
+* Development governance now uses one branch flow for complex work and allows one focused micro-fix per automated failure.
+
+### Issues
+
+- [#215](https://github.com/maxsail-project/tackbar/issues/215) — [#215] Link public release identity and About to latest release notes
+- [#214](https://github.com/maxsail-project/tackbar/issues/214) — [#214] Define a single branch flow and per-failure micro-fix rule
+
+### Validation
+
+For #215, 37 focused frontend tests, typecheck and the production build passed. [SonarQube CI on the candidate](https://github.com/maxsail-project/tackbar/actions/runs/44571910123) passed backend and frontend tests with coverage, typecheck, the quality-gated scan and production build. The product owner recorded PASS. Release preparation checked the release range, completed Issues, documentation, bilingual body and diff.
+
+---
+
+### Español
+
+### Añadido
+
+* La versión en la cabecera pública y **Release notes** en About TackBar abren la última release publicada en GitHub. Si no hay una versión configurada, la cabecera muestra **Release notes**. Ambos enlaces abren una pestaña nueva y dejan abierta la página de análisis.
+
+### Cambiado
+
+* La gobernanza de desarrollo establece un único flujo de ramas para trabajos complejos y permite una microcorrección acotada por cada fallo automatizado.
+
+### Issues
+
+- [#215](https://github.com/maxsail-project/tackbar/issues/215) — [#215] Link public release identity and About to latest release notes
+- [#214](https://github.com/maxsail-project/tackbar/issues/214) — [#214] Define a single branch flow and per-failure micro-fix rule
+
+### Validación
+
+Para #215 pasaron 37 pruebas focalizadas del frontend, la comprobación de tipos y el build de producción. El [CI de SonarQube sobre el candidato](https://github.com/maxsail-project/tackbar/actions/runs/44571910123) pasó las pruebas de backend y frontend con cobertura, la comprobación de tipos, el Quality Gate y el build de producción. El responsable de producto registró PASS. Durante la preparación se revisaron el rango de la release, los issues completados, la documentación, el cuerpo bilingüe y el diff.
+
+---
+
 ## v0.7.25 Californian — The Good, the Bad and the Ugly
 
 ### English
