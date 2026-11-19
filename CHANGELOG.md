@@ -2,6 +2,86 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.25 Californian — The Good, the Bad and the Ugly
+
+### English
+
+This release makes Maneuver Analysis faster to read on mobile: each maneuver shows its wind sector, a descriptive loss band and a compact combined Loss value; the table can be filtered by sector and sorted by Loss; and selecting a row brings the map into view.
+
+### Added
+
+* The Maneuver Analysis table shows each maneuver's wind sector context — **Up**, **Reach**, **Down** or a transition such as **Up→Down** — from its entry and exit course references and the effective TWD at the event center (modelled or **Manual · Viewer**), never as tack/gybe wording. When a TWD reference exists, a sector filter (**All · Up · Reach · Down · Transition**, with counts) narrows the table only.
+* Descriptive loss bands: within each Activity's listed maneuvers, the highest-quartile equivalent Loss times are marked **High loss** (filled dot) and the lowest-quartile ones **Low loss** (hollow ring). P and C are classified independently, at least 8 maneuvers with Loss time are required, and a one-line legend explains the markers. Bands describe a distribution within one Activity; they are not a score or a ranking between sailors.
+* The table can be sorted by **Loss** as well as by **Time**. Both sortable headers always show their indicator (`⇅` when inactive, `▲`/`▼` when active) and expose `aria-sort`.
+* Selecting a maneuver from the table scrolls the page to the map unless the map is already fully visible. Selecting from the timeline does not scroll, and reduced-motion preferences are respected.
+
+### Changed
+
+* Maneuver Analysis columns follow Selected Maneuvers: `P/C · Time · Loss · Rec · SOG (in/min/out) · Δ (°) · Dur · Sector`.
+  * Loss is one combined, seconds-first value (`8s · 18 m`).
+  * SOG is one `in/min/out kt` value.
+  * Rec and Dur show compact seconds.
+  * Δ keeps its `ΔHDG`/`ΔCOG` prefix with the `°` unit.
+  * Columns size to their content, so more data fits on mobile.
+* Selected Maneuvers shows Loss seconds first (`8s · 18 m`).
+* The Wind Segments table uses the same table styling as Maneuver Analysis, without behaviour changes.
+* Development governance and CI:
+  * AI agents may use an opt-in, Issue-scoped continuous delivery mode.
+  * Release-preparation Issues created through the API must carry their labels.
+  * SonarQube CI also runs on pushes to `feature/**` and `fix/**` branches.
+
+### Issues
+
+- [#208](https://github.com/maxsail-project/tackbar/issues/208) — [#208] Require labels on release-preparation Issues created by API
+- [#209](https://github.com/maxsail-project/tackbar/issues/209) — [#209] Define an Issue-scoped continuous delivery mode for AI agents
+- [#210](https://github.com/maxsail-project/tackbar/issues/210) — [#210] Run SonarQube CI on pushes to feature and fix branches
+- [#211](https://github.com/maxsail-project/tackbar/issues/211) — [#211] Add wind sector, sector filter and loss bands to the Maneuver Analysis table
+
+### Validation
+
+The completed Issues record focused implementation tests and, for #211, product-owner manual acceptance of each increment and of a final review. At candidate `cae2218`, [SonarQube CI](https://github.com/maxsail-project/tackbar/actions/runs/44434784693) passed backend and frontend tests with coverage, frontend typecheck, the quality-gated scan and production build. Release preparation checks Issue completion and commit inclusion, documentation, bilingual consistency, publication absence, exact release-body correspondence and `git diff --check`; it does not repeat product tests. Wind sector context depends on the effective TWD; with modelled hourly wind it is indicative, and without a TWD reference the Sector column reads `—` and the sector filter is absent.
+
+---
+
+### Español
+
+Esta versión hace que Maneuver Analysis se lea más rápido en móvil: cada maniobra muestra su sector de viento, una banda descriptiva de pérdida y un valor de Loss combinado y compacto; la tabla se puede filtrar por sector y ordenar por Loss, y al seleccionar una fila el mapa vuelve a la vista.
+
+### Añadido
+
+* La tabla de Maneuver Analysis muestra el sector de viento de cada maniobra —**Up**, **Reach**, **Down** o una transición como **Up→Down**— a partir de sus referencias de rumbo de entrada y salida y del TWD efectivo en el centro del evento (modelado o **Manual · Viewer**), nunca como virada o trasluchada. Cuando existe una referencia de TWD, un filtro de sector (**All · Up · Reach · Down · Transition**, con recuentos) filtra solo la tabla.
+* Bandas descriptivas de pérdida: dentro de las maniobras listadas de cada Activity, los tiempos de Loss equivalentes del cuartil más alto se marcan como **High loss** (punto relleno) y los del cuartil más bajo como **Low loss** (anillo hueco). P y C se clasifican por separado, se necesitan al menos 8 maniobras con Loss time y una leyenda de una línea explica los marcadores. Las bandas describen una distribución dentro de una Activity; no son una puntuación ni un ranking entre regatistas.
+* La tabla se puede ordenar por **Loss** además de por **Time**. Las dos cabeceras ordenables muestran siempre su indicador (`⇅` inactiva, `▲`/`▼` activa) y exponen `aria-sort`.
+* Al seleccionar una maniobra en la tabla, la página se desplaza hasta el mapa salvo que ya esté completamente visible. La selección desde el timeline no desplaza la página, y se respeta la preferencia de movimiento reducido.
+
+### Cambiado
+
+* Las columnas de Maneuver Analysis siguen a Selected Maneuvers: `P/C · Time · Loss · Rec · SOG (in/min/out) · Δ (°) · Dur · Sector`.
+  * Loss es un único valor combinado con los segundos primero (`8s · 18 m`).
+  * SOG es un único valor `in/min/out kt`.
+  * Rec y Dur muestran segundos compactos.
+  * Δ conserva su prefijo `ΔHDG`/`ΔCOG` con la unidad `°`.
+  * Las columnas se ajustan a su contenido, de modo que caben más datos en móvil.
+* Selected Maneuvers muestra Loss con los segundos primero (`8s · 18 m`).
+* La tabla de Wind Segments usa el mismo estilo de tabla que Maneuver Analysis, sin cambios de comportamiento.
+* Gobernanza de desarrollo y CI:
+  * Los agentes de IA pueden usar un modo de entrega continua opcional, limitado a cada Issue.
+  * Los Issues de preparación de release creados por API deben llevar sus labels.
+  * El CI de SonarQube también se ejecuta en los pushes a ramas `feature/**` y `fix/**`.
+
+### Issues
+
+- [#208](https://github.com/maxsail-project/tackbar/issues/208) — [#208] Require labels on release-preparation Issues created by API
+- [#209](https://github.com/maxsail-project/tackbar/issues/209) — [#209] Define an Issue-scoped continuous delivery mode for AI agents
+- [#210](https://github.com/maxsail-project/tackbar/issues/210) — [#210] Run SonarQube CI on pushes to feature and fix branches
+- [#211](https://github.com/maxsail-project/tackbar/issues/211) — [#211] Add wind sector, sector filter and loss bands to the Maneuver Analysis table
+
+### Validación
+
+Los Issues completados registran pruebas focalizadas de implementación y, en #211, la aceptación manual del propietario del producto de cada incremento y de una revisión final. En el candidato `cae2218`, [CI SonarQube](https://github.com/maxsail-project/tackbar/actions/runs/44434784693) superó las pruebas de backend y frontend con cobertura, el typecheck del frontend, el análisis con quality gate y el build de producción. La preparación de la versión comprueba el cierre de los Issues y la inclusión de commits, la documentación, la coherencia bilingüe, la ausencia de publicación, la correspondencia exacta del cuerpo de la release y `git diff --check`; no repite las pruebas de producto. El sector de viento depende del TWD efectivo; con viento modelado horario es orientativo y, sin referencia de TWD, la columna Sector muestra `—` y el filtro de sector no aparece.
+
+---
+
 ## v0.7.24 Californian — You Are Here
 
 ### English
