@@ -68,7 +68,7 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain(`C · ${comparison} evidence`)
     expect(markup.indexOf('id="maneuver-title"')).toBeLessThan(markup.indexOf('class="maneuver-evidence"'))
     expect(markup.indexOf('class="maneuver-evidence"')).toBeLessThan(markup.indexOf('<table'))
-    expect(cellTexts(markup, 'th')).toHaveLength(10)
+    expect(cellTexts(markup, 'th')).toHaveLength(8)
     expect(cellTexts(markup, 'td').join(' ')).not.toContain('evidence')
   })
 
@@ -213,9 +213,7 @@ describe('ManeuverEventTable', () => {
       '10s',
       '—',
     ])
-    expect(markup).toMatch(
-      /maneuver-event-table__activity-column.*maneuver-event-table__time-column.*maneuver-event-table__loss-column.*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*maneuver-event-table__heading-column.*maneuver-event-table__duration-column.*maneuver-event-table__sector-column/,
-    )
+    expect(markup).not.toContain('<colgroup')
   })
 
   it('can expand and collapse again without selecting an event', () => {
@@ -435,7 +433,8 @@ describe('ManeuverEventTable', () => {
     expect(cellTexts(markup, 'th').slice(0, 2)).toEqual(['Activity', 'Time▲'])
     expect(cellTexts(markup, 'td').slice(0, 2)).toEqual(['P', '08:47:59'])
     expect(cellTexts(markup, 'th').at(-1)).toBe('Sector')
-    expect(markup.match(/<col /g)).toHaveLength(8)
+    expect(cellTexts(markup, 'th')).toHaveLength(8)
+    expect(cellTexts(markup, 'td')).toHaveLength(8)
     expect(cellTexts(markup, 'th').slice(3, 5)).toEqual(['Rec', 'SOG (in/min/out)'])
     expect(markup).not.toMatch(/(Rec|Dur) \(s\)/)
   })
@@ -521,6 +520,16 @@ describe('ManeuverEventTable', () => {
       expect(markup).not.toContain('No maneuvers detected')
     },
   )
+})
+
+describe('Maneuver Analysis column sizing (#211 D18)', () => {
+  it('sizes columns to content: auto layout, nowrap cells, no fixed widths or min-width', () => {
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(css).toMatch(/\.maneuver-event-table \{\s*table-layout: auto;\s*\}/)
+    expect(css).not.toMatch(/\.maneuver-event-table\s*\{[^}]*(min-width|table-layout: fixed)/)
+    expect(css).not.toMatch(/\.maneuver-event-table__[a-z]+-column/)
+    expect(css).toMatch(/\.maneuver-event-table td,\s*\.wind-segments__table th,\s*\.wind-segments__table td \{[^}]*white-space: nowrap;/)
+  })
 })
 
 describe('Maneuver Analysis loss band marker styles (#211.2)', () => {

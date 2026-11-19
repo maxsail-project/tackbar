@@ -475,16 +475,6 @@ export default function ManeuverEventTable({
             <>
             <div className="maneuver-event-table-wrap">
               <table className="maneuver-event-table" aria-label="Detected maneuvers">
-                <colgroup>
-                  <col className="maneuver-event-table__activity-column" />
-                  <col className="maneuver-event-table__time-column" />
-                  <col className="maneuver-event-table__loss-column" />
-                  <col className="maneuver-event-table__recovery-column" />
-                  <col className="maneuver-event-table__sog-column" />
-                  <col className="maneuver-event-table__heading-column" />
-                  <col className="maneuver-event-table__duration-column" />
-                  <col className="maneuver-event-table__sector-column" />
-                </colgroup>
                 <thead>
                   <tr>
                     <th scope="col"><span className="maneuver-event-table__sr-only">Activity</span></th>

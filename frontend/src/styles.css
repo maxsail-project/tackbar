@@ -1931,40 +1931,9 @@ input:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* #211 D18: columns size to the content shown (auto layout, nowrap cells); no min-width, the wrapper scrolls when content exceeds it. */
 .maneuver-event-table {
-  min-width: 610px;
-  table-layout: fixed;
-}
-
-.maneuver-event-table__time-column {
-  width: 74px;
-}
-
-.maneuver-event-table__activity-column {
-  width: 30px;
-}
-
-.maneuver-event-table__sector-column {
-  width: 76px;
-}
-
-.maneuver-event-table__heading-column {
-  width: 94px;
-}
-
-.maneuver-event-table__duration-column,
-.maneuver-event-table__recovery-column {
-  width: 48px;
-}
-
-/* SOG triplet worst case `12.3/10.5/11.8 kt`. */
-.maneuver-event-table__sog-column {
-  width: 128px;
-}
-
-/* Combined Loss sized to its worst case `● 112s · 1145 m` (about 91px of content) plus the `Loss ▼` header. */
-.maneuver-event-table__loss-column {
-  width: 112px;
+  table-layout: auto;
 }
 
 .maneuver-event-table th,
@@ -1975,6 +1944,12 @@ input:focus-visible {
   border-top: 1px solid #e4ecee;
   text-align: left;
   white-space: nowrap;
+}
+
+.maneuver-event-table th,
+.maneuver-event-table td {
+  padding-right: 6px;
+  padding-left: 6px;
 }
 
 .maneuver-event-table th:nth-child(1),

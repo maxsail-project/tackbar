@@ -49,7 +49,7 @@ describe('Maneuver Analysis loss band markers (#211.2)', () => {
   it('marks the combined Loss cell of banded maneuvers with a neutral marker and accessible text, without a new column', () => {
     const markup = staticMarkup(events)
     const headers = [...markup.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)]
-    expect(headers).toHaveLength(10)
+    expect(headers).toHaveLength(8)
     expect(markup).not.toMatch(/<th[^>]*>[^<]*(band|High loss)/i)
     const cells = lossTimeCells(markup)
     expect(cells).toHaveLength(15)

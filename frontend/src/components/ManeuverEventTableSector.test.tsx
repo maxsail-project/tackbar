@@ -35,7 +35,7 @@ describe('Maneuver Analysis Sector column (#211.1)', () => {
       windSectors={sectors} sectorFilterResetKey="k"
     />)
     const headers = [...markup.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map((match) => match[1].replace(/<[^>]+>/g, ''))
-    expect(headers.slice(0, 2)).toEqual(['Time▲', 'Activity'])
+    expect(headers.slice(0, 2)).toEqual(['Activity', 'Time▲'])
     expect(headers.at(-1)).toBe('Sector')
     expect(sectorCells(markup)).toEqual(['Up', 'Up→Down', 'Reach', '—', 'Up'])
     expect(markup).toContain('data-maneuver-sector="transition" title="Upwind to Downwind"')
