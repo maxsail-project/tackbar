@@ -21,15 +21,17 @@ const render = (value: PersonalTackBar) => renderToStaticMarkup(<MemoryRouter><P
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 describe('Personal TackBar / My Sessions', () => {
-  it('shows the available release identity below the logo in the personal header', () => {
+  it('links the available release version below the logo in the personal header', () => {
     vi.stubEnv('VITE_APP_RELEASE_FAMILY', 'Californian')
     vi.stubEnv('VITE_APP_VERSION', 'v0.7.12')
     const markup = render(data)
-    expect(markup).toMatch(/alt="TackBar"[^>]*><span class="public-header-release">Californian · v0\.7\.12<\/span>/)
+    expect(markup).toMatch(/alt="TackBar"[^>]*><span class="public-header-release">Californian · <a[^>]*href="https:\/\/github\.com\/maxsail-project\/tackbar\/releases\/latest"[^>]*><span>v0\.7\.12<\/span>/)
     expect(markup).toContain('>About</button>')
   })
 
   it('loads the minimal personal API and renders summary and returned history', async () => {
+    vi.stubEnv('VITE_APP_RELEASE_FAMILY', undefined)
+    vi.stubEnv('VITE_APP_VERSION', undefined)
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(data)))
     vi.stubGlobal('fetch', fetchMock)
     const loaded = await getPersonalTackBar('personal-token')
@@ -42,7 +44,7 @@ describe('Personal TackBar / My Sessions', () => {
     expect(markup).toContain('<h2 id="my-sessions-heading"><button class="personal-disclosure" type="button" aria-expanded="false"')
     expect(markup).toMatch(/<header[^>]*><div class="public-header-brand"><img[^>]*alt="TackBar"/)
     expect(markup).toContain('>About</button>')
-    expect(markup).not.toContain('public-header-release')
+    expect(markup).toMatch(/<span class="public-header-release"><a[^>]*><span>Release notes<\/span>/)
     expect(markup).toMatch(/Name:<\/strong> Test Sailor<\/p><p><strong>Email:<\/strong> sailor@example\.com<\/p><\/section><section class="personal-last-session"/)
     expect(markup).toContain('>Open Last Session</h2>')
     expect(markup).toContain('2 Sessions')

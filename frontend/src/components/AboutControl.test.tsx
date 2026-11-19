@@ -1,29 +1,52 @@
+// @vitest-environment jsdom
 import { Children, type ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import AboutControl, { AboutDialog, formatReleaseIdentity, PublicHeaderBrand } from './AboutControl'
 
 describe('public About control', () => {
-  it('places the release identity directly beneath the logo', () => {
-    const brand = renderToStaticMarkup(<PublicHeaderBrand family="Californian" version="v0.7.12" />)
-    expect(brand).toMatch(/<img[^>]*alt="TackBar"[^>]*><span class="public-header-release">Californian · v0\.7\.12<\/span>/)
+  it('keeps the About trigger in the public controls', () => {
     expect(renderToStaticMarkup(<AboutControl />)).toContain('>About</button>')
   })
 
   it.each([
-    ['Californian', 'v0.7.12', 'Californian · v0.7.12'],
-    ['Californian', undefined, 'Californian'],
-    [undefined, 'v0.7.12', 'v0.7.12'],
-    [undefined, undefined, ''],
-    [' ', '', ''],
-  ])('formats family %j and exact version %j as %j', (family, version, expected) => {
-    expect(formatReleaseIdentity(family, version)).toBe(expected)
-    const header = renderToStaticMarkup(<PublicHeaderBrand family={family ?? ''} version={version ?? ''} />)
-    expect(header.includes('public-header-release')).toBe(Boolean(expected))
-    if (expected) expect(header).toContain(`>${expected}</span>`)
-    const markup = renderToStaticMarkup(<AboutDialog family={family} version={version} onClose={() => {}} onDismiss={() => {}} />)
-    expect(markup.includes('about-dialog__release')).toBe(Boolean(expected))
-    if (expected) expect(markup).toContain(`>${expected}</p>`)
+    ['Californian', 'v0.7.25', 'Californian · v0.7.25', 'Californian · v0.7.25', 'v0.7.25'],
+    ['Californian', undefined, 'Californian', 'Californian · Release notes', 'Release notes'],
+    ['Californian', ' \t ', 'Californian', 'Californian · Release notes', 'Release notes'],
+    [undefined, 'v0.7.25', 'v0.7.25', 'v0.7.25', 'v0.7.25'],
+    [undefined, undefined, '', 'Release notes', 'Release notes'],
+    [' ', '', '', 'Release notes', 'Release notes'],
+  ])('shows release notes for family %j and version %j', (family, version, identity, headerText, linkText) => {
+    expect(formatReleaseIdentity(family, version)).toBe(identity)
+    vi.stubEnv('VITE_APP_RELEASE_FAMILY', family)
+    vi.stubEnv('VITE_APP_VERSION', version)
+    const content = document.createElement('div')
+    try {
+      content.innerHTML = renderToStaticMarkup(<>
+        <PublicHeaderBrand />
+        <AboutDialog family={family} version={version} onClose={() => {}} onDismiss={() => {}} />
+      </>)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+
+    const release = content.querySelector('img[alt="TackBar"] + .public-header-release')!
+    const headerLink = release.querySelector('a')!
+    expect(release.textContent).toBe(headerText)
+    expect(headerLink.textContent).toBe(linkText)
+    expect(headerLink.hasAttribute('aria-label')).toBe(false)
+    expect(headerLink.hasAttribute('aria-labelledby')).toBe(false)
+    expect(headerLink.tabIndex).toBe(0)
+    expect(headerLink.querySelector('svg[aria-hidden="true"][focusable="false"]')).not.toBeNull()
+
+    const dialog = content.querySelector('dialog')!
+    expect(dialog.querySelector('.about-dialog__release')?.textContent).toBe(identity || undefined)
+    const aboutLink = [...dialog.querySelectorAll('a')].find((link) => link.textContent === 'Release notes')!
+    for (const link of [headerLink, aboutLink]) {
+      expect(link.getAttribute('href')).toBe('https://github.com/maxsail-project/tackbar/releases/latest')
+      expect(link.target).toBe('_blank')
+      expect(link.rel).toBe('noopener noreferrer')
+    }
   })
 
   it('includes the agreed project content and usable links', () => {

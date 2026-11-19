@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import TackBarBrand from './TackBarBrand'
+
+const releaseNotesUrl = 'https://github.com/maxsail-project/tackbar/releases/latest'
+
+function ReleaseNotesLink({ children = 'Release notes', className }: { children?: ReactNode; className?: string }) {
+  return <a className={className} href={releaseNotesUrl} target="_blank" rel="noopener noreferrer">{children}</a>
+}
 
 export function formatReleaseIdentity(family?: string, version?: string) {
   return [family?.trim(), version?.trim()].filter(Boolean).join(' · ')
@@ -12,10 +18,19 @@ export function PublicHeaderBrand({
   family?: string
   version?: string
 }) {
-  const releaseIdentity = formatReleaseIdentity(family, version)
+  const releaseFamily = family?.trim()
   return <div className="public-header-brand">
     <TackBarBrand inverted />
-    {releaseIdentity && <span className="public-header-release">{releaseIdentity}</span>}
+    <span className="public-header-release">
+      {releaseFamily && `${releaseFamily} · `}
+      <ReleaseNotesLink className="public-header-release__link">
+        <span>{version?.trim() || 'Release notes'}</span>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+          <path d="M9 2h5v5m0-5-7 7m-1-6H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3" />
+        </svg>
+      </ReleaseNotesLink>
+    </span>
   </div>
 }
 
@@ -47,6 +62,7 @@ export function AboutDialog({
     <p>Website: <a href="https://tackbar.eu" target="_blank" rel="noopener noreferrer">tackbar.eu</a></p>
     <p>Source: <a href="https://github.com/maxsail-project/tackbar" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://github.com/maxsail-project/tackbar/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MPL-2.0 license</a></p>
     {releaseIdentity && <p className="about-dialog__release">{releaseIdentity}</p>}
+    <p><ReleaseNotesLink /></p>
   </dialog>
 }
 

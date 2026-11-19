@@ -189,6 +189,23 @@ a {
   overflow-wrap: anywhere;
 }
 
+.public-header-release__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  min-width: 44px;
+  max-width: 100%;
+}
+
+.public-header-release__link span {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.public-header-release__link svg { flex: none; }
+.public-header-release__link:focus-visible { outline: 2px solid currentColor; }
+
 .about-trigger {
   flex: 0 0 auto;
   min-height: 44px;

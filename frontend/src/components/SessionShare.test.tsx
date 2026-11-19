@@ -23,7 +23,7 @@ const share = {
 }
 
 describe('temporary Session sharing presentation', () => {
-  it('offers About in the header shared by original and temporary Viewers', () => {
+  it('offers About and links the release version in the header shared by original and temporary Viewers', () => {
     vi.stubEnv('VITE_APP_RELEASE_FAMILY', 'Californian')
     vi.stubEnv('VITE_APP_VERSION', 'v0.7.12')
     const header = renderToStaticMarkup(<SessionViewerHeader />)
@@ -31,7 +31,11 @@ describe('temporary Session sharing presentation', () => {
 
     expect(header).toContain('viewer-header')
     expect(header).toContain('>About</button>')
-    expect(header).toMatch(/alt="TackBar"[^>]*><span class="public-header-release">Californian · v0\.7\.12<\/span>/)
+    const container = document.createElement('div')
+    container.innerHTML = header
+    const release = container.querySelector('img[alt="TackBar"] + .public-header-release')
+    expect(release?.textContent).toBe('Californian · v0.7.12')
+    expect(release?.querySelector('a[href="https://github.com/maxsail-project/tackbar/releases/latest"]')?.textContent).toBe('v0.7.12')
     expect(header).not.toContain('Share')
     expect(header).not.toContain('Shared access')
   })
