@@ -29,7 +29,8 @@ vi.mock('../api/tackbarApi', () => ({
 }))
 let latestHighlights: SelectedManeuverHighlight[] | null = null
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset }: {
+  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset, panelRef }: {
+    panelRef?: { current: HTMLDivElement | null },
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
     focusRequest: { activityRole: string, requestId: number } | null,
     historicalConditionsSample: HistoricalConditionsSample | null,
@@ -40,7 +41,7 @@ vi.mock('../components/TrackMap', () => ({
   }) => {
     latestHighlights = selectedManeuverHighlights
     return (
-    <div data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
+    <div ref={panelRef} data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
       <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
       <button data-tws-minus onClick={() => onTwsStep(-1)}>−1 kt</button><button data-tws-plus onClick={() => onTwsStep(1)}>+1 kt</button><button data-tws-reset onClick={onTwsReset}>Reset TWS</button>
       {selectedManeuverHighlights.map((highlight) =>
@@ -59,8 +60,11 @@ vi.mock('../components/MetricChart', () => ({ default: () => null }))
 vi.mock('../components/IndividualAnalysis', () => ({ default: () => <section data-viewer-section="individual-analysis" /> }))
 vi.mock('../components/MetricSelector', () => ({ default: () => <section data-viewer-section="track-analysis" />, DEFAULT_VIEWER_METRIC_VIEW: 'VS' }))
 vi.mock('../components/ManeuverEventTable', () => ({
-  default: ({ events, onSelect }: { events: DisplayManeuver[], onSelect: (event: DisplayManeuver) => void }) =>
-    <section data-viewer-section="maneuver-analysis">{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</section>,
+  default: ({ events, onSelect, windSectors, sectorFilterResetKey }: {
+    events: DisplayManeuver[], onSelect: (event: DisplayManeuver) => void,
+    windSectors?: ReadonlyMap<string, unknown> | null, sectorFilterResetKey?: string,
+  }) =>
+    <section data-viewer-section="maneuver-analysis" data-sector-available={windSectors !== null && windSectors !== undefined} data-sector-reset-key={sectorFilterResetKey}>{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</section>,
 }))
 vi.mock('../components/AnalysisWindow', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../components/AnalysisWindow')>()),
@@ -1005,6 +1009,44 @@ describe('Viewer selected maneuver interactions', () => {
     expect(selectedTimes()).toEqual(['10:00:06', '10:00:02'])
   })
 
+  it('brings the map into view only from table rows, respecting visibility and reduced motion (#211.4)', async () => {
+    await mountViewer()
+    const map = container.querySelector<HTMLElement>('[data-map-playback-time]')!
+    let mapTop = -900
+    map.getBoundingClientRect = () => DOMRect.fromRect({ x: 0, y: mapTop, width: 360, height: 400 })
+    const scrollIntoView = vi.fn()
+    map.scrollIntoView = scrollIntoView
+    const playbackTime = () => Number(container.querySelector('output')?.getAttribute('data-playback-time'))
+
+    await click(marker(4))
+    await click('[data-start="S1"]')
+    await click('[data-change-window]')
+    await click('[data-reset-window]')
+    expect(scrollIntoView).not.toHaveBeenCalled()
+
+    const row = container.querySelector<HTMLButtonElement>('[data-table-event="' + (start + 2_000) + '"]')!
+    row.focus()
+    await click('[data-table-event="' + (start + 2_000) + '"]')
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+    expect(document.activeElement).toBe(row)
+    expect(playbackTime()).toBe(start + 2_000)
+    expect(selectedTimes()[0]).toBe('10:00:02')
+
+    window.matchMedia = vi.fn(() => ({ matches: true })) as unknown as typeof window.matchMedia
+    try {
+      await click('[data-table-event="' + (start + 4_000) + '"]')
+    } finally {
+      Reflect.deleteProperty(window, 'matchMedia')
+    }
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'auto', block: 'start', inline: 'nearest' })
+
+    mapTop = 100
+    await click('[data-table-event="' + (start + 2_000) + '"]')
+    expect(scrollIntoView).toHaveBeenCalledTimes(2)
+    expect(selectedTimes()).toEqual(['10:00:02', '10:00:04'])
+  })
+
   it('clears both records when the Analysis Window changes while both events stay eligible', async () => {
     await mountViewer()
     await click(marker(2))
@@ -1076,6 +1118,43 @@ describe('Viewer selected maneuver interactions', () => {
     expect(two).not.toBe(one)
     expect(two).toHaveLength(2)
     expect(two![0].geoJson).not.toBe(one![0].geoJson)
+  })
+
+  it('provides maneuver wind sectors only with a TWD reference, including a manual-only correction (#211.1)', async () => {
+    await mountViewer('original', session)
+    const table = () => container.querySelector<HTMLElement>('[data-viewer-section="maneuver-analysis"]')!
+    expect(table().dataset.sectorAvailable).toBe('false')
+    await click('[data-twd-gesture]')
+    expect(table().dataset.sectorAvailable).toBe('true')
+    await click('[data-twd-auto]')
+    expect(table().dataset.sectorAvailable).toBe('false')
+  })
+
+  it.each(['original', 'temporary'] as const)('changes the sector filter reset key on every Analysis Window and Activity change on %s access (#211.1)', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const table = () => container.querySelector<HTMLElement>('[data-viewer-section="maneuver-analysis"]')!
+    expect(table().dataset.sectorAvailable).toBe('true')
+    const keys = [table().dataset.sectorResetKey]
+    const expectNewKey = () => {
+      const key = table().dataset.sectorResetKey
+      expect(key).toBeDefined()
+      expect(keys).not.toContain(key)
+      keys.push(key)
+    }
+    await click('[data-change-window]')
+    expectNewKey()
+    await click('[data-narrow-window]')
+    expectNewKey()
+    await click('[data-reset-window]')
+    expectNewKey()
+    await choose('Compare', 'b')
+    expectNewKey()
+    await choose('Compare', '')
+    expectNewKey()
+    await choose('My track', 'c')
+    expectNewKey()
+    await choose('My track', 'a')
+    expectNewKey()
   })
 
   it('recomputes highlight geometry when Primary, Comparison or the Analysis Window change', async () => {

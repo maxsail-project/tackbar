@@ -93,10 +93,12 @@ import {
   retainDisplayedManeuverSelection,
   type DisplayManeuver,
 } from '../utils/maneuverEvents'
+import { deriveManeuverWindSectors } from '../utils/maneuverWindSector'
 import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
 import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeometry'
 import { inferSessionStarts } from '../utils/sessionStarts'
 import { inferSessionStartLines, visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
+import { prefersReducedMotion, revealMapIfNeeded } from '../utils/mapReveal'
 
 function useSessionRaceTimerEvents(access: SessionAccess) {
   const accessKey = `${access.kind}:${access.token}`
@@ -601,6 +603,8 @@ export function SessionViewer({
     primaryRange,
   )
   const [windSegmentFilterResetToken, setWindSegmentFilterResetToken] = useState(0)
+  // Bumped on every Analysis Window commit and Activity/available-range reconciliation (#211.1).
+  const [maneuverSectorFilterResetToken, setManeuverSectorFilterResetToken] = useState(0)
   const windowStart = analysisWindow?.start ?? null
   const windowEnd = analysisWindow?.end ?? null
   const primaryAvailableSamples = useMemo(
@@ -659,6 +663,7 @@ export function SessionViewer({
   const [maneuverSelectionHistory, setManeuverSelectionHistory] = useState<ManeuverSelectionHistory>([null, null])
   const playbackTimeRef = useRef(playbackTime)
   const mapFocusRequestIdRef = useRef(0)
+  const mapPanelRef = useRef<HTMLElement>(null)
   const [mapFocusRequest, setMapFocusRequest] = useState<MapFocusRequest | null>(null)
   const analysisWindowRef = useRef(analysisWindow)
   const speedRef = useRef(speed)
@@ -841,6 +846,17 @@ export function SessionViewer({
         )),
     [comparisonActivityId, comparisonTrack, segmentTwdAtTime, windSegments],
   )
+  // Per-maneuver wind sector context (#211.1): entry/exit course references of each maneuver's
+  // own track against the segment TWD reference at its center time; null without a TWD reference.
+  const maneuverWindSectors = useMemo(
+    () => deriveManeuverWindSectors(
+      displayManeuvers,
+      { primary: primaryTrack?.samples ?? [], comparison: comparisonTrack?.samples ?? [] },
+      analysisWindow,
+      segmentTwdAtTime,
+    ),
+    [analysisWindow, comparisonTrack, displayManeuvers, primaryTrack, segmentTwdAtTime],
+  )
   const twsReference = useMemo(
     () => resolveTwsReference(
       analysisWindow === null
@@ -886,6 +902,7 @@ export function SessionViewer({
     setIsPlaying(false)
     setMapFocusRequest(null)
     setManeuverSelectionHistory([null, null])
+    setManeuverSectorFilterResetToken((token) => token + 1)
     setAnalysisWindow(nextWindow)
     analysisWindowRef.current = nextWindow
     setPlaybackTime(nextPlaybackTime)
@@ -984,6 +1001,12 @@ export function SessionViewer({
     setMapFocusRequest(navigation.focusRequest)
   }
 
+  // Table rows only (#211.4): same selection as the timeline, plus bringing the map into view.
+  function selectManeuverFromTable(event: DisplayManeuver) {
+    selectManeuver(event)
+    revealMapIfNeeded(mapPanelRef.current, { reducedMotion: prefersReducedMotion() })
+  }
+
   function selectSessionStart(start: { time: number }) {
     scrubTo(start.time)
     mapFocusRequestIdRef.current += 1
@@ -1012,6 +1035,7 @@ export function SessionViewer({
     setIsPlaying(nextTimeline.isPlaying)
     setMapFocusRequest(null)
     setManeuverSelectionHistory([null, null])
+    setManeuverSectorFilterResetToken((token) => token + 1)
     setAnalysisWindow(nextTimeline.analysisWindow)
     analysisWindowRef.current = nextTimeline.analysisWindow
     playbackTimeRef.current = nextTimeline.playbackTime
@@ -1135,6 +1159,7 @@ export function SessionViewer({
         </section>
       ) : canReplay && primaryTrack ? (
         <TrackMap
+          panelRef={mapPanelRef}
           primaryVisibleSamples={primaryWindowSamples}
           comparisonVisibleSamples={comparisonWindowSamples}
           contextualActivities={contextualMapActivities}
@@ -1240,7 +1265,9 @@ export function SessionViewer({
                 comparisonActivityId,
               )}
           selectedManeuverKey={maneuverSelectionHistory[0]}
-          onSelect={selectManeuver}
+          onSelect={selectManeuverFromTable}
+          windSectors={maneuverWindSectors}
+          sectorFilterResetKey={`${primaryActivityId}:${comparisonActivityId ?? ''}:${maneuverSectorFilterResetToken}`}
         />
       )}
       {analysisWindow !== null && effectiveTwd !== null && twdPresentation.displayDegrees !== null && (

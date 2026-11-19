@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import Map, {
   Layer,
   Marker,
@@ -79,6 +79,8 @@ interface TrackMapProps {
   twsPresentation?: TwsPresentation
   onTwsStep?: (step: -1 | 1) => void
   onTwsReset?: () => void
+  /** Optional caller-owned ref to the map panel element, e.g. to scroll it into view (#211.4). */
+  panelRef?: RefObject<HTMLElement | null>
 }
 
 interface MapTelemetryOverlayProps {
@@ -420,9 +422,11 @@ export default function TrackMap({
   twsPresentation = { speedKnots: null, manual: false },
   onTwsStep = () => undefined,
   onTwsReset = () => undefined,
+  panelRef,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
-  const mapPanelRef = useRef<HTMLElement>(null)
+  const ownMapPanelRef = useRef<HTMLElement>(null)
+  const mapPanelRef = panelRef ?? ownMapPanelRef
   const committedBearing = twdPresentation.bearing
   const rotationGestureRef = useRef<{ effectiveBeforeGesture: number } | null>(null)
   const [gestureBearing, setGestureBearing] = useState<number | null>(null)

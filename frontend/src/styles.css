@@ -1909,68 +1909,71 @@ input:focus-visible {
   display: none;
 }
 
-.maneuver-event-table-wrap {
+/* #211.3: the Wind Segments table shares the Maneuver Analysis table wrapper, header, cell and row rules. */
+.maneuver-event-table-wrap,
+.wind-segments__table-wrap {
   isolation: isolate;
-  max-height: min(50vh, 360px);
   margin-top: 10px;
   overflow: auto;
   border: 1px solid #d5e1e3;
   border-radius: 10px;
 }
 
-.maneuver-event-table {
+.maneuver-event-table-wrap {
+  max-height: min(50vh, 360px);
+}
+
+.maneuver-event-table,
+.wind-segments__table {
   width: 100%;
-  min-width: 774px;
   border-collapse: collapse;
-  table-layout: fixed;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
 }
 
-.maneuver-event-table__time-column {
-  width: 88px;
-}
-
-.maneuver-event-table__activity-column {
-  width: 40px;
-}
-
-.maneuver-event-table__heading-column {
-  width: 110px;
-}
-
-.maneuver-event-table__duration-column,
-.maneuver-event-table__recovery-column {
-  width: 58px;
-}
-
-.maneuver-event-table__sog-column {
-  width: 90px;
-}
-
-.maneuver-event-table__loss-column {
-  width: 74px;
+/* #211 D18: columns size to the content shown (auto layout, nowrap cells); no min-width, the wrapper scrolls when content exceeds it. */
+.maneuver-event-table {
+  table-layout: auto;
 }
 
 .maneuver-event-table th,
-.maneuver-event-table td {
+.maneuver-event-table td,
+.wind-segments__table th,
+.wind-segments__table td {
   padding: 8px 9px;
   border-top: 1px solid #e4ecee;
   text-align: left;
   white-space: nowrap;
 }
 
-.maneuver-event-table th:nth-child(2),
-.maneuver-event-table td:nth-child(2) {
+.maneuver-event-table th,
+.maneuver-event-table td {
+  padding-right: 6px;
+  padding-left: 6px;
+}
+
+.maneuver-event-table th:nth-child(1),
+.maneuver-event-table td:nth-child(1) {
   text-align: center;
 }
 
-.maneuver-event-table th:nth-child(n + 3),
-.maneuver-event-table td:nth-child(n + 3) {
+.maneuver-event-table th:nth-child(n + 4),
+.maneuver-event-table td:nth-child(n + 4) {
   text-align: right;
 }
 
-.maneuver-event-table th {
+/* Time (2nd), combined Loss (3rd) and Sector (last) are left-aligned. */
+.maneuver-event-table th:nth-child(2),
+.maneuver-event-table td:nth-child(2),
+.maneuver-event-table th:nth-child(3),
+.maneuver-event-table td:nth-child(3),
+.maneuver-event-table th:last-child,
+.maneuver-event-table td:last-child {
+  text-align: left;
+}
+
+.maneuver-event-table th,
+.wind-segments__table th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1987,17 +1990,49 @@ input:focus-visible {
   background: transparent;
 }
 
+.maneuver-event-table th.maneuver-event-table__sortable {
+  padding-right: 4px;
+  padding-left: 4px;
+}
+
+.maneuver-event-table__sortable .maneuver-event-table__sort {
+  padding-right: 4px;
+  padding-left: 4px;
+  margin-right: -4px;
+  margin-left: -4px;
+}
+
+.maneuver-event-table__sort-indicator {
+  display: inline-block;
+  margin-left: 3px;
+  color: #7a9096;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.maneuver-event-table__sort-indicator--active {
+  color: #28788a;
+  font-size: 0.66rem;
+}
+
 .maneuver-event-table__row {
   cursor: pointer;
 }
 
-.maneuver-event-table__row:hover {
+.maneuver-event-table__row:hover,
+.wind-segments__row:hover {
   background: #f7fafb;
 }
 
 .maneuver-event-table__row--selected,
-.maneuver-event-table__row--selected:hover {
+.maneuver-event-table__row--selected:hover,
+.wind-segments__row--current,
+.wind-segments__row--current:hover {
   background: #edf5f6;
+}
+
+.wind-segments__row--current td:first-child {
+  box-shadow: inset 3px 0 #168097;
 }
 
 .maneuver-event-table__row--selected.maneuver-event-table__row--primary td:first-child {
@@ -2020,6 +2055,54 @@ input:focus-visible {
 
 .maneuver-event-table__activity {
   font-weight: 900;
+}
+
+/* #211.2: descriptive loss band markers on the combined Loss cell — marker only, neutral, no P/C colours, no red/green. */
+.maneuver-event-table__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.maneuver-event-table td.maneuver-loss-band {
+  position: relative;
+}
+
+.maneuver-loss-band-legend {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  margin: 6px 0 0;
+  color: #536c73;
+  font-size: 0.7rem;
+}
+
+.maneuver-loss-band-legend__item {
+  white-space: nowrap;
+}
+
+.maneuver-loss-band__marker {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border: 1.5px solid #4f646b;
+  border-radius: 50%;
+  vertical-align: 0.05em;
+}
+
+.maneuver-loss-band__marker--high {
+  background: #4f646b;
+}
+
+.maneuver-loss-band__marker--low {
+  background: transparent;
 }
 
 .comparison-table-wrap {
@@ -3565,11 +3648,18 @@ input:focus-visible {
   line-height: 1.4;
 }
 .wind-segments__table { table-layout: auto; }
+/* Row height comes from the 44px P button; tighter side padding keeps four columns on narrow screens. */
 .wind-segments__table th,
 .wind-segments__table td {
-  padding: 0 4px;
-  overflow-wrap: normal;
+  padding-right: 6px;
+  padding-left: 6px;
 }
+.wind-segments__table td {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.wind-segments__table th:nth-child(3),
+.wind-segments__table td:nth-child(3) { text-align: right; }
 .wind-segments__segment-column {
   width: 1%;
   min-width: 104px;
@@ -3597,7 +3687,6 @@ input:focus-visible {
 .wind-segments__row--secondary { color: #71858b; }
 .wind-segments__label--muted { opacity: 0.6; }
 .maneuver-insights__cell--indicative { color: #526d74; font-style: italic; }
-.wind-segments__row--current { background: #e3f0f2; }
 .wind-context__info-row {
   display: flex;
   align-items: center;

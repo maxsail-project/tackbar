@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs'
 import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
+import type { ManeuverWindSector } from '../utils/maneuverWindSector'
 import ManeuverEventTable, {
   ManeuverEventRow,
   sortManeuverEvents,
@@ -66,7 +68,7 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain(`C · ${comparison} evidence`)
     expect(markup.indexOf('id="maneuver-title"')).toBeLessThan(markup.indexOf('class="maneuver-evidence"'))
     expect(markup.indexOf('class="maneuver-evidence"')).toBeLessThan(markup.indexOf('<table'))
-    expect(cellTexts(markup, 'th')).toHaveLength(10)
+    expect(cellTexts(markup, 'th')).toHaveLength(8)
     expect(cellTexts(markup, 'td').join(' ')).not.toContain('evidence')
   })
 
@@ -143,8 +145,8 @@ describe('ManeuverEventTable', () => {
     const markup = renderToStaticMarkup(<ManeuverEventTable
       events={[low, event]} primaryStatus="available" comparisonStatus="available" onSelect={onSelect}
     />)
-    expect(markup).toContain('ΔHDG −91')
-    expect(markup).toContain('ΔCOG +85')
+    expect(markup).toContain('ΔHDG −91°')
+    expect(markup).toContain('ΔCOG +85°')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity C')
     const row = ManeuverEventRow({ event: low, selected: true, onSelect })
     row.props.onClick()
@@ -161,7 +163,7 @@ describe('ManeuverEventTable', () => {
     )
 
     expect(markup).toContain('Time')
-    expect(markup).toContain('Act')
+    expect(markup).toContain('<span class="maneuver-event-table__sr-only">Activity</span>')
     expect(markup).toContain('Δ (°)')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('−91')
@@ -173,7 +175,7 @@ describe('ManeuverEventTable', () => {
     expect(markup).toContain('hidden=""')
   })
 
-  it('retains compact columns, default ASC sorting, and event actions when expanded', () => {
+  it('retains compact columns, default ascending Time sorting, and event actions when expanded', () => {
     const markup = renderToStaticMarkup(
       <ManeuverEventTable
         events={[event]}
@@ -183,40 +185,35 @@ describe('ManeuverEventTable', () => {
     )
 
     expect(markup).toContain('Time')
-    expect(markup).toContain('Act')
+    expect(markup).toContain('<span class="maneuver-event-table__sr-only">Activity</span>')
     expect(markup).toContain('\u0394 (\u00b0)')
     expect(markup).toContain('08:47:59')
     expect(markup).toContain('\u221291')
     expect(markup).toContain('Move replay to 08:47:59 UTC, Activity P')
     expect(markup).toContain('aria-sort="ascending"')
-    expect(markup).toContain('Time ASC')
+    expect(markup).toContain('Time<span class="maneuver-event-table__sort-indicator maneuver-event-table__sort-indicator--active" aria-hidden="true">▲</span>')
+    expect(markup).toContain('Loss<span class="maneuver-event-table__sort-indicator" aria-hidden="true">⇅</span>')
     expect(cellTexts(markup, 'th')).toEqual([
-      'Time ASC',
-      'Act',
-      'Loss (m)',
-      'Loss (s)',
-      'Rec (s)',
-      'SOG in',
-      'SOG min',
-      'SOG out',
+      'Activity',
+      'Time▲',
+      'Loss⇅',
+      'Rec',
+      'SOG (in/min/out)',
       'Δ (°)',
-      'Dur (s)',
+      'Dur',
+      'Sector',
     ])
     expect(cellTexts(markup, 'td')).toEqual([
-      '08:47:59',
       'P',
-      '9',
-      '3',
-      '12',
-      '5.2',
-      '3.1',
-      '5.1',
-      'ΔHDG −91',
-      '10',
+      '08:47:59',
+      '3s · 9 m',
+      '12s',
+      '5.2/3.1/5.1 kt',
+      'ΔHDG −91°',
+      '10s',
+      '—',
     ])
-    expect(markup).toMatch(
-      /maneuver-event-table__time-column.*maneuver-event-table__activity-column.*maneuver-event-table__loss-column.*span="2".*maneuver-event-table__recovery-column.*maneuver-event-table__sog-column.*span="3".*maneuver-event-table__heading-column.*maneuver-event-table__duration-column/,
-    )
+    expect(markup).not.toContain('<colgroup')
   })
 
   it('can expand and collapse again without selecting an event', () => {
@@ -378,10 +375,68 @@ describe('ManeuverEventTable', () => {
         events={[unavailable]}
         primaryStatus="available"
         onSelect={() => undefined}
+        windSectors={new Map<string, ManeuverWindSector>([[maneuverSelectionKey(unavailable), { kind: 'single', sector: 'upwind' }]])}
       />,
     )
 
+    // Six unavailable metrics (the combined Loss cell shows both parts); the available Sector reads Up, last.
     expect(cellTexts(markup, 'td').join('').match(/—/g)).toHaveLength(6)
+    expect(cellTexts(markup, 'td')[2]).toBe('— · —')
+    expect(cellTexts(markup, 'td')[7]).toBe('Up')
+  })
+
+  it('renders one combined Loss cell, time first, with partial and full unavailability', () => {
+    const withLoss = (distance: number | null, time: number | null) => ({
+      ...event, maneuver: { ...event.maneuver, speed_loss_distance_m: distance, speed_loss_time_s: time },
+    })
+    const lossCell = (markup: string) => markup.match(/<td aria-label="(Loss distance[^"]*)">([^<]*)<\/td>/)!.slice(1)
+    const render = (target: DisplayManeuver) => renderToStaticMarkup(
+      <ManeuverEventTable events={[target]} primaryStatus="available" onSelect={() => undefined} />,
+    )
+    expect(lossCell(render(withLoss(18, 8)))).toEqual(['Loss distance 18 m; equivalent Loss time 8 s', '8s · 18 m'])
+    expect(lossCell(render(withLoss(null, 8)))).toEqual(['Loss distance —; equivalent Loss time 8 s', '8s · —'])
+    expect(lossCell(render(withLoss(18, null)))).toEqual(['Loss distance 18 m; equivalent Loss time —', '— · 18 m'])
+    expect(lossCell(render(withLoss(null, null)))).toEqual(['Loss distance —; equivalent Loss time —', '— · —'])
+  })
+
+  it('renders one combined SOG cell in the Selected Maneuvers format with partial and full unavailability', () => {
+    const withSog = (entry: number | null, minimum: number | null, exit: number | null) => ({
+      ...event, maneuver: { ...event.maneuver, sog_entry_kn: entry, sog_min_kn: minimum, sog_exit_kn: exit },
+    })
+    const sogCell = (target: DisplayManeuver) => renderToStaticMarkup(
+      <ManeuverEventTable events={[target]} primaryStatus="available" onSelect={() => undefined} />,
+    ).match(/<td aria-label="(Entry SOG[^"]*)">([^<]*)<\/td>/)!.slice(1)
+    expect(sogCell(withSog(12.3, 10.5, 11.8))).toEqual(['Entry SOG 12.3 knots, Minimum SOG 10.5 knots, Exit SOG 11.8 knots', '12.3/10.5/11.8 kt'])
+    expect(sogCell(withSog(null, 4.2, null))).toEqual(['Entry SOG —, Minimum SOG 4.2 knots, Exit SOG —', '—/4.2/— kt'])
+    expect(sogCell(withSog(null, null, null))).toEqual(['Entry SOG —, Minimum SOG —, Exit SOG —', '—/—/—'])
+  })
+
+  it('shows Δ with the degree unit for HDG and COG modes and — when unavailable', () => {
+    const delta = (heading: number | null, course: number | null) => cellTexts(renderToStaticMarkup(
+      <ManeuverEventTable
+        events={[{ ...event, maneuver: { ...event.maneuver, heading_change_deg: heading, course_change_deg: course } }]}
+        primaryStatus="available" onSelect={() => undefined}
+      />,
+    ), 'td')[5]
+    expect(delta(-90.6, null)).toBe('ΔHDG −91°')
+    expect(delta(null, 85)).toBe('ΔCOG +85°')
+    expect(delta(null, null)).toBe('—')
+  })
+
+  it('keeps the P/C header untitled but named Activity, and orders the columns for mobile', () => {
+    const markup = renderToStaticMarkup(
+      <ManeuverEventTable events={[event]} primaryStatus="available" onSelect={() => undefined} />,
+    )
+    expect(markup).toContain('<th scope="col"><span class="maneuver-event-table__sr-only">Activity</span></th>')
+    expect(markup).not.toMatch(/>Act</)
+    expect(markup).not.toMatch(/Loss \((m|s)\)/)
+    expect(cellTexts(markup, 'th').slice(0, 2)).toEqual(['Activity', 'Time▲'])
+    expect(cellTexts(markup, 'td').slice(0, 2)).toEqual(['P', '08:47:59'])
+    expect(cellTexts(markup, 'th').at(-1)).toBe('Sector')
+    expect(cellTexts(markup, 'th')).toHaveLength(8)
+    expect(cellTexts(markup, 'td')).toHaveLength(8)
+    expect(cellTexts(markup, 'th').slice(3, 5)).toEqual(['Rec', 'SOG (in/min/out)'])
+    expect(markup).not.toMatch(/(Rec|Dur) \(s\)/)
   })
 
   it('shows the empty Analysis Window state for available analytics', () => {
@@ -465,4 +520,23 @@ describe('ManeuverEventTable', () => {
       expect(markup).not.toContain('No maneuvers detected')
     },
   )
+})
+
+describe('Maneuver Analysis column sizing (#211 D18)', () => {
+  it('sizes columns to content: auto layout, nowrap cells, no fixed widths or min-width', () => {
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(css).toMatch(/\.maneuver-event-table \{\s*table-layout: auto;\s*\}/)
+    expect(css).not.toMatch(/\.maneuver-event-table\s*\{[^}]*(min-width|table-layout: fixed)/)
+    expect(css).not.toMatch(/\.maneuver-event-table__[a-z]+-column/)
+    expect(css).toMatch(/\.maneuver-event-table td,\s*\.wind-segments__table th,\s*\.wind-segments__table td \{[^}]*white-space: nowrap;/)
+  })
+})
+
+describe('Maneuver Analysis loss band marker styles (#211.2)', () => {
+  it('styles bands with markers only: no cell tint or bold for High or Low loss', () => {
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+    expect(css).not.toMatch(/maneuver-loss-band--(high|low)\s*\{/)
+    expect(css).toMatch(/\.maneuver-loss-band__marker--high \{\s*background: #4f646b;\s*\}/)
+    expect(css).toMatch(/\.maneuver-loss-band__marker--low \{\s*background: transparent;\s*\}/)
+  })
 })
