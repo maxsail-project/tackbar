@@ -188,16 +188,16 @@ cannot be set, stop and report rather than using defaults.
 **Stop conditions.** Stop and report on a CI failure, failing focused tests, a diff outside
 the approved scope, an unresolved product question, a Medium finding that needs new scope
 or a product decision, or a remote `main` that has moved incompatibly. For automated
-failures, at most one focused micro-fix within the approved scope is allowed before
-stopping; no retry loops.
+failures, one focused micro-fix per automated failure (each distinct failing CI run or
+failing focused-test result) is allowed within the approved scope; stop if the micro-fix
+does not resolve that failure. Never retry in a loop on the same failure.
 
-**Branches.** Simple increments go directly to `main`. Complex work uses a `feature/…` or
-`fix/…` branch with one of two valid flows: (a) a draft pull request from the first push,
-merged through the pull request; or (b) branch push CI without a pull request, then a
-local merge to `main` and push. In both, merge only when the last run on the branch or
-pull request, including the quality gate, has passed, then verify the run on `main`.
-When a pull request is open, both the push and the pull-request runs may appear; both
-are acceptable.
+**Branches.** Simple increments go directly to `main`. Complex work (several increments
+or days) uses a `feature/…` or `fix/…` branch with push CI during the increments. Once
+all increments are validated, open a new pull request only to merge the validated work;
+never reopen a closed one. Merge through the pull request only after its run, including
+the quality gate, has passed, then verify the run on `main`. The merged branch is
+deleted automatically.
 
 **Release identity.** By default one continuous-mode Issue produces one patch release:
 the latest published `v0.<family>.<patch>` tag plus one patch. The current family is
