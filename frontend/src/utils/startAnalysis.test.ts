@@ -52,6 +52,7 @@ describe('START ANALYSIS configuration (#38.1, #38.2)', () => {
       offsetSampleToleranceSeconds: 1,
       shortTimingThresholdSeconds: 180,
       lineBiasSquareBelowDegrees: 0.5,
+      upwindLeadLevelBelowMeters: 1,
       detailOffsetsSeconds: [-15, -5, 0, 5, 15],
       detailIndicators: [
         { id: 'sog', label: 'SOG', unit: 'kt', format: 'fixed1' },
@@ -59,7 +60,7 @@ describe('START ANALYSIS configuration (#38.1, #38.2)', () => {
         { id: 'hdg', label: 'HDG', unit: '°', format: 'direction', onlyWhenRecorded: true },
         { id: 'cog', label: 'COG', unit: '°', format: 'direction' },
         { id: 'heel', label: 'Heel', unit: '°', format: 'integer' },
-        { id: 'windwardGap', label: 'Windward P–C', unit: 'm', format: 'signedInteger' },
+        { id: 'windwardGap', label: 'Upwind lead', unit: 'm', format: 'upwindLead' },
       ],
     })
   })
@@ -306,7 +307,7 @@ describe('start detailed table (#38.2, D3, D10, D17–D19)', () => {
     expectValues(values(table, 'heel', 'primary'), [3.75, 1.25, 0, -1.25, -3.75])
   })
 
-  it('adds C rows below P rows and one Windward P–C row with a Comparison', () => {
+  it('adds C rows below P rows and one Upwind lead row with a Comparison', () => {
     const table = detail(primary, comparison, { twd: 0 })
     expect(rowIds(table)).toEqual([
       'sog:primary', 'sog:comparison', 'distance:primary', 'distance:comparison', 'hdg:primary', 'hdg:comparison',
@@ -354,7 +355,7 @@ describe('start detailed table (#38.2, D3, D10, D17–D19)', () => {
     expectValues(values(detail(gapped(-25, 15), undefined, { config: wide }), 'sog', 'primary'), [2.5, null, null, 6.5, 6.5])
   })
 
-  it('needs both boats\' samples for Windward P–C and reads Dist as unavailable without a start line', () => {
+  it('needs both boats\' samples for Upwind lead and reads Dist as unavailable without a start line', () => {
     const partial = comparison.filter((sample) => secondsOf(sample) < 4)
     const pair = values(detail(primary, partial, { twd: 0 }), 'windwardGap', 'pair')
     expect(pair.slice(0, 3).every((value) => value !== null)).toBe(true)

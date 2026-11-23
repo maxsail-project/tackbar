@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { act } from 'react'
+import { readFileSync } from 'node:fs'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
+import { ACTIVITY_COLORS } from '../config/activityColors'
 import { START_ANALYSIS_CONFIG } from '../config/startAnalysis'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { UNAVAILABLE_START_METRICS, type StartAnalysisRow, type StartDetailTable } from '../utils/startAnalysis'
@@ -16,6 +18,7 @@ import StartAnalysisSection, {
   formatStartLinePercent,
   formatStartOffset,
   formatStartTimingNote,
+  formatStartUpwindLead,
 } from './StartAnalysisSection'
 
 const offsetsSeconds = START_ANALYSIS_CONFIG.detailOffsetsSeconds
@@ -105,10 +108,10 @@ describe('START ANALYSIS line bias presentation (#38 D20)', () => {
     lengthMeters: 286.6, wind: { source, biasDegrees: favouredEnd === 'pin' ? -7.6 : 0.2, favouredEnd, advantageMeters: 37.9 },
   })
 
-  it('shows the favoured end on the Line scale, Square, or `—` without line or TWD', () => {
+  it('shows the favoured end by name, Square, or `—` without line or TWD', () => {
     expect([wind('pin'), wind('boat'), wind('square'), { lengthMeters: 286.6, wind: null }, null].map((line) => formatStartFavoured(line).text))
-      .toEqual(['0%', '100%', 'Square', '—', '—'])
-    expect(formatStartFavoured(wind('pin')).ariaLabel).toBe('Favoured end PIN, 0 percent of the line')
+      .toEqual(['PIN', 'BOAT', 'Square', '—', '—'])
+    expect(formatStartFavoured(wind('pin')).ariaLabel).toBe('Favoured end PIN')
   })
 
   it('extends the detailed heading with the line length, bias and wind source when available', () => {
@@ -117,6 +120,23 @@ describe('START ANALYSIS line bias presentation (#38 D20)', () => {
     expect(heading(wind('square', 'manual'))).toBe('S2 10:00:00 UTC · Line 287 m · Square · TWD Manual · Viewer')
     expect(heading({ lengthMeters: 286.6, wind: null })).toBe('S2 10:00:00 UTC · Line 287 m')
     expect(heading(null)).toBe('S2 10:00:00 UTC')
+  })
+})
+
+describe('START ANALYSIS upwind lead (#38 D21)', () => {
+  it('uses the unrounded gap for Level and names the leader at the 1 m boundary', () => {
+    expect([-8.4, -1, -0.99, 0, 0.99, 1, 8.4, null].map((gap) => formatStartUpwindLead(gap).text))
+      .toEqual(['C 8', 'C 1', 'Level', 'Level', 'Level', 'P 1', 'P 8', '—'])
+  })
+})
+
+describe('START ANALYSIS table alignment (#38 D22)', () => {
+  it('centres only Start table headers and values, with detailed indicator labels left aligned', () => {
+    const css = readFileSync('src/styles.css', 'utf8')
+    const startRules = css.slice(css.indexOf('/* #38 START ANALYSIS:'), css.indexOf('.wind-metric-table {'))
+    expect(startRules).toMatch(/\.start-analysis-table th,\s*\.start-analysis-table td\s*\{[^}]*text-align: center/s)
+    expect(startRules).toMatch(/\.start-analysis-table--detail th\.start-analysis-table__indicator\s*\{[^}]*text-align: left/s)
+    expect(startRules).not.toMatch(/start-analysis-table__number\s*\{\s*text-align: right/)
   })
 })
 
@@ -146,9 +166,9 @@ describe('StartAnalysisSection (#38.1)', () => {
     expect(groups.map((group) => group.getAttribute('data-start-analysis-row'))).toEqual(['S1', 'S2'])
     const [p1, c1] = groups[0].querySelectorAll('tr')
     expect([p1, c1].map((row) => row.getAttribute('data-start-analysis-role'))).toEqual(['primary', 'comparison'])
-    expect(cells(p1)).toEqual(['P', 'S110:00:00', '+2.5s · 5.3 kt', '+5.0 m', '50%', '100%', '⚠ Ends +1m24s'])
+    expect(cells(p1)).toEqual(['P', 'S110:00:00', '+2.5s · 5.3 kt', '+5.0 m', '50%', 'BOAT', '⚠ Ends +1m24s'])
     const favoured = p1.querySelector('[data-start-analysis-value="favoured"]')!
-    expect([favoured.getAttribute('rowspan'), favoured.getAttribute('aria-label')]).toEqual(['2', 'Favoured end BOAT, 100 percent of the line'])
+    expect([favoured.getAttribute('rowspan'), favoured.getAttribute('aria-label')]).toEqual(['2', 'Favoured end BOAT'])
     expect(cells(c1)).toEqual(['C', '−1.5s · —', '−4.5 m', '−15%'])
     const startButton = p1.querySelector('button')!
     expect([startButton.querySelector('.start-analysis-table__start-label')!.textContent, startButton.querySelector('.start-analysis-table__start-time')!.textContent])
@@ -283,10 +303,10 @@ describe('Start detailed table (#38.2)', () => {
     expect([2.46, -6, 0.04].map((value) => formatStartDetailValue(value, 'signed1'))).toEqual(['+2.5', '−6.0', '0.0'])
     expect([359.6, 359.4, 0.4, -1].map((value) => formatStartDetailValue(value, 'direction'))).toEqual(['0', '359', '0', '359'])
     expect([-12.6, 8.4, 80.6].map((value) => formatStartDetailValue(value, 'integer'))).toEqual(['−13', '8', '81'])
-    expect([12.4, -3.6, 0.3, -0.4].map((value) => formatStartDetailValue(value, 'signedInteger'))).toEqual(['+12', '−4', '0', '0'])
+    expect([12.4, -3.6, 0.3, -0.4, null].map((value) => formatStartDetailValue(value, 'upwindLead'))).toEqual(['P 12', 'C 4', 'Level', 'Level', '—'])
   })
 
-  it('has indicator, untitled P/C and offset headers, P/C rows per indicator and one unmarked Windward P–C row', async () => {
+  it('has indicator, untitled P/C and offset headers, P/C rows per indicator and one upwind lead row', async () => {
     const { table, unmount } = await selectedDetail(rows)
     expect([...table.querySelectorAll('thead th')].map((header) => header.textContent))
       .toEqual(['Indicator', 'Activity', '−15s', '−5s', '0s', '+5s', '+15s'])
@@ -302,16 +322,26 @@ describe('Start detailed table (#38.2)', () => {
     expect(texts[2]).toEqual([['HDG (°)', 'P', ...series(null).map(() => '—')], ['C', ...series(null).map(() => '0')]])
     expect(texts[3]).toEqual([['COG (°)', 'P', ...series(null).map(() => '359')], ['C', ...series(null).map(() => '0')]])
     expect(texts[4]).toEqual([['Heel (°)', 'P', ...series(null).map(() => '−13')], ['C', ...series(null).map(() => '8')]])
-    expect(texts[5]).toEqual([['Windward P–C (m)', '', '+12', '−4', '0', '0', '—']])
+    expect(texts[5]).toEqual([['Upwind lead (m)', '', 'P 12', 'C 4', 'Level', 'Level', '—']])
     expect(groups[0].querySelector('th')!.getAttribute('rowspan')).toBe('2')
     expect(groups[5].querySelector('th')!.getAttribute('rowspan')).toBe('1')
     expect(groups[0].querySelector('[data-start-detail-role="comparison"] td')!.getAttribute('style')).toContain('color')
     expect(groups[5].querySelector('td')!.getAttribute('style')).toBeNull()
     expect(table.querySelectorAll('td.start-analysis-table__number[style], strong, b')).toHaveLength(0)
+    const leadCells = groups[5].querySelectorAll('td.start-analysis-table__number')
+    expect([...leadCells].map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'P 12 metres further upwind', 'C 4 metres further upwind', 'Level upwind', 'Level upwind', 'Upwind lead unavailable',
+    ])
+    for (const [index, role] of [[0, 'primary'], [1, 'comparison']] as const) {
+      const expected = document.createElement('span')
+      expected.style.color = ACTIVITY_COLORS[role]
+      expect((leadCells[index].querySelector('span') as HTMLElement).style.color).toBe(expected.style.color)
+    }
+    expect([...leadCells].slice(2).every((cell) => cell.querySelector('span') === null)).toBe(true)
     await unmount()
   })
 
-  it('has P rows only and no Windward P–C row without a Comparison', async () => {
+  it('has P rows only and no upwind lead row without a Comparison', async () => {
     const { table, unmount } = await selectedDetail(rows.map(withoutComparison))
     expect([...table.querySelectorAll('tbody tr')].map((row) => row.getAttribute('data-start-detail-role'))).toEqual(Array(5).fill('primary'))
     expect(table.querySelector('[data-start-detail-indicator="windwardGap"]')).toBeNull()

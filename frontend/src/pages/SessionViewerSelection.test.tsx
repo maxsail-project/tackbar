@@ -909,7 +909,7 @@ describe('Viewer selected maneuver interactions', () => {
       expect(container.querySelector('[data-window]')!.getAttribute('data-playing')).toBe('false')
       expect(section()!.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('true')
       expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')!.value).toBe('b')
-      // #38.2: the detailed table of the selected Start, P and C rows per indicator and one Windward P–C row.
+      // #38.2/D21: the detailed table has P and C rows per indicator and one Upwind lead row.
       const detail = section()!.querySelector('table[aria-label="S1 details around the gun"]')!
       const detailCells = (selector: string) => [...detail.querySelector(selector)!.children].map((cell) => cell.textContent)
       expect(detailCells('[data-start-detail-indicator="distance"] [data-start-detail-role="primary"]'))
@@ -920,11 +920,11 @@ describe('Viewer selected maneuver interactions', () => {
       await click('[data-twd-gesture]')
       const windward = () => [...section()!.querySelector('table[aria-label="S1 details around the gun"] [data-start-detail-role="pair"]')!.children]
         .map((cell) => cell.textContent)
-      expect(windward()).toEqual(['Windward P–C (m)', '', '−1', '−11', '−16', '−21', '−31'])
-      // #38 D20: the 200 m line, backed 5° from square, favours PIN; the summary Fav reads 0%.
+      expect(windward()).toEqual(['Upwind lead (m)', '', 'C 1', 'C 11', 'C 16', 'C 21', 'C 31'])
+      // #38 D20/D23: the 200 m line, backed 5° from square, favours PIN; Fav names that end.
       expect(section()!.querySelector('[data-start-analysis-detail] h3')!.textContent)
         .toBe('S1 10:00:30 UTC · Line 200 m · PIN +5° (17 m) · TWD Manual · Viewer')
-      expect(section()!.querySelector('[data-start-analysis-value="favoured"]')!.textContent).toBe('0%')
+      expect(section()!.querySelector('[data-start-analysis-value="favoured"]')!.textContent).toBe('PIN')
     })
 
     it.each(['original', 'temporary'] as const)('follows the Analysis Window and clears a Start leaving it on %s access (#38 D15)', async (accessKind) => {

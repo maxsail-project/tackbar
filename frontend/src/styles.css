@@ -3825,21 +3825,20 @@ input:focus-visible {
 }
 .wind-segments__row--secondary { color: #71858b; }
 .wind-segments__label--muted { opacity: 0.6; }
-/* #38.1 START ANALYSIS summary: shares the Maneuver Analysis table rules; Start and Note span the P/C rows of a Start. */
+/* #38 START ANALYSIS: keep Maneuver table typography and centre both tables like the Analysis Window Summary (D22). */
 .start-analysis-table { table-layout: auto; }
 .start-analysis-table th,
 .start-analysis-table td {
   padding-right: 6px;
   padding-left: 6px;
   vertical-align: middle;
+  text-align: center;
 }
 .start-analysis-table th:first-child,
 .start-analysis-table td.start-analysis-table__activity {
   font-weight: 900;
   text-align: center;
 }
-.start-analysis-table th.start-analysis-table__number,
-.start-analysis-table td.start-analysis-table__number { text-align: right; }
 .start-analysis-table__row { cursor: pointer; }
 .start-analysis-table__start:hover { background: #f7fafb; }
 .start-analysis-table__start--selected,

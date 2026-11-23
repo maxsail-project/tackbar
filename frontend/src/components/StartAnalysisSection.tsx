@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
-import type { StartDetailFormat } from '../config/startAnalysis'
+import { START_ANALYSIS_CONFIG, type StartDetailFormat } from '../config/startAnalysis'
 import { formatFixed, formatRounded, formatSog, withTypographicMinus } from '../utils/numberFormat'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { formatGpsTime } from '../utils/replay'
@@ -25,12 +25,6 @@ function formatSignedOneDecimal(value: number | null) {
   if (value === null) return '—'
   const text = formatFixed(value, 1)
   return value > 0 && text !== '0.0' ? `+${text}` : text
-}
-
-/** Signed integer (`+12`, `−3`); a value that rounds to zero stays unsigned. */
-function formatSignedInteger(value: number) {
-  const text = formatRounded(value)
-  return value > 0 && text !== '0' ? `+${text}` : text
 }
 
 /** #38 D16 Cross: signed compact seconds and the recorded SOG at the crossing (`+7.4s · 4.6 kt`); `—` without a crossing. */
@@ -72,14 +66,14 @@ function startSummaryCells(metrics: StartActivityMetrics) {
   ]
 }
 
-/** #38 D20 Fav: the favoured end on the Line scale (`0%` PIN, `100%` BOAT), `Square`, `—` without line or TWD. */
+/** #38 D23 Fav: the favoured end by name, `Square`, or `—` without line or TWD. */
 export function formatStartFavoured(line: StartLineBias | null) {
   const end = line?.wind?.favouredEnd
   if (end === undefined) return { text: '—', ariaLabel: 'Favoured end unavailable' }
   if (end === 'square') return { text: 'Square', ariaLabel: 'Line square to the wind' }
   return end === 'pin'
-    ? { text: '0%', ariaLabel: 'Favoured end PIN, 0 percent of the line' }
-    : { text: '100%', ariaLabel: 'Favoured end BOAT, 100 percent of the line' }
+    ? { text: 'PIN', ariaLabel: 'Favoured end PIN' }
+    : { text: 'BOAT', ariaLabel: 'Favoured end BOAT' }
 }
 
 /**
@@ -114,6 +108,17 @@ export function formatStartOffset(seconds: number) {
   return `${seconds > 0 ? `+${seconds}` : withTypographicMinus(String(seconds))}s`
 }
 
+/** #38 D21: the existing #192 along-axis sign identifies the upwind leader. */
+export function formatStartUpwindLead(alongMeters: number | null) {
+  if (alongMeters === null) return { text: '—', ariaLabel: 'Upwind lead unavailable', leader: null }
+  if (Math.abs(alongMeters) < START_ANALYSIS_CONFIG.upwindLeadLevelBelowMeters) {
+    return { text: 'Level', ariaLabel: 'Level upwind', leader: null }
+  }
+  const leader = alongMeters > 0 ? 'P' : 'C'
+  const metres = formatRounded(Math.abs(alongMeters))
+  return { text: `${leader} ${metres}`, ariaLabel: `${leader} ${metres} metres further upwind`, leader }
+}
+
 /** Detailed-table value in its configured format (#38 D3); `—` when unavailable. */
 export function formatStartDetailValue(value: number | null, format: StartDetailFormat) {
   if (value === null) return '—'
@@ -122,7 +127,7 @@ export function formatStartDetailValue(value: number | null, format: StartDetail
     case 'signed1': return formatSignedOneDecimal(value)
     case 'direction': return String(((Math.round(value) % 360) + 360) % 360)
     case 'integer': return formatRounded(value)
-    case 'signedInteger': return formatSignedInteger(value)
+    case 'upwindLead': return formatStartUpwindLead(value).text
   }
 }
 
@@ -134,7 +139,7 @@ function startKey(row: Pick<StartAnalysisRow, 'label' | 'time'>) {
   return `${row.label}:${row.time}`
 }
 
-/** Consecutive rows of the same indicator: P then C, or the single P–C row. */
+/** Consecutive rows of the same indicator: P then C, or the single upwind-lead row. */
 function groupDetailRows(rows: readonly StartDetailRow[]) {
   const groups: StartDetailRow[][] = []
   rows.forEach((row) => {
@@ -175,11 +180,16 @@ function StartDetailTable({ row }: { row: StartAnalysisRow }) {
                     {detailRow.role === 'pair'
                       ? <td className="start-analysis-table__activity" />
                       : <td className="start-analysis-table__activity" style={{ color: ACTIVITY_COLORS[detailRow.role] }}>{roleLabel(detailRow.role)}</td>}
-                    {detailRow.values.map((value, offsetIndex) => (
-                      <td key={row.detail.offsetsSeconds[offsetIndex]} className="start-analysis-table__number">
-                        {formatStartDetailValue(value, indicator.format)}
-                      </td>
-                    ))}
+                    {detailRow.values.map((value, offsetIndex) => {
+                      const lead = indicator.format === 'upwindLead' ? formatStartUpwindLead(value) : null
+                      return (
+                        <td key={row.detail.offsetsSeconds[offsetIndex]} className="start-analysis-table__number" aria-label={lead?.ariaLabel}>
+                          {lead?.leader
+                            ? <><span style={{ color: ACTIVITY_COLORS[lead.leader === 'P' ? 'primary' : 'comparison'] }}>{lead.leader}</span> {lead.text.slice(2)}</>
+                            : lead?.text ?? formatStartDetailValue(value, indicator.format)}
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))}
               </tbody>

@@ -7,9 +7,9 @@ export type StartDetailIndicatorId = 'sog' | 'distance' | 'hdg' | 'cog' | 'heel'
 /**
  * Display format of a detailed-table value: `fixed1` one decimal, `signed1` one decimal with an
  * explicit `+`, `direction` integer degrees in 0–359, `integer` rounded and signed as stored,
- * `signedInteger` rounded with an explicit `+`.
+ * `upwindLead` names the boat further to windward or Level (#38 D21).
  */
-export type StartDetailFormat = 'fixed1' | 'signed1' | 'direction' | 'integer' | 'signedInteger'
+export type StartDetailFormat = 'fixed1' | 'signed1' | 'direction' | 'integer' | 'upwindLead'
 
 /** One row (P, C or the single P–C row) of the Start detailed table (#38 D3). */
 export interface StartDetailIndicator {
@@ -25,7 +25,7 @@ export interface StartDetailIndicator {
 }
 
 /**
- * START ANALYSIS derivation constants (Issue #38, increments #38.1–#38.3, D17–D20). Configurable
+ * START ANALYSIS derivation constants (Issue #38, increments #38.1–#38.3, D17–D21). Configurable
  * presentation constants of the Viewer, not validated sailing standards.
  */
 export const START_ANALYSIS_CONFIG = {
@@ -46,6 +46,8 @@ export const START_ANALYSIS_CONFIG = {
   shortTimingThresholdSeconds: 180,
   /** A line bias whose magnitude rounds to 0° (below this many degrees) reads Square (#38 D20). */
   lineBiasSquareBelowDegrees: 0.5,
+  /** A smaller absolute along-axis gap reads Level upwind (#38 D21). */
+  upwindLeadLevelBelowMeters: 1,
   /** Detailed-table columns: seconds from the gun, in display order (#38 D17). */
   detailOffsetsSeconds: [-15, -5, 0, 5, 15] as readonly number[],
   /**
@@ -59,7 +61,7 @@ export const START_ANALYSIS_CONFIG = {
     { id: 'hdg', label: 'HDG', unit: '°', format: 'direction', onlyWhenRecorded: true },
     { id: 'cog', label: 'COG', unit: '°', format: 'direction' },
     { id: 'heel', label: 'Heel', unit: '°', format: 'integer' },
-    { id: 'windwardGap', label: 'Windward P–C', unit: 'm', format: 'signedInteger' },
+    { id: 'windwardGap', label: 'Upwind lead', unit: 'm', format: 'upwindLead' },
   ] as readonly StartDetailIndicator[],
 }
 
