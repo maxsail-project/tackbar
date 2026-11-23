@@ -7,8 +7,9 @@ import {
 import type { TrackSample } from '../types/track'
 import { isTrackGapInterval } from './trackGaps'
 import type { InferredSessionRace } from './sessionRaces'
-import { distanceMeters, type SessionStartLine } from './sessionStartLines'
+import type { SessionStartLine } from './sessionStartLines'
 import type { InferredSessionStart } from './sessionStarts'
+import { gapAt } from './windProgress'
 
 /** Same spherical radius as the start-line inference helpers. */
 const METERS_PER_DEGREE = 6_371_000 * Math.PI / 180
@@ -38,7 +39,7 @@ export interface StartAnalysisRow {
   detail: StartDetailTable
 }
 
-/** Role of one detailed-table row: an Activity (P or C) or the single P–C distance-between-boats row. */
+/** Role of one detailed-table row: an Activity (P or C) or the single Windward P–C row. */
 export type StartDetailRole = 'primary' | 'comparison' | 'pair'
 
 /** One detailed-table row; `values` follow the configured offsets, `null` is unavailable. */
@@ -276,7 +277,7 @@ export function startOffsetSampleIndex(
 
 type StartDetailReader =
   | { kind: 'activity', read: (sample: StartSample, frame: StartLineFrame | null, config: StartAnalysisConfig) => number | null }
-  | { kind: 'pair', read: (primary: StartSample, comparison: StartSample) => number | null }
+  | { kind: 'pair', read: (primary: StartSample, comparison: StartSample, twdDegrees: number | null, time: number) => number | null }
 
 /** Derivation of each configured indicator from the recorded sample(s) at one offset (#38 D3). */
 const START_DETAIL_READERS: Record<StartDetailIndicatorId, StartDetailReader> = {
@@ -292,20 +293,29 @@ const START_DETAIL_READERS: Record<StartDetailIndicatorId, StartDetailReader> = 
   hdg: { kind: 'activity', read: (sample) => sample.hdg },
   cog: { kind: 'activity', read: (sample) => sample.cog },
   heel: { kind: 'activity', read: (sample) => sample.heel },
-  // Distance between the two boats' recorded positions, each at its own sample for that offset.
-  boatDistance: { kind: 'pair', read: (primary, comparison) => distanceMeters(primary, comparison) },
+  // #38 D19: P minus C along the effective TWD axis with the #192 gap definition and sign (positive
+  // when P is further to windward), each boat at its own sample for that offset; no fallback axis.
+  windwardGap: {
+    kind: 'pair',
+    read: (primary, comparison, twdDegrees, time) => twdDegrees === null
+      ? null
+      : gapAt(time, primary, comparison, twdDegrees).alongMeters,
+  },
 }
 
 /**
  * #38.2 detailed table of one Start: per configured indicator a P row and, when a Comparison is
- * selected (`comparison` not `undefined`), a C row; pair indicators (P–C) give one row only with a
- * Comparison and need both samples. A track not loaded (`null`) reads unavailable.
+ * selected (`comparison` not `undefined`), a C row; pair indicators (Windward P–C) give one row only
+ * with a Comparison and need both samples and the effective TWD (`twdDegrees`). An indicator marked
+ * `onlyWhenRecorded` is omitted unless a selected Activity records it somewhere in its canonical
+ * track (#38 D18). A track not loaded (`null`) reads unavailable.
  */
 export function deriveStartDetailTable(
   primary: readonly StartSample[] | null,
   comparison: readonly StartSample[] | null | undefined,
   frame: StartLineFrame | null,
   gun: number,
+  twdDegrees: number | null = null,
   config: StartAnalysisConfig = START_ANALYSIS_CONFIG,
 ): StartDetailTable {
   const offsetsSeconds = config.detailOffsetsSeconds
@@ -321,10 +331,12 @@ export function deriveStartDetailTable(
       if (comparisonAt === null) return []
       const values = primaryAt.map((sample, index) => {
         const other = comparisonAt[index]
-        return sample && other ? reader.read(sample, other) : null
+        return sample && other ? reader.read(sample, other, twdDegrees, gun + offsetsSeconds[index] * 1_000) : null
       })
       return [{ indicator, role: 'pair', values }]
     }
+    const recorded = (samples: readonly StartSample[] | null | undefined) => samples?.some((sample) => reader.read(sample, frame, config) !== null) ?? false
+    if (indicator.onlyWhenRecorded && !recorded(primary) && !recorded(comparison)) return []
     const values = (samples: (StartSample | null)[]) => samples.map((sample) => sample ? reader.read(sample, frame, config) : null)
     return [
       { indicator, role: 'primary', values: values(primaryAt) },
@@ -345,6 +357,8 @@ export function deriveStartAnalysisRows(
   races: readonly Pick<InferredSessionRace, 'startTime' | 'endTime'>[],
   primarySamples: readonly TrackSample[] | null,
   comparisonSamples?: readonly TrackSample[] | null,
+  /** Effective TWD degrees of the Points of Sail section for the Windward P–C row (#38 D19), or null. */
+  twdDegrees: number | null = null,
   config: StartAnalysisConfig = START_ANALYSIS_CONFIG,
 ): StartAnalysisRow[] {
   const primary = primarySamples ? prepareStartSamples(primarySamples) : null
@@ -360,7 +374,7 @@ export function deriveStartAnalysisRows(
       shortTimingMs: startShortTimingMs(start, races, config),
       primary: metrics(primary),
       comparison: comparisonSamples === undefined ? null : metrics(comparison),
-      detail: deriveStartDetailTable(primary, comparisonSamples === undefined ? undefined : comparison, frame, start.time, config),
+      detail: deriveStartDetailTable(primary, comparisonSamples === undefined ? undefined : comparison, frame, start.time, twdDegrees, config),
     }
   })
 }

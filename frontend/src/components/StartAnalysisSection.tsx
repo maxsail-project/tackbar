@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { StartDetailFormat } from '../config/startAnalysis'
-import { formatFixed, formatRounded, formatSogNumber, withTypographicMinus } from '../utils/numberFormat'
+import { formatFixed, formatRounded, formatSog, withTypographicMinus } from '../utils/numberFormat'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { formatGpsTime } from '../utils/replay'
 import { sessionStartsInWindow } from '../utils/sessionStarts'
@@ -26,27 +26,62 @@ function formatSignedOneDecimal(value: number | null) {
   return value > 0 && text !== '0.0' ? `+${text}` : text
 }
 
-export function formatStartCross(value: number | null) {
-  return formatSignedOneDecimal(value)
+/** Signed integer (`+12`, `−3`); a value that rounds to zero stays unsigned. */
+function formatSignedInteger(value: number) {
+  const text = formatRounded(value)
+  return value > 0 && text !== '0' ? `+${text}` : text
 }
 
+/** #38 D16 Cross: signed compact seconds and the recorded SOG at the crossing (`+7.4s · 4.6 kt`); `—` without a crossing. */
+export function formatStartCross(seconds: number | null, sogKnots: number | null) {
+  return seconds === null ? '—' : `${formatSignedOneDecimal(seconds)}s · ${formatSog(sogKnots)}`
+}
+
+/** #38 D16 Dist at the gun with its unit (`+15.8 m`). */
 export function formatStartDistance(value: number | null) {
-  return formatSignedOneDecimal(value)
+  return value === null ? '—' : `${formatSignedOneDecimal(value)} m`
 }
 
+/** #38 D16 Line position with its unit (`87%`, may be below 0 or above 100). */
 export function formatStartLinePercent(value: number | null) {
-  return value === null ? '—' : formatRounded(value)
+  return value === null ? '—' : `${formatRounded(value)}%`
 }
+
+/** Summary value cells with accessible names spelling the units (#204). */
+function startSummaryCells(metrics: StartActivityMetrics) {
+  const { crossSeconds, sogCrossKnots, distanceAtGunMeters, linePercent } = metrics
+  return [
+    {
+      key: 'cross',
+      text: formatStartCross(crossSeconds, sogCrossKnots),
+      ariaLabel: crossSeconds === null
+        ? 'Cross unavailable'
+        : `Cross ${formatSignedOneDecimal(crossSeconds)} seconds, SOG ${sogCrossKnots === null ? 'unavailable' : `${formatFixed(sogCrossKnots, 1)} knots`}`,
+    },
+    {
+      key: 'distance',
+      text: formatStartDistance(distanceAtGunMeters),
+      ariaLabel: `Distance to the line at the gun ${distanceAtGunMeters === null ? 'unavailable' : `${formatSignedOneDecimal(distanceAtGunMeters)} metres`}`,
+    },
+    {
+      key: 'line',
+      text: formatStartLinePercent(linePercent),
+      ariaLabel: `Line position at the gun ${linePercent === null ? 'unavailable' : `${formatRounded(linePercent)} percent`}`,
+    },
+  ]
+}
+
+export const START_SUMMARY_HELP_TEXT = 'Cross: time and SOG when crossing the line · Dist, Line: position at the gun'
 
 /** #38 D8: the fact only, in the Viewer compact duration format (e.g. `⚠ Ends +1m24s`). */
 export function formatStartTimingNote(shortTimingMs: number | null) {
   return shortTimingMs === null ? '' : `⚠ Ends +${formatAnalysisWindowDuration(shortTimingMs)}`
 }
 
-/** Offset column label: `−20` … `+20`, `0` for the gun (#38 D4). */
+/** Offset column label in compact seconds: `−15s` … `+15s`, `0s` for the gun (#38 D17). */
 export function formatStartOffset(seconds: number) {
-  if (seconds === 0) return '0'
-  return seconds > 0 ? `+${seconds}` : withTypographicMinus(String(seconds))
+  if (seconds === 0) return '0s'
+  return `${seconds > 0 ? `+${seconds}` : withTypographicMinus(String(seconds))}s`
 }
 
 /** Detailed-table value in its configured format (#38 D3); `—` when unavailable. */
@@ -57,6 +92,7 @@ export function formatStartDetailValue(value: number | null, format: StartDetail
     case 'signed1': return formatSignedOneDecimal(value)
     case 'direction': return String(((Math.round(value) % 360) + 360) % 360)
     case 'integer': return formatRounded(value)
+    case 'signedInteger': return formatSignedInteger(value)
   }
 }
 
@@ -84,7 +120,7 @@ function StartDetailTable({ row }: { row: StartAnalysisRow }) {
   const time = formatGpsTime(row.time)
   return (
     <div className="start-analysis-detail" data-start-analysis-detail={row.label}>
-      <h3 className="start-analysis-detail__title">{row.label} {time} UTC · seconds from the gun</h3>
+      <h3 className="start-analysis-detail__title">{row.label} {time} UTC</h3>
       <div className="maneuver-event-table-wrap">
         <table className="start-analysis-table start-analysis-table--detail" aria-label={`${row.label} details around the gun`}>
           <thead>
@@ -135,6 +171,8 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
   // #38 D15: same window rule as the SOG timeline Start labels; values stay full-track derived.
   const windowRows = analysisWindow === null ? [] : sessionStartsInWindow(rows, analysisWindow)
   const selectedRow = windowRows.find((row) => startKey(row) === selectedKey)
+  // #38 D16: the Note column only when a visible Start has a note.
+  const showNote = windowRows.some((row) => row.shortTimingMs !== null)
   const selectionLeftWindow = selectedKey !== null && selectedRow === undefined
   useEffect(() => {
     // A selected Start that leaves the Analysis Window is deselected (#38 D15).
@@ -159,6 +197,7 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
 
       <div id={contentId} hidden={!expanded}>
         <p className="wind-context__note" data-start-analysis-caption>Starts inferred from race timer · times UTC</p>
+        {windowRows.length > 0 && <p className="wind-context__note" data-start-analysis-help>{START_SUMMARY_HELP_TEXT}</p>}
         {windowRows.length === 0 ? (
           <p className="maneuver-empty" data-start-analysis-empty>{NO_START_IN_WINDOW_TEXT}</p>
         ) : (
@@ -168,11 +207,10 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
                 <tr>
                   <th scope="col"><span className="maneuver-event-table__sr-only">Activity</span></th>
                   <th scope="col">Start</th>
-                  <th scope="col" className="start-analysis-table__number">Cross (s)</th>
-                  <th scope="col" className="start-analysis-table__number">Dist at gun (m)</th>
-                  <th scope="col" className="start-analysis-table__number">Line (%)</th>
-                  <th scope="col" className="start-analysis-table__number">SOG cross (kt)</th>
-                  <th scope="col">Note</th>
+                  <th scope="col" className="start-analysis-table__number">Cross</th>
+                  <th scope="col" className="start-analysis-table__number">Dist</th>
+                  <th scope="col" className="start-analysis-table__number">Line</th>
+                  {showNote && <th scope="col">Note</th>}
                 </tr>
               </thead>
               {windowRows.map((row) => {
@@ -204,15 +242,17 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
                               aria-pressed={selected}
                               aria-label={`Move replay to ${row.label} gun at ${time} UTC, inferred from race timer`}
                             >
-                              {row.label} {time}
+                              <span className="start-analysis-table__start-label">{row.label}</span>
+                              <span className="start-analysis-table__start-time">{time}</span>
                             </button>
                           </td>
                         )}
-                        <td className="start-analysis-table__number" data-start-analysis-value="cross">{formatStartCross(metrics.crossSeconds)}</td>
-                        <td className="start-analysis-table__number" data-start-analysis-value="distance">{formatStartDistance(metrics.distanceAtGunMeters)}</td>
-                        <td className="start-analysis-table__number" data-start-analysis-value="line">{formatStartLinePercent(metrics.linePercent)}</td>
-                        <td className="start-analysis-table__number" data-start-analysis-value="sog">{formatSogNumber(metrics.sogCrossKnots)}</td>
-                        {index === 0 && (
+                        {startSummaryCells(metrics).map((cell) => (
+                          <td key={cell.key} className="start-analysis-table__number" data-start-analysis-value={cell.key} aria-label={cell.ariaLabel}>
+                            {cell.text}
+                          </td>
+                        ))}
+                        {showNote && index === 0 && (
                           <td rowSpan={roles.length} data-start-analysis-value="note">{formatStartTimingNote(row.shortTimingMs)}</td>
                         )}
                       </tr>

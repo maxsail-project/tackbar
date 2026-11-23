@@ -598,17 +598,6 @@ export function SessionViewer({
     && comparisonTrackState.status === 'ready'
     ? comparisonTrackState.track
     : null
-  // START ANALYSIS summary (#38.1): every inferred Start over the full canonical P/C tracks.
-  const startAnalysisRows = useMemo(
-    () => deriveStartAnalysisRows(
-      sessionStarts,
-      sessionStartLines,
-      sessionRaces,
-      primaryTrack?.samples ?? null,
-      comparisonActivityId === null ? undefined : comparisonTrack?.samples ?? null,
-    ),
-    [comparisonActivityId, comparisonTrack, primaryTrack, sessionRaces, sessionStartLines, sessionStarts],
-  )
   const primaryRange = useMemo(
     () => activityTrackRange(primaryTrack),
     [primaryTrack],
@@ -820,6 +809,19 @@ export function SessionViewer({
   const effectiveTwd = useMemo(
     () => resolveEffectiveTwd(twdReference, manualTwdDegrees),
     [manualTwdDegrees, twdReference],
+  )
+  // START ANALYSIS (#38.1, #38.2): every inferred Start over the full canonical P/C tracks; the
+  // Windward P–C row uses the same effective TWD as Points of Sail (#38 D19).
+  const startAnalysisRows = useMemo(
+    () => deriveStartAnalysisRows(
+      sessionStarts,
+      sessionStartLines,
+      sessionRaces,
+      primaryTrack?.samples ?? null,
+      comparisonActivityId === null ? undefined : comparisonTrack?.samples ?? null,
+      effectiveTwd?.degrees ?? null,
+    ),
+    [comparisonActivityId, comparisonTrack, effectiveTwd, primaryTrack, sessionRaces, sessionStartLines, sessionStarts],
   )
   // Full canonical tracks (as Summary uses) let the last in-window sample represent
   // its real interval to the next sample, clipped at the window end.

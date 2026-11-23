@@ -888,10 +888,10 @@ describe('Viewer selected maneuver interactions', () => {
         .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
       expect(section()!.querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')).toBe('false')
       expect(section()!.querySelector('table[aria-label="Start summary"]')!.closest('[hidden]')).not.toBeNull()
-      expect(rowCells('primary')).toEqual(['P', 'S1 10:00:30', '+2.5', '+5.0', '50', '5.3', '⚠ Ends +1m24s'])
+      expect(rowCells('primary')).toEqual(['P', 'S110:00:30', '+2.5s · 5.3 kt', '+5.0 m', '50%', '⚠ Ends +1m24s'])
       expect(section()!.querySelector('[data-start-analysis-role="comparison"]')).toBeNull()
       await choose('Compare', 'b')
-      expect(rowCells('comparison')).toEqual(['C', '−1.5', '−4.5', '10', '4.9'])
+      expect(rowCells('comparison')).toEqual(['C', '−1.5s · 4.9 kt', '−4.5 m', '10%'])
       await choose('Compare', '')
       expect(section()!.querySelector('[data-start-analysis-role="comparison"]')).toBeNull()
     })
@@ -909,13 +909,18 @@ describe('Viewer selected maneuver interactions', () => {
       expect(container.querySelector('[data-window]')!.getAttribute('data-playing')).toBe('false')
       expect(section()!.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('true')
       expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')!.value).toBe('b')
-      // #38.2: the detailed table of the selected Start, P and C rows per indicator and one P–C row.
+      // #38.2: the detailed table of the selected Start, P and C rows per indicator and one Windward P–C row.
       const detail = section()!.querySelector('table[aria-label="S1 details around the gun"]')!
       const detailCells = (selector: string) => [...detail.querySelector(selector)!.children].map((cell) => cell.textContent)
       expect(detailCells('[data-start-detail-indicator="distance"] [data-start-detail-role="primary"]'))
-        .toEqual(['Dist (m)', 'P', '+45.0', '+25.0', '+15.0', '+5.0', '−5.0', '−15.0', '−35.0'])
-      expect(detailCells('[data-start-detail-indicator="hdg"] [data-start-detail-role="comparison"]')).toEqual(['C', ...Array(7).fill('—')])
-      expect(detailCells('[data-start-detail-role="pair"]')).toEqual(['P–C (m)', '', '81', '80', '80', '81', '81', '82', '85'])
+        .toEqual(['Dist (m)', 'P', '+35.0', '+15.0', '+5.0', '−5.0', '−25.0'])
+      // #38 D18: no selected Activity records HDG, so the row is omitted.
+      expect(detail.querySelector('[data-start-detail-indicator="hdg"]')).toBeNull()
+      // #38 D19: with the manual TWD 355°, P (80 m east of C, 9.5 + t m further south) is to leeward.
+      await click('[data-twd-gesture]')
+      const windward = () => [...section()!.querySelector('table[aria-label="S1 details around the gun"] [data-start-detail-role="pair"]')!.children]
+        .map((cell) => cell.textContent)
+      expect(windward()).toEqual(['Windward P–C (m)', '', '−1', '−11', '−16', '−21', '−31'])
     })
 
     it.each(['original', 'temporary'] as const)('follows the Analysis Window and clears a Start leaving it on %s access (#38 D15)', async (accessKind) => {

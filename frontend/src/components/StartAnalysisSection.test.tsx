@@ -17,16 +17,16 @@ import StartAnalysisSection, {
 } from './StartAnalysisSection'
 
 const offsetsSeconds = START_ANALYSIS_CONFIG.detailOffsetsSeconds
-const [sog, distance, hdg, cog, heel, boatDistance] = START_ANALYSIS_CONFIG.detailIndicators
+const [sog, distance, hdg, cog, heel, windwardGap] = START_ANALYSIS_CONFIG.detailIndicators
 const series = (value: number | null) => offsetsSeconds.map(() => value)
 
 /** S1 detail with a Comparison: HDG not recorded for P, directions around north, signed Heel. */
 const s1Detail: StartDetailTable = {
   offsetsSeconds,
   rows: [
-    { indicator: sog, role: 'primary', values: [3, 4, 4.5, 5, 5.5, 6.04, null] },
+    { indicator: sog, role: 'primary', values: [3, 4.5, 5, 6.04, null] },
     { indicator: sog, role: 'comparison', values: series(4) },
-    { indicator: distance, role: 'primary', values: [45, 25, 15, 5, -5, 0.04, null] },
+    { indicator: distance, role: 'primary', values: [45, 15, -5, 0.04, null] },
     { indicator: distance, role: 'comparison', values: series(-4.5) },
     { indicator: hdg, role: 'primary', values: series(null) },
     { indicator: hdg, role: 'comparison', values: series(359.6) },
@@ -34,7 +34,7 @@ const s1Detail: StartDetailTable = {
     { indicator: cog, role: 'comparison', values: series(0.4) },
     { indicator: heel, role: 'primary', values: series(-12.6) },
     { indicator: heel, role: 'comparison', values: series(8.4) },
-    { indicator: boatDistance, role: 'pair', values: series(80.6) },
+    { indicator: windwardGap, role: 'pair', values: [12.4, -3.6, 0.3, -0.4, null] },
   ],
 }
 
@@ -65,6 +65,12 @@ function cells(row: Element) {
   return [...row.querySelectorAll('td')].map((cell) => cell.textContent)
 }
 
+function summaryMarkup(sectionRows: StartAnalysisRow[], analysisWindow: AnalysisWindowRange | null = fullWindow) {
+  const container = document.createElement('div')
+  container.innerHTML = renderToStaticMarkup(<StartAnalysisSection rows={sectionRows} analysisWindow={analysisWindow} onSelect={vi.fn()} />)
+  return container
+}
+
 /** S1 at its start and S2 at its end: both endpoints are inside (#38 D15). */
 const fullWindow = { start: START_FIXTURE_GUN, end: START_FIXTURE_GUN + 600_000 }
 
@@ -80,11 +86,12 @@ async function mount(sectionRows: StartAnalysisRow[], onSelect = vi.fn(), analys
   return { container, onSelect, render, unmount: async () => { await act(async () => root.unmount()); container.remove() } }
 }
 
-describe('START ANALYSIS formatting (#38.1)', () => {
-  it('signs Cross and Dist with one decimal, rounds Line to an integer and states the short-timing fact', () => {
-    expect([2.46, -1.5, 0.04, -0.04, null].map(formatStartCross)).toEqual(['+2.5', '−1.5', '0.0', '0.0', '—'])
-    expect([73.66, -2.3, null].map(formatStartDistance)).toEqual(['+73.7', '−2.3', '—'])
-    expect([50.4, -15.4, 130, null].map(formatStartLinePercent)).toEqual(['50', '−15', '130', '—'])
+describe('START ANALYSIS formatting (#38.1, D16)', () => {
+  it('formats Cross as signed compact seconds with SOG, Dist and Line with units, and states the short-timing fact', () => {
+    expect([[7.44, 4.6], [-1.5, null], [0.04, 5], [-0.04, 5], [null, 4.6]].map(([seconds, knots]) => formatStartCross(seconds, knots)))
+      .toEqual(['+7.4s · 4.6 kt', '−1.5s · —', '0.0s · 5.0 kt', '0.0s · 5.0 kt', '—'])
+    expect([15.8, 73.66, -2.3, null].map(formatStartDistance)).toEqual(['+15.8 m', '+73.7 m', '−2.3 m', '—'])
+    expect([87.4, -15.4, 130, null].map(formatStartLinePercent)).toEqual(['87%', '−15%', '130%', '—'])
     expect([84_000, 36_000, null].map(formatStartTimingNote)).toEqual(['⚠ Ends +1m24s', '⚠ Ends +36s', ''])
   })
 })
@@ -101,33 +108,48 @@ describe('StartAnalysisSection (#38.1)', () => {
     expect([toggle.textContent, toggle.getAttribute('aria-expanded')]).toEqual(['Expand', 'false'])
     expect(section.querySelector('[hidden]')!.id).toBe(toggle.getAttribute('aria-controls'))
     expect(section.querySelector('[data-start-analysis-caption]')!.textContent).toBe('Starts inferred from race timer · times UTC')
+    expect(section.querySelector('[data-start-analysis-help]')!.textContent).toBe('Cross: time and SOG when crossing the line · Dist, Line: position at the gun')
     const table = section.querySelector('table')!
     expect(table.getAttribute('aria-label')).toBe('Start summary')
     expect([...table.querySelectorAll('thead th')].map((header) => header.textContent))
-      .toEqual(['Activity', 'Start', 'Cross (s)', 'Dist at gun (m)', 'Line (%)', 'SOG cross (kt)', 'Note'])
+      .toEqual(['Activity', 'Start', 'Cross', 'Dist', 'Line', 'Note'])
     expect(table.querySelector('thead th .maneuver-event-table__sr-only')!.textContent).toBe('Activity')
   })
 
   it('lists one row group per Start, P row then C row, with `—` for unavailable values and no better-boat marking', () => {
-    const container = document.createElement('div')
-    container.innerHTML = renderToStaticMarkup(<StartAnalysisSection rows={rows} analysisWindow={fullWindow} onSelect={vi.fn()} />)
+    const container = summaryMarkup(rows)
     const groups = [...container.querySelectorAll('tbody')]
     expect(groups.map((group) => group.getAttribute('data-start-analysis-row'))).toEqual(['S1', 'S2'])
     const [p1, c1] = groups[0].querySelectorAll('tr')
     expect([p1, c1].map((row) => row.getAttribute('data-start-analysis-role'))).toEqual(['primary', 'comparison'])
-    expect(cells(p1)).toEqual(['P', 'S1 10:00:00', '+2.5', '+5.0', '50', '5.3', '⚠ Ends +1m24s'])
-    expect(cells(c1)).toEqual(['C', '−1.5', '−4.5', '−15', '—'])
+    expect(cells(p1)).toEqual(['P', 'S110:00:00', '+2.5s · 5.3 kt', '+5.0 m', '50%', '⚠ Ends +1m24s'])
+    expect(cells(c1)).toEqual(['C', '−1.5s · —', '−4.5 m', '−15%'])
+    const startButton = p1.querySelector('button')!
+    expect([startButton.querySelector('.start-analysis-table__start-label')!.textContent, startButton.querySelector('.start-analysis-table__start-time')!.textContent])
+      .toEqual(['S1', '10:00:00'])
+    expect([...p1.querySelectorAll('[data-start-analysis-value]')].slice(0, 3).map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'Cross +2.5 seconds, SOG 5.3 knots', 'Distance to the line at the gun +5.0 metres', 'Line position at the gun 50 percent',
+    ])
+    expect(c1.querySelector('[data-start-analysis-value="cross"]')!.getAttribute('aria-label')).toBe('Cross −1.5 seconds, SOG unavailable')
     expect(p1.querySelector('button')!.closest('td')!.getAttribute('rowspan')).toBe('2')
     expect(p1.querySelector('[data-start-analysis-value="note"]')!.getAttribute('rowspan')).toBe('2')
-    expect(cells(groups[1].querySelectorAll('tr')[0])).toEqual(['P', 'S2 10:10:00', '—', '—', '—', '—', ''])
-    expect(cells(groups[1].querySelectorAll('tr')[1])).toEqual(['C', '—', '+73.7', '130', '—'])
+    expect(cells(groups[1].querySelectorAll('tr')[0])).toEqual(['P', 'S210:10:00', '—', '—', '—', ''])
+    expect(cells(groups[1].querySelectorAll('tr')[1])).toEqual(['C', '—', '+73.7 m', '130%'])
+    expect(groups[1].querySelector('[data-start-analysis-value="cross"]')!.getAttribute('aria-label')).toBe('Cross unavailable')
     expect(container.querySelectorAll('[data-start-analysis-value][style], strong, b')).toHaveLength(0)
     expect(p1.querySelector('td')!.getAttribute('style')).toContain('color')
   })
 
+  it('renders the Note column only when a visible Start has a note', () => {
+    const s2Only = summaryMarkup(rows, { start: START_FIXTURE_GUN + 1, end: START_FIXTURE_GUN + 600_000 })
+    expect([...s2Only.querySelectorAll('thead th')].map((header) => header.textContent)).toEqual(['Activity', 'Start', 'Cross', 'Dist', 'Line'])
+    expect(s2Only.querySelector('[data-start-analysis-value="note"]')).toBeNull()
+    expect(cells(s2Only.querySelector('[data-start-analysis-role="primary"]')!)).toEqual(['P', 'S210:10:00', '—', '—', '—'])
+    expect(summaryMarkup(rows).querySelectorAll('[data-start-analysis-value="note"]')).toHaveLength(2)
+  })
+
   it('shows only P rows without a Comparison and nothing without Starts', () => {
-    const container = document.createElement('div')
-    container.innerHTML = renderToStaticMarkup(<StartAnalysisSection rows={rows.map(withoutComparison)} analysisWindow={fullWindow} onSelect={vi.fn()} />)
+    const container = summaryMarkup(rows.map(withoutComparison))
     expect([...container.querySelectorAll('tbody tr')].map((row) => row.getAttribute('data-start-analysis-role'))).toEqual(['primary', 'primary'])
     expect(container.querySelector('tbody button')!.closest('td')!.getAttribute('rowspan')).toBe('1')
     expect(renderToStaticMarkup(<StartAnalysisSection rows={[]} analysisWindow={fullWindow} onSelect={vi.fn()} />)).toBe('')
@@ -167,7 +189,7 @@ describe('StartAnalysisSection (#38.1)', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[data-start-analysis-row="S1"] button')!.click())
     expect(detail()!.getAttribute('data-start-analysis-detail')).toBe('S1')
     expect(container.querySelector('table[aria-label="Start summary"]')!.compareDocumentPosition(detail()!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(detail()!.querySelector('h3')!.textContent).toBe('S1 10:00:00 UTC · seconds from the gun')
+    expect(detail()!.querySelector('h3')!.textContent).toBe('S1 10:00:00 UTC')
     expect(detail()!.querySelector('table')!.getAttribute('aria-label')).toBe('S1 details around the gun')
 
     await act(async () => container.querySelector<HTMLElement>('[data-start-analysis-row="S2"] td:last-child')!.click())
@@ -230,30 +252,31 @@ describe('Start detailed table (#38.2)', () => {
   }
 
   it('formats offsets and each configured value format', () => {
-    expect(offsetsSeconds.map(formatStartOffset)).toEqual(['−20', '−10', '−5', '0', '+5', '+10', '+20'])
+    expect(offsetsSeconds.map(formatStartOffset)).toEqual(['−15s', '−5s', '0s', '+5s', '+15s'])
     expect([5.04, null].map((value) => formatStartDetailValue(value, 'fixed1'))).toEqual(['5.0', '—'])
     expect([2.46, -6, 0.04].map((value) => formatStartDetailValue(value, 'signed1'))).toEqual(['+2.5', '−6.0', '0.0'])
     expect([359.6, 359.4, 0.4, -1].map((value) => formatStartDetailValue(value, 'direction'))).toEqual(['0', '359', '0', '359'])
     expect([-12.6, 8.4, 80.6].map((value) => formatStartDetailValue(value, 'integer'))).toEqual(['−13', '8', '81'])
+    expect([12.4, -3.6, 0.3, -0.4].map((value) => formatStartDetailValue(value, 'signedInteger'))).toEqual(['+12', '−4', '0', '0'])
   })
 
-  it('has indicator, untitled P/C and offset headers, P/C rows per indicator and one unmarked P–C row', async () => {
+  it('has indicator, untitled P/C and offset headers, P/C rows per indicator and one unmarked Windward P–C row', async () => {
     const { table, unmount } = await selectedDetail(rows)
     expect([...table.querySelectorAll('thead th')].map((header) => header.textContent))
-      .toEqual(['Indicator', 'Activity', '−20', '−10', '−5', '0', '+5', '+10', '+20'])
+      .toEqual(['Indicator', 'Activity', '−15s', '−5s', '0s', '+5s', '+15s'])
     expect(table.querySelectorAll('thead th .maneuver-event-table__sr-only')).toHaveLength(2)
     const groups = [...table.querySelectorAll('tbody')]
-    expect(groups.map((group) => group.getAttribute('data-start-detail-indicator'))).toEqual(['sog', 'distance', 'hdg', 'cog', 'heel', 'boatDistance'])
+    expect(groups.map((group) => group.getAttribute('data-start-detail-indicator'))).toEqual(['sog', 'distance', 'hdg', 'cog', 'heel', 'windwardGap'])
     expect(groups.map((group) => [...group.querySelectorAll('tr')].map((row) => row.getAttribute('data-start-detail-role')).join('/')))
       .toEqual(['primary/comparison', 'primary/comparison', 'primary/comparison', 'primary/comparison', 'primary/comparison', 'pair'])
     const texts = groups.map((group) => [...group.querySelectorAll('tr')].map(rowText))
-    expect(texts[0]).toEqual([['SOG (kt)', 'P', '3.0', '4.0', '4.5', '5.0', '5.5', '6.0', '—'], ['C', ...series(null).map(() => '4.0')]])
-    expect(texts[1][0]).toEqual(['Dist (m)', 'P', '+45.0', '+25.0', '+15.0', '+5.0', '−5.0', '0.0', '—'])
+    expect(texts[0]).toEqual([['SOG (kt)', 'P', '3.0', '4.5', '5.0', '6.0', '—'], ['C', ...series(null).map(() => '4.0')]])
+    expect(texts[1][0]).toEqual(['Dist (m)', 'P', '+45.0', '+15.0', '−5.0', '0.0', '—'])
     expect(texts[1][1]).toEqual(['C', ...series(null).map(() => '−4.5')])
     expect(texts[2]).toEqual([['HDG (°)', 'P', ...series(null).map(() => '—')], ['C', ...series(null).map(() => '0')]])
     expect(texts[3]).toEqual([['COG (°)', 'P', ...series(null).map(() => '359')], ['C', ...series(null).map(() => '0')]])
     expect(texts[4]).toEqual([['Heel (°)', 'P', ...series(null).map(() => '−13')], ['C', ...series(null).map(() => '8')]])
-    expect(texts[5]).toEqual([['P–C (m)', '', ...series(null).map(() => '81')]])
+    expect(texts[5]).toEqual([['Windward P–C (m)', '', '+12', '−4', '0', '0', '—']])
     expect(groups[0].querySelector('th')!.getAttribute('rowspan')).toBe('2')
     expect(groups[5].querySelector('th')!.getAttribute('rowspan')).toBe('1')
     expect(groups[0].querySelector('[data-start-detail-role="comparison"] td')!.getAttribute('style')).toContain('color')
@@ -262,10 +285,10 @@ describe('Start detailed table (#38.2)', () => {
     await unmount()
   })
 
-  it('has P rows only and no P–C row without a Comparison', async () => {
+  it('has P rows only and no Windward P–C row without a Comparison', async () => {
     const { table, unmount } = await selectedDetail(rows.map(withoutComparison))
     expect([...table.querySelectorAll('tbody tr')].map((row) => row.getAttribute('data-start-detail-role'))).toEqual(Array(5).fill('primary'))
-    expect(table.querySelector('[data-start-detail-indicator="boatDistance"]')).toBeNull()
+    expect(table.querySelector('[data-start-detail-indicator="windwardGap"]')).toBeNull()
     await unmount()
   })
 })

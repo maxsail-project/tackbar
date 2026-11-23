@@ -3845,6 +3845,13 @@ input:focus-visible {
 .start-analysis-table__start--selected,
 .start-analysis-table__start--selected:hover { background: #edf5f6; }
 .start-analysis-table__start--selected .start-analysis-table__activity { box-shadow: inset 3px 0 #28788a; }
+/* #38 D16: `S<n>` on the first line, the smaller UTC time on the second. */
+.start-analysis-table__start-label,
+.start-analysis-table__start-time { display: block; }
+.start-analysis-table__start-time {
+  color: #526d74;
+  font-size: 0.7rem;
+}
 .start-analysis-table__button:focus-visible {
   outline: 2px solid #28788a;
   outline-offset: 2px;

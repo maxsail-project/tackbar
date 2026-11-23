@@ -50,14 +50,14 @@ describe('START ANALYSIS configuration (#38.1, #38.2)', () => {
       crossingSearchLimitSeconds: 120,
       offsetSampleToleranceSeconds: 1,
       shortTimingThresholdSeconds: 180,
-      detailOffsetsSeconds: [-20, -10, -5, 0, 5, 10, 20],
+      detailOffsetsSeconds: [-15, -5, 0, 5, 15],
       detailIndicators: [
         { id: 'sog', label: 'SOG', unit: 'kt', format: 'fixed1' },
         { id: 'distance', label: 'Dist', unit: 'm', format: 'signed1' },
-        { id: 'hdg', label: 'HDG', unit: '°', format: 'direction' },
+        { id: 'hdg', label: 'HDG', unit: '°', format: 'direction', onlyWhenRecorded: true },
         { id: 'cog', label: 'COG', unit: '°', format: 'direction' },
         { id: 'heel', label: 'Heel', unit: '°', format: 'integer' },
-        { id: 'boatDistance', label: 'P–C', unit: 'm', format: 'integer' },
+        { id: 'windwardGap', label: 'Windward P–C', unit: 'm', format: 'signedInteger' },
       ],
     })
   })
@@ -214,7 +214,7 @@ describe('start summary rows (#38.1)', () => {
   })
 })
 
-describe('start detailed table (#38.2, D3, D10)', () => {
+describe('start detailed table (#38.2, D3, D10, D17–D19)', () => {
   type Samples = ReturnType<typeof startFixtureSamples>
   const secondsOf = (sample: Samples[number]) => (Date.parse(sample.utc) - gun) / 1_000
   /** COG 355° at the gun turning 1°/s across north, HDG 3° to its right, Heel −seconds/4 as stored. */
@@ -222,101 +222,116 @@ describe('start detailed table (#38.2, D3, D10)', () => {
     const seconds = secondsOf(sample)
     return { ...sample, cog: (355 + seconds + 360) % 360, hdg: (358 + seconds + 360) % 360, heel: -seconds / 4 }
   })
+  // The fixture line runs east from PIN with the course side north: P is 5 − 2t m south of it at
+  // 100 m east, C is −4.5 − 3t m south at 20 m east (no recorded HDG).
   const primary = withAttitude(startApproachSamples({ behindAtGun: 5 }))
   const comparison = startApproachSamples({ behindAtGun: -4.5, metersPerSecond: 3, alongMeters: 20 })
-  const detail = (p: Samples | null, c?: Samples | null, line = frame, config = START_ANALYSIS_CONFIG) => deriveStartDetailTable(
-    p && prepareStartSamples(p), c === undefined ? undefined : c && prepareStartSamples(c), line, gun, config,
-  )
+  const detail = (
+    p: Samples | null,
+    c?: Samples | null,
+    { line = frame, twd = null as number | null, config = START_ANALYSIS_CONFIG } = {},
+  ) => deriveStartDetailTable(p && prepareStartSamples(p), c === undefined ? undefined : c && prepareStartSamples(c), line, gun, twd, config)
   const values = (table: StartDetailTable, indicator: string, role: string) => table.rows
     .find((row) => row.indicator.id === indicator && row.role === role)!.values
-  const expectValues = (actual: (number | null)[], expected: (number | null)[]) => {
+  const rowIds = (table: StartDetailTable) => table.rows.map((row) => `${row.indicator.id}:${row.role}`)
+  const expectValues = (actual: (number | null)[], expected: (number | null)[], digits = 6) => {
     expect(actual).toHaveLength(expected.length)
     expected.forEach((value, index) => {
       if (value === null) expect(actual[index], `offset ${index}`).toBeNull()
-      else expect(actual[index], `offset ${index}`).toBeCloseTo(value, 6)
+      else expect(actual[index], `offset ${index}`).toBeCloseTo(value, digits)
     })
   }
+  const none = Array(5).fill(null)
 
   it('reads each indicator at each configured offset, P rows only without a Comparison', () => {
     const table = detail(primary)
-    expect(table.offsetsSeconds).toEqual([-20, -10, -5, 0, 5, 10, 20])
-    expect(table.rows.map((row) => `${row.indicator.id}:${row.role}`))
-      .toEqual(['sog:primary', 'distance:primary', 'hdg:primary', 'cog:primary', 'heel:primary'])
-    expectValues(values(table, 'sog', 'primary'), [3, 4, 4.5, 5, 5.5, 6, 7])
-    expectValues(values(table, 'distance', 'primary'), [45, 25, 15, 5, -5, -15, -35])
-    expectValues(values(table, 'cog', 'primary'), [335, 345, 350, 355, 0, 5, 15])
-    expectValues(values(table, 'hdg', 'primary'), [338, 348, 353, 358, 3, 8, 18])
-    expectValues(values(table, 'heel', 'primary'), [5, 2.5, 1.25, 0, -1.25, -2.5, -5])
+    expect(table.offsetsSeconds).toEqual([-15, -5, 0, 5, 15])
+    expect(rowIds(table)).toEqual(['sog:primary', 'distance:primary', 'hdg:primary', 'cog:primary', 'heel:primary'])
+    expectValues(values(table, 'sog', 'primary'), [3.5, 4.5, 5, 5.5, 6.5])
+    expectValues(values(table, 'distance', 'primary'), [35, 15, 5, -5, -25])
+    expectValues(values(table, 'cog', 'primary'), [340, 350, 355, 0, 10])
+    expectValues(values(table, 'hdg', 'primary'), [343, 353, 358, 3, 13])
+    expectValues(values(table, 'heel', 'primary'), [3.75, 1.25, 0, -1.25, -3.75])
   })
 
-  it('adds C rows below P rows and one P–C distance-between-boats row with a Comparison', () => {
-    const table = detail(primary, comparison)
-    expect(table.rows.map((row) => `${row.indicator.id}:${row.role}`)).toEqual([
+  it('adds C rows below P rows and one Windward P–C row with a Comparison', () => {
+    const table = detail(primary, comparison, { twd: 0 })
+    expect(rowIds(table)).toEqual([
       'sog:primary', 'sog:comparison', 'distance:primary', 'distance:comparison', 'hdg:primary', 'hdg:comparison',
-      'cog:primary', 'cog:comparison', 'heel:primary', 'heel:comparison', 'boatDistance:pair',
+      'cog:primary', 'cog:comparison', 'heel:primary', 'heel:comparison', 'windwardGap:pair',
     ])
-    expectValues(values(table, 'distance', 'comparison'), [55.5, 25.5, 10.5, -4.5, -19.5, -34.5, -64.5])
-    // P 100 m and C 20 m along the line; P 5 − 2t and C −4.5 − 3t metres behind it.
-    values(table, 'boatDistance', 'pair').forEach((value, index) => {
-      expect(value).toBeCloseTo(Math.hypot(80, 9.5 + table.offsetsSeconds[index]), 1)
-    })
+    expectValues(values(table, 'distance', 'comparison'), [40.5, 10.5, -4.5, -19.5, -49.5])
+    expectValues(values(table, 'hdg', 'comparison'), none)
   })
 
-  it('reads HDG as unavailable when not recorded while COG is present, never derived from COG', () => {
+  it('shows the HDG row only when a selected Activity records HDG somewhere in its track, never derived from COG', () => {
     const table = detail(comparison)
-    expectValues(values(table, 'hdg', 'primary'), Array(7).fill(null))
-    expectValues(values(table, 'cog', 'primary'), Array(7).fill(0))
-    expectValues(values(table, 'heel', 'primary'), Array(7).fill(null))
+    expect(rowIds(table)).toEqual(['sog:primary', 'distance:primary', 'cog:primary', 'heel:primary'])
+    expectValues(values(table, 'cog', 'primary'), Array(5).fill(0))
+    expectValues(values(table, 'heel', 'primary'), none)
+    expect(rowIds(detail(comparison, comparison))).not.toContain('hdg:primary')
+    // One recorded HDG far from the gun is enough; the offsets without it read unavailable.
+    const sparse = comparison.map((sample) => secondsOf(sample) === 100 ? { ...sample, hdg: 12 } : sample)
+    expectValues(values(detail(comparison, sparse), 'hdg', 'comparison'), none)
+    expect(rowIds(detail(primary, comparison))).toContain('hdg:comparison')
+  })
+
+  it('reads Windward P–C along the effective TWD axis, positive when P is further to windward', () => {
+    // Wind from the north: P is 2t − 5 m and C 4.5 + 3t m north of the line, so P − C = −9.5 − t.
+    expectValues(values(detail(primary, comparison, { twd: 0 }), 'windwardGap', 'pair'), [5.5, -4.5, -9.5, -14.5, -24.5], 1)
+    expectValues(values(detail(primary, comparison, { twd: 180 }), 'windwardGap', 'pair'), [-5.5, 4.5, 9.5, 14.5, 24.5], 1)
+    expectValues(values(detail(primary, comparison, { twd: 90 }), 'windwardGap', 'pair'), Array(5).fill(80), 1)
+    expectValues(values(detail(primary, comparison), 'windwardGap', 'pair'), none)
   })
 
   it('takes the nearest sample within ±1 s inclusive (earlier on a tie) and nothing beyond it', () => {
     const points: StartFixturePoint[] = [
-      [-21, 0, 100, 1], [-8.9, 0, 100, 2], [-4, 0, 100, 3], [-0.5, 0, 100, 4], [0.5, 0, 100, 5], [6.01, 0, 100, 6], [20, 0, 100, 7],
+      [-16, 0, 100, 1], [-3.9, 0, 100, 2], [-0.5, 0, 100, 4], [0.5, 0, 100, 5], [4, 0, 100, 3], [16.01, 0, 100, 6],
     ]
-    expectValues(values(detail(startFixtureSamples(points)), 'sog', 'primary'), [1, null, 3, 4, null, null, 7])
+    expectValues(values(detail(startFixtureSamples(points)), 'sog', 'primary'), [1, null, 4, 3, null])
   })
 
   it('reads every indicator as unavailable at an offset inside a gap, and never across a gap with a wider tolerance', () => {
     const gapped = (from: number, to: number) => primary.filter((sample) => secondsOf(sample) <= from || secondsOf(sample) >= to)
-    const table = detail(gapped(-12, 3), comparison)
+    const table = detail(gapped(-12, 3), comparison, { twd: 0 })
     table.rows.filter((row) => row.role !== 'comparison')
-      .forEach((row) => expect(row.values.slice(1, 4), row.indicator.id).toEqual([null, null, null]))
-    expectValues(values(table, 'sog', 'comparison'), [3, 4, 4.5, 5, 5.5, 6, 7])
-    expectValues(values(table, 'sog', 'primary'), [3, null, null, null, 5.5, 6, 7])
+      .forEach((row) => expect(row.values.slice(1, 3), row.indicator.id).toEqual([null, null]))
+    expectValues(values(table, 'sog', 'comparison'), [3.5, 4.5, 5, 5.5, 6.5])
+    expectValues(values(table, 'sog', 'primary'), [3.5, null, null, 5.5, 6.5])
     const wide = { ...START_ANALYSIS_CONFIG, offsetSampleToleranceSeconds: 15 }
-    expectValues(values(detail(gapped(-25, 15), undefined, frame, wide), 'sog', 'primary'), [2.5, null, null, null, 6.5, 6.5, 7])
+    expectValues(values(detail(gapped(-25, 15), undefined, { config: wide }), 'sog', 'primary'), [2.5, null, null, 6.5, 6.5])
   })
 
-  it('needs both boats\' samples for P–C and reads Dist as unavailable without a start line', () => {
+  it('needs both boats\' samples for Windward P–C and reads Dist as unavailable without a start line', () => {
     const partial = comparison.filter((sample) => secondsOf(sample) < 4)
-    const pair = values(detail(primary, partial), 'boatDistance', 'pair')
-    expect(pair.slice(0, 4).every((value) => value !== null)).toBe(true)
-    expect(pair.slice(4)).toEqual([null, null, null])
-    const pending = detail(primary, null)
-    expect([values(pending, 'sog', 'comparison'), values(pending, 'boatDistance', 'pair')]).toEqual([Array(7).fill(null), Array(7).fill(null)])
-    const lineless = detail(primary, comparison, null)
-    expect([values(lineless, 'distance', 'primary'), values(lineless, 'distance', 'comparison')]).toEqual([Array(7).fill(null), Array(7).fill(null)])
-    expectValues(values(lineless, 'sog', 'primary'), [3, 4, 4.5, 5, 5.5, 6, 7])
+    const pair = values(detail(primary, partial, { twd: 0 }), 'windwardGap', 'pair')
+    expect(pair.slice(0, 3).every((value) => value !== null)).toBe(true)
+    expect(pair.slice(3)).toEqual([null, null])
+    const pending = detail(primary, null, { twd: 0 })
+    expect([values(pending, 'sog', 'comparison'), values(pending, 'windwardGap', 'pair')]).toEqual([none, none])
+    const lineless = detail(primary, comparison, { line: null })
+    expect([values(lineless, 'distance', 'primary'), values(lineless, 'distance', 'comparison')]).toEqual([none, none])
+    expectValues(values(lineless, 'sog', 'primary'), [3.5, 4.5, 5, 5.5, 6.5])
   })
 
   it('follows the configured indicator and offset order without structural change', () => {
-    const [sog, , , , heel, boatDistance] = START_ANALYSIS_CONFIG.detailIndicators
-    const config = { ...START_ANALYSIS_CONFIG, detailOffsetsSeconds: [30, 0], detailIndicators: [boatDistance, heel, sog] }
-    const table = detail(primary, comparison, frame, config)
+    const [sog, , , , heel, windwardGap] = START_ANALYSIS_CONFIG.detailIndicators
+    const config = { ...START_ANALYSIS_CONFIG, detailOffsetsSeconds: [30, 0], detailIndicators: [windwardGap, heel, sog] }
+    const table = detail(primary, comparison, { config })
     expect(table.offsetsSeconds).toEqual([30, 0])
-    expect(table.rows.map((row) => `${row.indicator.id}:${row.role}`))
-      .toEqual(['boatDistance:pair', 'heel:primary', 'heel:comparison', 'sog:primary', 'sog:comparison'])
+    expect(rowIds(table)).toEqual(['windwardGap:pair', 'heel:primary', 'heel:comparison', 'sog:primary', 'sog:comparison'])
     expectValues(values(table, 'sog', 'primary'), [8, 5])
   })
 
-  it('reads Dist at offset 0 with the same value and sign as Dist at gun in the summary rows', () => {
+  it('reads Dist at offset 0 like Dist at gun in the summary rows and passes the effective TWD through', () => {
     const activities = [startTimerActivity('a', gun), startTimerActivity('b', gun)]
     const starts = inferSessionStarts(activities)
-    const [row] = deriveStartAnalysisRows(starts, inferSessionStartLines(starts, activities), [], primary, comparison)
+    const [row] = deriveStartAnalysisRows(starts, inferSessionStartLines(starts, activities), [], primary, comparison, 0)
     const atGun = row.detail.offsetsSeconds.indexOf(0)
     expect(values(row.detail, 'distance', 'primary')[atGun]).toBeCloseTo(row.primary.distanceAtGunMeters!, 9)
     expect(values(row.detail, 'distance', 'comparison')[atGun]).toBeCloseTo(row.comparison!.distanceAtGunMeters!, 9)
     expect([row.primary.distanceAtGunMeters! > 0, row.comparison!.distanceAtGunMeters! < 0]).toEqual([true, true])
+    expect(values(row.detail, 'windwardGap', 'pair')[atGun]).toBeCloseTo(-9.5, 1)
     expect(deriveStartAnalysisRows(starts, [], [], primary)[0].detail.rows.some((detailRow) => detailRow.role !== 'primary')).toBe(false)
   })
 })
