@@ -324,7 +324,7 @@ describe('Viewer TWD state', () => {
     expect(section()).not.toBeNull()
     expect(container.querySelectorAll('.wind-context-section')).toHaveLength(1)
     expect(container.querySelector('.wind-segments-section')).toBeNull()
-    expect(section()!.querySelector('.section-kicker')!.textContent).toBe('Wind Analysis')
+    expect(section()!.querySelector('.section-kicker')!.textContent).toBe('Points of Sail')
     const order = [
       container.querySelector('[data-viewer-section="maneuver-analysis"]')!,
       section()!,
@@ -421,10 +421,10 @@ describe('Viewer TWD state', () => {
     expect(container.querySelector('.wind-context-section .wind-segments__table + .wind-context-table-wrap')).toBeNull()
   })
 
-  it('syncs the Wind Analysis notes popover state with its native toggle', async () => {
+  it('syncs the Points of Sail notes popover state with its native toggle', async () => {
     await mountViewer('original', windSession)
     const section = container.querySelector('.wind-context-section')!
-    const info = section.querySelector<HTMLButtonElement>('button[aria-label="About wind analysis"]')!
+    const info = section.querySelector<HTMLButtonElement>('button[aria-label="About points of sail"]')!
     const notes = section.querySelector<HTMLElement>('[data-wind-notes]')!
     expect(info.getAttribute('popovertarget')).toBe(notes.id)
     expect(notes.getAttribute('popover')).toBe('auto')

@@ -53,7 +53,7 @@ describe('WindContextSection', () => {
     expect(markup).toContain('aria-expanded="false"')
     expect(markup).toMatch(/<div id="[^"]+" hidden="">/)
     expect(text(markup)).toContain('TWD 090° Modelled')
-    expect(text(markup)).toContain('Wind Analysis 0 segments')
+    expect(text(markup)).toContain('Points of Sail 0 segments')
     expect(text(markup)).not.toContain('Wind Segments')
   })
 
@@ -379,7 +379,7 @@ describe('WindContextSection', () => {
     { kind: 'reaching', start: t0 + 300_000, end: t0 + 420_000 },
   ]
 
-  it('is one Wind Analysis section with the specified body order and a collapsed Sector breakdown', () => {
+  it('is one Points of Sail section with the specified body order and a collapsed Sector breakdown', () => {
     const markup = renderToStaticMarkup(<WindContextSection
       effectiveTwd={{ degrees: 105, source: 'manual' }} displayDegrees={105} primary={withAxis(120, 15)}
       primaryProgress={progress('upwind', 609, 893, 1.65)}
@@ -388,8 +388,8 @@ describe('WindContextSection', () => {
     />)
     expect(markup.match(/class="section-kicker"/g)).toHaveLength(1)
     const [header, body] = markup.split('hidden=""')
-    expect(text(header)).toContain('Wind Analysis 2 segments · TWD 105° Manual · Upwind')
-    expect(markup.match(/aria-label="About wind analysis"/g)).toHaveLength(1)
+    expect(text(header)).toContain('Points of Sail 2 segments · TWD 105° Manual · Upwind')
+    expect(markup.match(/aria-label="About points of sail"/g)).toHaveLength(1)
     const order = [
       'wind-segments__filter', 'wind-segments__table', 'data-wind-twd-source', 'data-wind-conclusion-title',
       'class="wind-metric-table"', 'data-wind-axis-hint', 'Sector breakdown',
@@ -437,7 +437,7 @@ describe('WindContextSection', () => {
       effectiveTwd={{ degrees: 105, source: 'modelled' }} displayDegrees={105} primary={upwind}
       primaryProgress={{ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }}
     />)
-    const control = markup.match(/<button[^>]*aria-label="About wind analysis"[^>]*>/)![0]
+    const control = markup.match(/<button[^>]*aria-label="About points of sail"[^>]*>/)![0]
     const notesId = control.match(/aria-controls="([^"]+)"/)![1]
     expect(control).toContain('class="maneuver-evidence__info"')
     expect(control).toContain('aria-expanded="false"')

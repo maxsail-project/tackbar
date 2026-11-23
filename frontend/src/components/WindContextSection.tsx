@@ -245,7 +245,7 @@ export default function WindContextSection({
   return (
     <section className="content-section maneuver-section wind-context-section" aria-labelledby="wind-context-title">
       <div className="maneuver-section__header">
-        <p className="section-kicker" id="wind-context-title">Wind Analysis</p>
+        <p className="section-kicker" id="wind-context-title">Points of Sail</p>
         <span className="wind-section__summary" data-wind-context-summary>
           {formatWindAnalysisSummary(displayDegrees, effectiveTwd.source, primary.classification, countListedWindSegments(segments, analysisWindow))}
         </span>
@@ -300,7 +300,7 @@ export default function WindContextSection({
           <button
             type="button"
             className="maneuver-evidence__info"
-            aria-label="About wind analysis"
+            aria-label="About points of sail"
             aria-expanded={notesExpanded}
             aria-controls={notesId}
             popoverTarget={notesId}
