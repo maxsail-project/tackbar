@@ -110,7 +110,7 @@ class TemporarySharedSessionDetailResponse(SharedSessionContentResponse):
 
 class SharedRaceTimerEventResponse(BaseModel):
     timestamp: datetime
-    event_type: Literal[3]
+    event_type: Literal[3, 4]
 
 
 class SharedLinePositionResponse(BaseModel):

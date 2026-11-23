@@ -68,19 +68,21 @@ vi.mock('../components/ManeuverEventTable', () => ({
 }))
 vi.mock('../components/AnalysisWindow', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../components/AnalysisWindow')>()),
-  default: ({ maneuvers, sessionStarts, analysisWindow, availableRange, onManeuverSelect, onSessionStartSelect, onRangeChange, replay }: {
+  default: ({ maneuvers, sessionStarts, sessionRaces = [], analysisWindow, availableRange, onManeuverSelect, onSessionStartSelect, onRangeChange, replay }: {
     maneuvers: DisplayManeuver[]
     sessionStarts: { label: string, time: number, activityIds: string[] }[]
+    sessionRaces?: { label: string, window: { start: number, end: number } }[]
     analysisWindow: { start: number, end: number } | null
     availableRange: { start: number, end: number } | null
     onManeuverSelect: (event: DisplayManeuver) => void
     onSessionStartSelect: (start: { label: string, time: number, activityIds: string[] }) => void
     onRangeChange: (range: { start: number, end: number }) => void
-    replay: { playbackTime: number, speed: PlaybackSpeed, onSpeedChange: (speed: PlaybackSpeed) => void, onTogglePlayback: () => void } | null
-  }) => <section aria-label="Analysis Window test controls">
+    replay: { playbackTime: number, isPlaying: boolean, speed: PlaybackSpeed, onSpeedChange: (speed: PlaybackSpeed) => void, onTogglePlayback: () => void } | null
+  }) => <section aria-label="Analysis Window test controls" data-window={analysisWindow ? `${analysisWindow.start}:${analysisWindow.end}` : ''} data-playing={replay?.isPlaying}>
     {maneuvers.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-marker={event.centerTimeMs} onClick={() => onManeuverSelect(event)}>Timeline event</button>)}
     {sessionStarts.filter((start) => analysisWindow && start.time >= analysisWindow.start && start.time <= analysisWindow.end)
       .map((start) => <button key={start.label} type="button" data-start={start.label} data-start-time={start.time} onClick={() => onSessionStartSelect(start)}>{start.label}</button>)}
+    {sessionRaces.map((race) => <button key={race.label} type="button" data-race={race.label} onClick={() => onRangeChange(race.window)}>{race.label}</button>)}
     <button type="button" data-change-window onClick={() => onRangeChange({ start: start + 1_000, end: start + 9_000 })}>Change window</button>
     <button type="button" data-narrow-window onClick={() => onRangeChange({ start: start + 7_000, end: start + 10_000 })}>Narrow window</button>
     <button type="button" data-reset-window onClick={() => availableRange && onRangeChange(availableRange)}>Reset window</button>
@@ -819,6 +821,28 @@ describe('Viewer selected maneuver interactions', () => {
     expect(Number(document.querySelector('[data-focus-request]')?.getAttribute('data-focus-request'))).toBeGreaterThan(firstFocusId)
     expect(nextFrame).not.toBeNull()
     expect(vi.mocked(globalThis.cancelAnimationFrame)).toHaveBeenCalled()
+  })
+
+  it.each(['original', 'temporary'] as const)('sets the shared window from a VKX race shortcut with %s access (#220)', async (accessKind) => {
+    vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
+      { activity_id: 'a', race_timer_events: [2_000, 8_000].map((offset, index) => ({ timestamp: new Date(start + offset).toISOString(), event_type: index === 0 ? 3 as const : 4 as const })), line_positions: [] },
+      { activity_id: 'b', race_timer_events: [2_200, 8_500].map((offset, index) => ({ timestamp: new Date(start + offset).toISOString(), event_type: index === 0 ? 3 as const : 4 as const })), line_positions: [] },
+    ] })
+    await mountViewer(accessKind)
+    await choose('Compare', 'c')
+    const windowState = () => container.querySelector('[data-window]')!
+    expect(container.querySelector('[data-start="S1"]')?.getAttribute('data-start-time')).toBe(String(start + 2_100))
+    expect([...container.querySelectorAll('[data-race]')].map((button) => button.textContent)).toEqual(['R1'])
+    await click(marker(4))
+    await click('[data-play-replay]')
+    expect(windowState().getAttribute('data-playing')).toBe('true')
+    await click('[data-race="R1"]')
+    // [S1 − 5 min, latest RACE_END], clamped to the available range; playback stops, records clear.
+    expect(windowState().getAttribute('data-window')).toBe(`${start}:${start + 8_500}`)
+    expect(windowState().getAttribute('data-playing')).toBe('false')
+    expect(selectedTimes()).toEqual(['No latest selection', 'No previous selection'])
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')?.value).toBe('c')
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="My track"]')?.value).toBe('a')
   })
 
   it('does not show Session Starts when selected Activities have no comparable GPS overlap', async () => {

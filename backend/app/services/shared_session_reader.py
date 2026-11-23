@@ -119,7 +119,7 @@ class SharedSessionReader:
                         event_type=event.event_type,
                     )
                     for event in activities_by_id[visible.id].race_timer_events
-                    if event.event_type == 3
+                    if event.event_type in (3, 4)
                 ],
                 line_positions=[
                     SharedLinePositionResponse(

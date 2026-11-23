@@ -85,7 +85,8 @@ export interface TemporarySessionShare {
 export interface SessionRaceTimerEvents {
   activities: {
     activity_id: string
-    race_timer_events: { timestamp: string, event_type: 3 }[]
+    /** `RACE_START` (3) and `RACE_END` (4) observations only (#220 D7). */
+    race_timer_events: { timestamp: string, event_type: 3 | 4 }[]
     line_positions: { timestamp: string, endpoint_type: 0 | 1, latitude: number, longitude: number }[]
   }[]
 }

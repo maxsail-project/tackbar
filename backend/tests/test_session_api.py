@@ -114,6 +114,14 @@ def _set_timer_events(root: Path) -> None:
              "timer_value_seconds": 90},
             {"timestamp": "2031-06-01T07:59:59.000+00:00", "event_type": 3,
              "timer_value_seconds": 0},
+            {"timestamp": "2031-06-01T08:00:02+00:00", "event_type": 0,
+             "timer_value_seconds": -60},
+            {"timestamp": "2031-06-01T08:00:03+00:00", "event_type": 2,
+             "timer_value_seconds": -3},
+            {"timestamp": "2031-06-01T08:00:04+00:00", "event_type": 255,
+             "timer_value_seconds": -1},
+            {"timestamp": "2031-06-01T08:40:00.250+00:00", "event_type": 4,
+             "timer_value_seconds": 2400},
         ]
         activity["line_positions"] = [{
             "timestamp": "2031-06-01T08:00:00+00:00", "endpoint_type": 1,
@@ -135,10 +143,15 @@ def test_shared_timer_read_is_minimal_ordered_and_current_visibility(
     assert [item["activity_id"] for item in initial.json["activities"]] == [ACTIVITY_A]
     assert set(initial.json) == {"activities"}
     assert set(initial.json["activities"][0]) == {"activity_id", "race_timer_events", "line_positions"}
-    assert [event["event_type"] for event in initial.json["activities"][0]["race_timer_events"]] == [3, 3, 3]
-    assert initial.json["activities"][0]["race_timer_events"][0]["timestamp"].startswith("2031-06-01T08:00:00.123")
-    assert initial.json["activities"][0]["race_timer_events"][1]["timestamp"] == initial.json["activities"][0]["race_timer_events"][0]["timestamp"]
-    assert initial.json["activities"][0]["race_timer_events"][2]["timestamp"].startswith("2031-06-01T07:59:59")
+    events = initial.json["activities"][0]["race_timer_events"]
+    # #220 D7: only RACE_START (3) and RACE_END (4), in persisted order.
+    assert [event["event_type"] for event in events] == [3, 3, 4, 3, 4]
+    assert events[0]["timestamp"].startswith("2031-06-01T08:00:00.123")
+    assert events[1]["timestamp"] == events[0]["timestamp"]
+    assert events[2]["timestamp"] == events[0]["timestamp"]
+    assert events[3]["timestamp"].startswith("2031-06-01T07:59:59")
+    assert events[4]["timestamp"].startswith("2031-06-01T08:40:00.25")
+    assert all(set(event) == {"timestamp", "event_type"} for event in events)
     assert initial.json["activities"][0]["line_positions"] == [{
         "timestamp": "2031-06-01T08:00:00Z", "endpoint_type": 1,
         "latitude": 1.0, "longitude": 2.0,

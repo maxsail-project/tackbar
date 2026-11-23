@@ -1552,8 +1552,21 @@ input:focus-visible {
 .analysis-window__heading-copy .section-kicker { display: inline; white-space: nowrap; }
 .analysis-window__heading-copy .section-description { display: inline; margin: 0 0 0 8px; }
 
-.analysis-window__speed {
+.analysis-window__speed,
+.analysis-window__race {
   width: 58px;
+}
+
+/* #220: the Race select joins the header; one row stays intact at 320–375px. */
+@media (max-width: 439px) {
+  .analysis-window__heading--race .analysis-window__heading-copy .section-description { display: block; margin: 0; }
+}
+
+@media (max-width: 374px) {
+  .analysis-window__heading--race { gap: 4px; }
+  .analysis-window__heading--race .analysis-window__header-actions { gap: 4px; }
+  .analysis-window__heading--race .playback-speed-select { width: 46px; padding: 0 1px; }
+  .analysis-window__heading--race .analysis-window__reset { min-width: 44px; padding-right: 6px; padding-left: 6px; }
 }
 
 .analysis-window__reset {
