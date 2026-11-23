@@ -48,6 +48,9 @@ class PersonalActivityResponse(BaseModel):
     original_filename: str
     start_time: datetime
     end_time: datetime
+    # Issue #218 D6: adjacent canonical UTC intervals > 10 s; null until derived.
+    gap_count: int | None = None
+    gap_total_seconds: float | None = None
 
 
 class PersonalActivityContextPatch(BaseModel):

@@ -33,6 +33,34 @@ def gpx_from_gaps_ns(gaps_ns):
     return f'<gpx><trk><trkseg>{"".join(points)}</trkseg></trk></gpx>'.encode()
 
 
+SECOND_NS = 1_000_000_000
+
+
+def one_hertz_with_gaps_ns(*exceptional_ns, ones=1800):
+    """1 Hz intervals with the given long intervals spread evenly inside the track."""
+    gaps = [SECOND_NS] * ones
+    step = ones // (len(exceptional_ns) + 1)
+    for position, gap in enumerate(exceptional_ns, start=1):
+        gaps.insert(position * step + position - 1, gap)
+    return gaps
+
+
+# Every #171/#218 criterion fails: median, P95, count, longest and total, in order.
+ALL_CRITERIA_GAPS_NS = [5 * SECOND_NS] * 18 + [11 * SECOND_NS, 12 * SECOND_NS, 100 * SECOND_NS]
+ALL_CRITERIA_ERROR = (
+    "GPX temporal quality failed: median 5 s > 2 s; P95 12 s > 5 s; "
+    "exceptional gap count 3 > 2; longest exceptional gap 100 s > 90 s; "
+    "exceptional gap total 123 s > 10.65 s (5% of track duration 213 s)"
+)
+# Shared controlled rejections for parser, email, Admin upload and Reprocess tests.
+QUALITY_REJECTIONS = [
+    (gpx_bytes((0, 3)), "GPX temporal quality failed: median 3 s > 2 s"),
+    (gpx_from_gaps_ns([SECOND_NS] * 18 + [5_000_000_001, 10 * SECOND_NS]), "GPX temporal quality failed: P95 5.000000001 s > 5 s"),
+    (gpx_from_gaps_ns(one_hertz_with_gaps_ns(90 * SECOND_NS + 1)), "GPX temporal quality failed: longest exceptional gap 90.000000001 s > 90 s"),
+    (gpx_from_gaps_ns(ALL_CRITERIA_GAPS_NS), ALL_CRITERIA_ERROR),
+]
+
+
 @pytest.mark.parametrize("seconds", [(0, 1, 2, 3, 4), (0, 2, 4, 6), (0, 1, 2, 4, 9)])
 def test_cadence_and_speed_use_elapsed_time_and_keep_all_samples(seconds):
     activity = parse_gpx(gpx_bytes(seconds), "training.GPX")
@@ -107,7 +135,7 @@ def test_order_and_gap_checks_use_normalized_utc_and_preserve_subseconds():
     with pytest.raises(GPXParseError, match="strictly increasing"):
         parse_gpx(content, "track.gpx")
     content = gpx_bytes((0, 1)).replace(b"08:00:01+00:00", b"08:00:10.000000001+00:00")
-    with pytest.raises(GPXParseError, match="maximum adjacent gap 10.000000001 s > 10 s"):
+    with pytest.raises(GPXParseError, match=r"exceptional gap total 10.000000001 s > 0.50000000005 s"):
         parse_gpx(content, "track.gpx")
     content = gpx_bytes((0, 1)).replace(b"08:00:01+00:00", b"08:00:01.123456789+00:00")
     samples = parse_gpx(content, "track.gpx").samples
@@ -147,12 +175,39 @@ def test_p95_just_above_limit_rejects_independently():
     assert str(rejected.value) == "GPX temporal quality failed: P95 5.000000001 s > 5 s"
 
 
-def test_maximum_just_above_limit_rejects_independently():
-    # One outlier is above 10 s while nearest-rank P95 remains 1 s.
-    gaps = [1_000_000_000] * 19 + [10_000_000_001]
+def test_single_64_second_gap_is_admitted_without_changing_samples():
+    # Synthetic analogue of the private #218 pilot: 1 Hz with one 64 s interval.
+    gaps = one_hertz_with_gaps_ns(64 * SECOND_NS, ones=3372)
+    activity = parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
+    assert [b["utc"].value - a["utc"].value for a, b in zip(activity.samples, activity.samples[1:])] == gaps
+
+
+@pytest.mark.parametrize("gaps", [
+    one_hertz_with_gaps_ns(90 * SECOND_NS),  # Each gap may last exactly 90 s.
+    one_hertz_with_gaps_ns(11 * SECOND_NS, 11 * SECOND_NS),  # At most two gaps.
+    one_hertz_with_gaps_ns(64 * SECOND_NS, ones=1216),  # Total exactly 5% of 1280 s.
+    one_hertz_with_gaps_ns(10 * SECOND_NS, 10 * SECOND_NS, 10 * SECOND_NS, ones=100),  # 10 s is not exceptional.
+])
+def test_exceptional_gap_budget_equalities_are_admitted(gaps):
+    assert len(parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx").samples) == len(gaps) + 1
+
+
+@pytest.mark.parametrize("gaps,criterion", [
+    (one_hertz_with_gaps_ns(90 * SECOND_NS + 1), "longest exceptional gap 90.000000001 s > 90 s"),
+    (one_hertz_with_gaps_ns(*[11 * SECOND_NS] * 3), "exceptional gap count 3 > 2"),
+    (one_hertz_with_gaps_ns(64 * SECOND_NS, ones=1215), "exceptional gap total 64 s > 63.95 s (5% of track duration 1279 s)"),
+    (one_hertz_with_gaps_ns(64 * SECOND_NS + 1, ones=1216), "exceptional gap total 64.000000001 s > 64.00000000005 s (5% of track duration 1280.000000001 s)"),
+])
+def test_exceptional_gap_budget_violations_reject_independently(gaps, criterion):
     with pytest.raises(GPXParseError) as rejected:
         parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
-    assert str(rejected.value) == "GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s"
+    assert str(rejected.value) == "GPX temporal quality failed: " + criterion
+
+
+def test_every_violated_criterion_is_reported_in_stable_order():
+    with pytest.raises(GPXParseError) as rejected:
+        parse_gpx(gpx_from_gaps_ns(ALL_CRITERIA_GAPS_NS), "track.gpx")
+    assert str(rejected.value) == ALL_CRITERIA_ERROR
 
 
 def test_two_temporal_quality_failures_are_reported_in_order():
@@ -171,8 +226,48 @@ def test_sparse_garmin_like_cadence_fails_temporal_quality():
         parse_gpx(gpx_from_gaps_ns(gaps), "track.gpx")
     assert str(rejected.value) == (
         "GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; "
-        "maximum adjacent gap 12 s > 10 s"
+        "exceptional gap total 23 s > 5.65 s (5% of track duration 113 s)"
     )
+
+
+def _runs_track(*runs, gap_seconds=64):
+    """Runs of (lat, lon) unit steps per second, separated by long intervals."""
+    seconds, positions, now, lat, lon = [], [], 0, 0.0, 0.0
+    for run_index, (count, step) in enumerate(runs):
+        if run_index:
+            now += gap_seconds
+        for sample in range(count):
+            if sample or run_index:
+                lat, lon = lat + step[0], lon + step[1]
+            seconds.append(now)
+            positions.append((lat, lon))
+            now += 1
+    # Pad with stationary 1 Hz samples so the gap budget admits the track.
+    padding = range(now, now + 2000)
+    return parse_gpx(gpx_bytes([*seconds, *padding], positions + [positions[-1]] * 2000), "track.gpx").samples
+
+
+def test_movement_never_uses_a_neighbour_across_an_exceptional_gap():
+    east, north = (0, .00001), (.00001, 0)
+    samples = _runs_track((5, east), (5, north))
+    unit = 2.16146
+    # Run boundaries use one-sided evidence from their own run only.
+    assert samples[4]["sog"] == pytest.approx(unit, rel=1e-5)  # t2 -> t4
+    assert samples[4]["cog"] == pytest.approx(90)
+    assert samples[5]["sog"] == pytest.approx(unit, rel=1e-5)  # t+0 -> t+2 after the gap
+    assert samples[5]["cog"] == pytest.approx(0)
+    assert samples[2]["sog"] == pytest.approx(unit, rel=1e-5)  # centered inside the first run
+
+
+def test_sample_alone_in_its_run_has_no_movement():
+    east = (0, .00001)
+    samples = _runs_track((3, east), (1, east), (3, east), gap_seconds=20)
+    assert samples[3]["sog"] is None and samples[3]["cog"] is None
+    assert all(sample["sog"] is not None for index, sample in enumerate(samples) if index != 3)
+    frame = normalize_track("activity", samples)
+    assert pd.isna(frame.sog.iloc[3]) and pd.isna(frame.cog.iloc[3])
+    # Canonical dist stays the consecutive-position calculation (#218 scope).
+    assert frame.dist.iloc[3] == round(1.1119508, 2)
 
 
 def test_gzip_payload_cannot_bypass_plain_gpx_policy_by_filename():

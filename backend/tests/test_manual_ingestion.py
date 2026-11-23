@@ -25,7 +25,7 @@ from app.services.session_reader import SessionReader
 from app.storage.ingestion_original_storage import IngestionOriginalStorage
 from app.storage.track_storage import TrackStorage
 
-from test_gpx import gpx_bytes, gpx_from_gaps_ns
+from test_gpx import QUALITY_REJECTIONS, gpx_bytes
 from test_ingestion_lock import processes, _blocked, _track
 
 
@@ -288,12 +288,7 @@ def test_expanded_gzip_limit_applies_to_manual_processing_and_reprocess(
     assert_silent(runtime, repeated)
 
 
-@pytest.mark.parametrize("content,expected_error", [
-    (gpx_bytes((0, 3)), "GPX temporal quality failed: median 3 s > 2 s"),
-    (gpx_from_gaps_ns([1_000_000_000] * 18 + [5_000_000_001, 10_000_000_000]), "GPX temporal quality failed: P95 5.000000001 s > 5 s"),
-    (gpx_from_gaps_ns([1_000_000_000] * 19 + [10_000_000_001]), "GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s"),
-    (gpx_from_gaps_ns([5_000_000_000] * 18 + [11_000_000_000, 12_000_000_000]), "GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; maximum adjacent gap 12 s > 10 s"),
-])
+@pytest.mark.parametrize("content,expected_error", QUALITY_REJECTIONS)
 def test_manual_gpx_quality_errors_survive_reprocessing(runtime, content, expected_error):
     pending = accept(runtime, content)
     failed = process(runtime, pending)

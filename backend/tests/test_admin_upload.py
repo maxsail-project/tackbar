@@ -22,7 +22,7 @@ from app.services.manual_upload_worker import (
     ACTIVATION_FAILURE, MAX_UPLOAD_BYTES, ManualUploadWorker, reconcile_manual_uploads,
 )
 
-from test_gpx import gpx_bytes, gpx_from_gaps_ns
+from test_gpx import QUALITY_REJECTIONS, gpx_bytes
 from test_manual_ingestion import runtime
 
 
@@ -252,14 +252,10 @@ def test_unsupported_or_corrupt_accepted_size_file_is_inspectable_failed_origina
 
 
 def test_admin_api_exposes_controlled_gpx_error_on_upload_and_reprocess(runtime, worker):
-    content = gpx_from_gaps_ns([5_000_000_000] * 18 + [11_000_000_000, 12_000_000_000])
+    content, error = QUALITY_REJECTIONS[-1]
     code, accepted, _ = http(sailor_id=runtime.sailor.id, body=content)
     assert code == 202
     record = terminal(runtime, accepted["id"])
-    error = (
-        "GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; "
-        "maximum adjacent gap 12 s > 10 s"
-    )
     assert record["status"] == "failed" and record["last_error"] == error
     code, detail, _ = http("GET", f"/api/admin/ingestions/{record['id']}")
     assert code == 200 and detail["last_error"] == error

@@ -23,7 +23,7 @@ from app.storage.track_storage import TrackStorage
 
 # Reuse the existing offline MIME/IMAP and ASGI harnesses.
 from test_activity_track_api import _get
-from test_gpx import gpx_bytes, gpx_from_gaps_ns
+from test_gpx import QUALITY_REJECTIONS, gpx_bytes
 from test_ovh_adapter import _adapter, _message
 
 
@@ -156,12 +156,7 @@ def test_active_gpx_default_boat_raw_byte_identity_and_notification_compatibilit
     assert len(runtime.sessions.all()) == 1
 
 
-@pytest.mark.parametrize("invalid,criterion", [
-    (gpx_bytes((0, 3)), "GPX temporal quality failed: median 3 s > 2 s"),
-    (gpx_from_gaps_ns([1_000_000_000] * 18 + [5_000_000_001, 10_000_000_000]), "GPX temporal quality failed: P95 5.000000001 s > 5 s"),
-    (gpx_from_gaps_ns([1_000_000_000] * 19 + [10_000_000_001]), "GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s"),
-    (gpx_from_gaps_ns([5_000_000_000] * 18 + [11_000_000_000, 12_000_000_000]), "GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; maximum adjacent gap 12 s > 10 s"),
-])
+@pytest.mark.parametrize("invalid,criterion", QUALITY_REJECTIONS)
 def test_gpx_failure_preserves_original_and_history_and_review_continues(runtime, monkeypatch, invalid, criterion):
     adapter, _, _ = _adapter(monkeypatch, {
         b"1": _message(attachments=[("invalid.gpx", invalid)]),

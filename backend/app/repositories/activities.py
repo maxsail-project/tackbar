@@ -8,7 +8,10 @@ from uuid import uuid4
 
 import pandas as pd
 
-from app.models import Activity, LinePosition, RaceTimerEvent, ShiftAngleObservation, StoredActivity
+from app.models import (
+    Activity, LinePosition, RaceTimerEvent, ShiftAngleObservation, StoredActivity,
+    TrackGap, TrackGapSummary,
+)
 from app.repositories.atomic_json import read_text as read_collection_text, write_text as write_collection_text
 from app.runtime_paths import runtime_paths
 
@@ -121,6 +124,30 @@ class ActivityRepository:
                 return activity
         raise ValueError(f"Activity not found: {activity_id}")
 
+    def set_gap_summary(
+        self, activity_id: str, gap_summary: TrackGapSummary,
+    ) -> StoredActivity:
+        """Replace only the derived gap summary; unchanged values are not rewritten."""
+        return self.set_gap_summaries({activity_id: gap_summary})[0]
+
+    def set_gap_summaries(
+        self, gap_summaries: dict[str, TrackGapSummary],
+    ) -> list[StoredActivity]:
+        """Replace only derived gap summaries in one collection write, if any changed."""
+        activities = self._load()
+        by_id = {activity.id: activity for activity in activities}
+        missing = [activity_id for activity_id in gap_summaries if activity_id not in by_id]
+        if missing:
+            raise ValueError(f"Activity not found: {missing[0]}")
+        changed = False
+        for activity_id, gap_summary in gap_summaries.items():
+            if by_id[activity_id].gap_summary != gap_summary:
+                by_id[activity_id].gap_summary = gap_summary
+                changed = True
+        if changed:
+            self._save(activities)
+        return [by_id[activity_id] for activity_id in gap_summaries]
+
     def refresh_track_metadata(
         self,
         activity_id: str,
@@ -202,6 +229,7 @@ class ActivityRepository:
                         )
                         for observation in item.get("shift_angle_observations", [])
                     ],
+                    "gap_summary": _load_gap_summary(item.get("gap_summary")),
                 }
             )
             for item in data
@@ -231,6 +259,9 @@ class ActivityRepository:
             for collection in ("race_timer_events", "line_positions", "shift_angle_observations"):
                 if previous and collection not in previous and not record[collection]:
                     del record[collection]
+            if record["gap_summary"] is None:
+                # Legacy records stay byte-compatible until the summary is derived.
+                del record["gap_summary"]
             records.append(record)
 
         write_collection_text(self.path, json.dumps(records, indent=2, ensure_ascii=False) + "\n")
@@ -238,6 +269,30 @@ class ActivityRepository:
 
 def _parse_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value)
+
+
+def _load_gap_summary(value: object) -> TrackGapSummary | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("Activity gap_summary must be an object")
+    intervals = tuple(
+        TrackGap(start=interval["start"], end=interval["end"])
+        for interval in value["intervals"]
+    )
+    count, total_seconds = value["count"], value["total_seconds"]
+    if (
+        isinstance(count, bool) or not isinstance(count, int) or count != len(intervals)
+        or isinstance(total_seconds, bool)
+        or not isinstance(total_seconds, (int, float))
+        or not isfinite(total_seconds) or total_seconds < 0
+        or (count == 0) != (total_seconds == 0)
+        or not all(isinstance(t, str) for i in intervals for t in (i.start, i.end))
+    ):
+        raise ValueError("Activity gap_summary is inconsistent")
+    return TrackGapSummary(
+        count=count, total_seconds=float(total_seconds), intervals=intervals,
+    )
 
 
 def _validate_activity_metadata(activity: StoredActivity) -> None:
