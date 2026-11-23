@@ -2058,7 +2058,8 @@ input:focus-visible {
 }
 
 .maneuver-event-table,
-.wind-segments__table {
+.wind-segments__table,
+.start-analysis-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
@@ -2070,6 +2071,8 @@ input:focus-visible {
   table-layout: auto;
 }
 
+.start-analysis-table th,
+.start-analysis-table td,
 .maneuver-event-table th,
 .maneuver-event-table td,
 .wind-segments__table th,
@@ -2107,7 +2110,8 @@ input:focus-visible {
 }
 
 .maneuver-event-table th,
-.wind-segments__table th {
+.wind-segments__table th,
+.start-analysis-table th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -3821,6 +3825,30 @@ input:focus-visible {
 }
 .wind-segments__row--secondary { color: #71858b; }
 .wind-segments__label--muted { opacity: 0.6; }
+/* #38.1 START ANALYSIS summary: shares the Maneuver Analysis table rules; Start and Note span the P/C rows of a Start. */
+.start-analysis-table { table-layout: auto; }
+.start-analysis-table th,
+.start-analysis-table td {
+  padding-right: 6px;
+  padding-left: 6px;
+  vertical-align: middle;
+}
+.start-analysis-table th:first-child,
+.start-analysis-table td.start-analysis-table__activity {
+  font-weight: 900;
+  text-align: center;
+}
+.start-analysis-table th.start-analysis-table__number,
+.start-analysis-table td.start-analysis-table__number { text-align: right; }
+.start-analysis-table__row { cursor: pointer; }
+.start-analysis-table__start:hover { background: #f7fafb; }
+.start-analysis-table__start--selected,
+.start-analysis-table__start--selected:hover { background: #edf5f6; }
+.start-analysis-table__start--selected .start-analysis-table__activity { box-shadow: inset 3px 0 #28788a; }
+.start-analysis-table__button:focus-visible {
+  outline: 2px solid #28788a;
+  outline-offset: 2px;
+}
 .maneuver-insights__cell--indicative { color: #526d74; font-style: italic; }
 .wind-context__info-row {
   display: flex;

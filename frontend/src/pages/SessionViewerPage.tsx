@@ -32,6 +32,7 @@ import ManeuverEventTable, {
 } from '../components/ManeuverEventTable'
 import ManeuverProfiles from '../components/ManeuverProfiles'
 import SelectedManeuvers from '../components/SelectedManeuvers'
+import StartAnalysisSection from '../components/StartAnalysisSection'
 import WindContextSection from '../components/WindContextSection'
 import TrackMap, {
   type ContextualMapActivity,
@@ -100,6 +101,7 @@ import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeome
 import { inferSessionStarts } from '../utils/sessionStarts'
 import { inferSessionRaces } from '../utils/sessionRaces'
 import { inferSessionStartLines, visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
+import { deriveStartAnalysisRows } from '../utils/startAnalysis'
 import { prefersReducedMotion, revealMapIfNeeded } from '../utils/mapReveal'
 
 function useSessionRaceTimerEvents(access: SessionAccess) {
@@ -596,6 +598,17 @@ export function SessionViewer({
     && comparisonTrackState.status === 'ready'
     ? comparisonTrackState.track
     : null
+  // START ANALYSIS summary (#38.1): every inferred Start over the full canonical P/C tracks.
+  const startAnalysisRows = useMemo(
+    () => deriveStartAnalysisRows(
+      sessionStarts,
+      sessionStartLines,
+      sessionRaces,
+      primaryTrack?.samples ?? null,
+      comparisonActivityId === null ? undefined : comparisonTrack?.samples ?? null,
+    ),
+    [comparisonActivityId, comparisonTrack, primaryTrack, sessionRaces, sessionStartLines, sessionStarts],
+  )
   const primaryRange = useMemo(
     () => activityTrackRange(primaryTrack),
     [primaryTrack],
@@ -1276,6 +1289,9 @@ export function SessionViewer({
         onRangeChange={commitExternalAnalysisWindowRange}
         onManeuverSelect={selectManeuver}
       />
+      {sessionStarts.length > 0 && (
+        <StartAnalysisSection rows={startAnalysisRows} onSelect={selectSessionStart} />
+      )}
       {analysisWindow !== null && (
         <ManeuverEventTable
           events={displayManeuvers}
