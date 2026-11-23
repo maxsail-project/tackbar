@@ -1,8 +1,10 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { StartDetailFormat } from '../config/startAnalysis'
 import { formatFixed, formatRounded, formatSogNumber, withTypographicMinus } from '../utils/numberFormat'
+import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { formatGpsTime } from '../utils/replay'
+import { sessionStartsInWindow } from '../utils/sessionStarts'
 import type { StartActivityMetrics, StartAnalysisRow, StartDetailRow } from '../utils/startAnalysis'
 import { formatAnalysisWindowDuration } from './AnalysisWindow'
 
@@ -11,6 +13,8 @@ type Role = 'primary' | 'comparison'
 interface StartAnalysisSectionProps {
   /** One row group per inferred Session Start (#38.1) with its detailed table (#38.2); the section is absent without any. */
   rows: StartAnalysisRow[]
+  /** Current Analysis Window: the summary lists only Starts whose gun lies inside it, endpoints included (#38 D15). */
+  analysisWindow: AnalysisWindowRange | null
   /** Same behaviour as tapping a Start label: seek to the gun and focus the map (#38 D11). */
   onSelect: (start: { label: string, time: number }) => void
 }
@@ -122,12 +126,21 @@ function StartDetailTable({ row }: { row: StartAnalysisRow }) {
   )
 }
 
-export default function StartAnalysisSection({ rows, onSelect }: StartAnalysisSectionProps) {
+export const NO_START_IN_WINDOW_TEXT = 'No inferred Start in the Analysis Window'
+
+export default function StartAnalysisSection({ rows, analysisWindow, onSelect }: StartAnalysisSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const contentId = useId()
+  // #38 D15: same window rule as the SOG timeline Start labels; values stay full-track derived.
+  const windowRows = analysisWindow === null ? [] : sessionStartsInWindow(rows, analysisWindow)
+  const selectedRow = windowRows.find((row) => startKey(row) === selectedKey)
+  const selectionLeftWindow = selectedKey !== null && selectedRow === undefined
+  useEffect(() => {
+    // A selected Start that leaves the Analysis Window is deselected (#38 D15).
+    if (selectionLeftWindow) setSelectedKey(null)
+  }, [selectionLeftWindow])
   if (rows.length === 0) return null
-  const selectedRow = rows.find((row) => startKey(row) === selectedKey)
 
   return (
     <section className="content-section maneuver-section start-analysis-section" aria-labelledby="start-analysis-title">
@@ -146,66 +159,70 @@ export default function StartAnalysisSection({ rows, onSelect }: StartAnalysisSe
 
       <div id={contentId} hidden={!expanded}>
         <p className="wind-context__note" data-start-analysis-caption>Starts inferred from race timer · times UTC</p>
-        <div className="maneuver-event-table-wrap">
-          <table className="start-analysis-table" aria-label="Start summary">
-            <thead>
-              <tr>
-                <th scope="col"><span className="maneuver-event-table__sr-only">Activity</span></th>
-                <th scope="col">Start</th>
-                <th scope="col" className="start-analysis-table__number">Cross (s)</th>
-                <th scope="col" className="start-analysis-table__number">Dist at gun (m)</th>
-                <th scope="col" className="start-analysis-table__number">Line (%)</th>
-                <th scope="col" className="start-analysis-table__number">SOG cross (kt)</th>
-                <th scope="col">Note</th>
-              </tr>
-            </thead>
-            {rows.map((row) => {
-              const key = startKey(row)
-              const selected = key === selectedKey
-              const roles: { role: Role, metrics: StartActivityMetrics }[] = [
-                { role: 'primary', metrics: row.primary },
-                ...(row.comparison === null ? [] : [{ role: 'comparison' as const, metrics: row.comparison }]),
-              ]
-              const time = formatGpsTime(row.time)
-              const select = () => {
-                setSelectedKey(key)
-                onSelect({ label: row.label, time: row.time })
-              }
-              return (
-                <tbody
-                  key={key}
-                  className={`start-analysis-table__start${selected ? ' start-analysis-table__start--selected' : ''}`}
-                  data-start-analysis-row={row.label}
-                >
-                  {roles.map(({ role, metrics }, index) => (
-                    <tr key={role} className="start-analysis-table__row" data-start-analysis-role={role} onClick={select}>
-                      <td className="start-analysis-table__activity" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</td>
-                      {index === 0 && (
-                        <td rowSpan={roles.length} className="start-analysis-table__start-cell">
-                          <button
-                            type="button"
-                            className="maneuver-event-table__button start-analysis-table__button"
-                            aria-pressed={selected}
-                            aria-label={`Move replay to ${row.label} gun at ${time} UTC, inferred from race timer`}
-                          >
-                            {row.label} {time}
-                          </button>
-                        </td>
-                      )}
-                      <td className="start-analysis-table__number" data-start-analysis-value="cross">{formatStartCross(metrics.crossSeconds)}</td>
-                      <td className="start-analysis-table__number" data-start-analysis-value="distance">{formatStartDistance(metrics.distanceAtGunMeters)}</td>
-                      <td className="start-analysis-table__number" data-start-analysis-value="line">{formatStartLinePercent(metrics.linePercent)}</td>
-                      <td className="start-analysis-table__number" data-start-analysis-value="sog">{formatSogNumber(metrics.sogCrossKnots)}</td>
-                      {index === 0 && (
-                        <td rowSpan={roles.length} data-start-analysis-value="note">{formatStartTimingNote(row.shortTimingMs)}</td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              )
-            })}
-          </table>
-        </div>
+        {windowRows.length === 0 ? (
+          <p className="maneuver-empty" data-start-analysis-empty>{NO_START_IN_WINDOW_TEXT}</p>
+        ) : (
+          <div className="maneuver-event-table-wrap">
+            <table className="start-analysis-table" aria-label="Start summary">
+              <thead>
+                <tr>
+                  <th scope="col"><span className="maneuver-event-table__sr-only">Activity</span></th>
+                  <th scope="col">Start</th>
+                  <th scope="col" className="start-analysis-table__number">Cross (s)</th>
+                  <th scope="col" className="start-analysis-table__number">Dist at gun (m)</th>
+                  <th scope="col" className="start-analysis-table__number">Line (%)</th>
+                  <th scope="col" className="start-analysis-table__number">SOG cross (kt)</th>
+                  <th scope="col">Note</th>
+                </tr>
+              </thead>
+              {windowRows.map((row) => {
+                const key = startKey(row)
+                const selected = key === selectedKey
+                const roles: { role: Role, metrics: StartActivityMetrics }[] = [
+                  { role: 'primary', metrics: row.primary },
+                  ...(row.comparison === null ? [] : [{ role: 'comparison' as const, metrics: row.comparison }]),
+                ]
+                const time = formatGpsTime(row.time)
+                const select = () => {
+                  setSelectedKey(key)
+                  onSelect({ label: row.label, time: row.time })
+                }
+                return (
+                  <tbody
+                    key={key}
+                    className={`start-analysis-table__start${selected ? ' start-analysis-table__start--selected' : ''}`}
+                    data-start-analysis-row={row.label}
+                  >
+                    {roles.map(({ role, metrics }, index) => (
+                      <tr key={role} className="start-analysis-table__row" data-start-analysis-role={role} onClick={select}>
+                        <td className="start-analysis-table__activity" style={{ color: ACTIVITY_COLORS[role] }}>{roleLabel(role)}</td>
+                        {index === 0 && (
+                          <td rowSpan={roles.length} className="start-analysis-table__start-cell">
+                            <button
+                              type="button"
+                              className="maneuver-event-table__button start-analysis-table__button"
+                              aria-pressed={selected}
+                              aria-label={`Move replay to ${row.label} gun at ${time} UTC, inferred from race timer`}
+                            >
+                              {row.label} {time}
+                            </button>
+                          </td>
+                        )}
+                        <td className="start-analysis-table__number" data-start-analysis-value="cross">{formatStartCross(metrics.crossSeconds)}</td>
+                        <td className="start-analysis-table__number" data-start-analysis-value="distance">{formatStartDistance(metrics.distanceAtGunMeters)}</td>
+                        <td className="start-analysis-table__number" data-start-analysis-value="line">{formatStartLinePercent(metrics.linePercent)}</td>
+                        <td className="start-analysis-table__number" data-start-analysis-value="sog">{formatSogNumber(metrics.sogCrossKnots)}</td>
+                        {index === 0 && (
+                          <td rowSpan={roles.length} data-start-analysis-value="note">{formatStartTimingNote(row.shortTimingMs)}</td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                )
+              })}
+            </table>
+          </div>
+        )}
         {selectedRow && <StartDetailTable row={selectedRow} />}
       </div>
     </section>

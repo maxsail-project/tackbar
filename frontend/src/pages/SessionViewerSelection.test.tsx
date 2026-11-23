@@ -918,6 +918,18 @@ describe('Viewer selected maneuver interactions', () => {
       expect(detailCells('[data-start-detail-role="pair"]')).toEqual(['P–C (m)', '', '81', '80', '80', '81', '81', '82', '85'])
     })
 
+    it.each(['original', 'temporary'] as const)('follows the Analysis Window and clears a Start leaving it on %s access (#38 D15)', async (accessKind) => {
+      await mountViewer(accessKind)
+      await click('[data-start-analysis-row="S1"] button')
+      expect(section()!.querySelector('[data-start-analysis-detail="S1"]')).not.toBeNull()
+      await click('[data-change-window]')
+      expect(section()!.querySelector('table')).toBeNull()
+      expect(section()!.querySelector('[data-start-analysis-empty]')!.textContent).toBe('No inferred Start in the Analysis Window')
+      await click('[data-reset-window]')
+      expect(section()!.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('false')
+      expect(section()!.querySelector('[data-start-analysis-detail]')).toBeNull()
+    })
+
     it.each(['original', 'temporary'] as const)('is absent without inferred Starts on %s access', async (accessKind) => {
       vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [] })
       await mountViewer(accessKind)

@@ -1290,7 +1290,7 @@ export function SessionViewer({
         onManeuverSelect={selectManeuver}
       />
       {sessionStarts.length > 0 && (
-        <StartAnalysisSection rows={startAnalysisRows} onSelect={selectSessionStart} />
+        <StartAnalysisSection rows={startAnalysisRows} analysisWindow={analysisWindow} onSelect={selectSessionStart} />
       )}
       {analysisWindow !== null && (
         <ManeuverEventTable

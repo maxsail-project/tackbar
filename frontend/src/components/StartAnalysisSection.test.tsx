@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { START_ANALYSIS_CONFIG } from '../config/startAnalysis'
+import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { UNAVAILABLE_START_METRICS, type StartAnalysisRow, type StartDetailTable } from '../utils/startAnalysis'
 import { START_FIXTURE_GUN } from '../utils/startAnalysisTestFixtures'
 import StartAnalysisSection, {
@@ -64,13 +65,19 @@ function cells(row: Element) {
   return [...row.querySelectorAll('td')].map((cell) => cell.textContent)
 }
 
-async function mount(sectionRows: StartAnalysisRow[], onSelect = vi.fn()) {
+/** S1 at its start and S2 at its end: both endpoints are inside (#38 D15). */
+const fullWindow = { start: START_FIXTURE_GUN, end: START_FIXTURE_GUN + 600_000 }
+
+async function mount(sectionRows: StartAnalysisRow[], onSelect = vi.fn(), analysisWindow: AnalysisWindowRange | null = fullWindow) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
-  await act(async () => root.render(<StartAnalysisSection rows={sectionRows} onSelect={onSelect} />))
-  return { container, onSelect, unmount: async () => { await act(async () => root.unmount()); container.remove() } }
+  const render = (range: AnalysisWindowRange | null) => act(async () => root.render(
+    <StartAnalysisSection rows={sectionRows} analysisWindow={range} onSelect={onSelect} />,
+  ))
+  await render(analysisWindow)
+  return { container, onSelect, render, unmount: async () => { await act(async () => root.unmount()); container.remove() } }
 }
 
 describe('START ANALYSIS formatting (#38.1)', () => {
@@ -84,7 +91,7 @@ describe('START ANALYSIS formatting (#38.1)', () => {
 
 describe('StartAnalysisSection (#38.1)', () => {
   it('is a collapsed-by-default section with an accessible summary table', () => {
-    const markup = renderToStaticMarkup(<StartAnalysisSection rows={rows} onSelect={vi.fn()} />)
+    const markup = renderToStaticMarkup(<StartAnalysisSection rows={rows} analysisWindow={fullWindow} onSelect={vi.fn()} />)
     const container = document.createElement('div')
     container.innerHTML = markup
     const section = container.querySelector('section')!
@@ -103,7 +110,7 @@ describe('StartAnalysisSection (#38.1)', () => {
 
   it('lists one row group per Start, P row then C row, with `—` for unavailable values and no better-boat marking', () => {
     const container = document.createElement('div')
-    container.innerHTML = renderToStaticMarkup(<StartAnalysisSection rows={rows} onSelect={vi.fn()} />)
+    container.innerHTML = renderToStaticMarkup(<StartAnalysisSection rows={rows} analysisWindow={fullWindow} onSelect={vi.fn()} />)
     const groups = [...container.querySelectorAll('tbody')]
     expect(groups.map((group) => group.getAttribute('data-start-analysis-row'))).toEqual(['S1', 'S2'])
     const [p1, c1] = groups[0].querySelectorAll('tr')
@@ -120,10 +127,10 @@ describe('StartAnalysisSection (#38.1)', () => {
 
   it('shows only P rows without a Comparison and nothing without Starts', () => {
     const container = document.createElement('div')
-    container.innerHTML = renderToStaticMarkup(<StartAnalysisSection rows={rows.map(withoutComparison)} onSelect={vi.fn()} />)
+    container.innerHTML = renderToStaticMarkup(<StartAnalysisSection rows={rows.map(withoutComparison)} analysisWindow={fullWindow} onSelect={vi.fn()} />)
     expect([...container.querySelectorAll('tbody tr')].map((row) => row.getAttribute('data-start-analysis-role'))).toEqual(['primary', 'primary'])
     expect(container.querySelector('tbody button')!.closest('td')!.getAttribute('rowspan')).toBe('1')
-    expect(renderToStaticMarkup(<StartAnalysisSection rows={[]} onSelect={vi.fn()} />)).toBe('')
+    expect(renderToStaticMarkup(<StartAnalysisSection rows={[]} analysisWindow={fullWindow} onSelect={vi.fn()} />)).toBe('')
   })
 
   it('expands, and selecting a row by pointer or keyboard button highlights its Start and seeks to its gun', async () => {
@@ -171,6 +178,44 @@ describe('StartAnalysisSection (#38.1)', () => {
     expect(detail()!.closest('[hidden]')).not.toBeNull()
     await act(async () => toggle.click())
     expect(detail()!.getAttribute('data-start-analysis-detail')).toBe('S2')
+    await unmount()
+  })
+})
+
+describe('Start Analysis Analysis Window filter (#38 D15)', () => {
+  const groups = (container: Element) => [...container.querySelectorAll('[data-start-analysis-row]')].map((group) => group.getAttribute('data-start-analysis-row'))
+
+  it('lists only Starts whose gun lies inside the window, endpoints included', async () => {
+    const { container, render, unmount } = await mount(rows)
+    expect(groups(container)).toEqual(['S1', 'S2'])
+    await render({ start: START_FIXTURE_GUN + 1, end: START_FIXTURE_GUN + 600_000 })
+    expect(groups(container)).toEqual(['S2'])
+    await render({ start: START_FIXTURE_GUN, end: START_FIXTURE_GUN + 599_999 })
+    expect(groups(container)).toEqual(['S1'])
+    expect(container.querySelector('[data-start-analysis-empty]')).toBeNull()
+    await unmount()
+  })
+
+  it('keeps the section with the empty-window text when no Start is inside the window, or without a window', async () => {
+    const { container, render, unmount } = await mount(rows, vi.fn(), { start: START_FIXTURE_GUN + 1, end: START_FIXTURE_GUN + 599_999 })
+    expect(container.querySelector('section.start-analysis-section')).not.toBeNull()
+    expect(container.querySelector('table')).toBeNull()
+    expect(container.querySelector('[data-start-analysis-empty]')!.textContent).toBe('No inferred Start in the Analysis Window')
+    await render(null)
+    expect(container.querySelector('[data-start-analysis-empty]')).not.toBeNull()
+    await unmount()
+  })
+
+  it('clears the selection and hides the detailed table when the selected Start leaves the window', async () => {
+    const { container, render, unmount } = await mount(rows)
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-start-analysis-row="S1"] button')!.click())
+    expect(container.querySelector('[data-start-analysis-detail="S1"]')).not.toBeNull()
+    await render({ start: START_FIXTURE_GUN + 300_000, end: START_FIXTURE_GUN + 600_000 })
+    expect(container.querySelector('[data-start-analysis-detail]')).toBeNull()
+    // The selection is cleared, not hidden: S1 back in the window stays unselected.
+    await render(fullWindow)
+    expect(container.querySelector('[data-start-analysis-detail]')).toBeNull()
+    expect(container.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('false')
     await unmount()
   })
 })
