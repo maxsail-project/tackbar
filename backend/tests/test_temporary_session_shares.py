@@ -419,6 +419,10 @@ def test_temporary_timer_read_rechecks_share_and_visibility_without_metadata(
          "timer_value_seconds": 0},
         {"timestamp": "2031-06-01T09:00:02+00:00", "event_type": 4,
          "timer_value_seconds": 0},
+        {"timestamp": "2031-06-01T09:00:03+00:00", "event_type": 0,
+         "timer_value_seconds": -60},
+        {"timestamp": "2031-06-01T09:00:04+00:00", "event_type": 255,
+         "timer_value_seconds": -1},
     ]
     records[0]["line_positions"] = [
         {"timestamp": "2031-06-01T08:00:00.123456+00:00", "endpoint_type": 0,
@@ -435,8 +439,10 @@ def test_temporary_timer_read_rechecks_share_and_visibility_without_metadata(
     assert response.headers["Cache-Control"] == "no-store"
     assert set(loaded.model_dump()) == {"activities"}
     assert [item.activity_id for item in loaded.activities] == [ACTIVITY_ID]
-    assert [event.event_type for event in loaded.activities[0].race_timer_events] == [3, 3]
-    assert [event.timestamp.microsecond for event in loaded.activities[0].race_timer_events] == [789000, 789000]
+    # #220 D7: RACE_START (3) and RACE_END (4) only; other timer types stay private.
+    assert [event.event_type for event in loaded.activities[0].race_timer_events] == [3, 3, 4]
+    assert [event.timestamp.microsecond for event in loaded.activities[0].race_timer_events] == [789000, 789000, 0]
+    assert all(set(event.model_dump()) == {"timestamp", "event_type"} for event in loaded.activities[0].race_timer_events)
     assert [(position.endpoint_type, position.latitude, position.longitude) for position in loaded.activities[0].line_positions] == [(0, 38.1, -0.2)]
 
     sailor = sailors.get_by_id(SAILOR_ID)

@@ -10,7 +10,10 @@ import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackSample } from '../types/track'
 import type { SummaryMetrics } from '../utils/summaryMetrics'
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
-import { resolveAnalysisWindowBrushRange } from '../utils/analysisWindow'
+import {
+  commitSessionTimelineWindow,
+  resolveAnalysisWindowBrushRange,
+} from '../utils/analysisWindow'
 import {
   resolveTemporalPointerTimestamp,
   startTemporalPointerSelection,
@@ -30,6 +33,7 @@ import {
 } from '../utils/sogTimeline'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
 import type { InferredSessionStart } from '../utils/sessionStarts'
+import type { InferredSessionRace } from '../utils/sessionRaces'
 import { formatAverageSog } from '../utils/metricPresentation'
 import { formatSog } from '../utils/numberFormat'
 import {
@@ -60,6 +64,8 @@ interface AnalysisWindowProps {
   comparisonSamples?: TrackSample[]
   maneuvers?: DisplayManeuver[]
   sessionStarts?: InferredSessionStart[]
+  /** Ephemeral race shortcuts for the header Race control (#220). */
+  sessionRaces?: InferredSessionRace[]
   hasComparison?: boolean
   primaryMetrics?: SummaryMetrics | null
   comparisonMetrics?: SummaryMetrics | null
@@ -189,6 +195,66 @@ export function requestAnalysisWindowReset(
   onRangeChange: (requestedRange: AnalysisWindowRange) => void,
 ) {
   onRangeChange(availableRange)
+}
+
+export interface AnalysisWindowRaceOption {
+  race: InferredSessionRace
+  /** Race window after the existing window-change clamping to the available range. */
+  window: AnalysisWindowRange
+}
+
+/** Races whose window, clamped by the existing window-change path, is selectable here. */
+export function resolveAnalysisWindowRaceOptions(
+  races: InferredSessionRace[],
+  availableRange: AnalysisWindowRange | null,
+): AnalysisWindowRaceOption[] {
+  if (availableRange === null) return []
+  return races.flatMap((race) => {
+    // Playback time does not affect the clamped bounds.
+    const committed = commitSessionTimelineWindow(race.window, availableRange, availableRange.start)
+    return committed === null ? [] : [{ race, window: committed.analysisWindow }]
+  })
+}
+
+const ALL_RACES_VALUE = 'all'
+
+/**
+ * Compact native Race select (#220 D4-rev): `All`, `R1`…`RN`, no visible label. It shows a
+ * race only while the Analysis Window equals that race's clamped bounds.
+ */
+export function AnalysisWindowRaceSelect({
+  options,
+  selectedLabel,
+  onSelectRace,
+  onSelectAll,
+}: {
+  options: AnalysisWindowRaceOption[]
+  selectedLabel: string | null
+  onSelectRace: (option: AnalysisWindowRaceOption) => void
+  onSelectAll: () => void
+}) {
+  if (options.length === 0) return null
+  return (
+    <select
+      className="playback-speed-select analysis-window__race"
+      value={selectedLabel ?? ALL_RACES_VALUE}
+      onChange={(event) => {
+        const option = options.find(({ race }) => race.label === event.target.value)
+        if (option === undefined) onSelectAll()
+        else onSelectRace(option)
+      }}
+      aria-label="Race"
+    >
+      <option value={ALL_RACES_VALUE}>All</option>
+      {options.map(({ race }) => (
+        <option key={race.label} value={race.label}>{race.label}</option>
+      ))}
+    </select>
+  )
+}
+
+function sameAnalysisWindow(first: AnalysisWindowRange, second: AnalysisWindowRange | null) {
+  return second !== null && first.start === second.start && first.end === second.end
 }
 
 export function AnalysisWindowManeuverMarker({
@@ -396,6 +462,7 @@ export default function AnalysisWindow({
   comparisonSamples = [],
   maneuvers = [],
   sessionStarts = [],
+  sessionRaces = [],
   hasComparison,
   primaryMetrics = null,
   comparisonMetrics = null,
@@ -415,6 +482,15 @@ export default function AnalysisWindow({
   const pointerStartClientXRef = useRef<number | null>(null)
   const pointerStartedOnMarkerRef = useRef(false)
   const completedGestureWasDragRef = useRef(false)
+  const [selectedRaceLabel, setSelectedRaceLabel] = useState<string | null>(null)
+  const raceOptions = useMemo(
+    () => resolveAnalysisWindowRaceOptions(sessionRaces, availableRange),
+    [availableRange, sessionRaces],
+  )
+  // The control shows a race only while the window equals its clamped bounds, so any
+  // window change from outside it (Wind segment, Activity change…) returns to All (#220 D4-rev).
+  const activeRaceLabel = raceOptions.find(({ race, window: raceWindow }) => race.label === selectedRaceLabel
+    && sameAnalysisWindow(raceWindow, analysisWindow))?.race.label ?? null
   const displayRange = analysisWindow
   const primaryPoints = useMemo(
     () => displayRange === null ? [] : reduceSogTimelinePoints(
@@ -453,6 +529,12 @@ export default function AnalysisWindow({
     observer.observe(timeline)
     return () => observer.disconnect()
   }, [availableRange, analysisWindow])
+
+  // Drag, Reset and `All` leave the selected race even when the window bounds coincide.
+  function changeRangeClearingRace(requestedRange: AnalysisWindowRange) {
+    setSelectedRaceLabel(null)
+    onRangeChange(requestedRange)
+  }
 
   function updatePointerSelection(nextSelection: TemporalPointerSelection | null) {
     pointerSelectionRef.current = nextSelection
@@ -516,7 +598,7 @@ export default function AnalysisWindow({
       completed,
       pointerStartClientXRef.current,
       event.clientX,
-      onRangeChange,
+      changeRangeClearingRace,
     )
     pointerStartClientXRef.current = null
     pointerStartedOnMarkerRef.current = false
@@ -585,12 +667,21 @@ export default function AnalysisWindow({
 
   return (
     <section className="content-section analysis-window" aria-labelledby="analysis-window-title">
-      <div className="section-heading">
+      <div className={`section-heading${raceOptions.length > 0 ? ' analysis-window__heading--race' : ''}`}>
         <div className="analysis-window__heading-copy">
           <p className="section-kicker" id="analysis-window-title">Analysis window</p>
           <span className="section-description">Drag SOG to select interval</span>
         </div>
         <div className="analysis-window__header-actions">
+          <AnalysisWindowRaceSelect
+            options={raceOptions}
+            selectedLabel={activeRaceLabel}
+            onSelectRace={({ race }) => {
+              setSelectedRaceLabel(race.label)
+              onRangeChange(race.window)
+            }}
+            onSelectAll={() => requestAnalysisWindowReset(availableRange, changeRangeClearingRace)}
+          />
           {replay && (
             <select
               className="playback-speed-select analysis-window__speed"
@@ -608,7 +699,7 @@ export default function AnalysisWindow({
           )}
           <AnalysisWindowResetButton
             disabled={isFullRange}
-            onReset={() => requestAnalysisWindowReset(availableRange, onRangeChange)}
+            onReset={() => requestAnalysisWindowReset(availableRange, changeRangeClearingRace)}
           />
         </div>
       </div>

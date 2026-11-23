@@ -98,6 +98,7 @@ import { deriveManeuverWindSectors } from '../utils/maneuverWindSector'
 import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
 import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeometry'
 import { inferSessionStarts } from '../utils/sessionStarts'
+import { inferSessionRaces } from '../utils/sessionRaces'
 import { inferSessionStartLines, visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
 import { prefersReducedMotion, revealMapIfNeeded } from '../utils/mapReveal'
 
@@ -537,6 +538,11 @@ export function SessionViewer({
   )
   const sessionStartLines = useMemo(
     () => sessionRaceTimerEvents ? inferSessionStartLines(sessionStarts, sessionRaceTimerEvents.activities) : [],
+    [sessionRaceTimerEvents, sessionStarts],
+  )
+  // Ephemeral race shortcuts for the Analysis Window header (#220).
+  const sessionRaces = useMemo(
+    () => sessionRaceTimerEvents ? inferSessionRaces(sessionStarts, sessionRaceTimerEvents.activities) : [],
     [sessionRaceTimerEvents, sessionStarts],
   )
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
@@ -1247,6 +1253,7 @@ export function SessionViewer({
         maneuvers={timelineManeuvers}
         sessionStarts={canReplay && availableRange !== null ? sessionStarts : []}
         onSessionStartSelect={selectSessionStart}
+        sessionRaces={sessionRaces}
         hasComparison={comparisonActivityId !== null}
         {...createAnalysisWindowSummaryMetrics(
           primarySummaryMetrics,
