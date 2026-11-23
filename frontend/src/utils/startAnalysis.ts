@@ -9,6 +9,7 @@ import { isTrackGapInterval } from './trackGaps'
 import type { InferredSessionRace } from './sessionRaces'
 import type { SessionStartLine } from './sessionStartLines'
 import type { InferredSessionStart } from './sessionStarts'
+import type { EffectiveTwd } from './windContext'
 import { gapAt } from './windProgress'
 
 /** Same spherical radius as the start-line inference helpers. */
@@ -37,6 +38,28 @@ export interface StartAnalysisRow {
   comparison: StartActivityMetrics | null
   /** Detailed table around the gun (#38.2, D3/D4/D10). */
   detail: StartDetailTable
+  /** Inferred line length and, with an effective TWD, its bias (#38 D20); `null` without a line. */
+  line: StartLineBias | null
+}
+
+/** End of the inferred line further to windward, or `square` when the bias rounds to 0° (#38 D20). */
+export type StartFavouredEnd = 'pin' | 'boat' | 'square'
+
+/** #38 D20 line reading of one Start. */
+export interface StartLineBias {
+  lengthMeters: number
+  /** Unavailable (`null`) without an effective TWD; no fallback wind. */
+  wind: {
+    source: EffectiveTwd['source']
+    /**
+     * Signed angle between the PIN–BOAT line and the perpendicular to the TWD, −90°…+90°:
+     * positive when BOAT is further to windward, negative when PIN is.
+     */
+    biasDegrees: number
+    favouredEnd: StartFavouredEnd
+    /** Windward offset of the favoured end: line length × sin(|bias|). */
+    advantageMeters: number
+  } | null
 }
 
 /** Role of one detailed-table row: an Activity (P or C) or the single Windward P–C row. */
@@ -246,6 +269,30 @@ export function deriveStartActivityMetrics(
   }
 }
 
+/**
+ * #38 D20: line length and, with an effective TWD, the signed bias, favoured end and advantage.
+ * The windward offset of BOAT from PIN is the PIN→BOAT vector projected on the TWD direction
+ * (sine/cosine only, so 0°/360°-safe); bias = asin(offset / length), advantage = |offset|.
+ */
+export function deriveStartLineBias(
+  frame: StartLineFrame | null,
+  twd: Pick<EffectiveTwd, 'degrees' | 'source'> | null,
+  config: StartAnalysisConfig = START_ANALYSIS_CONFIG,
+): StartLineBias | null {
+  if (frame === null) return null
+  if (twd === null || !Number.isFinite(twd.degrees)) return { lengthMeters: frame.length, wind: null }
+  const radians = twd.degrees * Math.PI / 180
+  const windwardOffset = frame.lineX * Math.sin(radians) + frame.lineY * Math.cos(radians)
+  const biasDegrees = Math.asin(Math.max(-1, Math.min(1, windwardOffset / frame.length))) * 180 / Math.PI
+  const favouredEnd: StartFavouredEnd = Math.abs(biasDegrees) < config.lineBiasSquareBelowDegrees
+    ? 'square'
+    : biasDegrees > 0 ? 'boat' : 'pin'
+  return {
+    lengthMeters: frame.length,
+    wind: { source: twd.source, biasDegrees, favouredEnd, advantageMeters: Math.abs(windwardOffset) },
+  }
+}
+
 /** #38 D8: time from the gun to the #220 paired RACE_END when within the short-timing threshold. */
 export function startShortTimingMs(
   start: Pick<InferredSessionStart, 'time'>,
@@ -357,8 +404,8 @@ export function deriveStartAnalysisRows(
   races: readonly Pick<InferredSessionRace, 'startTime' | 'endTime'>[],
   primarySamples: readonly TrackSample[] | null,
   comparisonSamples?: readonly TrackSample[] | null,
-  /** Effective TWD degrees of the Points of Sail section for the Windward P–C row (#38 D19), or null. */
-  twdDegrees: number | null = null,
+  /** Effective TWD of the Points of Sail section for Windward P–C (#38 D19) and line bias (#38 D20), or null. */
+  twd: Pick<EffectiveTwd, 'degrees' | 'source'> | null = null,
   config: StartAnalysisConfig = START_ANALYSIS_CONFIG,
 ): StartAnalysisRow[] {
   const primary = primarySamples ? prepareStartSamples(primarySamples) : null
@@ -374,7 +421,10 @@ export function deriveStartAnalysisRows(
       shortTimingMs: startShortTimingMs(start, races, config),
       primary: metrics(primary),
       comparison: comparisonSamples === undefined ? null : metrics(comparison),
-      detail: deriveStartDetailTable(primary, comparisonSamples === undefined ? undefined : comparison, frame, start.time, twdDegrees, config),
+      detail: deriveStartDetailTable(
+        primary, comparisonSamples === undefined ? undefined : comparison, frame, start.time, twd?.degrees ?? null, config,
+      ),
+      line: deriveStartLineBias(frame, twd, config),
     }
   })
 }

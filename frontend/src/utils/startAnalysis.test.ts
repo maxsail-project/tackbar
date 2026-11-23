@@ -8,6 +8,7 @@ import {
   deriveStartActivityMetrics,
   deriveStartAnalysisRows,
   deriveStartDetailTable,
+  deriveStartLineBias,
   measureStartLinePosition,
   nearestStartSampleIndex,
   prepareStartSamples,
@@ -50,6 +51,7 @@ describe('START ANALYSIS configuration (#38.1, #38.2)', () => {
       crossingSearchLimitSeconds: 120,
       offsetSampleToleranceSeconds: 1,
       shortTimingThresholdSeconds: 180,
+      lineBiasSquareBelowDegrees: 0.5,
       detailOffsetsSeconds: [-15, -5, 0, 5, 15],
       detailIndicators: [
         { id: 'sog', label: 'SOG', unit: 'kt', format: 'fixed1' },
@@ -214,6 +216,56 @@ describe('start summary rows (#38.1)', () => {
   })
 })
 
+describe('start line bias (#38 D20)', () => {
+  const bias = (degrees: number, source: 'modelled' | 'manual' = 'modelled') => deriveStartLineBias(frame, { degrees, source })!.wind!
+  const expectWind = (degrees: number, favouredEnd: string, biasDegrees: number, advantageMeters: number) => {
+    const wind = bias(degrees)
+    expect(wind.favouredEnd, `TWD ${degrees}`).toBe(favouredEnd)
+    expect(wind.biasDegrees, `TWD ${degrees}`).toBeCloseTo(biasDegrees, 6)
+    expect(wind.advantageMeters, `TWD ${degrees}`).toBeCloseTo(advantageMeters, 6)
+  }
+  // Fixture line: PIN → BOAT 200 m due east, course side north, so TWD 0° is square to it.
+  const tenDegreeAdvantage = 200 * Math.sin(10 * Math.PI / 180)
+
+  it('reads a wind perpendicular to the line as square, also when the bias rounds to 0°', () => {
+    expectWind(0, 'square', 0, 0)
+    expectWind(180, 'square', 0, 0)
+    expect(bias(0.4).favouredEnd).toBe('square')
+    expect(bias(0.6).favouredEnd).toBe('boat')
+  })
+
+  it('favours BOAT in a veered wind and PIN in a backed wind, with advantage = length × sin(|bias|)', () => {
+    expectWind(10, 'boat', 10, tenDegreeAdvantage)
+    expectWind(350, 'pin', -10, tenDegreeAdvantage)
+    expectWind(90, 'boat', 90, 200)
+  })
+
+  it('is safe across the 0°/360° boundary', () => {
+    expectWind(370, 'boat', 10, tenDegreeAdvantage)
+    expectWind(-10, 'pin', -10, tenDegreeAdvantage)
+    expectWind(359.6, 'square', -0.4, 200 * Math.sin(0.4 * Math.PI / 180))
+  })
+
+  it('keeps the wind source, reads only the length without a TWD and nothing without a line', () => {
+    expect(bias(10, 'manual').source).toBe('manual')
+    expect(bias(10).source).toBe('modelled')
+    const lengthOnly = deriveStartLineBias(frame, null)!
+    expect(lengthOnly.wind).toBeNull()
+    expect(lengthOnly.lengthMeters).toBeCloseTo(200, 6)
+    expect(deriveStartLineBias(null, { degrees: 10, source: 'modelled' })).toBeNull()
+  })
+
+  it('is derived per Start row from its inferred line and the effective TWD', () => {
+    const activities = [startTimerActivity('a', gun), startTimerActivity('b', gun)]
+    const starts = inferSessionStarts(activities)
+    const lines = inferSessionStartLines(starts, activities)
+    const [row] = deriveStartAnalysisRows(starts, lines, [], null, undefined, { degrees: 350, source: 'manual' })
+    expect([row.line!.wind!.favouredEnd, row.line!.wind!.source]).toEqual(['pin', 'manual'])
+    expect(deriveStartAnalysisRows(starts, lines, [], null)[0].line!.wind).toBeNull()
+    expect(deriveStartAnalysisRows(starts, [], [], null, undefined, { degrees: 0, source: 'manual' })[0].line).toBeNull()
+  })
+})
+
 describe('start detailed table (#38.2, D3, D10, D17–D19)', () => {
   type Samples = ReturnType<typeof startFixtureSamples>
   const secondsOf = (sample: Samples[number]) => (Date.parse(sample.utc) - gun) / 1_000
@@ -326,7 +378,7 @@ describe('start detailed table (#38.2, D3, D10, D17–D19)', () => {
   it('reads Dist at offset 0 like Dist at gun in the summary rows and passes the effective TWD through', () => {
     const activities = [startTimerActivity('a', gun), startTimerActivity('b', gun)]
     const starts = inferSessionStarts(activities)
-    const [row] = deriveStartAnalysisRows(starts, inferSessionStartLines(starts, activities), [], primary, comparison, 0)
+    const [row] = deriveStartAnalysisRows(starts, inferSessionStartLines(starts, activities), [], primary, comparison, { degrees: 0, source: 'manual' })
     const atGun = row.detail.offsetsSeconds.indexOf(0)
     expect(values(row.detail, 'distance', 'primary')[atGun]).toBeCloseTo(row.primary.distanceAtGunMeters!, 9)
     expect(values(row.detail, 'distance', 'comparison')[atGun]).toBeCloseTo(row.comparison!.distanceAtGunMeters!, 9)

@@ -888,7 +888,7 @@ describe('Viewer selected maneuver interactions', () => {
         .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
       expect(section()!.querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')).toBe('false')
       expect(section()!.querySelector('table[aria-label="Start summary"]')!.closest('[hidden]')).not.toBeNull()
-      expect(rowCells('primary')).toEqual(['P', 'S110:00:30', '+2.5s · 5.3 kt', '+5.0 m', '50%', '⚠ Ends +1m24s'])
+      expect(rowCells('primary')).toEqual(['P', 'S110:00:30', '+2.5s · 5.3 kt', '+5.0 m', '50%', '—', '⚠ Ends +1m24s'])
       expect(section()!.querySelector('[data-start-analysis-role="comparison"]')).toBeNull()
       await choose('Compare', 'b')
       expect(rowCells('comparison')).toEqual(['C', '−1.5s · 4.9 kt', '−4.5 m', '10%'])
@@ -921,6 +921,10 @@ describe('Viewer selected maneuver interactions', () => {
       const windward = () => [...section()!.querySelector('table[aria-label="S1 details around the gun"] [data-start-detail-role="pair"]')!.children]
         .map((cell) => cell.textContent)
       expect(windward()).toEqual(['Windward P–C (m)', '', '−1', '−11', '−16', '−21', '−31'])
+      // #38 D20: the 200 m line, backed 5° from square, favours PIN; the summary Fav reads 0%.
+      expect(section()!.querySelector('[data-start-analysis-detail] h3')!.textContent)
+        .toBe('S1 10:00:30 UTC · Line 200 m · PIN +5° (17 m) · TWD Manual · Viewer')
+      expect(section()!.querySelector('[data-start-analysis-value="favoured"]')!.textContent).toBe('0%')
     })
 
     it.each(['original', 'temporary'] as const)('follows the Analysis Window and clears a Start leaving it on %s access (#38 D15)', async (accessKind) => {

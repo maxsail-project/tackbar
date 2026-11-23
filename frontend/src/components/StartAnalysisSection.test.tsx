@@ -9,8 +9,10 @@ import { UNAVAILABLE_START_METRICS, type StartAnalysisRow, type StartDetailTable
 import { START_FIXTURE_GUN } from '../utils/startAnalysisTestFixtures'
 import StartAnalysisSection, {
   formatStartCross,
+  formatStartDetailHeading,
   formatStartDetailValue,
   formatStartDistance,
+  formatStartFavoured,
   formatStartLinePercent,
   formatStartOffset,
   formatStartTimingNote,
@@ -46,6 +48,7 @@ const rows: StartAnalysisRow[] = [
     primary: { crossSeconds: 2.5, distanceAtGunMeters: 5, linePercent: 50.4, sogCrossKnots: 5.3 },
     comparison: { crossSeconds: -1.5, distanceAtGunMeters: -4.5, linePercent: -15.4, sogCrossKnots: null },
     detail: s1Detail,
+    line: { lengthMeters: 200.4, wind: { source: 'modelled', biasDegrees: 5.4, favouredEnd: 'boat', advantageMeters: 18.8 } },
   },
   {
     label: 'S2',
@@ -54,6 +57,7 @@ const rows: StartAnalysisRow[] = [
     primary: { ...UNAVAILABLE_START_METRICS },
     comparison: { crossSeconds: null, distanceAtGunMeters: 73.66, linePercent: 130, sogCrossKnots: null },
     detail: { offsetsSeconds, rows: s1Detail.rows.map((row) => ({ ...row, values: series(null) })) },
+    line: null,
   },
 ]
 
@@ -96,6 +100,26 @@ describe('START ANALYSIS formatting (#38.1, D16)', () => {
   })
 })
 
+describe('START ANALYSIS line bias presentation (#38 D20)', () => {
+  const wind = (favouredEnd: 'pin' | 'boat' | 'square', source: 'modelled' | 'manual' = 'modelled') => ({
+    lengthMeters: 286.6, wind: { source, biasDegrees: favouredEnd === 'pin' ? -7.6 : 0.2, favouredEnd, advantageMeters: 37.9 },
+  })
+
+  it('shows the favoured end on the Line scale, Square, or `—` without line or TWD', () => {
+    expect([wind('pin'), wind('boat'), wind('square'), { lengthMeters: 286.6, wind: null }, null].map((line) => formatStartFavoured(line).text))
+      .toEqual(['0%', '100%', 'Square', '—', '—'])
+    expect(formatStartFavoured(wind('pin')).ariaLabel).toBe('Favoured end PIN, 0 percent of the line')
+  })
+
+  it('extends the detailed heading with the line length, bias and wind source when available', () => {
+    const heading = (line: StartAnalysisRow['line']) => formatStartDetailHeading({ label: 'S2', time: START_FIXTURE_GUN, line })
+    expect(heading(wind('pin'))).toBe('S2 10:00:00 UTC · Line 287 m · PIN +8° (38 m) · TWD Modelled')
+    expect(heading(wind('square', 'manual'))).toBe('S2 10:00:00 UTC · Line 287 m · Square · TWD Manual · Viewer')
+    expect(heading({ lengthMeters: 286.6, wind: null })).toBe('S2 10:00:00 UTC · Line 287 m')
+    expect(heading(null)).toBe('S2 10:00:00 UTC')
+  })
+})
+
 describe('StartAnalysisSection (#38.1)', () => {
   it('is a collapsed-by-default section with an accessible summary table', () => {
     const markup = renderToStaticMarkup(<StartAnalysisSection rows={rows} analysisWindow={fullWindow} onSelect={vi.fn()} />)
@@ -112,7 +136,7 @@ describe('StartAnalysisSection (#38.1)', () => {
     const table = section.querySelector('table')!
     expect(table.getAttribute('aria-label')).toBe('Start summary')
     expect([...table.querySelectorAll('thead th')].map((header) => header.textContent))
-      .toEqual(['Activity', 'Start', 'Cross', 'Dist', 'Line', 'Note'])
+      .toEqual(['Activity', 'Start', 'Cross', 'Dist', 'Line', 'Fav', 'Note'])
     expect(table.querySelector('thead th .maneuver-event-table__sr-only')!.textContent).toBe('Activity')
   })
 
@@ -122,7 +146,9 @@ describe('StartAnalysisSection (#38.1)', () => {
     expect(groups.map((group) => group.getAttribute('data-start-analysis-row'))).toEqual(['S1', 'S2'])
     const [p1, c1] = groups[0].querySelectorAll('tr')
     expect([p1, c1].map((row) => row.getAttribute('data-start-analysis-role'))).toEqual(['primary', 'comparison'])
-    expect(cells(p1)).toEqual(['P', 'S110:00:00', '+2.5s · 5.3 kt', '+5.0 m', '50%', '⚠ Ends +1m24s'])
+    expect(cells(p1)).toEqual(['P', 'S110:00:00', '+2.5s · 5.3 kt', '+5.0 m', '50%', '100%', '⚠ Ends +1m24s'])
+    const favoured = p1.querySelector('[data-start-analysis-value="favoured"]')!
+    expect([favoured.getAttribute('rowspan'), favoured.getAttribute('aria-label')]).toEqual(['2', 'Favoured end BOAT, 100 percent of the line'])
     expect(cells(c1)).toEqual(['C', '−1.5s · —', '−4.5 m', '−15%'])
     const startButton = p1.querySelector('button')!
     expect([startButton.querySelector('.start-analysis-table__start-label')!.textContent, startButton.querySelector('.start-analysis-table__start-time')!.textContent])
@@ -133,7 +159,7 @@ describe('StartAnalysisSection (#38.1)', () => {
     expect(c1.querySelector('[data-start-analysis-value="cross"]')!.getAttribute('aria-label')).toBe('Cross −1.5 seconds, SOG unavailable')
     expect(p1.querySelector('button')!.closest('td')!.getAttribute('rowspan')).toBe('2')
     expect(p1.querySelector('[data-start-analysis-value="note"]')!.getAttribute('rowspan')).toBe('2')
-    expect(cells(groups[1].querySelectorAll('tr')[0])).toEqual(['P', 'S210:10:00', '—', '—', '—', ''])
+    expect(cells(groups[1].querySelectorAll('tr')[0])).toEqual(['P', 'S210:10:00', '—', '—', '—', '—', ''])
     expect(cells(groups[1].querySelectorAll('tr')[1])).toEqual(['C', '—', '+73.7 m', '130%'])
     expect(groups[1].querySelector('[data-start-analysis-value="cross"]')!.getAttribute('aria-label')).toBe('Cross unavailable')
     expect(container.querySelectorAll('[data-start-analysis-value][style], strong, b')).toHaveLength(0)
@@ -142,9 +168,9 @@ describe('StartAnalysisSection (#38.1)', () => {
 
   it('renders the Note column only when a visible Start has a note', () => {
     const s2Only = summaryMarkup(rows, { start: START_FIXTURE_GUN + 1, end: START_FIXTURE_GUN + 600_000 })
-    expect([...s2Only.querySelectorAll('thead th')].map((header) => header.textContent)).toEqual(['Activity', 'Start', 'Cross', 'Dist', 'Line'])
+    expect([...s2Only.querySelectorAll('thead th')].map((header) => header.textContent)).toEqual(['Activity', 'Start', 'Cross', 'Dist', 'Line', 'Fav'])
     expect(s2Only.querySelector('[data-start-analysis-value="note"]')).toBeNull()
-    expect(cells(s2Only.querySelector('[data-start-analysis-role="primary"]')!)).toEqual(['P', 'S210:10:00', '—', '—', '—'])
+    expect(cells(s2Only.querySelector('[data-start-analysis-role="primary"]')!)).toEqual(['P', 'S210:10:00', '—', '—', '—', '—'])
     expect(summaryMarkup(rows).querySelectorAll('[data-start-analysis-value="note"]')).toHaveLength(2)
   })
 
@@ -189,7 +215,7 @@ describe('StartAnalysisSection (#38.1)', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[data-start-analysis-row="S1"] button')!.click())
     expect(detail()!.getAttribute('data-start-analysis-detail')).toBe('S1')
     expect(container.querySelector('table[aria-label="Start summary"]')!.compareDocumentPosition(detail()!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(detail()!.querySelector('h3')!.textContent).toBe('S1 10:00:00 UTC')
+    expect(detail()!.querySelector('h3')!.textContent).toBe('S1 10:00:00 UTC · Line 200 m · BOAT +5° (19 m) · TWD Modelled')
     expect(detail()!.querySelector('table')!.getAttribute('aria-label')).toBe('S1 details around the gun')
 
     await act(async () => container.querySelector<HTMLElement>('[data-start-analysis-row="S2"] td:last-child')!.click())

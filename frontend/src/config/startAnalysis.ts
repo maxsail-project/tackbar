@@ -25,7 +25,7 @@ export interface StartDetailIndicator {
 }
 
 /**
- * START ANALYSIS derivation constants (Issue #38, increments #38.1 and #38.2, D17–D19). Configurable
+ * START ANALYSIS derivation constants (Issue #38, increments #38.1–#38.3, D17–D20). Configurable
  * presentation constants of the Viewer, not validated sailing standards.
  */
 export const START_ANALYSIS_CONFIG = {
@@ -44,6 +44,8 @@ export const START_ANALYSIS_CONFIG = {
   offsetSampleToleranceSeconds: 1,
   /** The Note shows `⚠ Ends +<duration>` when the paired RACE_END is at most this long after the gun (#38 D8). */
   shortTimingThresholdSeconds: 180,
+  /** A line bias whose magnitude rounds to 0° (below this many degrees) reads Square (#38 D20). */
+  lineBiasSquareBelowDegrees: 0.5,
   /** Detailed-table columns: seconds from the gun, in display order (#38 D17). */
   detailOffsetsSeconds: [-15, -5, 0, 5, 15] as readonly number[],
   /**

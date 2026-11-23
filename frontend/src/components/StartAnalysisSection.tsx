@@ -5,7 +5,8 @@ import { formatFixed, formatRounded, formatSog, withTypographicMinus } from '../
 import type { AnalysisWindowRange } from '../utils/analysisWindow'
 import { formatGpsTime } from '../utils/replay'
 import { sessionStartsInWindow } from '../utils/sessionStarts'
-import type { StartActivityMetrics, StartAnalysisRow, StartDetailRow } from '../utils/startAnalysis'
+import type { StartActivityMetrics, StartAnalysisRow, StartDetailRow, StartLineBias } from '../utils/startAnalysis'
+import { formatTwdSource } from '../utils/windContext'
 import { formatAnalysisWindowDuration } from './AnalysisWindow'
 
 type Role = 'primary' | 'comparison'
@@ -71,6 +72,35 @@ function startSummaryCells(metrics: StartActivityMetrics) {
   ]
 }
 
+/** #38 D20 Fav: the favoured end on the Line scale (`0%` PIN, `100%` BOAT), `Square`, `—` without line or TWD. */
+export function formatStartFavoured(line: StartLineBias | null) {
+  const end = line?.wind?.favouredEnd
+  if (end === undefined) return { text: '—', ariaLabel: 'Favoured end unavailable' }
+  if (end === 'square') return { text: 'Square', ariaLabel: 'Line square to the wind' }
+  return end === 'pin'
+    ? { text: '0%', ariaLabel: 'Favoured end PIN, 0 percent of the line' }
+    : { text: '100%', ariaLabel: 'Favoured end BOAT, 100 percent of the line' }
+}
+
+/**
+ * #38 D20 detailed heading: `S<n> HH:MM:SS UTC`, then with a line `Line <length> m`, and with an
+ * effective TWD the favoured end `<PIN|BOAT> +<bias>° (<advantage> m)` or `Square` and `TWD <source>`.
+ */
+export function formatStartDetailHeading(row: Pick<StartAnalysisRow, 'label' | 'time' | 'line'>) {
+  const parts = [`${row.label} ${formatGpsTime(row.time)} UTC`]
+  if (row.line) {
+    parts.push(`Line ${formatRounded(row.line.lengthMeters)} m`)
+    const { wind } = row.line
+    if (wind) {
+      parts.push(wind.favouredEnd === 'square'
+        ? 'Square'
+        : `${wind.favouredEnd.toUpperCase()} +${formatRounded(Math.abs(wind.biasDegrees))}° (${formatRounded(wind.advantageMeters)} m)`)
+      parts.push(`TWD ${formatTwdSource(wind.source)}`)
+    }
+  }
+  return parts.join(' · ')
+}
+
 export const START_SUMMARY_HELP_TEXT = 'Cross: time and SOG when crossing the line · Dist, Line: position at the gun'
 
 /** #38 D8: the fact only, in the Viewer compact duration format (e.g. `⚠ Ends +1m24s`). */
@@ -117,10 +147,9 @@ function groupDetailRows(rows: readonly StartDetailRow[]) {
 
 /** #38.2 (D3, D4): indicators × offsets around the gun of the selected Start; no Δ rows, no better-value marking. */
 function StartDetailTable({ row }: { row: StartAnalysisRow }) {
-  const time = formatGpsTime(row.time)
   return (
     <div className="start-analysis-detail" data-start-analysis-detail={row.label}>
-      <h3 className="start-analysis-detail__title">{row.label} {time} UTC</h3>
+      <h3 className="start-analysis-detail__title">{formatStartDetailHeading(row)}</h3>
       <div className="maneuver-event-table-wrap">
         <table className="start-analysis-table start-analysis-table--detail" aria-label={`${row.label} details around the gun`}>
           <thead>
@@ -210,6 +239,7 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
                   <th scope="col" className="start-analysis-table__number">Cross</th>
                   <th scope="col" className="start-analysis-table__number">Dist</th>
                   <th scope="col" className="start-analysis-table__number">Line</th>
+                  <th scope="col" className="start-analysis-table__number">Fav</th>
                   {showNote && <th scope="col">Note</th>}
                 </tr>
               </thead>
@@ -221,6 +251,7 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
                   ...(row.comparison === null ? [] : [{ role: 'comparison' as const, metrics: row.comparison }]),
                 ]
                 const time = formatGpsTime(row.time)
+                const favoured = formatStartFavoured(row.line)
                 const select = () => {
                   setSelectedKey(key)
                   onSelect({ label: row.label, time: row.time })
@@ -252,6 +283,11 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
                             {cell.text}
                           </td>
                         ))}
+                        {index === 0 && (
+                          <td rowSpan={roles.length} className="start-analysis-table__number" data-start-analysis-value="favoured" aria-label={favoured.ariaLabel}>
+                            {favoured.text}
+                          </td>
+                        )}
                         {showNote && index === 0 && (
                           <td rowSpan={roles.length} data-start-analysis-value="note">{formatStartTimingNote(row.shortTimingMs)}</td>
                         )}

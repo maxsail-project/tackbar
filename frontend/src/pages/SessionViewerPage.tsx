@@ -810,8 +810,8 @@ export function SessionViewer({
     () => resolveEffectiveTwd(twdReference, manualTwdDegrees),
     [manualTwdDegrees, twdReference],
   )
-  // START ANALYSIS (#38.1, #38.2): every inferred Start over the full canonical P/C tracks; the
-  // Windward P–C row uses the same effective TWD as Points of Sail (#38 D19).
+  // START ANALYSIS (#38.1–#38.3): every inferred Start over the full canonical P/C tracks; the
+  // Windward P–C row and the line bias use the same effective TWD as Points of Sail (#38 D19, D20).
   const startAnalysisRows = useMemo(
     () => deriveStartAnalysisRows(
       sessionStarts,
@@ -819,7 +819,7 @@ export function SessionViewer({
       sessionRaces,
       primaryTrack?.samples ?? null,
       comparisonActivityId === null ? undefined : comparisonTrack?.samples ?? null,
-      effectiveTwd?.degrees ?? null,
+      effectiveTwd,
     ),
     [comparisonActivityId, comparisonTrack, effectiveTwd, primaryTrack, sessionRaces, sessionStartLines, sessionStarts],
   )
