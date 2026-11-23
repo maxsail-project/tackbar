@@ -49,3 +49,55 @@ export function insertTrackGapBreaks<T extends { time: number }>(
   })
   return result
 }
+
+/** Gap time of one Activity overlapping an Analysis Window (Issue #218 D4). */
+export interface TrackGapWindowOverlap {
+  /** Gaps with a positive-duration overlap with the window. */
+  count: number
+  /** Summed missing GPS time inside the window, in milliseconds. */
+  overlapMilliseconds: number
+}
+
+/** Positive-duration overlap of one gap with a window, in milliseconds (0 when none). */
+export function trackGapOverlapMilliseconds(
+  gap: Pick<TrackGap, 'startMs' | 'endMs'>,
+  window: { start: number, end: number },
+) {
+  return Math.max(0, Math.min(gap.endMs, window.end) - Math.max(gap.startMs, window.start))
+}
+
+/**
+ * Count and summed duration of the gaps overlapping a window by a positive duration, including
+ * a window boundary inside a gap and a window entirely inside one. Touching endpoints do not count.
+ */
+export function trackGapWindowOverlap(
+  gaps: readonly TrackGap[],
+  window: { start: number, end: number } | null,
+): TrackGapWindowOverlap {
+  let count = 0
+  let overlapMilliseconds = 0
+  if (window === null) return { count, overlapMilliseconds }
+  for (const gap of gaps) {
+    const overlap = trackGapOverlapMilliseconds(gap, window)
+    if (overlap > 0) {
+      count += 1
+      overlapMilliseconds += overlap
+    }
+  }
+  return { count, overlapMilliseconds }
+}
+
+/**
+ * My Activities gap duration (#218 D4): whole seconds as `1 h 2 min 3 s`, omitting zero
+ * parts, `0 s` for none.
+ */
+export function formatGapSummaryDuration(totalSeconds: number) {
+  const seconds = Math.max(0, Math.round(totalSeconds))
+  const parts = [
+    [Math.floor(seconds / 3_600), 'h'],
+    [Math.floor((seconds % 3_600) / 60), 'min'],
+    [seconds % 60, 's'],
+  ] as const
+  const text = parts.filter(([value]) => value > 0).map(([value, unit]) => `${value} ${unit}`)
+  return text.length === 0 ? '0 s' : text.join(' ')
+}

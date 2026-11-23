@@ -43,6 +43,10 @@ export interface PersonalActivity {
   original_filename: string
   start_time: string
   end_time: string
+  /** Adjacent canonical UTC intervals over 10 s (#218 D6); null until the gap summary is derived. */
+  gap_count: number | null
+  /** Summed full duration of those gaps in seconds; null until derived. */
+  gap_total_seconds: number | null
 }
 
 export interface PersonalActivityPatch {

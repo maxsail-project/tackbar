@@ -6,6 +6,7 @@ import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalSes
 import MyBoats, { boatName } from './MyBoats'
 import { formatHistoricalConditionsCompact } from '../utils/historicalConditions'
 import { sessionDisplayLocation } from '../utils/sessionPresentation'
+import { formatGapSummaryDuration } from '../utils/trackGaps'
 
 export type PersonalPageState =
   | { status: 'loading' | 'unavailable' | 'error' }
@@ -206,6 +207,16 @@ function effectiveDevice(activity: PersonalActivity): string {
     || (activity.device_name.trim() && activity.device_name) || ''
 }
 
+/** Compact informational GPS-gap notice from the Activity gap summary (#218 D4); none for 0 or null. */
+export function ActivityGapNotice({ activity }: { activity: Pick<PersonalActivity, 'gap_count' | 'gap_total_seconds'> }) {
+  const count = activity.gap_count
+  if (count === null || count === undefined || !(count > 0)) return null
+  const total = activity.gap_total_seconds
+  return <p className="personal-activity__gap-notice">
+    {count} GPS {count === 1 ? 'gap' : 'gaps'}{total !== null && total !== undefined && total > 0 ? ` · ${formatGapSummaryDuration(total)}` : ''}
+  </p>
+}
+
 function MyActivities({ token, onUnavailable, boatSaved, expanded, onToggle }: { token: string; onUnavailable?: () => void; boatSaved: PersonalBoat | null; expanded: boolean; onToggle: () => void }) {
   const [state, setState] = useState<ActivitiesState>({ status: 'loading' })
   const [retry, setRetry] = useState(0)
@@ -317,6 +328,7 @@ function MyActivities({ token, onUnavailable, boatSaved, expanded, onToggle }: {
           <p className="personal-activity__summary">{sailingInterval(activity.start_time, activity.end_time)}</p>
           <p className="personal-activity__context"><strong>Boat:</strong> {currentBoat}</p>
           <p className="personal-activity__context"><strong>Device:</strong> {effectiveDevice(activity) || 'Not available'}</p>
+          <ActivityGapNotice activity={activity} />
           <p className="personal-activity__origin">Source: {activity.source} · Original file: {activity.original_filename} · Extracted Device: {activity.device_name.trim() ? activity.device_name : 'Not available'}</p>
           {editing ? <form onSubmit={(event) => { event.preventDefault(); void save(activity) }}>
             <label>Boat

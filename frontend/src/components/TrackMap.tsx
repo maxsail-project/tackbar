@@ -11,6 +11,7 @@ import { ACTIVITY_COLORS } from '../config/activityColors'
 import HistoricalConditionsControl from './HistoricalConditionsControl'
 import TwdControl from './TwdControl'
 import TwsControl from './TwsControl'
+import { formatAnalysisWindowDuration } from './AnalysisWindow'
 import { MAP_STYLE_URL } from '../config/map'
 import type { TrackSample } from '../types/track'
 import type { HistoricalConditionsSample } from '../types/session'
@@ -27,9 +28,11 @@ import type { TwdReference } from '../utils/twdReference'
 import { resolveGestureTwd, type TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
 import {
+  buildGapChordCollection,
   buildTrackGeometry,
   combineTrackBounds,
   type TrackBounds,
+  type TrackGapChord,
 } from '../utils/trackGeometry'
 
 export interface MapFocusRequest {
@@ -123,6 +126,24 @@ export function selectedManeuverHighlightPaint(
   return layer === 'halo'
     ? { 'line-color': '#fff', 'line-opacity': 0.72, 'line-width': 8 }
     : { 'line-color': ACTIVITY_COLORS[activityRole], 'line-opacity': 0.96, 'line-width': 4.5 }
+}
+
+/**
+ * Unknown-path gap chord (#218 D3/D4): thinner, translucent and dashed so it never reads as
+ * recorded track.
+ */
+export function gapChordPaint(activityRole: ManeuverActivityRole) {
+  return {
+    'line-color': ACTIVITY_COLORS[activityRole],
+    'line-opacity': 0.7,
+    'line-width': 2,
+    'line-dasharray': [2, 2],
+  }
+}
+
+const GAP_CHORD_LAYOUT = {
+  'line-cap': 'butt' as const,
+  'line-join': 'round' as const,
 }
 
 const CONTEXTUAL_TRACK_PAINT = {
@@ -284,6 +305,66 @@ export function resolveReplayMarker(
     }
   }
   return null
+}
+
+const GAP_ROLE_LABELS = { primary: 'P', comparison: 'C' } as const
+const GAP_ROLE_NAMES = { primary: 'Primary', comparison: 'Comparison' } as const
+
+/** Compact on-selection explanation of one gap chord; reports no coordinates (#218 D4). */
+export function GapChordExplanation({
+  activityRole,
+  chord,
+}: {
+  activityRole: ManeuverActivityRole
+  chord: Pick<TrackGapChord, 'durationMilliseconds' | 'displacementMeters'>
+}) {
+  return (
+    <div className="gap-chord-explanation">
+      <strong>
+        <span style={{ color: ACTIVITY_COLORS[activityRole] }}>{GAP_ROLE_LABELS[activityRole]}</span>
+        {' · GPS gap'}
+      </strong>
+      <p>No GPS data for {formatAnalysisWindowDuration(chord.durationMilliseconds)}.</p>
+      <p>Net geometric displacement between recorded endpoints: {Math.round(chord.displacementMeters)} m.</p>
+      <p>The dashed line is a straight chord between the recorded endpoints; the path sailed is unknown.</p>
+    </div>
+  )
+}
+
+/**
+ * Opens the chord explanation. A map tap closes the popup before this click handler runs, so the
+ * control opens rather than toggles; Escape, the popup close button or a map tap close it.
+ */
+export function GapChordControl({
+  activityRole,
+  chord,
+  expanded,
+  onOpen,
+  onClose,
+}: {
+  activityRole: ManeuverActivityRole
+  chord: Pick<TrackGapChord, 'durationMilliseconds'>
+  expanded: boolean
+  onOpen: () => void
+  onClose: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`gap-chord-control gap-chord-control--${activityRole}`}
+      aria-label={`${GAP_ROLE_NAMES[activityRole]} GPS gap, no GPS data for ${formatAnalysisWindowDuration(chord.durationMilliseconds)}: details`}
+      aria-expanded={expanded}
+      onClick={(event) => {
+        event.stopPropagation()
+        onOpen()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && expanded) onClose()
+      }}
+    >
+      <span aria-hidden="true" className="gap-chord-control__badge" style={{ borderColor: ACTIVITY_COLORS[activityRole] }}>Gap</span>
+    </button>
+  )
 }
 
 export function openContextualActivityPopup(
@@ -478,6 +559,7 @@ export default function TrackMap({
   const [twdDetailExpanded, setTwdDetailExpanded] = useState(false)
   const [twsDetailExpanded, setTwsDetailExpanded] = useState(false)
   const [inspectedContextualActivityId, setInspectedContextualActivityId] = useState<string | null>(null)
+  const [inspectedGapChord, setInspectedGapChord] = useState<{ activityRole: ManeuverActivityRole, key: string } | null>(null)
   const fittedContextKeyRef = useRef<string | null>(null)
   const handledFocusRequestIdRef = useRef<number | null>(null)
   const dismissWeatherDetail = useCallback(
@@ -543,6 +625,22 @@ export default function TrackMap({
     ),
     [comparisonGeometry, primaryGeometry],
   )
+  const gapChordGroups = useMemo(
+    () => ([
+      ['comparison', comparisonGeometry],
+      ['primary', primaryGeometry],
+    ] as const).flatMap(([activityRole, geometry]) => (
+      geometry && geometry.gapChords.length > 0
+        ? [{ activityRole, chords: geometry.gapChords, collection: buildGapChordCollection(geometry.gapChords) }]
+        : []
+    )),
+    [comparisonGeometry, primaryGeometry],
+  )
+  const inspectedChord = inspectedGapChord === null
+    ? null
+    : gapChordGroups
+      .find((group) => group.activityRole === inspectedGapChord.activityRole)
+      ?.chords.find((chord) => chord.key === inspectedGapChord.key) ?? null
   const windowFocus = primaryVisibleSamples[0]
   const inspectedContextualActivity = contextualActivities.find(
     (activity) => activity.id === inspectedContextualActivityId,
@@ -619,6 +717,10 @@ export default function TrackMap({
       setInspectedContextualActivityId(null)
     }
   }, [contextualActivities, inspectedContextualActivityId])
+
+  useEffect(() => {
+    if (inspectedGapChord !== null && inspectedChord === null) setInspectedGapChord(null)
+  }, [inspectedChord, inspectedGapChord])
 
   useEffect(() => {
     dismissWeatherDetail()
@@ -784,6 +886,21 @@ export default function TrackMap({
             />
           </Source>
         )}
+        {gapChordGroups.map(({ activityRole, collection }) => (
+          <Source
+            key={`gap-chords-${activityRole}`}
+            id={`${activityRole}-activity-gap-chords`}
+            type="geojson"
+            data={collection}
+          >
+            <Layer
+              id={`${activityRole}-activity-gap-chord-line`}
+              type="line"
+              paint={gapChordPaint(activityRole)}
+              layout={GAP_CHORD_LAYOUT}
+            />
+          </Source>
+        ))}
         {selectedManeuverHighlights.map((highlight) => (
           <Source
             key={`halo-${highlight.selectionIndex}`}
@@ -814,6 +931,26 @@ export default function TrackMap({
             />
           </Source>
         ))}
+        {gapChordGroups.flatMap(({ activityRole, chords }) => chords.map((chord) => (
+          <Marker
+            key={`gap-chord-control-${activityRole}-${chord.key}`}
+            longitude={chord.midpoint[0]}
+            latitude={chord.midpoint[1]}
+            anchor="center"
+            style={{ zIndex: 1 }}
+          >
+            <GapChordControl
+              activityRole={activityRole}
+              chord={chord}
+              expanded={inspectedGapChord?.activityRole === activityRole && inspectedGapChord.key === chord.key}
+              onOpen={() => {
+                setInspectedContextualActivityId(null)
+                setInspectedGapChord({ activityRole, key: chord.key })
+              }}
+              onClose={() => setInspectedGapChord(null)}
+            />
+          </Marker>
+        )))}
         {primaryMarker && (
           <Marker
             longitude={primaryMarker.position.lon}
@@ -859,6 +996,7 @@ export default function TrackMap({
               className="contextual-boat-marker"
               aria-label={`Inspect ${activity.identity}`}
               onClick={(event) => {
+                setInspectedGapChord(null)
                 setInspectedContextualActivityId(
                   openContextualActivityPopup(activity.id, event),
                 )
@@ -892,6 +1030,20 @@ export default function TrackMap({
                 onCompareContextualActivity?.(inspectedContextualActivity.id)
               }}
             />
+          </Popup>
+        )}
+        {inspectedGapChord && inspectedChord && (
+          <Popup
+            longitude={inspectedChord.midpoint[0]}
+            latitude={inspectedChord.midpoint[1]}
+            anchor="bottom"
+            offset={18}
+            closeOnClick
+            onClose={() => setInspectedGapChord(null)}
+            className="gap-chord-popup"
+            style={{ zIndex: 4 }}
+          >
+            <GapChordExplanation activityRole={inspectedGapChord.activityRole} chord={inspectedChord} />
           </Popup>
         )}
       </Map>

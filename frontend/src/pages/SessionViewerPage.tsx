@@ -86,6 +86,7 @@ import { resolveTwdPresentation, stepViewerTwd } from '../utils/twdPresentation'
 import { resolveTwsPresentation, resolveTwsReference, stepViewerTws } from '../utils/twsReference'
 import { calculateWindContext, resolveEffectiveTwd } from '../utils/windContext'
 import { calculateWindProgress } from '../utils/windProgress'
+import { findTrackGaps } from '../utils/trackGaps'
 import { classifySegmentInterval, createSegmentTwdAtTime, detectWindSegments } from '../utils/windSegments'
 import {
   deriveDisplayManeuvers,
@@ -611,6 +612,15 @@ export function SessionViewer({
   const [maneuverSectorFilterResetToken, setManeuverSectorFilterResetToken] = useState(0)
   const windowStart = analysisWindow?.start ?? null
   const windowEnd = analysisWindow?.end ?? null
+  // Gaps of the full canonical tracks, so a window boundary inside a gap still sees it (#218 D4).
+  const primaryTrackGaps = useMemo(
+    () => primaryTrack ? findTrackGaps(primaryTrack.samples) : [],
+    [primaryTrack],
+  )
+  const comparisonTrackGaps = useMemo(
+    () => comparisonTrack ? findTrackGaps(comparisonTrack.samples) : [],
+    [comparisonTrack],
+  )
   const primaryAvailableSamples = useMemo(
     () => primaryTrack && availableRange
       ? filterSamplesByAnalysisWindow(
@@ -1232,6 +1242,8 @@ export function SessionViewer({
         analysisWindow={analysisWindow}
         primarySamples={primaryAvailableSamples}
         comparisonSamples={comparisonAvailableSamples}
+        primaryGaps={primaryTrackGaps}
+        comparisonGaps={comparisonTrackGaps}
         maneuvers={timelineManeuvers}
         sessionStarts={canReplay && availableRange !== null ? sessionStarts : []}
         onSessionStartSelect={selectSessionStart}

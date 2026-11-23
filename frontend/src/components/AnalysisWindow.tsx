@@ -32,6 +32,12 @@ import type { DisplayManeuver } from '../utils/maneuverEvents'
 import type { InferredSessionStart } from '../utils/sessionStarts'
 import { formatAverageSog } from '../utils/metricPresentation'
 import { formatSog } from '../utils/numberFormat'
+import {
+  trackGapOverlapMilliseconds,
+  trackGapWindowOverlap,
+  type TrackGap,
+  type TrackGapWindowOverlap,
+} from '../utils/trackGaps'
 
 const TIMELINE_POINT_BUDGET = 240
 const ANALYSIS_WINDOW_DRAG_THRESHOLD_PX = 6
@@ -60,6 +66,9 @@ interface AnalysisWindowProps {
   primaryManeuverCount?: number | null
   comparisonManeuverCount?: number | null
   replay?: AnalysisWindowReplay | null
+  /** Gaps of the full Primary/Comparison canonical tracks (#218 D4). */
+  primaryGaps?: TrackGap[]
+  comparisonGaps?: TrackGap[]
   onRangeChange: (requestedRange: AnalysisWindowRange) => void
   onManeuverSelect?: (event: DisplayManeuver) => void
   onSessionStartSelect?: (start: InferredSessionStart) => void
@@ -304,6 +313,63 @@ export function sessionStartControlLayout(
   return { dense, placements }
 }
 
+type GapRole = 'primary' | 'comparison'
+
+/** Unavailable-evidence bands on the SOG timeline for gaps overlapping the window (#218 D4). */
+export function AnalysisWindowGapBands({
+  activityRole,
+  gaps,
+  analysisWindow,
+}: {
+  activityRole: GapRole
+  gaps: TrackGap[]
+  analysisWindow: AnalysisWindowRange
+}) {
+  return <>
+    {gaps.filter((gap) => trackGapOverlapMilliseconds(gap, analysisWindow) > 0).map((gap) => {
+      const left = positionPercent(gap.startMs, analysisWindow)
+      const right = positionPercent(gap.endMs, analysisWindow)
+      return <div
+        key={`${activityRole}:${gap.startMs}`}
+        className={`analysis-window__gap-band analysis-window__gap-band--${activityRole}`}
+        style={{ left: `${left}%`, width: `${right - left}%`, borderColor: ACTIVITY_COLORS[activityRole] }}
+        aria-hidden="true"
+      />
+    })}
+  </>
+}
+
+/**
+ * Compact notice, only when the window overlaps a gap of the selected Primary and/or Comparison
+ * Activity by a positive duration: role and missing GPS time inside the window (#218 D4).
+ */
+export function AnalysisWindowGapNotice({
+  primary,
+  comparison = null,
+}: {
+  primary: TrackGapWindowOverlap
+  comparison?: TrackGapWindowOverlap | null
+}) {
+  const entries: [GapRole, TrackGapWindowOverlap][] = []
+  if (primary.overlapMilliseconds > 0) entries.push(['primary', primary])
+  if (comparison !== null && comparison.overlapMilliseconds > 0) entries.push(['comparison', comparison])
+  if (entries.length === 0) return null
+  return (
+    <p className="analysis-window__gap-notice" role="note">
+      {entries.map(([activityRole, overlap]) => (
+        <span key={activityRole} className="analysis-window__gap-notice-entry">
+          <strong
+            style={{ color: ACTIVITY_COLORS[activityRole] }}
+            aria-label={activityRole === 'primary' ? 'Primary Activity' : 'Comparison Activity'}
+          >{activityRole === 'primary' ? 'P' : 'C'}</strong>
+          {` · No GPS data for ${formatAnalysisWindowDuration(overlap.overlapMilliseconds)} in this window`}
+          {overlap.count > 1 ? ` (${overlap.count} gaps)` : ''}
+        </span>
+      ))}
+    </p>
+  )
+}
+
 export function AnalysisWindowResetButton({
   disabled,
   onReset,
@@ -336,6 +402,8 @@ export default function AnalysisWindow({
   primaryManeuverCount = null,
   comparisonManeuverCount = null,
   replay = null,
+  primaryGaps = [],
+  comparisonGaps = [],
   onRangeChange,
   onManeuverSelect = () => undefined,
   onSessionStartSelect = () => undefined,
@@ -488,6 +556,7 @@ export default function AnalysisWindow({
     comparisonPoints.length > 0
     || maneuvers.some((event) => event.activityRole === 'comparison')
   )
+  const visibleComparisonGaps = showsComparisonLane ? comparisonGaps : []
   const visibleSessionStarts = sessionStarts.filter((start) => start.time >= analysisWindow.start && start.time <= analysisWindow.end)
   const sessionStartLayout = sessionStartControlLayout(visibleSessionStarts, analysisWindow, timelineWidth)
   const timelineHeight = (showsComparisonLane
@@ -573,6 +642,8 @@ export default function AnalysisWindow({
             if (event.key === 'Enter' || event.key === ' ') completedGestureWasDragRef.current = false
           }}
         >
+          <AnalysisWindowGapBands activityRole="primary" gaps={primaryGaps} analysisWindow={analysisWindow} />
+          <AnalysisWindowGapBands activityRole="comparison" gaps={visibleComparisonGaps} analysisWindow={analysisWindow} />
           <svg viewBox={`0 0 1000 ${timelineHeight}`} preserveAspectRatio="none" aria-hidden="true">
             {centralPrimaryPath && <path className="analysis-window__sog-line" d={centralPrimaryPath} style={{ stroke: ACTIVITY_COLORS.primary }} />}
             {comparisonPath && <path className="analysis-window__sog-line" d={comparisonPath} style={{ stroke: ACTIVITY_COLORS.comparison }} />}
@@ -649,6 +720,10 @@ export default function AnalysisWindow({
           {showsComparisonLane && <AnalysisWindowCompactSummary activityRole="comparison" metrics={comparisonMetrics} maneuverCount={comparisonManeuverCount} />}
         </tbody>
       </table>
+      <AnalysisWindowGapNotice
+        primary={trackGapWindowOverlap(primaryGaps, analysisWindow)}
+        comparison={showsComparisonLane ? trackGapWindowOverlap(visibleComparisonGaps, analysisWindow) : null}
+      />
     </section>
   )
 }
