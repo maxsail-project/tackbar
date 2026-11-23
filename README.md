@@ -68,7 +68,8 @@ internal Sailor ID.
 
 GPX requires one track and one nonempty segment, strictly increasing UTC,
 median sample interval at most 2 seconds, nearest-rank P95 at most 5 seconds,
-and no adjacent gap over 10 seconds. Compressed GPX and extension telemetry mapping
+and at most two intervals over 10 seconds, each at most 90 seconds and together
+at most 5% of the track duration. Compressed GPX and extension telemetry mapping
 are unsupported. FIT and generalized multi-provider ingestion remain future
 work. See [Ingestion and Data](docs/current/ingestion-and-data.md).
 
@@ -346,7 +347,9 @@ email completo del Sailor ni su ID interno.
 
 GPX exige un track y un segmento no vacío, UTC estrictamente creciente,
 intervalo mediano entre muestras de como máximo 2 segundos, P95 de rango más cercano
-de como máximo 5 segundos y ningún salto superior a 10 segundos. GPX comprimido y el mapeo
+de como máximo 5 segundos y como máximo dos intervalos superiores a 10 segundos,
+cada uno de hasta 90 segundos y con una suma de hasta el 5 % de la duración del track.
+GPX comprimido y el mapeo
 de telemetría de extensiones no están soportados. FIT y proveedores adicionales
 siguen siendo trabajo futuro. Consulta
 [Ingestion and Data](docs/current/ingestion-and-data.md).

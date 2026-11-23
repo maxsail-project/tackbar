@@ -338,6 +338,31 @@ Activity, Session/Viewer and manual-email suppression; a known test upload can
 also confirm duplicate reuse. These are operational confirmations outside the
 release lifecycle, not additional publication/deployment gates.
 
+After deploying the gap-summary change for existing Activities, run its one-off
+derived-metadata backfill as the `tackbar` runtime owner. It reads stored
+normalized tracks, without re-ingesting originals or changing samples. From the
+deployed checkout, first inspect the data root and run the default dry run:
+
+```bash
+sudo -u tackbar test -r /var/lib/tackbar/data/activities.json
+sudo -u tackbar test -w /var/lib/tackbar/data
+cd /opt/tackbar/backend
+sudo -u tackbar /opt/tackbar/.venv/bin/python -m app.track_gap_backfill \
+  --data-dir /var/lib/tackbar/data
+```
+
+Review the reported Activities to update and unreadable-track count. Then run:
+
+```bash
+sudo -u tackbar /opt/tackbar/.venv/bin/python -m app.track_gap_backfill \
+  --data-dir /var/lib/tackbar/data --apply
+```
+
+The write uses the ingestion lock. Rerun the dry run to confirm no further
+updates. An unreadable normalized track remains without a derived summary and
+needs separate investigation. This operational data-maintenance step is not a
+release publication or deployment gate.
+
 Maneuver artifacts use shared algorithm version 7. Version-6 artifacts become
 stale and regenerate through established authorized analytics reads/generation;
 deployment does not perform a bulk recalculation. Admin's read-only persisted

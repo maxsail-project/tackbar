@@ -2,6 +2,66 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.27 Californian — Mind the Gap
+
+### English
+
+This release keeps useful sailing tracks with bounded GPS interruptions while making missing navigation evidence visible and excluding it from continuous-sailing calculations.
+
+### Added
+
+* Plain GPX can contain at most two isolated intervals over 10 seconds, each no longer than 90 seconds and together no more than 5% of the track duration, while retaining the median ≤2 s and nearest-rank P95 ≤5 s quality checks. Rejections report the violated criteria without private track details.
+* Activities of any source carry a derived gap summary. My Activities shows a compact count and duration notice when gaps exist; protected Admin diagnostics shows only aggregate gap count and duration.
+* The Viewer marks unavailable GPS time on the SOG timeline and near the Analysis Window when the selected P or C Activity overlaps a gap. Recorded map tracks stop at gap endpoints; a separate dashed chord and its detail show only the net geometric displacement between recorded endpoints, not a sailed path.
+
+### Changed
+
+* GPX-derived SOG and COG use samples within the same continuous run. Summary and Wind Distance exclude cross-gap chords, Avg SOG excludes gap time, and Wind Efficiency is unavailable when the window overlaps a gap. Metric charts break at gaps. During replay inside a gap, the affected marker stays greyed at its last recorded point with **No GPS data**, and current telemetry is unavailable; the shared clock and other Activities continue.
+* Gap handling in analysis and presentation also applies to Vakaros Activities with intervals over 10 seconds. Vakaros admission, parsing and device-reported SOG/COG are unchanged. No samples or sailing path are inferred inside gaps.
+
+### Operational note
+
+After deployment, the runtime owner should dry-run and apply the idempotent gap-summary backfill for existing Activities from stored normalized tracks, following the production runbook. This maintenance has not been performed during release preparation.
+
+### Issues
+
+- [#218](https://github.com/maxsail-project/tackbar/issues/218) — [#218] Admit plain GPX with isolated gaps and handle temporal gaps across sources
+
+### Validation
+
+The completed Issue records focused implementation checks and the product owner's manual PASS, including a private real GPX file. [SonarQube CI on the merged candidate](https://github.com/maxsail-project/tackbar/actions/runs/45155621601) passed backend and frontend tests with coverage, typecheck, the quality-gated scan and production build. Release preparation checked completed-Issue inclusion, current documentation, bilingual consistency, publication absence, release-body correspondence and the final diff; it did not repeat product tests or execute the production backfill.
+
+---
+
+### Español
+
+Esta versión conserva tracks útiles con interrupciones GPS acotadas, muestra dónde faltan datos de navegación y excluye esos intervalos de los cálculos de navegación continua.
+
+### Añadido
+
+* GPX sin comprimir admite como máximo dos intervalos aislados superiores a 10 segundos, cada uno de hasta 90 segundos y con una suma de hasta el 5 % de la duración del track, manteniendo los límites de mediana ≤2 s y P95 de rango más cercano ≤5 s. Los rechazos indican los criterios incumplidos sin revelar datos privados del track.
+* Las Activities de cualquier origen conservan un resumen derivado de los intervalos sin GPS. My Activities muestra un aviso compacto con su número y duración; los diagnósticos protegidos de Admin muestran solo esos valores agregados.
+* El Viewer señala el tiempo sin GPS en el timeline de SOG y junto a la Analysis Window cuando esta solapa un intervalo de la Activity P o C seleccionada. Los tracks registrados se interrumpen en los extremos; una cuerda discontinua independiente y su detalle muestran solo el desplazamiento geométrico neto entre puntos registrados, no una trayectoria navegada.
+
+### Cambiado
+
+* SOG y COG derivados de GPX usan muestras del mismo tramo continuo. Summary y Wind Distance excluyen las cuerdas entre extremos, Avg SOG excluye el tiempo sin GPS y Wind Efficiency no está disponible cuando la ventana solapa un intervalo. Las gráficas de métricas se interrumpen. Durante el replay dentro de un intervalo sin GPS, el marcador afectado permanece atenuado en el último punto registrado con **No GPS data**, y su telemetría actual no está disponible; el reloj compartido y las otras Activities continúan.
+* El tratamiento de intervalos sin GPS en el análisis y la presentación también se aplica a Activities de Vakaros con intervalos superiores a 10 segundos. La admisión, el parsing y SOG/COG comunicados por Vakaros no cambian. No se infieren muestras ni trayectorias durante los intervalos sin GPS.
+
+### Nota operativa
+
+Tras el despliegue, el usuario responsable del servicio debe ejecutar primero en modo de prueba y después aplicar la actualización idempotente de resúmenes para las Activities existentes a partir de los tracks normalizados, según el runbook de producción. Esta operación no se ha realizado durante la preparación de la release.
+
+### Issues
+
+- [#218](https://github.com/maxsail-project/tackbar/issues/218) — [#218] Admit plain GPX with isolated gaps and handle temporal gaps across sources
+
+### Validación
+
+El Issue completado registra pruebas focalizadas de implementación y el PASS manual del responsable de producto, incluido un archivo GPX real y privado. El [CI de SonarQube sobre el candidato integrado](https://github.com/maxsail-project/tackbar/actions/runs/45155621601) pasó las pruebas de backend y frontend con cobertura, el typecheck, el análisis con Quality Gate y el build de producción. Durante la preparación se comprobaron la inclusión del Issue completado, la documentación vigente, la coherencia bilingüe, la ausencia de publicación, la correspondencia del cuerpo de la release y el diff final; no se repitieron las pruebas de producto ni se ejecutó la actualización en producción.
+
+---
+
 ## v0.7.26 Californian — How interesting. Tell me less.
 
 ### English
