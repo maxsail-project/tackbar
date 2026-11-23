@@ -15,6 +15,7 @@ from app.parsers.vakaros_csv import parse_vakaros_csv
 from app.repositories.activities import ActivityRepository
 from app.services.activity_reprocessing import reprocess_activity
 from app.services.activity_tracks import persist_activity_track
+from app.services.admin_diagnostics import persisted_model
 from app.services.ingestion_processing import process_provider_email
 from app.services.personal_context import PersonalContextService
 from app.storage.track_storage import TrackStorage
@@ -190,3 +191,11 @@ def test_backfill_requires_an_explicit_usable_root(temporary_directory):
     for value in ("", "/", temporary_directory / "missing"):
         with pytest.raises(ValueError):
             backfill_track_gaps(value)
+
+
+def test_admin_diagnostic_exposes_only_the_aggregate_gap_summary(temporary_directory):
+    _, stored = _persist(temporary_directory, parse_gpx(GAP_64, "track.gpx"), GAP_64)
+    record = persisted_model(stored)
+    assert record["gap_summary"] == {"count": 1, "total_seconds": 64.0}
+    assert stored.gap_summary.intervals[0].start not in json.dumps(record)
+    assert persisted_model(replace(stored, gap_summary=None))["gap_summary"] is None
