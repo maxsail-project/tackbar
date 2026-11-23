@@ -2,6 +2,54 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.28 Californian — Race Against the Machine
+
+### English
+
+This release lets sailors focus the shared Analysis Window on a race and its five-minute pre-start period using recorded Vakaros race timing.
+
+### Added
+
+* A compact **Race** select beside replay speed offers `All` and available `R1`, `R2`… shortcuts. Selecting a race sets the shared Analysis Window from its inferred Session Start minus five minutes through the latest recorded race end before the next Start, clamped to the available range. `All` and Reset restore the full range. The control is absent when no race qualifies.
+* Original and temporary shared Session reads provide `RACE_END` observations alongside the already supported `RACE_START` observations for currently visible Activities. Existing capability, expiry, revocation, membership and `ACTIVE` visibility checks remain in force.
+
+### Changed
+
+* Race numbers follow their existing Session Start numbers, so a missing race end can leave a skipped `R` number. A race shortcut works for the shared window even when a selected Activity is GPX. Timer countdowns alone do not create races, and a Start without a recorded end has no shortcut. These are ephemeral Viewer filters, not official races or persisted Race records; tracks and Session Start behavior are unchanged.
+
+### Issues
+
+- [#220](https://github.com/maxsail-project/tackbar/issues/220) — [#220] Race shortcuts for the Analysis Window from VKX race timing
+
+### Validation
+
+The completed Issue records focused implementation tests and the product owner's manual PASS with a private real VKX race day, including a narrow-screen check. [SonarQube CI on the merged candidate](https://github.com/maxsail-project/tackbar/actions/runs/45214038819) passed 1406 backend tests (1 skipped), 1383 frontend tests (2 skipped), typecheck, the Quality Gate and the production build. Release preparation checked completed-Issue inclusion, current documentation, bilingual consistency, publication absence, exact release-body correspondence and the final diff; it did not repeat product tests.
+
+---
+
+### Español
+
+Esta versión permite centrar la Analysis Window compartida en una carrera y sus cinco minutos previos a la salida mediante los tiempos de carrera registrados por Vakaros.
+
+### Añadido
+
+* Un selector compacto **Race** junto a la velocidad de replay ofrece `All` y los accesos disponibles `R1`, `R2`… Al elegir una carrera, la Analysis Window compartida abarca desde cinco minutos antes de su Session Start inferida hasta el último fin de carrera registrado antes de la siguiente salida, ajustada al rango disponible. `All` y Reset restauran el rango completo. Si no hay carreras válidas, el selector no aparece.
+* Las lecturas de Session compartida original y temporal incluyen observaciones `RACE_END` junto a las `RACE_START` ya admitidas para Activities visibles. Se mantienen las comprobaciones de capability, caducidad, revocación, pertenencia y visibilidad `ACTIVE`.
+
+### Cambiado
+
+* La numeración de carreras sigue la de las Session Starts existentes, por lo que una carrera sin fin registrado puede dejar un número `R` sin usar. El acceso directo ajusta la ventana compartida incluso cuando una Activity seleccionada es GPX. Una cuenta atrás por sí sola no crea una carrera y una salida sin fin registrado no ofrece acceso directo. Son filtros efímeros del Viewer, no carreras oficiales ni registros Race persistidos; los tracks y el comportamiento de Session Starts no cambian.
+
+### Issues
+
+- [#220](https://github.com/maxsail-project/tackbar/issues/220) — [#220] Race shortcuts for the Analysis Window from VKX race timing
+
+### Validación
+
+El Issue completado registra pruebas focalizadas de implementación y el PASS manual del responsable de producto con una jornada real VKX privada, incluida la comprobación en pantalla estrecha. El [CI de SonarQube sobre el candidato integrado](https://github.com/maxsail-project/tackbar/actions/runs/45214038819) pasó 1406 pruebas de backend (1 omitida), 1383 de frontend (2 omitidas), el typecheck, el Quality Gate y el build de producción. Durante la preparación se comprobaron la inclusión del Issue completado, la documentación vigente, la coherencia bilingüe, la ausencia de publicación, la correspondencia exacta del cuerpo de la release y el diff final; no se repitieron las pruebas de producto.
+
+---
+
 ## v0.7.27 Californian — Mind the Gap
 
 ### English
