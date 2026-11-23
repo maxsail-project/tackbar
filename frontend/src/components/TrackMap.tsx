@@ -17,6 +17,7 @@ import type { HistoricalConditionsSample } from '../types/session'
 import {
   formatMetricValue,
   formatSignedDegreeValue,
+  type ReplayNoGpsData,
 } from '../utils/metricPresentation'
 import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import type { ManeuverActivityRole } from '../utils/maneuverEvents'
@@ -42,6 +43,8 @@ export interface ContextualMapActivity {
   visibleSamples: TrackSample[]
   boatPosition: TrackPosition | null
   cog: number | null
+  /** Playback is inside a gap: `boatPosition` is the last recorded sample (#218 D7). */
+  noGpsData?: boolean
 }
 
 interface TrackMapProps {
@@ -56,6 +59,9 @@ interface TrackMapProps {
   comparisonActivityIdentity?: string | null
   primaryBoatPosition: TrackPosition | null
   comparisonBoatPosition?: TrackPosition | null
+  /** Inside a Primary gap: greyed marker at its last recorded sample (#218 D7). */
+  primaryNoGpsData?: ReplayNoGpsData | null
+  comparisonNoGpsData?: ReplayNoGpsData | null
   hasComparison?: boolean
   playbackTime: number
   primarySog: number | null
@@ -136,6 +142,8 @@ const FIT_OPTIONS = {
 }
 
 const MANEUVER_FOCUS_VERTICAL_OFFSET_RATIO = 0.125
+const NO_GPS_DATA_MARKER_COLOR = '#9aa4a7'
+export const NO_GPS_DATA_LABEL = 'No GPS data'
 
 export function boatMarkerRotation(cog: number | null, mapBearing = 0) {
   if (cog === null) return 0
@@ -230,24 +238,52 @@ function BoatMarker({
   cog,
   label,
   mapBearing,
+  noGpsData = false,
 }: {
   color: string
   cog: number | null
   label: string
   mapBearing: number
+  noGpsData?: boolean
 }) {
   return (
-    <div className="boat-marker" role="img" aria-label={label}>
+    <div
+      className={noGpsData ? 'boat-marker boat-marker--no-gps' : 'boat-marker'}
+      role="img"
+      aria-label={noGpsData ? `${label}, last recorded sample, ${NO_GPS_DATA_LABEL}` : label}
+    >
       <span
         aria-hidden="true"
         className="boat-marker__hull"
         style={{
-          color,
+          color: noGpsData ? NO_GPS_DATA_MARKER_COLOR : color,
           transform: `rotate(${boatMarkerRotation(cog, mapBearing)}deg)`,
         }}
       />
+      {noGpsData && (
+        <span aria-hidden="true" className="boat-marker__no-gps-label">
+          {NO_GPS_DATA_LABEL}
+        </span>
+      )}
     </div>
   )
+}
+
+/** Replay marker placement: the interpolated position, else a greyed last recorded sample. */
+export function resolveReplayMarker(
+  position: TrackPosition | null,
+  cog: number | null,
+  noGpsData: ReplayNoGpsData | null,
+) {
+  if (position !== null) return { position, cog, noGpsData: false }
+  if (noGpsData !== null) {
+    return {
+      position: noGpsData.position,
+      cog: noGpsData.lastRecordedCog,
+      noGpsData: true,
+    }
+  }
+  return null
 }
 
 export function openContextualActivityPopup(
@@ -399,6 +435,8 @@ export default function TrackMap({
   comparisonActivityIdentity = null,
   primaryBoatPosition,
   comparisonBoatPosition = null,
+  primaryNoGpsData = null,
+  comparisonNoGpsData = null,
   hasComparison = false,
   playbackTime,
   primarySog,
@@ -431,6 +469,8 @@ export default function TrackMap({
   const rotationGestureRef = useRef<{ effectiveBeforeGesture: number } | null>(null)
   const [gestureBearing, setGestureBearing] = useState<number | null>(null)
   const mapBearing = gestureBearing ?? committedBearing
+  const primaryMarker = resolveReplayMarker(primaryBoatPosition, primaryCog, primaryNoGpsData)
+  const comparisonMarker = resolveReplayMarker(comparisonBoatPosition, comparisonCog, comparisonNoGpsData)
   const liveTwdPresentation = gestureBearing === null
     ? twdPresentation
     : { ...twdPresentation, bearing: gestureBearing, displayDegrees: ((Math.round(gestureBearing) % 360) + 360) % 360 }
@@ -774,33 +814,35 @@ export default function TrackMap({
             />
           </Source>
         ))}
-        {primaryBoatPosition && (
+        {primaryMarker && (
           <Marker
-            longitude={primaryBoatPosition.lon}
-            latitude={primaryBoatPosition.lat}
+            longitude={primaryMarker.position.lon}
+            latitude={primaryMarker.position.lat}
             anchor="center"
             style={{ zIndex: 3 }}
           >
             <BoatMarker
               color={ACTIVITY_COLORS.primary}
-              cog={primaryCog}
+              cog={primaryMarker.cog}
               label="Primary boat position"
               mapBearing={mapBearing}
+              noGpsData={primaryMarker.noGpsData}
             />
           </Marker>
         )}
-        {comparisonBoatPosition && (
+        {comparisonMarker && (
           <Marker
-            longitude={comparisonBoatPosition.lon}
-            latitude={comparisonBoatPosition.lat}
+            longitude={comparisonMarker.position.lon}
+            latitude={comparisonMarker.position.lat}
             anchor="center"
             style={{ zIndex: 2 }}
           >
             <BoatMarker
               color={ACTIVITY_COLORS.comparison}
-              cog={comparisonCog}
+              cog={comparisonMarker.cog}
               label="Comparison boat position"
               mapBearing={mapBearing}
+              noGpsData={comparisonMarker.noGpsData}
             />
           </Marker>
         )}
@@ -827,6 +869,7 @@ export default function TrackMap({
                 cog={activity.cog}
                 label={`${activity.identity} contextual boat position`}
                 mapBearing={mapBearing}
+                noGpsData={activity.noGpsData === true}
               />
             </button>
           </Marker>

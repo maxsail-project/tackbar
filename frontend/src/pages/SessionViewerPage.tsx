@@ -309,12 +309,16 @@ export function synchronizeContextualMapActivities(
       activity.replaySamples,
       playbackTime,
     )
+    const { noGpsData } = replayPresentation
     return {
       id: activity.id,
       identity: activity.identity,
       visibleSamples: activity.visibleSamples,
-      boatPosition: replayPresentation.position,
-      cog: replayPresentation.cog,
+      boatPosition: noGpsData === null
+        ? replayPresentation.position
+        : noGpsData.position,
+      cog: noGpsData === null ? replayPresentation.cog : noGpsData.lastRecordedCog,
+      noGpsData: noGpsData !== null,
     }
   })
 }
@@ -671,15 +675,17 @@ export function SessionViewer({
     () => resolveReplayPresentation(
       primaryWindowSamples,
       playbackTime,
+      primaryTrack?.samples,
     ),
-    [playbackTime, primaryWindowSamples],
+    [playbackTime, primaryTrack, primaryWindowSamples],
   )
   const comparisonReplayPresentation = useMemo(
     () => resolveReplayPresentation(
       comparisonWindowSamples,
       playbackTime,
+      comparisonTrack?.samples,
     ),
-    [comparisonWindowSamples, playbackTime],
+    [comparisonTrack, comparisonWindowSamples, playbackTime],
   )
   const contextualWindowActivities = useMemo(
     () => createContextualMapActivities(
@@ -1178,6 +1184,8 @@ export function SessionViewer({
             : null}
           primaryBoatPosition={primaryReplayPresentation.position}
           comparisonBoatPosition={comparisonReplayPresentation.position}
+          primaryNoGpsData={primaryReplayPresentation.noGpsData}
+          comparisonNoGpsData={comparisonReplayPresentation.noGpsData}
           hasComparison={comparisonTrack !== null}
           playbackTime={playbackTime}
           primarySog={primaryReplayPresentation.sog}

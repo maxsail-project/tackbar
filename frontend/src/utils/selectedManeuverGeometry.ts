@@ -67,8 +67,16 @@ function highlightGeometry(
     if (clippedStart >= clippedEnd) continue
 
     const intervalSamples = [before, after]
-    const from = coordinates(interpolatePosition(intervalSamples, clippedStart))
-    const to = coordinates(interpolatePosition(intervalSamples, clippedEnd))
+    const fromPosition = interpolatePosition(intervalSamples, clippedStart)
+    const toPosition = interpolatePosition(intervalSamples, clippedEnd)
+    // Interpolation never crosses a #218 gap; the continuity rule above already excludes one.
+    if (fromPosition === null || toPosition === null) {
+      line = null
+      previousEnd = null
+      continue
+    }
+    const from = coordinates(fromPosition)
+    const to = coordinates(toPosition)
     if (line !== null && previousEnd === clippedStart) {
       line.push(to)
     } else {

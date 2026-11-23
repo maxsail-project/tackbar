@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { ActivityTrack, TrackSample } from '../types/track'
 import type { DisplayManeuver } from './maneuverEvents'
 import { createSelectedManeuverHighlights } from './selectedManeuverGeometry'
+import {
+  GAP_FIXTURE_START_MS,
+  gapFixtureTrack,
+  gapFixtureWindow,
+  ONE_GAP_RUNS,
+} from './trackGapTestFixtures'
 
 const start = Date.UTC(2031, 0, 1, 10)
 const window = { start, end: start + 60_000 }
@@ -124,5 +130,21 @@ describe('selected maneuver trajectory geometry', () => {
     const beforeReplay = createSelectedManeuverHighlights(event('primary', 20), null, primary, null, window)
     const afterReplay = createSelectedManeuverHighlights(event('primary', 20), null, primary, null, window)
     expect(afterReplay).toEqual(beforeReplay)
+  })
+})
+
+describe('selected maneuver geometry across a gap (#218)', () => {
+  const gapTrack: ActivityTrack = { activity_id: 'primary', samples: gapFixtureTrack(ONE_GAP_RUNS) }
+  const gapWindow = gapFixtureWindow(0, 184)
+  const gapEvent = (seconds: number) => event('primary', (GAP_FIXTURE_START_MS - start) / 1_000 + seconds)
+
+  it('never interpolates along the cross-gap chord', () => {
+    const [beforeGap] = createSelectedManeuverHighlights(gapEvent(50), null, gapTrack, null, gapWindow)
+    const lastRecordedLongitude = gapTrack.samples[60].lon
+    expect(beforeGap.geoJson.geometry.coordinates).toHaveLength(1)
+    expect(beforeGap.geoJson.geometry.coordinates[0].at(-1)![0]).toBe(lastRecordedLongitude)
+    expect(beforeGap.geoJson.geometry.coordinates.flat().every(([longitude]) => longitude <= lastRecordedLongitude)).toBe(true)
+
+    expect(createSelectedManeuverHighlights(gapEvent(92), null, gapTrack, null, gapWindow)).toEqual([])
   })
 })

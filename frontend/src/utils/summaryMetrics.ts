@@ -4,6 +4,7 @@ import {
   type AnalysisWindowRange,
 } from './analysisWindow'
 import { timestampToMilliseconds } from './replay'
+import { findTrackGaps } from './trackGaps'
 
 const METERS_PER_NAUTICAL_MILE = 1_852
 const COG_BIN_SIZE_DEGREES = 10
@@ -138,12 +139,24 @@ export function calculateSummaryMetrics(
     analysisWindow.start,
     analysisWindow.end,
   )
+  // #218 D8: a sample's `dist` across a gap is not sailed distance, and gap time is not
+  // covered time. Window-boundary gap portions lie outside the selected samples.
+  const gaps = findTrackGaps(selectedSamples)
+  const postGapIndexes = new Set(gaps.map((gap) => gap.afterIndex))
+  const gapMilliseconds = gaps.reduce(
+    (total, gap) => total + gap.endMs - gap.startMs,
+    0,
+  )
   let distanceMeters = 0
   let maxSogKnots: number | null = null
   const cogBinCounts = Array<number>(COG_BIN_COUNT).fill(0)
 
   selectedSamples.forEach((sample, index) => {
-    if (index > 0 && Number.isFinite(sample.dist)) {
+    if (
+      index > 0
+      && !postGapIndexes.has(index)
+      && Number.isFinite(sample.dist)
+    ) {
       distanceMeters += sample.dist
     }
 
@@ -162,13 +175,14 @@ export function calculateSummaryMetrics(
   const distanceNm = distanceMeters / METERS_PER_NAUTICAL_MILE
   let avgSogKnots: number | null = null
   if (selectedSamples.length >= 2) {
-    const elapsedSeconds = (
+    const coveredSeconds = (
       timestampToMilliseconds(selectedSamples[selectedSamples.length - 1].utc)
       - timestampToMilliseconds(selectedSamples[0].utc)
+      - gapMilliseconds
     ) / 1_000
 
-    if (elapsedSeconds > 0) {
-      avgSogKnots = distanceNm / (elapsedSeconds / 3_600)
+    if (coveredSeconds > 0) {
+      avgSogKnots = distanceNm / (coveredSeconds / 3_600)
     }
   }
 

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { TrackSample } from '../types/track'
+import { calculateSummaryMetrics } from './summaryMetrics'
+import {
+  GAP_FIXTURE_STEP_METERS,
+  gapFixtureTrack,
+  gapFixtureWindow,
+  ONE_GAP_RUNS,
+} from './trackGapTestFixtures'
 import type { EffectiveTwd } from './windContext'
 import {
   calculateProgressDifference,
@@ -273,5 +280,18 @@ describe('P-perspective gain and gaps at the same instants', () => {
     expect(calculateProgressDifference(up, { status: 'unavailable', reason: 'course-off-axis', distanceMeters: 100 })).toBeNull()
     expect(calculateProgressDifference({ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }, up)).toBeNull()
     expect(calculateProgressDifference(up, undefined)).toBeNull()
+  })
+})
+
+describe('Wind Distance and Efficiency with gaps (#218 D8)', () => {
+  it('inherit the gap-aware Summary Distance', () => {
+    const samples = gapFixtureTrack(ONE_GAP_RUNS)
+    const window = gapFixtureWindow(0, 184)
+    const summaryDistance = calculateSummaryMetrics(samples, window).distanceMeters
+    const result = available(calculateWindProgress(samples, window, manual(90), 'upwind', summaryDistance))
+
+    expect(summaryDistance).toBe(120 * GAP_FIXTURE_STEP_METERS)
+    expect(result.distanceMeters).toBe(summaryDistance)
+    expect(result.efficiency).toBeCloseTo(result.progressMeters / summaryDistance, 10)
   })
 })

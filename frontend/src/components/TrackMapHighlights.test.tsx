@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackSample } from '../types/track'
+import type { ReplayNoGpsData } from '../utils/metricPresentation'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import TrackMap from './TrackMap'
 
@@ -87,6 +88,7 @@ function mapElement(
     primaryPosition?: { lat: number, lon: number } | null
     comparisonPosition?: { lat: number, lon: number } | null
     contextualPosition?: { lat: number, lon: number } | null
+    primaryNoGpsData?: ReplayNoGpsData | null
     onCompare?: (activityId: string) => void
     sessionStartLines?: { label: string, time: number, pin: { latitude: number, longitude: number } | null, boat: { latitude: number, longitude: number } | null }[]
   } = {},
@@ -106,6 +108,7 @@ function mapElement(
     comparisonActivityIdentity={markerOptions.comparisonIdentity ?? 'Comparison'}
     primaryBoatPosition={markerOptions.primaryPosition === undefined ? overlap : markerOptions.primaryPosition}
     comparisonBoatPosition={markerOptions.comparisonPosition === undefined ? { lat: 0.25, lon: -30.71 } : markerOptions.comparisonPosition}
+    primaryNoGpsData={markerOptions.primaryNoGpsData}
     hasComparison={markerOptions.comparisonPosition !== null}
     playbackTime={Date.parse(samples[0].utc)}
     primarySog={5}
@@ -311,5 +314,26 @@ describe('replay boat marker stack', () => {
       await act(async () => root.unmount())
       container.remove()
     }
+  })
+})
+
+describe('replay marker inside a gap (#218 D7)', () => {
+  it('greys the Activity marker at its last recorded sample with a No GPS data label', () => {
+    const lastSample = { ...samples[1], lon: -30.6, cog: 45 }
+    const markup = renderToStaticMarkup(mapElement([], samples, samples, false, 'gap', {
+      primaryPosition: null,
+      primaryNoGpsData: {
+        lastSample,
+        position: { lat: lastSample.lat, lon: lastSample.lon },
+        lastRecordedCog: 45,
+      },
+    }))
+
+    expect(markup).toContain('data-longitude="-30.6" data-latitude="0.25"')
+    expect(markup).toContain('class="boat-marker boat-marker--no-gps" role="img" aria-label="Primary boat position, last recorded sample, No GPS data"')
+    expect(markup).toContain('>No GPS data</span>')
+    expect(markup).toContain('rotate(45deg)')
+    expect(markup).toContain('class="boat-marker" role="img" aria-label="Comparison boat position"')
+    expect(markup.match(/boat-marker--no-gps/g)).toHaveLength(1)
   })
 })

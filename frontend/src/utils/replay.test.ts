@@ -3,6 +3,7 @@ import type { TrackSample } from '../types/track'
 import {
   advancePlaybackTime,
   clampPlaybackTime,
+  findReplayGap,
   findSurroundingSamples,
   formatGpsTime,
   interpolatePosition,
@@ -12,6 +13,11 @@ import {
   selectReplayTime,
   timestampToMilliseconds,
 } from './replay'
+import {
+  gapFixtureTime,
+  gapFixtureTrack,
+  ONE_GAP_RUNS,
+} from './trackGapTestFixtures'
 
 const start = timestampToMilliseconds('2031-06-15T13:03:00Z')
 const samples: TrackSample[] = [
@@ -119,11 +125,39 @@ describe('sample lookup and presentation', () => {
   it('resolves two differently spaced tracks at the same playbackTime', () => {
     const secondTrack: TrackSample[] = [
       { utc: '2031-06-15T13:03:00Z', lat: 20, lon: 40, dist: 0, sog: 4, cog: null, hdg: null, heel: null, trim: null },
-      { utc: '2031-06-15T13:03:20Z', lat: 24, lon: 48, dist: 1, sog: 8, cog: null, hdg: null, heel: null, trim: null },
+      { utc: '2031-06-15T13:03:05Z', lat: 24, lon: 48, dist: 1, sog: 8, cog: null, hdg: null, heel: null, trim: null },
     ]
-    const sharedPlaybackTime = start + 10_000
+    const sharedPlaybackTime = start + 2_500
 
-    expect(interpolatePosition(samples, sharedPlaybackTime)).toEqual({ lat: 12, lon: 24 })
+    expect(interpolatePosition(samples, sharedPlaybackTime)).toEqual({ lat: 10.5, lon: 21 })
     expect(interpolatePosition(secondTrack, sharedPlaybackTime)).toEqual({ lat: 22, lon: 44 })
+  })
+})
+
+describe('replay inside a gap (#218 D7)', () => {
+  const gapTrack = gapFixtureTrack(ONE_GAP_RUNS)
+
+  it('returns no interpolated position strictly inside a gap', () => {
+    expect(interpolatePosition(samples, start + 20_000)).toBeNull()
+    expect(interpolatePosition(gapTrack, gapFixtureTime(60) + 1)).toBeNull()
+    expect(interpolatePosition(gapTrack, gapFixtureTime(124) - 1)).toBeNull()
+  })
+
+  it('reports the recorded samples around the gap', () => {
+    expect(findReplayGap(gapTrack, gapFixtureTime(90))).toEqual({
+      before: gapTrack[60],
+      after: gapTrack[61],
+    })
+    expect(findReplayGap([], gapFixtureTime(90))).toBeNull()
+  })
+
+  it('stays normal at exact gap endpoints and inside 10-second intervals', () => {
+    expect(findReplayGap(gapTrack, gapFixtureTime(60))).toBeNull()
+    expect(findReplayGap(gapTrack, gapFixtureTime(124))).toBeNull()
+    expect(interpolatePosition(gapTrack, gapFixtureTime(60)))
+      .toEqual({ lat: gapTrack[60].lat, lon: gapTrack[60].lon })
+    expect(interpolatePosition(gapTrack, gapFixtureTime(124)))
+      .toEqual({ lat: gapTrack[61].lat, lon: gapTrack[61].lon })
+    expect(findReplayGap(samples, start + 5_000)).toBeNull()
   })
 })

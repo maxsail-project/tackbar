@@ -5,6 +5,7 @@ import { HEEL_SIGNAL_TUNING } from '../config/heelSignal'
 import { SOG_SIGNAL_TUNING } from '../config/sogSignal'
 import { TRIM_SIGNAL_TUNING } from '../config/trimSignal'
 import { timestampToMilliseconds } from './replay'
+import { insertTrackGapBreaks } from './trackGaps'
 import {
   buildSogTimelinePath,
   reduceSogTimelinePoints,
@@ -273,8 +274,11 @@ export function heelSignalXPosition(
 }
 
 export function buildTrimChartPoints(samples: TrackSample[]): TrimChartPoint[] {
-  return buildScalarChartPoints(samples, 'TRIM')
-    .sort((first, second) => first.time - second.time)
+  return insertTrackGapBreaks(
+    buildScalarChartPoints(samples, 'TRIM')
+      .sort((first, second) => first.time - second.time),
+    (time) => ({ time, value: null }),
+  )
 }
 
 function trimBucketRepresentative(points: TrimChartPoint[]) {
@@ -383,15 +387,18 @@ export function normalizeCogDegrees(value: number) {
 }
 
 export function buildCanonicalCogChartPoints(samples: TrackSample[]): CogChartPoint[] {
-  return samples
-    .map((sample): CogChartPoint => ({
-      time: timestampToMilliseconds(sample.utc),
-      cog: sample.cog !== null && Number.isFinite(sample.cog)
-        ? normalizeCogDegrees(sample.cog)
-        : null,
-      kind: 'sample',
-    }))
-    .sort((first, second) => first.time - second.time)
+  return insertTrackGapBreaks(
+    samples
+      .map((sample): CogChartPoint => ({
+        time: timestampToMilliseconds(sample.utc),
+        cog: sample.cog !== null && Number.isFinite(sample.cog)
+          ? normalizeCogDegrees(sample.cog)
+          : null,
+        kind: 'sample',
+      }))
+      .sort((first, second) => first.time - second.time),
+    (time) => ({ time, cog: null, kind: 'gap' }),
+  )
 }
 
 export function insertCogWrapBreaks(points: CogChartPoint[]): CogChartPoint[] {
@@ -639,14 +646,17 @@ export function cogSignalXPosition(
 }
 
 export function buildSogChartPoints(samples: TrackSample[]): SogChartPoint[] {
-  return samples
-    .map((sample) => ({
-      time: timestampToMilliseconds(sample.utc),
-      sog: sample.sog !== null && Number.isFinite(sample.sog)
-        ? sample.sog
-        : null,
-    }))
-    .sort((first, second) => first.time - second.time)
+  return insertTrackGapBreaks(
+    samples
+      .map((sample) => ({
+        time: timestampToMilliseconds(sample.utc),
+        sog: sample.sog !== null && Number.isFinite(sample.sog)
+          ? sample.sog
+          : null,
+      }))
+      .sort((first, second) => first.time - second.time),
+    (time) => ({ time, sog: null }),
+  )
 }
 
 export function reduceRawSogChartPoints(

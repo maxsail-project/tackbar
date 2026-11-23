@@ -23,6 +23,13 @@ import { maneuverSelectionKey } from '../utils/maneuverEvents'
 import type { SessionActivity } from '../types/session'
 import type { ActivityTrack, TrackSample } from '../types/track'
 import ManeuverEventTable from '../components/ManeuverEventTable'
+import {
+  GAP_FIXTURE_COG_DEGREES,
+  gapFixtureTime,
+  gapFixtureTrack,
+  gapFixtureWindow,
+  ONE_GAP_RUNS,
+} from '../utils/trackGapTestFixtures'
 
 const analytics: ActivityManeuverAnalytics = {
   activity_id: 'activity-a',
@@ -221,6 +228,28 @@ describe('fleet context map state', () => {
     )
 
     expect(context).toEqual([])
+  })
+
+  it('holds a greyed contextual marker at the last recorded sample inside a gap', () => {
+    const gapSamples = gapFixtureTrack(ONE_GAP_RUNS)
+    const gapWindow = gapFixtureWindow(0, 184)
+    const contextual = createContextualMapActivities(
+      activities,
+      'primary',
+      'comparison',
+      new Map([['context-one', { activity_id: 'context-one', samples: gapSamples }]]),
+      gapWindow,
+    )
+
+    expect(synchronizeContextualMapActivities(contextual, gapWindow, gapFixtureTime(90))[0]).toMatchObject({
+      boatPosition: { lat: gapSamples[60].lat, lon: gapSamples[60].lon },
+      cog: GAP_FIXTURE_COG_DEGREES,
+      noGpsData: true,
+    })
+    expect(synchronizeContextualMapActivities(contextual, gapWindow, gapFixtureTime(124))[0]).toMatchObject({
+      boatPosition: { lat: gapSamples[61].lat, lon: gapSamples[61].lon },
+      noGpsData: false,
+    })
   })
 
   it('does not show a contextual marker outside the Analysis Window', () => {
