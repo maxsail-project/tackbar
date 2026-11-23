@@ -3849,6 +3849,25 @@ input:focus-visible {
   outline: 2px solid #28788a;
   outline-offset: 2px;
 }
+/* #38.2 START ANALYSIS detailed table: same table rules as the summary; indicator labels are row headers styled as cells. */
+.start-analysis-detail { margin-top: 14px; }
+/* All indicator rows stay visible; the wrapper still scrolls horizontally on narrow screens. */
+.start-analysis-detail .maneuver-event-table-wrap { max-height: none; }
+.start-analysis-detail__title {
+  margin: 0;
+  color: #17323a;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.start-analysis-table--detail th.start-analysis-table__indicator {
+  position: static;
+  border-top: 1px solid #e4ecee;
+  color: inherit;
+  background: transparent;
+  font-size: inherit;
+  font-weight: 700;
+  text-align: left;
+}
 .maneuver-insights__cell--indicative { color: #526d74; font-style: italic; }
 .wind-context__info-row {
   display: flex;

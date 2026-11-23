@@ -909,6 +909,13 @@ describe('Viewer selected maneuver interactions', () => {
       expect(container.querySelector('[data-window]')!.getAttribute('data-playing')).toBe('false')
       expect(section()!.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('true')
       expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')!.value).toBe('b')
+      // #38.2: the detailed table of the selected Start, P and C rows per indicator and one P–C row.
+      const detail = section()!.querySelector('table[aria-label="S1 details around the gun"]')!
+      const detailCells = (selector: string) => [...detail.querySelector(selector)!.children].map((cell) => cell.textContent)
+      expect(detailCells('[data-start-detail-indicator="distance"] [data-start-detail-role="primary"]'))
+        .toEqual(['Dist (m)', 'P', '+45.0', '+25.0', '+15.0', '+5.0', '−5.0', '−15.0', '−35.0'])
+      expect(detailCells('[data-start-detail-indicator="hdg"] [data-start-detail-role="comparison"]')).toEqual(['C', ...Array(7).fill('—')])
+      expect(detailCells('[data-start-detail-role="pair"]')).toEqual(['P–C (m)', '', '81', '80', '80', '81', '81', '82', '85'])
     })
 
     it.each(['original', 'temporary'] as const)('is absent without inferred Starts on %s access', async (accessKind) => {

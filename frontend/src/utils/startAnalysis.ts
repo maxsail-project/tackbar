@@ -1,8 +1,13 @@
-import { START_ANALYSIS_CONFIG, type StartAnalysisConfig } from '../config/startAnalysis'
+import {
+  START_ANALYSIS_CONFIG,
+  type StartAnalysisConfig,
+  type StartDetailIndicator,
+  type StartDetailIndicatorId,
+} from '../config/startAnalysis'
 import type { TrackSample } from '../types/track'
 import { isTrackGapInterval } from './trackGaps'
 import type { InferredSessionRace } from './sessionRaces'
-import type { SessionStartLine } from './sessionStartLines'
+import { distanceMeters, type SessionStartLine } from './sessionStartLines'
 import type { InferredSessionStart } from './sessionStarts'
 
 /** Same spherical radius as the start-line inference helpers. */
@@ -29,6 +34,25 @@ export interface StartAnalysisRow {
   shortTimingMs: number | null
   primary: StartActivityMetrics
   comparison: StartActivityMetrics | null
+  /** Detailed table around the gun (#38.2, D3/D4/D10). */
+  detail: StartDetailTable
+}
+
+/** Role of one detailed-table row: an Activity (P or C) or the single P–C distance-between-boats row. */
+export type StartDetailRole = 'primary' | 'comparison' | 'pair'
+
+/** One detailed-table row; `values` follow the configured offsets, `null` is unavailable. */
+export interface StartDetailRow {
+  /** The configured indicator (label, unit and display format). */
+  indicator: StartDetailIndicator
+  role: StartDetailRole
+  values: (number | null)[]
+}
+
+/** Detailed table of one Start: configured offsets (s from the gun) and rows in configured indicator order. */
+export interface StartDetailTable {
+  offsetsSeconds: readonly number[]
+  rows: StartDetailRow[]
 }
 
 /** Canonical sample reduced to the fields the start derivation reads, keeping canonical order. */
@@ -37,6 +61,10 @@ export interface StartSample {
   latitude: number
   longitude: number
   sog: number | null
+  cog: number | null
+  /** Recorded HDG only; never derived from COG. */
+  hdg: number | null
+  heel: number | null
   valid: boolean
 }
 
@@ -66,6 +94,10 @@ function validPosition(latitude: number, longitude: number) {
     && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
 }
 
+function recordedValue(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 export function prepareStartSamples(samples: readonly TrackSample[]): StartSample[] {
   return samples.map((sample) => {
     const time = Date.parse(sample.utc)
@@ -73,7 +105,10 @@ export function prepareStartSamples(samples: readonly TrackSample[]): StartSampl
       time,
       latitude: sample.lat,
       longitude: sample.lon,
-      sog: typeof sample.sog === 'number' && Number.isFinite(sample.sog) ? sample.sog : null,
+      sog: recordedValue(sample.sog),
+      cog: recordedValue(sample.cog),
+      hdg: recordedValue(sample.hdg),
+      heel: recordedValue(sample.heel),
       valid: Number.isFinite(time) && validPosition(sample.lat, sample.lon),
     }
   })
@@ -223,8 +258,86 @@ export function startShortTimingMs(
 }
 
 /**
- * One row group per inferred Start over the full canonical samples of P and, when a Comparison is
- * selected (`comparisonSamples` not `undefined`), C. A track not loaded (`null`) reads unavailable.
+ * #38 D10: index of the value at `time` — the nearest valid recorded sample within the tolerance
+ * (earlier sample on a tie), as for the summary's position at the gun; never across a gap (#218),
+ * never interpolated; -1 when unavailable. With the ±1 s default tolerance the gap check cannot
+ * apply; it keeps D10 if the tolerance is reconfigured beyond the gap threshold.
+ */
+export function startOffsetSampleIndex(
+  samples: readonly StartSample[],
+  time: number,
+  config: StartAnalysisConfig = START_ANALYSIS_CONFIG,
+) {
+  const index = nearestStartSampleIndex(samples, time, config.offsetSampleToleranceSeconds * 1_000)
+  if (index < 0) return -1
+  const sampleTime = samples[index].time
+  return isTrackGapInterval(Math.min(sampleTime, time), Math.max(sampleTime, time)) ? -1 : index
+}
+
+type StartDetailReader =
+  | { kind: 'activity', read: (sample: StartSample, frame: StartLineFrame | null, config: StartAnalysisConfig) => number | null }
+  | { kind: 'pair', read: (primary: StartSample, comparison: StartSample) => number | null }
+
+/** Derivation of each configured indicator from the recorded sample(s) at one offset (#38 D3). */
+const START_DETAIL_READERS: Record<StartDetailIndicatorId, StartDetailReader> = {
+  sog: { kind: 'activity', read: (sample) => sample.sog },
+  // Same definition and sign as Dist at gun; unavailable without a start line.
+  distance: {
+    kind: 'activity',
+    read: (sample, frame, config) => frame
+      ? measureStartLinePosition(frame, sample.latitude, sample.longitude, config.courseSide).distanceMeters
+      : null,
+  },
+  // Recorded HDG only, never derived from COG.
+  hdg: { kind: 'activity', read: (sample) => sample.hdg },
+  cog: { kind: 'activity', read: (sample) => sample.cog },
+  heel: { kind: 'activity', read: (sample) => sample.heel },
+  // Distance between the two boats' recorded positions, each at its own sample for that offset.
+  boatDistance: { kind: 'pair', read: (primary, comparison) => distanceMeters(primary, comparison) },
+}
+
+/**
+ * #38.2 detailed table of one Start: per configured indicator a P row and, when a Comparison is
+ * selected (`comparison` not `undefined`), a C row; pair indicators (P–C) give one row only with a
+ * Comparison and need both samples. A track not loaded (`null`) reads unavailable.
+ */
+export function deriveStartDetailTable(
+  primary: readonly StartSample[] | null,
+  comparison: readonly StartSample[] | null | undefined,
+  frame: StartLineFrame | null,
+  gun: number,
+  config: StartAnalysisConfig = START_ANALYSIS_CONFIG,
+): StartDetailTable {
+  const offsetsSeconds = config.detailOffsetsSeconds
+  const samplesAtOffsets = (samples: readonly StartSample[] | null) => offsetsSeconds.map((offset) => {
+    const index = samples ? startOffsetSampleIndex(samples, gun + offset * 1_000, config) : -1
+    return index < 0 ? null : samples![index]
+  })
+  const primaryAt = samplesAtOffsets(primary)
+  const comparisonAt = comparison === undefined ? null : samplesAtOffsets(comparison)
+  const rows = config.detailIndicators.flatMap((indicator): StartDetailRow[] => {
+    const reader = START_DETAIL_READERS[indicator.id]
+    if (reader.kind === 'pair') {
+      if (comparisonAt === null) return []
+      const values = primaryAt.map((sample, index) => {
+        const other = comparisonAt[index]
+        return sample && other ? reader.read(sample, other) : null
+      })
+      return [{ indicator, role: 'pair', values }]
+    }
+    const values = (samples: (StartSample | null)[]) => samples.map((sample) => sample ? reader.read(sample, frame, config) : null)
+    return [
+      { indicator, role: 'primary', values: values(primaryAt) },
+      ...(comparisonAt === null ? [] : [{ indicator, role: 'comparison' as const, values: values(comparisonAt) }]),
+    ]
+  })
+  return { offsetsSeconds, rows }
+}
+
+/**
+ * One row group per inferred Start, with its detailed table, over the full canonical samples of P
+ * and, when a Comparison is selected (`comparisonSamples` not `undefined`), C. A track not loaded
+ * (`null`) reads unavailable.
  */
 export function deriveStartAnalysisRows(
   starts: readonly InferredSessionStart[],
@@ -247,6 +360,7 @@ export function deriveStartAnalysisRows(
       shortTimingMs: startShortTimingMs(start, races, config),
       primary: metrics(primary),
       comparison: comparisonSamples === undefined ? null : metrics(comparison),
+      detail: deriveStartDetailTable(primary, comparisonSamples === undefined ? undefined : comparison, frame, start.time, config),
     }
   })
 }

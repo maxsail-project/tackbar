@@ -7,11 +7,13 @@ import {
   createStartLineFrame,
   deriveStartActivityMetrics,
   deriveStartAnalysisRows,
+  deriveStartDetailTable,
   measureStartLinePosition,
   nearestStartSampleIndex,
   prepareStartSamples,
   startShortTimingMs,
   type StartActivityMetrics,
+  type StartDetailTable,
 } from './startAnalysis'
 import {
   START_FIXTURE_BOAT,
@@ -41,13 +43,22 @@ function expectMetrics(actual: StartActivityMetrics, expected: StartActivityMetr
 
 const unavailable: StartActivityMetrics = { crossSeconds: null, distanceAtGunMeters: null, linePercent: null, sogCrossKnots: null }
 
-describe('START ANALYSIS configuration (#38.1)', () => {
-  it('keeps every derivation constant in one code configuration object', () => {
+describe('START ANALYSIS configuration (#38.1, #38.2)', () => {
+  it('keeps every derivation constant, offset and indicator in one code configuration object', () => {
     expect(START_ANALYSIS_CONFIG).toEqual({
       courseSide: 'left',
       crossingSearchLimitSeconds: 120,
       offsetSampleToleranceSeconds: 1,
       shortTimingThresholdSeconds: 180,
+      detailOffsetsSeconds: [-20, -10, -5, 0, 5, 10, 20],
+      detailIndicators: [
+        { id: 'sog', label: 'SOG', unit: 'kt', format: 'fixed1' },
+        { id: 'distance', label: 'Dist', unit: 'm', format: 'signed1' },
+        { id: 'hdg', label: 'HDG', unit: '°', format: 'direction' },
+        { id: 'cog', label: 'COG', unit: '°', format: 'direction' },
+        { id: 'heel', label: 'Heel', unit: '°', format: 'integer' },
+        { id: 'boatDistance', label: 'P–C', unit: 'm', format: 'integer' },
+      ],
     })
   })
 })
@@ -200,5 +211,112 @@ describe('start summary rows (#38.1)', () => {
     const linelessStarts = inferSessionStarts(lineless)
     const [row] = deriveStartAnalysisRows(linelessStarts, inferSessionStartLines(linelessStarts, lineless), [], primary, comparison)
     expect([row.primary, row.comparison, row.shortTimingMs]).toEqual([unavailable, unavailable, null])
+  })
+})
+
+describe('start detailed table (#38.2, D3, D10)', () => {
+  type Samples = ReturnType<typeof startFixtureSamples>
+  const secondsOf = (sample: Samples[number]) => (Date.parse(sample.utc) - gun) / 1_000
+  /** COG 355° at the gun turning 1°/s across north, HDG 3° to its right, Heel −seconds/4 as stored. */
+  const withAttitude = (samples: Samples) => samples.map((sample) => {
+    const seconds = secondsOf(sample)
+    return { ...sample, cog: (355 + seconds + 360) % 360, hdg: (358 + seconds + 360) % 360, heel: -seconds / 4 }
+  })
+  const primary = withAttitude(startApproachSamples({ behindAtGun: 5 }))
+  const comparison = startApproachSamples({ behindAtGun: -4.5, metersPerSecond: 3, alongMeters: 20 })
+  const detail = (p: Samples | null, c?: Samples | null, line = frame, config = START_ANALYSIS_CONFIG) => deriveStartDetailTable(
+    p && prepareStartSamples(p), c === undefined ? undefined : c && prepareStartSamples(c), line, gun, config,
+  )
+  const values = (table: StartDetailTable, indicator: string, role: string) => table.rows
+    .find((row) => row.indicator.id === indicator && row.role === role)!.values
+  const expectValues = (actual: (number | null)[], expected: (number | null)[]) => {
+    expect(actual).toHaveLength(expected.length)
+    expected.forEach((value, index) => {
+      if (value === null) expect(actual[index], `offset ${index}`).toBeNull()
+      else expect(actual[index], `offset ${index}`).toBeCloseTo(value, 6)
+    })
+  }
+
+  it('reads each indicator at each configured offset, P rows only without a Comparison', () => {
+    const table = detail(primary)
+    expect(table.offsetsSeconds).toEqual([-20, -10, -5, 0, 5, 10, 20])
+    expect(table.rows.map((row) => `${row.indicator.id}:${row.role}`))
+      .toEqual(['sog:primary', 'distance:primary', 'hdg:primary', 'cog:primary', 'heel:primary'])
+    expectValues(values(table, 'sog', 'primary'), [3, 4, 4.5, 5, 5.5, 6, 7])
+    expectValues(values(table, 'distance', 'primary'), [45, 25, 15, 5, -5, -15, -35])
+    expectValues(values(table, 'cog', 'primary'), [335, 345, 350, 355, 0, 5, 15])
+    expectValues(values(table, 'hdg', 'primary'), [338, 348, 353, 358, 3, 8, 18])
+    expectValues(values(table, 'heel', 'primary'), [5, 2.5, 1.25, 0, -1.25, -2.5, -5])
+  })
+
+  it('adds C rows below P rows and one P–C distance-between-boats row with a Comparison', () => {
+    const table = detail(primary, comparison)
+    expect(table.rows.map((row) => `${row.indicator.id}:${row.role}`)).toEqual([
+      'sog:primary', 'sog:comparison', 'distance:primary', 'distance:comparison', 'hdg:primary', 'hdg:comparison',
+      'cog:primary', 'cog:comparison', 'heel:primary', 'heel:comparison', 'boatDistance:pair',
+    ])
+    expectValues(values(table, 'distance', 'comparison'), [55.5, 25.5, 10.5, -4.5, -19.5, -34.5, -64.5])
+    // P 100 m and C 20 m along the line; P 5 − 2t and C −4.5 − 3t metres behind it.
+    values(table, 'boatDistance', 'pair').forEach((value, index) => {
+      expect(value).toBeCloseTo(Math.hypot(80, 9.5 + table.offsetsSeconds[index]), 1)
+    })
+  })
+
+  it('reads HDG as unavailable when not recorded while COG is present, never derived from COG', () => {
+    const table = detail(comparison)
+    expectValues(values(table, 'hdg', 'primary'), Array(7).fill(null))
+    expectValues(values(table, 'cog', 'primary'), Array(7).fill(0))
+    expectValues(values(table, 'heel', 'primary'), Array(7).fill(null))
+  })
+
+  it('takes the nearest sample within ±1 s inclusive (earlier on a tie) and nothing beyond it', () => {
+    const points: StartFixturePoint[] = [
+      [-21, 0, 100, 1], [-8.9, 0, 100, 2], [-4, 0, 100, 3], [-0.5, 0, 100, 4], [0.5, 0, 100, 5], [6.01, 0, 100, 6], [20, 0, 100, 7],
+    ]
+    expectValues(values(detail(startFixtureSamples(points)), 'sog', 'primary'), [1, null, 3, 4, null, null, 7])
+  })
+
+  it('reads every indicator as unavailable at an offset inside a gap, and never across a gap with a wider tolerance', () => {
+    const gapped = (from: number, to: number) => primary.filter((sample) => secondsOf(sample) <= from || secondsOf(sample) >= to)
+    const table = detail(gapped(-12, 3), comparison)
+    table.rows.filter((row) => row.role !== 'comparison')
+      .forEach((row) => expect(row.values.slice(1, 4), row.indicator.id).toEqual([null, null, null]))
+    expectValues(values(table, 'sog', 'comparison'), [3, 4, 4.5, 5, 5.5, 6, 7])
+    expectValues(values(table, 'sog', 'primary'), [3, null, null, null, 5.5, 6, 7])
+    const wide = { ...START_ANALYSIS_CONFIG, offsetSampleToleranceSeconds: 15 }
+    expectValues(values(detail(gapped(-25, 15), undefined, frame, wide), 'sog', 'primary'), [2.5, null, null, null, 6.5, 6.5, 7])
+  })
+
+  it('needs both boats\' samples for P–C and reads Dist as unavailable without a start line', () => {
+    const partial = comparison.filter((sample) => secondsOf(sample) < 4)
+    const pair = values(detail(primary, partial), 'boatDistance', 'pair')
+    expect(pair.slice(0, 4).every((value) => value !== null)).toBe(true)
+    expect(pair.slice(4)).toEqual([null, null, null])
+    const pending = detail(primary, null)
+    expect([values(pending, 'sog', 'comparison'), values(pending, 'boatDistance', 'pair')]).toEqual([Array(7).fill(null), Array(7).fill(null)])
+    const lineless = detail(primary, comparison, null)
+    expect([values(lineless, 'distance', 'primary'), values(lineless, 'distance', 'comparison')]).toEqual([Array(7).fill(null), Array(7).fill(null)])
+    expectValues(values(lineless, 'sog', 'primary'), [3, 4, 4.5, 5, 5.5, 6, 7])
+  })
+
+  it('follows the configured indicator and offset order without structural change', () => {
+    const [sog, , , , heel, boatDistance] = START_ANALYSIS_CONFIG.detailIndicators
+    const config = { ...START_ANALYSIS_CONFIG, detailOffsetsSeconds: [30, 0], detailIndicators: [boatDistance, heel, sog] }
+    const table = detail(primary, comparison, frame, config)
+    expect(table.offsetsSeconds).toEqual([30, 0])
+    expect(table.rows.map((row) => `${row.indicator.id}:${row.role}`))
+      .toEqual(['boatDistance:pair', 'heel:primary', 'heel:comparison', 'sog:primary', 'sog:comparison'])
+    expectValues(values(table, 'sog', 'primary'), [8, 5])
+  })
+
+  it('reads Dist at offset 0 with the same value and sign as Dist at gun in the summary rows', () => {
+    const activities = [startTimerActivity('a', gun), startTimerActivity('b', gun)]
+    const starts = inferSessionStarts(activities)
+    const [row] = deriveStartAnalysisRows(starts, inferSessionStartLines(starts, activities), [], primary, comparison)
+    const atGun = row.detail.offsetsSeconds.indexOf(0)
+    expect(values(row.detail, 'distance', 'primary')[atGun]).toBeCloseTo(row.primary.distanceAtGunMeters!, 9)
+    expect(values(row.detail, 'distance', 'comparison')[atGun]).toBeCloseTo(row.comparison!.distanceAtGunMeters!, 9)
+    expect([row.primary.distanceAtGunMeters! > 0, row.comparison!.distanceAtGunMeters! < 0]).toEqual([true, true])
+    expect(deriveStartAnalysisRows(starts, [], [], primary)[0].detail.rows.some((detailRow) => detailRow.role !== 'primary')).toBe(false)
   })
 })
