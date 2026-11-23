@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { TrackSample } from '../types/track'
+import { filterSamplesByAnalysisWindow } from './analysisWindow'
 import {
   calculateSummaryMetrics as calculateSummaryMetricsForWindow,
 } from './summaryMetrics'
+import {
+  GAP_FIXTURE_CHORD_METERS,
+  GAP_FIXTURE_RUN_SPEED_KNOTS,
+  GAP_FIXTURE_SOG_KNOTS,
+  GAP_FIXTURE_STEP_METERS,
+  gapFixtureTrack,
+  gapFixtureWindow,
+  ONE_GAP_RUNS,
+  TWO_GAP_RUNS,
+} from './trackGapTestFixtures'
 
 const TEST_START = Date.parse('2031-06-15T10:00:00Z')
 
@@ -63,12 +74,12 @@ describe('summary metrics', () => {
   it('calculates Avg SOG from distance and elapsed time, not sample SOG', () => {
     const metrics = calculateSummaryMetrics([
       sample('2031-06-15T10:00:00Z', { dist: 500, sog: 40 }),
-      sample('2031-06-15T10:30:00Z', { dist: 926, sog: 0 }),
-      sample('2031-06-15T11:00:00Z', { dist: 926, sog: 20 }),
+      sample('2031-06-15T10:00:05Z', { dist: 9.26, sog: 0 }),
+      sample('2031-06-15T10:00:10Z', { dist: 9.26, sog: 20 }),
     ])
 
-    expect(metrics.distanceMeters).toBe(1_852)
-    expect(metrics.avgSogKnots).toBeCloseTo(1)
+    expect(metrics.distanceMeters).toBeCloseTo(18.52)
+    expect(metrics.avgSogKnots).toBeCloseTo(3.6)
     expect(metrics.maxSogKnots).toBe(40)
   })
 
@@ -275,5 +286,79 @@ describe('summary metrics', () => {
     ])
 
     expect(metrics.dominantCogDegrees).toBeNull()
+  })
+})
+
+describe('gap-aware Summary (#218 D8)', () => {
+  const oneGap = gapFixtureTrack(ONE_GAP_RUNS)
+
+  it('keeps clean-track Distance and Avg SOG equal to first-to-last accumulation', () => {
+    const clean = gapFixtureTrack([[0, 120]])
+    const metrics = calculateSummaryMetricsForWindow(clean, gapFixtureWindow(0, 120))
+
+    expect(metrics.distanceMeters).toBe(120 * GAP_FIXTURE_STEP_METERS)
+    expect(metrics.avgSogKnots).toBeCloseTo((240 / 1_852) / (120 / 3_600), 10)
+  })
+
+  it('excludes the cross-gap distance and gap time for a gap fully inside the window', () => {
+    const metrics = calculateSummaryMetricsForWindow(oneGap, gapFixtureWindow(0, 184))
+
+    expect(metrics.distanceMeters).toBe(120 * GAP_FIXTURE_STEP_METERS)
+    expect(metrics.avgSogKnots).toBeCloseTo(GAP_FIXTURE_RUN_SPEED_KNOTS, 10)
+    expect(metrics.maxSogKnots).toBe(GAP_FIXTURE_SOG_KNOTS)
+    expect(metrics.dominantCogDegrees).toBe(90)
+  })
+
+  it('combines covered within-run time on both sides of a partly selected gap', () => {
+    const metrics = calculateSummaryMetricsForWindow(oneGap, gapFixtureWindow(30, 154))
+
+    expect(metrics.distanceMeters).toBe(60 * GAP_FIXTURE_STEP_METERS)
+    expect(metrics.avgSogKnots).toBeCloseTo(GAP_FIXTURE_RUN_SPEED_KNOTS, 10)
+  })
+
+  it('excludes the gap portion when the window starts inside a gap', () => {
+    const metrics = calculateSummaryMetricsForWindow(oneGap, gapFixtureWindow(90, 184))
+
+    expect(metrics.distanceMeters).toBe(60 * GAP_FIXTURE_STEP_METERS)
+    expect(metrics.avgSogKnots).toBeCloseTo(GAP_FIXTURE_RUN_SPEED_KNOTS, 10)
+  })
+
+  it('excludes the gap portion when the window ends inside a gap', () => {
+    const metrics = calculateSummaryMetricsForWindow(oneGap, gapFixtureWindow(0, 90))
+
+    expect(metrics.distanceMeters).toBe(60 * GAP_FIXTURE_STEP_METERS)
+    expect(metrics.avgSogKnots).toBeCloseTo(GAP_FIXTURE_RUN_SPEED_KNOTS, 10)
+  })
+
+  it('has no samples or metrics for a window entirely inside a gap', () => {
+    const window = gapFixtureWindow(70, 110)
+    const metrics = calculateSummaryMetricsForWindow(oneGap, window)
+
+    expect(filterSamplesByAnalysisWindow(oneGap, window.start, window.end)).toEqual([])
+    expect(metrics.distanceMeters).toBe(0)
+    expect(metrics.avgSogKnots).toBeNull()
+    expect(metrics.maxSogKnots).toBeNull()
+    expect(metrics.dominantCogDegrees).toBeNull()
+  })
+
+  it('excludes both cross-gap distances and both gap times with two gaps', () => {
+    const metrics = calculateSummaryMetricsForWindow(
+      gapFixtureTrack(TWO_GAP_RUNS),
+      gapFixtureWindow(0, 274),
+    )
+
+    expect(metrics.distanceMeters).toBe(180 * GAP_FIXTURE_STEP_METERS)
+    expect(metrics.avgSogKnots).toBeCloseTo(GAP_FIXTURE_RUN_SPEED_KNOTS, 10)
+  })
+
+  it('keeps an exactly 10-second interval as covered distance and time', () => {
+    const metrics = calculateSummaryMetricsForWindow(
+      gapFixtureTrack([[0, 60], [70, 130]]),
+      gapFixtureWindow(0, 130),
+    )
+    const expectedDistance = 120 * GAP_FIXTURE_STEP_METERS + GAP_FIXTURE_CHORD_METERS
+
+    expect(metrics.distanceMeters).toBe(expectedDistance)
+    expect(metrics.avgSogKnots).toBeCloseTo((expectedDistance / 1_852) / (130 / 3_600), 10)
   })
 })

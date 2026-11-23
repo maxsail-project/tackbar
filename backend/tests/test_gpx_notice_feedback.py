@@ -2,8 +2,14 @@
 
 import pytest
 
+from app.parsers.gpx import GPXParseError, parse_gpx
 from app.services.gpx_notice_feedback import classify_gpx_error, safe_feedback
 from app.services.technical_failure_notice import CLOSING_EN, CLOSING_ES, OPENING_EN, OPENING_ES, _body, _quality_table
+
+from test_gpx import ALL_CRITERIA_ERROR, QUALITY_REJECTIONS
+
+GAP_RULE_EN = "TackBar accepts at most 2 intervals over 10 s, each lasting up to 90 s.\nTogether they may total at most 5% of the track duration."
+GAP_RULE_ES = "TackBar admite como máximo 2 intervalos de más de 10 s, de hasta 90 s cada uno.\nEntre todos pueden sumar como máximo el 5 % de la duración del track."
 
 
 @pytest.mark.parametrize("error,category,spanish,english", [
@@ -41,10 +47,12 @@ def test_ambiguous_parser_text_needs_a_specific_safe_hint(error, hint, expected)
 
 
 @pytest.mark.parametrize("error,rows,absent", [
-    ("GPX temporal quality failed: median 2.0000000005 s > 2 s", ["Median interval\n  Your track: 2.0000000005 s\n  TackBar requirement: ≤2 s"], ["95th percentile\n", "Maximum interval\n"]),
-    ("GPX temporal quality failed: P95 5.000000001 s > 5 s", ["95th percentile\n  Your track: 5.000000001 s\n  TackBar requirement: ≤5 s"], ["Median interval\n", "Maximum interval\n"]),
-    ("GPX temporal quality failed: maximum adjacent gap 10.000000001 s > 10 s", ["Maximum interval\n  Your track: 10.000000001 s\n  TackBar requirement: ≤10 s"], ["Median interval\n", "95th percentile\n"]),
-    ("GPX temporal quality failed: median 5 s > 2 s; P95 11 s > 5 s; maximum adjacent gap 12 s > 10 s", ["Median interval\n  Your track: 5 s\n  TackBar requirement: ≤2 s", "95th percentile\n  Your track: 11 s\n  TackBar requirement: ≤5 s", "Maximum interval\n  Your track: 12 s\n  TackBar requirement: ≤10 s"], []),
+    ("GPX temporal quality failed: median 2.0000000005 s > 2 s", ["Median interval\n  Your track: 2.0000000005 s\n  TackBar requirement: ≤2 s"], ["95th percentile\n", "over 10 s", GAP_RULE_EN]),
+    ("GPX temporal quality failed: P95 5.000000001 s > 5 s", ["95th percentile\n  Your track: 5.000000001 s\n  TackBar requirement: ≤5 s"], ["Median interval\n", "over 10 s", GAP_RULE_EN]),
+    ("GPX temporal quality failed: exceptional gap count 3 > 2", ["Intervals over 10 s\n  Your track: 3\n  TackBar requirement: ≤2", "Intervalos de más de 10 s\n  Tu track: 3\n  Requisito de TackBar: ≤2", GAP_RULE_EN, GAP_RULE_ES], ["Median interval\n", "95th percentile\n", "Longest interval"]),
+    ("GPX temporal quality failed: longest exceptional gap 90.000000001 s > 90 s", ["Longest interval over 10 s\n  Your track: 90.000000001 s\n  TackBar requirement: ≤90 s", GAP_RULE_EN], ["Intervals over 10 s\n", "Total of intervals"]),
+    ("GPX temporal quality failed: exceptional gap total 64 s > 63.95 s (5% of track duration 1279 s)", ["Total of intervals over 10 s\n  Your track: 64 s\n  TackBar requirement: ≤63.95 s (5% of the duration)", "Suma de intervalos de más de 10 s\n  Tu track: 64 s\n  Requisito de TackBar: ≤63.95 s (5 % de la duración)", GAP_RULE_ES], ["Median interval\n", "Longest interval"]),
+    (ALL_CRITERIA_ERROR, ["Median interval\n  Your track: 5 s\n  TackBar requirement: ≤2 s", "95th percentile\n  Your track: 12 s\n  TackBar requirement: ≤5 s", "Intervals over 10 s\n  Your track: 3\n", "Longest interval over 10 s\n  Your track: 100 s\n", "Total of intervals over 10 s\n  Your track: 123 s\n  TackBar requirement: ≤10.65 s"], ["Maximum interval\n"]),
 ])
 def test_quality_message_compares_validated_violations(error, rows, absent):
     feedback = classify_gpx_error(error)
@@ -72,10 +80,28 @@ def test_timezone_message_explains_missing_context_without_blaming_device():
     assert "device configuration" not in body
 
 
+@pytest.mark.parametrize("content,error", QUALITY_REJECTIONS)
+def test_every_parser_quality_rejection_maps_to_the_temporal_quality_notice(content, error):
+    with pytest.raises(GPXParseError) as rejected:
+        parse_gpx(content, "track.gpx")
+    assert str(rejected.value) == error
+    feedback = classify_gpx_error(error)
+    assert feedback["category"] == "quality" and safe_feedback(feedback) == feedback
+
+
+def test_dynamic_total_limit_travels_with_safe_feedback():
+    feedback = classify_gpx_error(ALL_CRITERIA_ERROR)
+    assert feedback == {
+        "category": "quality",
+        "metrics": {"median": "5", "P95": "12", "exceptional gap count": "3", "longest exceptional gap": "100", "exceptional gap total": "123"},
+        "limits": {"exceptional gap total": "10.65"},
+    }
+
+
 def test_metric_blocks_fit_plain_text_mobile_width():
-    metrics = {"median": "2.0000000005", "P95": "5.000000001", "maximum adjacent gap": "10.000000001"}
+    metrics = {"median": "2.0000000005", "P95": "5.000000001", "exceptional gap count": "3", "longest exceptional gap": "90.000000001", "exceptional gap total": "99999.000000001"}
     for spanish in (True, False):
-        lines = _quality_table(metrics, spanish).splitlines()
+        lines = _quality_table(metrics, spanish, {"exceptional gap total": "4999.95000000005"}).splitlines()
         assert max(map(len, lines)) <= 80
         assert all(" | " not in line for line in lines)
 
@@ -90,7 +116,15 @@ def test_approved_classified_opening_and_closing_are_exact():
 @pytest.mark.parametrize("error", [
     "GPX temporal quality failed: median 2 s > 2 s",
     "GPX temporal quality failed: P95 5 s > 5 s",
-    "GPX temporal quality failed: maximum adjacent gap 10 s > 10 s",
+    "GPX temporal quality failed: maximum adjacent gap 12 s > 10 s",
+    "GPX temporal quality failed: longest exceptional gap 90 s > 90 s",
+    "GPX temporal quality failed: exceptional gap count 2 > 2",
+    "GPX temporal quality failed: exceptional gap count 3 > 3",
+    "GPX temporal quality failed: exceptional gap total 64 s > 64 s (5% of track duration 1280 s)",
+    "GPX temporal quality failed: exceptional gap total 65 s > 63 s (5% of track duration 1280 s)",
+    "GPX temporal quality failed: exceptional gap total 2000 s > 64 s (5% of track duration 1280 s)",
+    "GPX temporal quality failed: exceptional gap total 65 s > 64 s",
+    "GPX temporal quality failed: exceptional gap count 3 > 2; median 3 s > 2 s",
     "GPX temporal quality failed: median 3 s > 5 s",
     "GPX temporal quality failed: median 3 s > 2 s; median 4 s > 2 s",
     "GPX temporal quality failed: median 3 s > 2 s; /secret/file.gpx",
@@ -111,6 +145,14 @@ def test_unknown_or_invalid_diagnostic_falls_back(error):
     {"category": "quality", "metrics": {"median": "Infinity"}},
     {"category": "quality", "metrics": {"median": "3", "extra": "secret"}},
     {"category": "quality", "metrics": {"median": "8", "P95": "6"}},
+    {"category": "quality", "metrics": {"maximum adjacent gap": "12"}},
+    {"category": "quality", "metrics": {"exceptional gap total": "65"}},
+    {"category": "quality", "metrics": {"exceptional gap total": "65"}, "limits": {"exceptional gap total": "65"}},
+    {"category": "quality", "metrics": {"exceptional gap total": "65"}, "limits": {"exceptional gap total": "x"}},
+    {"category": "quality", "metrics": {"median": "3"}, "limits": {}},
+    {"category": "quality", "metrics": {"median": "3"}, "limits": {"median": "2"}},
+    {"category": "quality", "metrics": {"exceptional gap count": "3.5"}},
+    {"category": "quality", "metrics": {"longest exceptional gap": "120", "exceptional gap total": "100"}, "limits": {"exceptional gap total": "50"}},
     {"category": "timezone", "private": "C:/secret/file.gpx"},
 ])
 def test_missing_malformed_or_historical_feedback_falls_back(feedback):

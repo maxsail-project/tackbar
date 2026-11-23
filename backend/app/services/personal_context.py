@@ -188,4 +188,6 @@ class PersonalContextService:
             device_name=activity.device_name, device_label=activity.device_label,
             source=activity.source, original_filename=activity.original_filename,
             start_time=activity.start_time, end_time=activity.end_time,
+            gap_count=gaps.count if (gaps := activity.gap_summary) else None,
+            gap_total_seconds=gaps.total_seconds if gaps else None,
         )

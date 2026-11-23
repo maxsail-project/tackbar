@@ -29,7 +29,7 @@ const other: PersonalBoat = { id: 'owned-2', name: 'Boreas', sailing_class: null
 const activity: PersonalActivity = {
   id: 'activity-1', boat_id: 'legacy-1', boat: { id: 'legacy-1', name: 'Old boat', sailing_class: null, sail_number: null },
   device_name: '', device_label: null, source: 'gpx', original_filename: 'watch.gpx',
-  start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z',
+  start_time: '2026-09-05T13:49:00Z', end_time: '2026-09-05T17:21:00Z', gap_count: 0, gap_total_seconds: 0,
 }
 
 let container: HTMLDivElement
@@ -240,6 +240,20 @@ describe('My Activities', () => {
     await click('Retry')
     expect(container.textContent).toContain('No Activities recorded yet.')
     expect(container.textContent).toContain('My Sessions')
+  })
+
+  it('shows a compact GPS-gap notice from the gap summary only for Activities with gaps (#218 D4)', async () => {
+    vi.mocked(api.getPersonalActivities).mockResolvedValue([
+      { ...activity, id: 'one-gap', gap_count: 1, gap_total_seconds: 64 },
+      { ...activity, id: 'two-gaps', gap_count: 2, gap_total_seconds: 94 },
+      { ...activity, id: 'clean' },
+      { ...activity, id: 'legacy', gap_count: null, gap_total_seconds: null },
+    ])
+    await mount()
+    const notices = [...container.querySelectorAll('.personal-activity')].map((card) => (
+      card.querySelector('.personal-activity__gap-notice')?.textContent ?? null
+    ))
+    expect(notices).toEqual(['1 GPS gap · 1 min 4 s', '2 GPS gaps · 1 min 34 s', null, null])
   })
 
   it('shows an Activity with no Boat and an empty owned catalogue', async () => {

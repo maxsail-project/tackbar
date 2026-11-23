@@ -1,4 +1,5 @@
 import type { TrackSample } from '../types/track'
+import { isTrackGapInterval } from './trackGaps'
 
 export const PLAYBACK_SPEEDS = [1, 2, 5, 10] as const
 
@@ -105,16 +106,32 @@ export function interpolationFraction(
   ), 1)
 }
 
+/**
+ * The recorded samples around `playbackTime` when it lies strictly inside a gap (#218 D7),
+ * otherwise null. Exact sample times, including gap endpoints, are never inside a gap.
+ */
+export function findReplayGap(
+  samples: TrackSample[],
+  playbackTime: number,
+): SurroundingSamples | null {
+  if (samples.length === 0) return null
+  const surrounding = findSurroundingSamples(samples, playbackTime)
+  return isTrackGapInterval(
+    timestampToMilliseconds(surrounding.before.utc),
+    timestampToMilliseconds(surrounding.after.utc),
+  ) ? surrounding : null
+}
+
+/** Presentation-only position; null strictly inside a gap, never along its chord (#218 D7). */
 export function interpolatePosition(
   samples: TrackSample[],
   playbackTime: number,
-): TrackPosition {
+): TrackPosition | null {
   const { before, after } = findSurroundingSamples(samples, playbackTime)
-  const fraction = interpolationFraction(
-    playbackTime,
-    timestampToMilliseconds(before.utc),
-    timestampToMilliseconds(after.utc),
-  )
+  const beforeTime = timestampToMilliseconds(before.utc)
+  const afterTime = timestampToMilliseconds(after.utc)
+  if (isTrackGapInterval(beforeTime, afterTime)) return null
+  const fraction = interpolationFraction(playbackTime, beforeTime, afterTime)
 
   return {
     lat: before.lat + (after.lat - before.lat) * fraction,

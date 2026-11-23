@@ -1,6 +1,7 @@
 import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from './analysisWindow'
 import { timestampToMilliseconds } from './replay'
+import { insertTrackGapBreaks } from './trackGaps'
 
 export interface SogTimelinePoint {
   time: number
@@ -14,11 +15,15 @@ export interface SogTimelinePlotBand {
 
 const DEFAULT_PLOT_BAND: SogTimelinePlotBand = { top: 8, bottom: 76 }
 
+/**
+ * SOG timeline points in UTC order. A gap (#218 D4) gets one missing-SOG break point at its
+ * midpoint, so the line never joins the two recorded endpoints.
+ */
 export function prepareSogTimelinePoints(
   samples: TrackSample[],
   availableRange: AnalysisWindowRange,
 ): SogTimelinePoint[] {
-  return samples
+  const points = samples
     .map((sample) => ({
       time: timestampToMilliseconds(sample.utc),
       sog: sample.sog !== null && Number.isFinite(sample.sog) ? sample.sog : null,
@@ -29,6 +34,7 @@ export function prepareSogTimelinePoints(
       && point.time <= availableRange.end
     ))
     .sort((first, second) => first.time - second.time)
+  return insertTrackGapBreaks(points, (time) => ({ time, sog: null }))
 }
 
 function bucketRepresentative(points: SogTimelinePoint[]) {

@@ -11,12 +11,14 @@ import { ACTIVITY_COLORS } from '../config/activityColors'
 import HistoricalConditionsControl from './HistoricalConditionsControl'
 import TwdControl from './TwdControl'
 import TwsControl from './TwsControl'
+import { formatAnalysisWindowDuration } from './AnalysisWindow'
 import { MAP_STYLE_URL } from '../config/map'
 import type { TrackSample } from '../types/track'
 import type { HistoricalConditionsSample } from '../types/session'
 import {
   formatMetricValue,
   formatSignedDegreeValue,
+  type ReplayNoGpsData,
 } from '../utils/metricPresentation'
 import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import type { ManeuverActivityRole } from '../utils/maneuverEvents'
@@ -26,9 +28,11 @@ import type { TwdReference } from '../utils/twdReference'
 import { resolveGestureTwd, type TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
 import {
+  buildGapChordCollection,
   buildTrackGeometry,
   combineTrackBounds,
   type TrackBounds,
+  type TrackGapChord,
 } from '../utils/trackGeometry'
 
 export interface MapFocusRequest {
@@ -42,6 +46,8 @@ export interface ContextualMapActivity {
   visibleSamples: TrackSample[]
   boatPosition: TrackPosition | null
   cog: number | null
+  /** Playback is inside a gap: `boatPosition` is the last recorded sample (#218 D7). */
+  noGpsData?: boolean
 }
 
 interface TrackMapProps {
@@ -56,6 +62,9 @@ interface TrackMapProps {
   comparisonActivityIdentity?: string | null
   primaryBoatPosition: TrackPosition | null
   comparisonBoatPosition?: TrackPosition | null
+  /** Inside a Primary gap: greyed marker at its last recorded sample (#218 D7). */
+  primaryNoGpsData?: ReplayNoGpsData | null
+  comparisonNoGpsData?: ReplayNoGpsData | null
   hasComparison?: boolean
   playbackTime: number
   primarySog: number | null
@@ -119,6 +128,24 @@ export function selectedManeuverHighlightPaint(
     : { 'line-color': ACTIVITY_COLORS[activityRole], 'line-opacity': 0.96, 'line-width': 4.5 }
 }
 
+/**
+ * Unknown-path gap chord (#218 D3/D4): thinner, translucent and dashed so it never reads as
+ * recorded track.
+ */
+export function gapChordPaint(activityRole: ManeuverActivityRole) {
+  return {
+    'line-color': ACTIVITY_COLORS[activityRole],
+    'line-opacity': 0.7,
+    'line-width': 2,
+    'line-dasharray': [2, 2],
+  }
+}
+
+const GAP_CHORD_LAYOUT = {
+  'line-cap': 'butt' as const,
+  'line-join': 'round' as const,
+}
+
 const CONTEXTUAL_TRACK_PAINT = {
   'line-color': ACTIVITY_COLORS.contextual,
   'line-opacity': 0.42,
@@ -136,6 +163,8 @@ const FIT_OPTIONS = {
 }
 
 const MANEUVER_FOCUS_VERTICAL_OFFSET_RATIO = 0.125
+const NO_GPS_DATA_MARKER_COLOR = '#9aa4a7'
+export const NO_GPS_DATA_LABEL = 'No GPS data'
 
 export function boatMarkerRotation(cog: number | null, mapBearing = 0) {
   if (cog === null) return 0
@@ -230,23 +259,111 @@ function BoatMarker({
   cog,
   label,
   mapBearing,
+  noGpsData = false,
 }: {
   color: string
   cog: number | null
   label: string
   mapBearing: number
+  noGpsData?: boolean
 }) {
   return (
-    <div className="boat-marker" role="img" aria-label={label}>
+    <div
+      className={noGpsData ? 'boat-marker boat-marker--no-gps' : 'boat-marker'}
+      role="img"
+      aria-label={noGpsData ? `${label}, last recorded sample, ${NO_GPS_DATA_LABEL}` : label}
+    >
       <span
         aria-hidden="true"
         className="boat-marker__hull"
         style={{
-          color,
+          color: noGpsData ? NO_GPS_DATA_MARKER_COLOR : color,
           transform: `rotate(${boatMarkerRotation(cog, mapBearing)}deg)`,
         }}
       />
+      {noGpsData && (
+        <span aria-hidden="true" className="boat-marker__no-gps-label">
+          {NO_GPS_DATA_LABEL}
+        </span>
+      )}
     </div>
+  )
+}
+
+/** Replay marker placement: the interpolated position, else a greyed last recorded sample. */
+export function resolveReplayMarker(
+  position: TrackPosition | null,
+  cog: number | null,
+  noGpsData: ReplayNoGpsData | null,
+) {
+  if (position !== null) return { position, cog, noGpsData: false }
+  if (noGpsData !== null) {
+    return {
+      position: noGpsData.position,
+      cog: noGpsData.lastRecordedCog,
+      noGpsData: true,
+    }
+  }
+  return null
+}
+
+const GAP_ROLE_LABELS = { primary: 'P', comparison: 'C' } as const
+const GAP_ROLE_NAMES = { primary: 'Primary', comparison: 'Comparison' } as const
+
+/** Compact on-selection explanation of one gap chord; reports no coordinates (#218 D4). */
+export function GapChordExplanation({
+  activityRole,
+  chord,
+}: {
+  activityRole: ManeuverActivityRole
+  chord: Pick<TrackGapChord, 'durationMilliseconds' | 'displacementMeters'>
+}) {
+  return (
+    <div className="gap-chord-explanation">
+      <strong>
+        <span style={{ color: ACTIVITY_COLORS[activityRole] }}>{GAP_ROLE_LABELS[activityRole]}</span>
+        {' · GPS gap'}
+      </strong>
+      <p>No GPS data for {formatAnalysisWindowDuration(chord.durationMilliseconds)}.</p>
+      <p>Net geometric displacement between recorded endpoints: {Math.round(chord.displacementMeters)} m.</p>
+      <p>The dashed line is a straight chord between the recorded endpoints; the path sailed is unknown.</p>
+    </div>
+  )
+}
+
+/**
+ * Opens the chord explanation. A map tap closes the popup before this click handler runs, so the
+ * control opens rather than toggles; Escape, the popup close button or a map tap close it.
+ */
+export function GapChordControl({
+  activityRole,
+  chord,
+  expanded,
+  onOpen,
+  onClose,
+}: {
+  activityRole: ManeuverActivityRole
+  chord: Pick<TrackGapChord, 'durationMilliseconds'>
+  expanded: boolean
+  onOpen: () => void
+  onClose: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`gap-chord-control gap-chord-control--${activityRole}`}
+      aria-label={`${GAP_ROLE_NAMES[activityRole]} GPS gap, no GPS data for ${formatAnalysisWindowDuration(chord.durationMilliseconds)}: details`}
+      aria-expanded={expanded}
+      onClick={(event) => {
+        event.stopPropagation()
+        onOpen()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && expanded) onClose()
+      }}
+    >
+      <span aria-hidden="true" className="gap-chord-control__badge" style={{ borderColor: ACTIVITY_COLORS[activityRole] }}>Gap</span>
+    </button>
   )
 }
 
@@ -399,6 +516,8 @@ export default function TrackMap({
   comparisonActivityIdentity = null,
   primaryBoatPosition,
   comparisonBoatPosition = null,
+  primaryNoGpsData = null,
+  comparisonNoGpsData = null,
   hasComparison = false,
   playbackTime,
   primarySog,
@@ -431,6 +550,8 @@ export default function TrackMap({
   const rotationGestureRef = useRef<{ effectiveBeforeGesture: number } | null>(null)
   const [gestureBearing, setGestureBearing] = useState<number | null>(null)
   const mapBearing = gestureBearing ?? committedBearing
+  const primaryMarker = resolveReplayMarker(primaryBoatPosition, primaryCog, primaryNoGpsData)
+  const comparisonMarker = resolveReplayMarker(comparisonBoatPosition, comparisonCog, comparisonNoGpsData)
   const liveTwdPresentation = gestureBearing === null
     ? twdPresentation
     : { ...twdPresentation, bearing: gestureBearing, displayDegrees: ((Math.round(gestureBearing) % 360) + 360) % 360 }
@@ -438,6 +559,7 @@ export default function TrackMap({
   const [twdDetailExpanded, setTwdDetailExpanded] = useState(false)
   const [twsDetailExpanded, setTwsDetailExpanded] = useState(false)
   const [inspectedContextualActivityId, setInspectedContextualActivityId] = useState<string | null>(null)
+  const [inspectedGapChord, setInspectedGapChord] = useState<{ activityRole: ManeuverActivityRole, key: string } | null>(null)
   const fittedContextKeyRef = useRef<string | null>(null)
   const handledFocusRequestIdRef = useRef<number | null>(null)
   const dismissWeatherDetail = useCallback(
@@ -503,6 +625,22 @@ export default function TrackMap({
     ),
     [comparisonGeometry, primaryGeometry],
   )
+  const gapChordGroups = useMemo(
+    () => ([
+      ['comparison', comparisonGeometry],
+      ['primary', primaryGeometry],
+    ] as const).flatMap(([activityRole, geometry]) => (
+      geometry && geometry.gapChords.length > 0
+        ? [{ activityRole, chords: geometry.gapChords, collection: buildGapChordCollection(geometry.gapChords) }]
+        : []
+    )),
+    [comparisonGeometry, primaryGeometry],
+  )
+  const inspectedChord = inspectedGapChord === null
+    ? null
+    : gapChordGroups
+      .find((group) => group.activityRole === inspectedGapChord.activityRole)
+      ?.chords.find((chord) => chord.key === inspectedGapChord.key) ?? null
   const windowFocus = primaryVisibleSamples[0]
   const inspectedContextualActivity = contextualActivities.find(
     (activity) => activity.id === inspectedContextualActivityId,
@@ -579,6 +717,10 @@ export default function TrackMap({
       setInspectedContextualActivityId(null)
     }
   }, [contextualActivities, inspectedContextualActivityId])
+
+  useEffect(() => {
+    if (inspectedGapChord !== null && inspectedChord === null) setInspectedGapChord(null)
+  }, [inspectedChord, inspectedGapChord])
 
   useEffect(() => {
     dismissWeatherDetail()
@@ -744,6 +886,21 @@ export default function TrackMap({
             />
           </Source>
         )}
+        {gapChordGroups.map(({ activityRole, collection }) => (
+          <Source
+            key={`gap-chords-${activityRole}`}
+            id={`${activityRole}-activity-gap-chords`}
+            type="geojson"
+            data={collection}
+          >
+            <Layer
+              id={`${activityRole}-activity-gap-chord-line`}
+              type="line"
+              paint={gapChordPaint(activityRole)}
+              layout={GAP_CHORD_LAYOUT}
+            />
+          </Source>
+        ))}
         {selectedManeuverHighlights.map((highlight) => (
           <Source
             key={`halo-${highlight.selectionIndex}`}
@@ -774,33 +931,55 @@ export default function TrackMap({
             />
           </Source>
         ))}
-        {primaryBoatPosition && (
+        {gapChordGroups.flatMap(({ activityRole, chords }) => chords.map((chord) => (
           <Marker
-            longitude={primaryBoatPosition.lon}
-            latitude={primaryBoatPosition.lat}
+            key={`gap-chord-control-${activityRole}-${chord.key}`}
+            longitude={chord.midpoint[0]}
+            latitude={chord.midpoint[1]}
+            anchor="center"
+            style={{ zIndex: 1 }}
+          >
+            <GapChordControl
+              activityRole={activityRole}
+              chord={chord}
+              expanded={inspectedGapChord?.activityRole === activityRole && inspectedGapChord.key === chord.key}
+              onOpen={() => {
+                setInspectedContextualActivityId(null)
+                setInspectedGapChord({ activityRole, key: chord.key })
+              }}
+              onClose={() => setInspectedGapChord(null)}
+            />
+          </Marker>
+        )))}
+        {primaryMarker && (
+          <Marker
+            longitude={primaryMarker.position.lon}
+            latitude={primaryMarker.position.lat}
             anchor="center"
             style={{ zIndex: 3 }}
           >
             <BoatMarker
               color={ACTIVITY_COLORS.primary}
-              cog={primaryCog}
+              cog={primaryMarker.cog}
               label="Primary boat position"
               mapBearing={mapBearing}
+              noGpsData={primaryMarker.noGpsData}
             />
           </Marker>
         )}
-        {comparisonBoatPosition && (
+        {comparisonMarker && (
           <Marker
-            longitude={comparisonBoatPosition.lon}
-            latitude={comparisonBoatPosition.lat}
+            longitude={comparisonMarker.position.lon}
+            latitude={comparisonMarker.position.lat}
             anchor="center"
             style={{ zIndex: 2 }}
           >
             <BoatMarker
               color={ACTIVITY_COLORS.comparison}
-              cog={comparisonCog}
+              cog={comparisonMarker.cog}
               label="Comparison boat position"
               mapBearing={mapBearing}
+              noGpsData={comparisonMarker.noGpsData}
             />
           </Marker>
         )}
@@ -817,6 +996,7 @@ export default function TrackMap({
               className="contextual-boat-marker"
               aria-label={`Inspect ${activity.identity}`}
               onClick={(event) => {
+                setInspectedGapChord(null)
                 setInspectedContextualActivityId(
                   openContextualActivityPopup(activity.id, event),
                 )
@@ -827,6 +1007,7 @@ export default function TrackMap({
                 cog={activity.cog}
                 label={`${activity.identity} contextual boat position`}
                 mapBearing={mapBearing}
+                noGpsData={activity.noGpsData === true}
               />
             </button>
           </Marker>
@@ -849,6 +1030,20 @@ export default function TrackMap({
                 onCompareContextualActivity?.(inspectedContextualActivity.id)
               }}
             />
+          </Popup>
+        )}
+        {inspectedGapChord && inspectedChord && (
+          <Popup
+            longitude={inspectedChord.midpoint[0]}
+            latitude={inspectedChord.midpoint[1]}
+            anchor="bottom"
+            offset={18}
+            closeOnClick
+            onClose={() => setInspectedGapChord(null)}
+            className="gap-chord-popup"
+            style={{ zIndex: 4 }}
+          >
+            <GapChordExplanation activityRole={inspectedGapChord.activityRole} chord={inspectedChord} />
           </Popup>
         )}
       </Map>

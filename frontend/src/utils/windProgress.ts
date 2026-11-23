@@ -2,6 +2,7 @@ import { WIND_CONTEXT_CONFIG } from '../config/windContext'
 import type { TrackSample } from '../types/track'
 import type { AnalysisWindowRange } from './analysisWindow'
 import { bearing, distanceMeters } from './sessionStartLines'
+import { findTrackGaps, trackGapWindowOverlap } from './trackGaps'
 import {
   normalizeSignedDegrees,
   type EffectiveTwd,
@@ -35,6 +36,10 @@ export type WindProgress =
       distanceMeters: number | null
       /** Net displacement between the window-start and window-end positions projected on the wind axis. */
       progressMeters: number
+      /**
+       * Progress ÷ Distance; null without positive Distance or when the window overlaps a gap of
+       * this Activity by a positive duration (#218 D10): Progress spans the chord, Distance does not.
+       */
       efficiency: number | null
       /** Window duration: both Activities are measured at the same instants (#192.2.1). */
       durationSeconds: number
@@ -142,12 +147,13 @@ export function calculateWindProgress(
   if (offset > config.progressMaxAxisOffsetDegrees) return unavailable('course-off-axis')
 
   const progressMeters = displacement * Math.cos(offset * Math.PI / 180)
+  const overlapsGap = trackGapWindowOverlap(findTrackGaps(samples), analysisWindow).count > 0
   return {
     status: 'available',
     sector: classification,
     distanceMeters: distance,
     progressMeters,
-    efficiency: distance !== null && distance > 0 ? progressMeters / distance : null,
+    efficiency: distance !== null && distance > 0 && !overlapsGap ? progressMeters / distance : null,
     durationSeconds,
     progressSpeedMetersPerSecond: progressMeters / durationSeconds,
     netBearingDegrees,

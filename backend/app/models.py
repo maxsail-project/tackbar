@@ -80,6 +80,23 @@ class ShiftAngleObservation:
     average_sog_knots: float
 
 
+@dataclass(frozen=True)
+class TrackGap:
+    """One adjacent canonical UTC interval > 10 s, between real recorded samples."""
+
+    start: str
+    end: str
+
+
+@dataclass(frozen=True)
+class TrackGapSummary:
+    """Gap summary derived from a canonical normalized track (Issue #218, D6)."""
+
+    count: int
+    total_seconds: float
+    intervals: tuple[TrackGap, ...] = ()
+
+
 @dataclass
 class InboundEmail:
     sender_email: str
@@ -199,6 +216,8 @@ class StoredActivity:
     race_timer_events: list[RaceTimerEvent] = field(default_factory=list)
     line_positions: list[LinePosition] = field(default_factory=list)
     shift_angle_observations: list[ShiftAngleObservation] = field(default_factory=list)
+    # None means not yet derived (legacy record before the #218 backfill).
+    gap_summary: TrackGapSummary | None = None
 
 
 @dataclass(frozen=True)

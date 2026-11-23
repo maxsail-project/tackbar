@@ -8,6 +8,14 @@ import {
   resolveReplayPresentation,
 } from './metricPresentation'
 import { timestampToMilliseconds } from './replay'
+import {
+  gapFixtureTime,
+  gapFixtureTrack,
+  gapFixtureWindow,
+  GAP_FIXTURE_COG_DEGREES,
+  GAP_FIXTURE_SOG_KNOTS,
+  ONE_GAP_RUNS,
+} from './trackGapTestFixtures'
 
 const samples: TrackSample[] = [
   { utc: '2031-06-15T13:02:50Z', lat: 0, lon: 0, dist: 0, sog: 99, cog: 1, hdg: null, heel: null, trim: null },
@@ -74,6 +82,7 @@ describe('replay presentation', () => {
       cog: null,
       heel: null,
       trim: null,
+      noGpsData: null,
     })
   })
 
@@ -112,6 +121,7 @@ describe('replay presentation', () => {
       cog: 100,
       heel: 7.2,
       trim: 2.4,
+      noGpsData: null,
     })
     expect(atEnd).toEqual({
       position: { lat: 14, lon: 28 },
@@ -119,6 +129,7 @@ describe('replay presentation', () => {
       cog: 140,
       heel: null,
       trim: null,
+      noGpsData: null,
     })
   })
 
@@ -137,13 +148,71 @@ describe('replay presentation', () => {
 
     expect(narrowSamples).toEqual([samples[2]])
     expect(resolveReplayPresentation(narrowSamples, windowStart + 1_000))
-      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3, trim: -1.8 })
+      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3, trim: -1.8, noGpsData: null })
     expect(resolveReplayPresentation(narrowSamples, windowEnd - 1_000))
-      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3, trim: -1.8 })
+      .toEqual({ position: { lat: 12, lon: 24 }, sog: 8, cog: 120, heel: -6.3, trim: -1.8, noGpsData: null })
   })
 
   it('uses kt for Avg SOG and preserves unavailable presentation', () => {
     expect(formatAverageSog(5.125)).toBe('5.1 kt')
     expect(formatAverageSog(null)).toBe('—')
+  })
+})
+
+describe('replay presentation inside a gap (#218 D7)', () => {
+  const gapTrack = gapFixtureTrack(ONE_GAP_RUNS)
+  const lastRecorded = gapTrack[60]
+
+  it('holds a greyed last-sample state with no position and unavailable metrics', () => {
+    const result = resolveReplayPresentation(gapTrack, gapFixtureTime(90))
+
+    expect(result).toEqual({
+      position: null,
+      sog: null,
+      cog: null,
+      heel: null,
+      trim: null,
+      noGpsData: {
+        lastSample: lastRecorded,
+        position: { lat: lastRecorded.lat, lon: lastRecorded.lon },
+        lastRecordedCog: GAP_FIXTURE_COG_DEGREES,
+      },
+    })
+    expect(formatMetricValue('SOG', result.sog)).toBe('—')
+    expect(formatMetricValue('COG', result.cog)).toBe('—')
+    expect(formatSignedDegreeValue(result.heel)).toBe('—')
+    expect(formatSignedDegreeValue(result.trim)).toBe('—')
+  })
+
+  it('resolves normal presentation at exact gap endpoints', () => {
+    for (const [seconds, sample] of [[60, gapTrack[60]], [124, gapTrack[61]]] as const) {
+      expect(resolveReplayPresentation(gapTrack, gapFixtureTime(seconds))).toMatchObject({
+        position: { lat: sample.lat, lon: sample.lon },
+        sog: GAP_FIXTURE_SOG_KNOTS,
+        noGpsData: null,
+      })
+    }
+  })
+
+  it('detects a gap on the canonical track when the window starts inside it', () => {
+    const window = gapFixtureWindow(90, 184)
+    const windowGapSamples = filterSamplesByAnalysisWindow(gapTrack, window.start, window.end)
+    const result = resolveReplayPresentation(windowGapSamples, window.start, gapTrack)
+
+    expect(result.position).toBeNull()
+    expect(result.noGpsData?.lastSample).toBe(lastRecorded)
+  })
+
+  it('leaves the other Activity unaffected at the same playbackTime', () => {
+    const otherTrack = gapFixtureTrack([[0, 184]])
+    const playbackTime = gapFixtureTime(90)
+
+    expect(resolveReplayPresentation(gapTrack, playbackTime).noGpsData).not.toBeNull()
+    expect(resolveReplayPresentation(otherTrack, playbackTime)).toMatchObject({
+      position: { lat: otherTrack[90].lat, lon: otherTrack[90].lon },
+      sog: GAP_FIXTURE_SOG_KNOTS,
+      cog: GAP_FIXTURE_COG_DEGREES,
+      noGpsData: null,
+    })
   })
 })

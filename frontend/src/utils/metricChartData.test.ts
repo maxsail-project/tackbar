@@ -29,6 +29,11 @@ import {
   trimSignalXPosition,
   type ScalarChartMetric,
 } from './metricChartData'
+import {
+  gapFixtureTime,
+  gapFixtureTrack,
+  ONE_GAP_RUNS,
+} from './trackGapTestFixtures'
 
 const BASE_TIME = Date.parse('2026-08-15T13:00:00Z')
 
@@ -809,5 +814,60 @@ describe('COG chart data', () => {
     ])), range)
 
     expect(path).toBe('M0.00,8.51 M1000.00,191.49')
+  })
+})
+
+describe('metric chart paths across gaps (#218)', () => {
+  const gapTrack = gapFixtureTrack(ONE_GAP_RUNS)
+  const range = { start: gapFixtureTime(0), end: gapFixtureTime(184) }
+  const gapMidpoint = gapFixtureTime(92)
+  const cleanTrack = gapFixtureTrack([[0, 5], [15, 20]])
+
+  function moveCount(path: string) {
+    return path.split(' ').filter((command) => command.startsWith('M')).length
+  }
+
+  it('breaks raw and smoothed SOG paths across an interval over 10 seconds', () => {
+    const points = buildSogChartPoints(gapTrack)
+
+    expect(points.filter((point) => point.sog === null)).toEqual([{ time: gapMidpoint, sog: null }])
+    expect(moveCount(buildSogSignalPath(points, range, 10))).toBe(2)
+    expect(moveCount(buildSogSignalPath(
+      reduceRawSogChartPoints(points, 20),
+      range,
+      10,
+    ))).toBe(2)
+    expect(moveCount(buildSogSignalPath(buildSogTrendPoints(points), range, 10))).toBe(2)
+  })
+
+  it('breaks raw and smoothed COG paths across an interval over 10 seconds', () => {
+    const points = buildCanonicalCogChartPoints(gapTrack)
+
+    expect(points.filter((point) => point.cog === null)).toEqual([
+      { time: gapMidpoint, cog: null, kind: 'gap' },
+    ])
+    expect(moveCount(buildCogSignalPath(buildCogChartPoints(gapTrack), range))).toBe(2)
+    expect(moveCount(buildCogSignalPath(reduceRawCogChartPoints(points, 20), range))).toBe(2)
+    expect(moveCount(buildCogSignalPath(buildSmoothedCogChartPoints(points), range))).toBe(2)
+  })
+
+  it('breaks raw TRIM and stepped HEEL paths across an interval over 10 seconds', () => {
+    const trimPoints = buildTrimChartPoints(gapTrack)
+    const domain = { minimum: -10, maximum: 10 }
+
+    expect(trimPoints.filter((point) => point.value === null)).toEqual([{ time: gapMidpoint, value: null }])
+    expect(moveCount(buildTrimSignalPath(trimPoints, range, domain))).toBe(2)
+    expect(moveCount(buildTrimSignalPath(reduceRawTrimChartPoints(trimPoints, 20), range, domain))).toBe(2)
+    expect(moveCount(buildHeelStepPath(
+      buildHeelBuckets(buildHeelChartPoints(gapTrack)),
+      range,
+      domain,
+    ))).toBe(2)
+  })
+
+  it('adds no SOG, COG or TRIM break at exactly 10 seconds', () => {
+    expect(buildSogChartPoints(cleanTrack).every((point) => point.sog !== null)).toBe(true)
+    expect(buildCanonicalCogChartPoints(cleanTrack).every((point) => point.kind === 'sample')).toBe(true)
+    expect(buildTrimChartPoints(cleanTrack).every((point) => point.value !== null)).toBe(true)
   })
 })

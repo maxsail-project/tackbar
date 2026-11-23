@@ -6,8 +6,10 @@ import type { CSSProperties, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { TrackSample } from '../types/track'
+import type { ReplayNoGpsData } from '../utils/metricPresentation'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
-import TrackMap from './TrackMap'
+import { gapFixtureTrack, ONE_GAP_RUNS } from '../utils/trackGapTestFixtures'
+import TrackMap, { GapChordExplanation } from './TrackMap'
 
 const layerStack = vi.hoisted(() => [] as string[])
 
@@ -22,14 +24,17 @@ vi.mock('react-map-gl/maplibre', async () => {
     }))
     return <div data-map>{children}</div>
   }),
-  Source: ({ id, data, children }: { id: string, data: { geometry: { type: string, coordinates: number[][] | number[][][] } }, children: ReactNode }) => {
+  Source: ({ id, data, children }: { id: string, data: { type?: string, features?: { geometry: { coordinates: number[][] } }[], geometry: { type: string, coordinates: number[][] | number[][][] } }, children: ReactNode }) => {
+    if (data.type === 'FeatureCollection') {
+      return <div data-source={id} data-features={JSON.stringify(data.features!.map((feature) => feature.geometry.coordinates))}>{children}</div>
+    }
     const longitude = data.geometry.type === 'LineString'
       ? (data.geometry.coordinates as number[][])[0][0]
       : (data.geometry.coordinates as number[][][])[0][0][0]
     const coordinates = data.geometry.coordinates as number[][]
     return <div data-source={id} data-start-longitude={longitude} data-line-coordinates={JSON.stringify(coordinates)}>{children}</div>
   },
-  Layer: ({ id, beforeId, paint }: { id: string, beforeId?: string, paint: Record<string, string | number> }) => {
+  Layer: ({ id, beforeId, paint }: { id: string, beforeId?: string, paint: Record<string, string | number | number[]> }) => {
     const previousBeforeId = useRef(beforeId)
     useEffect(() => {
       if (!layerStack.includes(id)) {
@@ -46,7 +51,8 @@ vi.mock('react-map-gl/maplibre', async () => {
         if (index >= 0) layerStack.splice(index, 1)
       }
     }, [id, beforeId])
-    return <div data-layer={id} data-color={paint['line-color']} data-width={paint['line-width']} />
+    const dashArray = paint['line-dasharray']
+    return <div data-layer={id} data-color={paint['line-color'] as string} data-width={paint['line-width'] as number} data-dasharray={dashArray === undefined ? undefined : JSON.stringify(dashArray)} />
   },
   Marker: ({ children, style, longitude, latitude, anchor }: { children: ReactNode, style?: CSSProperties, longitude: number, latitude: number, anchor?: string }) =>
     <div className="maplibregl-marker" data-boat-marker data-anchor={anchor} data-longitude={longitude} data-latitude={latitude} style={style}>{children}</div>,
@@ -87,6 +93,7 @@ function mapElement(
     primaryPosition?: { lat: number, lon: number } | null
     comparisonPosition?: { lat: number, lon: number } | null
     contextualPosition?: { lat: number, lon: number } | null
+    primaryNoGpsData?: ReplayNoGpsData | null
     onCompare?: (activityId: string) => void
     sessionStartLines?: { label: string, time: number, pin: { latitude: number, longitude: number } | null, boat: { latitude: number, longitude: number } | null }[]
   } = {},
@@ -106,6 +113,7 @@ function mapElement(
     comparisonActivityIdentity={markerOptions.comparisonIdentity ?? 'Comparison'}
     primaryBoatPosition={markerOptions.primaryPosition === undefined ? overlap : markerOptions.primaryPosition}
     comparisonBoatPosition={markerOptions.comparisonPosition === undefined ? { lat: 0.25, lon: -30.71 } : markerOptions.comparisonPosition}
+    primaryNoGpsData={markerOptions.primaryNoGpsData}
     hasComparison={markerOptions.comparisonPosition !== null}
     playbackTime={Date.parse(samples[0].utc)}
     primarySog={5}
@@ -311,5 +319,82 @@ describe('replay boat marker stack', () => {
       await act(async () => root.unmount())
       container.remove()
     }
+  })
+})
+
+describe('replay marker inside a gap (#218 D7)', () => {
+  it('greys the Activity marker at its last recorded sample with a No GPS data label', () => {
+    const lastSample = { ...samples[1], lon: -30.6, cog: 45 }
+    const markup = renderToStaticMarkup(mapElement([], samples, samples, false, 'gap', {
+      primaryPosition: null,
+      primaryNoGpsData: {
+        lastSample,
+        position: { lat: lastSample.lat, lon: lastSample.lon },
+        lastRecordedCog: 45,
+      },
+    }))
+
+    expect(markup).toContain('data-longitude="-30.6" data-latitude="0.25"')
+    expect(markup).toContain('class="boat-marker boat-marker--no-gps" role="img" aria-label="Primary boat position, last recorded sample, No GPS data"')
+    expect(markup).toContain('>No GPS data</span>')
+    expect(markup).toContain('rotate(45deg)')
+    expect(markup).toContain('class="boat-marker" role="img" aria-label="Comparison boat position"')
+    expect(markup.match(/boat-marker--no-gps/g)).toHaveLength(1)
+  })
+})
+
+describe('GPS gap chords on the map (#218 D3/D4)', () => {
+  const gapSamples = gapFixtureTrack(ONE_GAP_RUNS)
+  const endpoints = [gapSamples[60], gapSamples[61]].map((sample) => [sample.lon, sample.lat])
+
+  it('splits the recorded track and draws one distinct dashed chord between its recorded endpoints', () => {
+    const markup = renderToStaticMarkup(mapElement([], gapSamples, samples, false))
+    const primaryRuns = JSON.parse(markup.match(/data-source="primary-activity-track"[^>]*data-line-coordinates="([^"]+)"/)![1].replace(/&quot;/g, '"')) as number[][][]
+
+    expect(primaryRuns.map((run) => run.length)).toEqual([61, 61])
+    expect(markup).toContain(`data-source="primary-activity-gap-chords" data-features="${JSON.stringify([endpoints]).replace(/"/g, '&quot;')}"`)
+    expect(markup).toContain(`data-layer="primary-activity-gap-chord-line" data-color="${ACTIVITY_COLORS.primary}" data-width="2" data-dasharray="[2,2]"`)
+    expect(markup).not.toContain('comparison-activity-gap-chords')
+    expect(markup).toContain('aria-label="Primary GPS gap, no GPS data for 1m04s: details" aria-expanded="false"')
+  })
+
+  it('opens a compact explanation from the keyboard-reachable chord control and closes it with Escape', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(mapElement([], samples, gapSamples, false)))
+      const control = container.querySelector<HTMLButtonElement>('button.gap-chord-control--comparison')!
+      expect(control.tagName).toBe('BUTTON')
+      await act(async () => control.click())
+      expect(control.getAttribute('aria-expanded')).toBe('true')
+      expect(container.querySelector('.gap-chord-explanation')?.textContent).toContain('C · GPS gap')
+      await act(async () => control.click())
+      expect(container.querySelectorAll('.gap-chord-explanation')).toHaveLength(1)
+      await act(async () => control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+      expect(container.querySelector('.gap-chord-explanation')).toBeNull()
+      expect(control.getAttribute('aria-expanded')).toBe('false')
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
+
+  it('explains missing GPS time, net displacement and the unknown path without coordinates', () => {
+    const markup = renderToStaticMarkup(<GapChordExplanation
+      activityRole="primary"
+      chord={{ durationMilliseconds: 64_000, displacementMeters: 190.4 }}
+    />)
+    const text = markup.replace(/<[^>]+>/g, '')
+
+    expect(text).toContain('P · GPS gap')
+    expect(text).toContain('No GPS data for 1m04s.')
+    expect(text).toContain('Net geometric displacement between recorded endpoints: 190 m.')
+    expect(text).toContain('the path sailed is unknown')
+    expect(text).not.toMatch(/\d+\.\d{3,}/)
+  })
+
+  it('draws no chord or control for clean tracks', () => {
+    const markup = renderMap([])
+    expect(markup).not.toContain('gap-chord')
   })
 })

@@ -6,6 +6,12 @@ import {
   reduceSogTimelinePoints,
   type SogTimelinePoint,
 } from './sogTimeline'
+import {
+  gapFixtureTime,
+  gapFixtureTrack,
+  gapFixtureWindow,
+  ONE_GAP_RUNS,
+} from './trackGapTestFixtures'
 
 function sample(seconds: number, sog: number | null): TrackSample {
   return {
@@ -126,5 +132,23 @@ describe('SOG Analysis Window timeline', () => {
 
     expect(reduced.some((point) => point.sog === null)).toBe(true)
     expect(buildSogTimelinePath(reduced, { start: 0, end: 11 }, 11)).toContain(' M')
+  })
+
+  it('breaks the line at a gap with one missing-SOG point at its midpoint (#218 D4)', () => {
+    const window = gapFixtureWindow(0, 184)
+    const points = prepareSogTimelinePoints(gapFixtureTrack(ONE_GAP_RUNS), window)
+    const breaks = points.filter((point) => point.sog === null)
+
+    expect(points).toHaveLength(123)
+    expect(breaks).toEqual([{ time: gapFixtureTime(92), sog: null }])
+    const path = buildSogTimelinePath(reduceSogTimelinePoints(points, 40), window, 6)
+    expect(path.match(/M/g)).toHaveLength(2)
+  })
+
+  it('keeps a clean track as one continuous line', () => {
+    const window = gapFixtureWindow(0, 60)
+    const points = prepareSogTimelinePoints(gapFixtureTrack([[0, 60]]), window)
+    expect(points.every((point) => point.sog !== null)).toBe(true)
+    expect(buildSogTimelinePath(points, window, 6).match(/M/g)).toHaveLength(1)
   })
 })

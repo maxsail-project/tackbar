@@ -1,6 +1,7 @@
 import logging
 
 from app.models import Activity, StoredActivity
+from app.normalization.track_gaps import summarize_track_gaps
 from app.normalization.track_normalizer import normalize_track
 from app.parsers.vakaros import parse_vakaros_attachment
 from app.repositories.activities import (
@@ -53,6 +54,9 @@ def reprocess_activity(
         stored_activity.id,
         parsed_activity,
         track_file,
+    )
+    stored_activity = activities.set_gap_summary(
+        stored_activity.id, summarize_track_gaps(normalized_track["utc"]),
     )
     _attempt_maneuver_analytics_generation(stored_activity.id, storage)
     return stored_activity

@@ -17,6 +17,7 @@ from xml.etree import ElementTree as ET
 import pandas as pd
 
 from app.models import Activity
+from app.normalization.track_gaps import GAP_THRESHOLD_SECONDS
 from app.normalization.track_normalizer import EARTH_RADIUS_METRES
 
 
@@ -25,13 +26,19 @@ MAX_GPX_BYTES = 16 * 1024 * 1024
 MAX_XML_ELEMENTS = 500_000
 MAX_XML_DEPTH = 32
 MAX_GPX_SAMPLES = 100_000
-# Plain GPX temporal-quality admission thresholds (Issue #171).
+# Plain GPX temporal-quality admission thresholds (Issues #171 and #218).
 # Require sufficiently frequent and consistent GPS samples for sailing analysis.
-# All three limits must be satisfied; values are in seconds.
+# All limits must be satisfied simultaneously; equality passes; values in seconds.
 # Changes to these thresholds require review of the product contract and tests.
 MAX_MEDIAN_GAP_SECONDS = 2
 MAX_P95_GAP_SECONDS = 5
-MAX_ADJACENT_GAP_SECONDS = 10
+# An exceptional gap is an adjacent interval strictly above this threshold; it is
+# the same >10 s rule that separates continuous runs for every source (#218 D5).
+EXCEPTIONAL_GAP_THRESHOLD_SECONDS = GAP_THRESHOLD_SECONDS
+# Bounded isolated exceptional gaps admitted per GPX Activity (#218 D2).
+MAX_EXCEPTIONAL_GAPS = 2
+MAX_EXCEPTIONAL_GAP_SECONDS = 90
+MAX_EXCEPTIONAL_GAP_TOTAL_PERCENT = 5
 
 # Conversion factor for nanosecond-precision UTC interval comparisons.
 NS_PER_SECOND = 1_000_000_000
@@ -174,7 +181,6 @@ def parse_gpx(
     # Nearest-rank P95: sorted observed interval at rank ceil(0.95 * count).
     p95_index = (95 * len(ordered_gaps) + 99) // 100 - 1
     p95_ns = ordered_gaps[p95_index]
-    maximum_ns = ordered_gaps[-1]
     failures = []
     if median_twice_ns > 2 * MAX_MEDIAN_GAP_SECONDS * NS_PER_SECOND:
         failures.append(
@@ -182,10 +188,7 @@ def parse_gpx(
         )
     if p95_ns > MAX_P95_GAP_SECONDS * NS_PER_SECOND:
         failures.append(f"P95 {_seconds_text(2 * p95_ns)} s > {MAX_P95_GAP_SECONDS} s")
-    if maximum_ns > MAX_ADJACENT_GAP_SECONDS * NS_PER_SECOND:
-        failures.append(
-            f"maximum adjacent gap {_seconds_text(2 * maximum_ns)} s > {MAX_ADJACENT_GAP_SECONDS} s"
-        )
+    failures.extend(_exceptional_gap_failures(gaps_ns))
     if failures:
         raise GPXParseError(
             "GPX temporal quality failed: " + "; ".join(failures)
@@ -214,6 +217,41 @@ def parse_gpx(
     )
 
 
+def _exceptional_gap_failures(gaps_ns: list[int]) -> list[str]:
+    """Bounded isolated-gap budget (#218 D2), in count, longest, total order."""
+    exceptional = [
+        gap for gap in gaps_ns
+        if gap > EXCEPTIONAL_GAP_THRESHOLD_SECONDS * NS_PER_SECOND
+    ]
+    if not exceptional:
+        return []
+    failures = []
+    if len(exceptional) > MAX_EXCEPTIONAL_GAPS:
+        failures.append(
+            f"exceptional gap count {len(exceptional)} > {MAX_EXCEPTIONAL_GAPS}"
+        )
+    longest_ns = max(exceptional)
+    if longest_ns > MAX_EXCEPTIONAL_GAP_SECONDS * NS_PER_SECOND:
+        failures.append(
+            f"longest exceptional gap {_seconds_text(2 * longest_ns)} s"
+            f" > {MAX_EXCEPTIONAL_GAP_SECONDS} s"
+        )
+    total_ns = sum(exceptional)
+    duration_ns = sum(gaps_ns)  # last UTC - first UTC
+    # Exact integer comparison: total <= percent/100 * duration.
+    if 100 * total_ns > MAX_EXCEPTIONAL_GAP_TOTAL_PERCENT * duration_ns:
+        limit = Decimal(MAX_EXCEPTIONAL_GAP_TOTAL_PERCENT * duration_ns) / (
+            100 * NS_PER_SECOND
+        )
+        failures.append(
+            f"exceptional gap total {_seconds_text(2 * total_ns)} s"
+            f" > {format(limit, 'f')} s"
+            f" ({MAX_EXCEPTIONAL_GAP_TOTAL_PERCENT}% of track duration"
+            f" {_seconds_text(2 * duration_ns)} s)"
+        )
+    return failures
+
+
 def _nearest(times: list[int], target: int, lo: int, hi: int) -> int:
     """Nearest available sample; equal-distance ties choose the earlier UTC."""
     index = bisect_left(times, target, lo, hi)
@@ -221,19 +259,39 @@ def _nearest(times: list[int], target: int, lo: int, hi: int) -> int:
     return min(candidates, key=lambda i: (abs(times[i] - target), i))
 
 
+def _continuous_run_bounds(times: list[int]) -> list[tuple[int, int]]:
+    """Per sample, the half-open index range of its run between exceptional gaps."""
+    threshold_ns = EXCEPTIONAL_GAP_THRESHOLD_SECONDS * NS_PER_SECOND
+    starts = [0] + [
+        index for index in range(1, len(times))
+        if times[index] - times[index - 1] > threshold_ns
+    ]
+    bounds = []
+    for start, stop in zip(starts, starts[1:] + [len(times)]):
+        bounds.extend([(start, stop)] * (stop - start))
+    return bounds
+
+
 def _derive_movement(samples: list[dict]) -> None:
     times = [sample["utc"].value for sample in samples]
+    runs = _continuous_run_bounds(times)
     for index, sample in enumerate(samples):
-        # Use distinct evidence on each available side, closest to ±2 seconds.
+        start, stop = runs[index]
+        # Use distinct evidence on each available side of the same continuous run,
+        # closest to ±2 seconds; never a neighbor across an exceptional gap (#218 D3).
         # Coarse cadence falls back to the immediate neighbor, never a fake 1 Hz.
         left = (
-            _nearest(times, times[index] - 2_000_000_000, 0, index)
-            if index else 0
+            _nearest(times, times[index] - 2_000_000_000, start, index)
+            if index > start else index
         )
         right = (
-            _nearest(times, times[index] + 2_000_000_000, index + 1, len(times))
-            if index + 1 < len(times) else index
+            _nearest(times, times[index] + 2_000_000_000, index + 1, stop)
+            if index + 1 < stop else index
         )
+        if left == right:
+            # A sample alone in its run has no same-run movement evidence.
+            sample["sog"] = sample["cog"] = None
+            continue
         first, last = samples[left], samples[right]
         lat1, lat2 = math.radians(first["lat"]), math.radians(last["lat"])
         dlat = lat2 - lat1

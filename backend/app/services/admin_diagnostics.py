@@ -45,7 +45,7 @@ SAFE_FIELDS: dict[type, set[str]] = {
     HistoricalConditionsSample: {"time", "air_temperature_c", "weather_code", "wind_speed_10m_kn", "wind_direction_10m_deg", "wind_gusts_10m_kn", "cloud_cover_pct", "wave_height_m", "wave_direction_deg", "wave_period_s"},
 }
 SPECIAL_FIELDS: dict[type, set[str]] = {
-    StoredActivity: {"track_file"},
+    StoredActivity: {"track_file", "gap_summary"},
     Sailor: {"personal_capability_token", "welcome_email_last_error"},
     Session: {"capability_token"},
 }
@@ -94,6 +94,11 @@ def persisted_model(record: Any) -> dict[str, Any]:
     }
     if model is StoredActivity:
         result["track_file"] = _safe_track_reference(record.track_file, record.id)
+        # Privacy-safe aggregate only (#218 D4); the gap UTC intervals stay private.
+        gaps = record.gap_summary
+        result["gap_summary"] = (
+            {"count": gaps.count, "total_seconds": gaps.total_seconds} if gaps else None
+        )
     elif model is Sailor:
         result["personal_capability_token"] = REDACTED if record.personal_capability_token else None
         result["welcome_email_last_error"] = "Delivery failed" if record.welcome_email_last_error else None

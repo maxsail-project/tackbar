@@ -9,7 +9,9 @@ from typing import Callable
 from uuid import uuid4
 
 from app.services.ingestion_lock import ingestion_lock
-from app.services.gpx_notice_feedback import LIMITS, safe_feedback
+from app.services.gpx_notice_feedback import (
+    GAP_COUNT, GAP_TOTAL, GAP_TOTAL_PERCENT, LIMITS, safe_feedback,
+)
 from app.services.outbound_mail import OvhSmtpTransport, compose_automated_mail
 
 
@@ -20,6 +22,7 @@ OPENING_ES = "Hola,\n\nNo hemos podido procesar tu track en TackBar."
 OPENING_EN = "Hi,\n\nWe couldn't process your track in TackBar."
 CLOSING_ES = "Gracias por compartir tu navegación con TackBar. Si necesitas ayuda con el archivo, puedes escribirnos a hello@tackbar.eu."
 CLOSING_EN = "Thank you for sharing your sailing activity with TackBar. If you need help with your file, you can contact us at hello@tackbar.eu."
+GAP_METRICS = {GAP_COUNT, "longest exceptional gap", GAP_TOTAL}
 
 
 def _valid_recipient(recipient: str) -> bool:
@@ -134,27 +137,47 @@ INCOMPLETE_SUBTYPE_COPY = {
 }
 
 
-def _quality_table(metrics: dict, spanish: bool) -> str:
+def _quality_table(metrics: dict, spanish: bool, limits: dict | None = None) -> str:
     labels = {
         "median": ("Mediana de intervalos", "Median interval"),
         "P95": ("Percentil 95", "95th percentile"),
-        "maximum adjacent gap": ("Intervalo máximo", "Maximum interval"),
+        GAP_COUNT: ("Intervalos de más de 10 s", "Intervals over 10 s"),
+        "longest exceptional gap": ("Intervalo de más de 10 s más largo", "Longest interval over 10 s"),
+        GAP_TOTAL: ("Suma de intervalos de más de 10 s", "Total of intervals over 10 s"),
     }
     observed_label = "Tu track" if spanish else "Your track"
     limit_label = "Requisito de TackBar" if spanish else "TackBar requirement"
+    limits = limits or {}
     rows = []
     for name, limit in LIMITS.items():
         if name in metrics:
+            unit = "" if name == GAP_COUNT else " s"
+            requirement = f"≤{limits[name] if name == GAP_TOTAL else limit}{unit}"
+            if name == GAP_TOTAL:
+                requirement += (
+                    f" ({GAP_TOTAL_PERCENT} % de la duración)" if spanish
+                    else f" ({GAP_TOTAL_PERCENT}% of the duration)"
+                )
             rows.append(
                 f"{labels[name][0 if spanish else 1]}\n"
-                f"  {observed_label}: {metrics[name]} s\n"
-                f"  {limit_label}: ≤{limit} s"
+                f"  {observed_label}: {metrics[name]}{unit}\n"
+                f"  {limit_label}: {requirement}"
             )
     result = "\n\n".join(rows)
     if "P95" in metrics:
         explanation = (
             "El percentil 95 es un valor que al menos el 95 % de los intervalos no supera."
             if spanish else "The 95th percentile is a value that at least 95% of intervals do not exceed."
+        )
+        result += "\n\n" + explanation
+    if set(metrics) & GAP_METRICS:
+        count, longest = LIMITS[GAP_COUNT], LIMITS["longest exceptional gap"]
+        explanation = (
+            f"TackBar admite como máximo {count} intervalos de más de 10 s, de hasta {longest} s cada uno.\n"
+            f"Entre todos pueden sumar como máximo el {GAP_TOTAL_PERCENT} % de la duración del track."
+            if spanish else
+            f"TackBar accepts at most {count} intervals over 10 s, each lasting up to {longest} s.\n"
+            f"Together they may total at most {GAP_TOTAL_PERCENT}% of the track duration."
         )
         result += "\n\n" + explanation
     return result
@@ -167,8 +190,9 @@ def _body(reason: str, feedback: dict | None = None) -> str:
         if "subtype" in feedback:
             es_problem, en_problem, es_detail, en_detail = INCOMPLETE_SUBTYPE_COPY[feedback["subtype"]]
         if feedback["category"] == "quality":
-            es_detail += "\n\n" + _quality_table(feedback["metrics"], True)
-            en_detail += "\n\n" + _quality_table(feedback["metrics"], False)
+            limits = feedback.get("limits")
+            es_detail += "\n\n" + _quality_table(feedback["metrics"], True, limits)
+            en_detail += "\n\n" + _quality_table(feedback["metrics"], False, limits)
         if "missing_columns" in feedback:
             names = ", ".join(feedback["missing_columns"])
             es_problem = "El CSV no incluye todos los datos de navegación necesarios."

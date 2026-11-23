@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { TrackSample } from '../types/track'
+import { calculateSummaryMetrics } from './summaryMetrics'
+import {
+  GAP_FIXTURE_STEP_METERS,
+  gapFixtureTrack,
+  gapFixtureWindow,
+  ONE_GAP_RUNS,
+} from './trackGapTestFixtures'
 import type { EffectiveTwd } from './windContext'
 import {
   calculateProgressDifference,
@@ -31,14 +38,20 @@ function track(points: { seconds: number, north: number, east: number, lat?: num
   }))
 }
 
-/** Straight displacement of `meters` along `bearingDegrees` over `seconds`. */
+/**
+ * Straight displacement of `meters` along `bearingDegrees` over `seconds`, sampled every 10 s
+ * (not a #218 gap).
+ */
 function straight(meters: number, bearingDegrees: number, seconds = 370) {
   const radians = bearingDegrees * Math.PI / 180
-  return track([
-    { seconds: 0, north: 0, east: 0 },
-    { seconds: seconds / 2, north: Math.cos(radians) * meters / 2, east: Math.sin(radians) * meters / 2 },
-    { seconds, north: Math.cos(radians) * meters, east: Math.sin(radians) * meters },
-  ])
+  return track(Array.from({ length: seconds / 10 + 1 }, (_, index) => {
+    const fraction = index * 10 / seconds
+    return {
+      seconds: index * 10,
+      north: Math.cos(radians) * meters * fraction,
+      east: Math.sin(radians) * meters * fraction,
+    }
+  }))
 }
 
 const window370 = { start, end: start + 370_000 }
@@ -273,5 +286,36 @@ describe('P-perspective gain and gaps at the same instants', () => {
     expect(calculateProgressDifference(up, { status: 'unavailable', reason: 'course-off-axis', distanceMeters: 100 })).toBeNull()
     expect(calculateProgressDifference({ status: 'unavailable', reason: 'mixed', distanceMeters: 1 }, up)).toBeNull()
     expect(calculateProgressDifference(up, undefined)).toBeNull()
+  })
+})
+
+describe('Wind Distance and Efficiency with gaps (#218 D8, D10)', () => {
+  const samples = gapFixtureTrack(ONE_GAP_RUNS)
+  const progressIn = (startSeconds: number, endSeconds: number) => {
+    const window = gapFixtureWindow(startSeconds, endSeconds)
+    const summaryDistance = calculateSummaryMetrics(samples, window).distanceMeters
+    return { summaryDistance, result: available(calculateWindProgress(samples, window, manual(90), 'upwind', summaryDistance)) }
+  }
+
+  it('inherit the gap-aware Summary Distance; Efficiency is unavailable across a gap while Progress remains', () => {
+    const { summaryDistance, result } = progressIn(0, 184)
+
+    expect(summaryDistance).toBe(120 * GAP_FIXTURE_STEP_METERS)
+    expect(result.distanceMeters).toBe(summaryDistance)
+    expect(result.progressMeters).toBeGreaterThan(summaryDistance)
+    expect(result.efficiency).toBeNull()
+  })
+
+  it('makes Efficiency unavailable when a window boundary falls inside the gap', () => {
+    // Positions stay within 10 s of each boundary: 60 s for 65 s, 124 s for 119 s.
+    expect(progressIn(30, 65).result.efficiency).toBeNull()
+    expect(progressIn(119, 160).result.efficiency).toBeNull()
+  })
+
+  it('keeps Efficiency without positive-duration gap overlap, including a window touching a gap endpoint', () => {
+    for (const [startSeconds, endSeconds] of [[0, 60], [124, 184]] as const) {
+      const { summaryDistance, result } = progressIn(startSeconds, endSeconds)
+      expect(result.efficiency).toBeCloseTo(result.progressMeters / summaryDistance, 10)
+    }
   })
 })

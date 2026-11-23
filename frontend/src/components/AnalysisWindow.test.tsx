@@ -8,6 +8,13 @@ import type { DisplayManeuver } from '../utils/maneuverEvents'
 import type { InferredSessionStart } from '../utils/sessionStarts'
 import { maneuverSelectionKey } from '../utils/maneuverEvents'
 import type { SummaryMetrics } from '../utils/summaryMetrics'
+import {
+  gapFixtureTrack,
+  gapFixtureWindow,
+  ONE_GAP_RUNS,
+  TWO_GAP_RUNS,
+} from '../utils/trackGapTestFixtures'
+import { findTrackGaps, type TrackGap } from '../utils/trackGaps'
 import ManeuverEventTable from './ManeuverEventTable'
 import AnalysisWindow, {
   ANALYSIS_WINDOW_SOG_PLOT_BAND,
@@ -85,6 +92,8 @@ function render({
   comparisonMetrics = null,
   primaryManeuverCount = null,
   comparisonManeuverCount = null,
+  primaryGaps,
+  comparisonGaps,
 }: {
   primarySamples: TrackSample[]
   comparisonSamples?: TrackSample[]
@@ -98,6 +107,8 @@ function render({
   comparisonMetrics?: SummaryMetrics | null
   primaryManeuverCount?: number | null
   comparisonManeuverCount?: number | null
+  primaryGaps?: TrackGap[]
+  comparisonGaps?: TrackGap[]
 }) {
   return renderToStaticMarkup(
     <AnalysisWindow
@@ -113,6 +124,8 @@ function render({
       primaryManeuverCount={primaryManeuverCount}
       comparisonManeuverCount={comparisonManeuverCount}
       replay={replay}
+      primaryGaps={primaryGaps}
+      comparisonGaps={comparisonGaps}
       onRangeChange={() => undefined}
     />,
   )
@@ -680,5 +693,73 @@ describe('Analysis Window SOG timeline', () => {
     const path = markup.match(/class="analysis-window__sog-line" d="([^"]+)"/)?.[1] ?? ''
 
     expect(path).toContain(' M')
+  })
+})
+
+describe('Analysis Window GPS gaps (#218 D4)', () => {
+  const oneGapTrack = gapFixtureTrack(ONE_GAP_RUNS)
+  const twoGapTrack = gapFixtureTrack(TWO_GAP_RUNS)
+  const oneGap = findTrackGaps(oneGapTrack)
+  const twoGaps = findTrackGaps(twoGapTrack)
+  const range = gapFixtureWindow(0, 274)
+  function renderGaps(
+    startSeconds: number,
+    endSeconds: number,
+    gaps: { primary?: TrackGap[], comparison?: TrackGap[] },
+    hasComparison = true,
+  ) {
+    return render({
+      primarySamples: twoGapTrack,
+      comparisonSamples: hasComparison ? oneGapTrack : [],
+      hasComparison,
+      range,
+      window: gapFixtureWindow(startSeconds, endSeconds),
+      primaryGaps: gaps.primary,
+      comparisonGaps: gaps.comparison,
+    })
+  }
+  const notice = (markup: string) => markup
+    .match(/<p class="analysis-window__gap-notice" role="note">(.*?)<\/p>/)?.[1]
+    .replace(/<[^>]+>/g, '') ?? null
+
+  it('breaks the SOG line and highlights each overlapping gap as unavailable evidence', () => {
+    const markup = renderGaps(0, 184, { primary: oneGap })
+    const path = markup.match(/class="analysis-window__sog-line" d="([^"]+)"/)?.[1] ?? ''
+    const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+
+    expect(path.match(/M/g)).toHaveLength(2)
+    expect(markup.match(/analysis-window__gap-band--primary/g)).toHaveLength(1)
+    expect(markup).toMatch(/class="analysis-window__gap-band analysis-window__gap-band--primary" style="left:32\.6\d*%;width:34\.78\d*%;[^"]*" aria-hidden="true"/)
+    expect(css).toMatch(/\.analysis-window__gap-band\s*\{[^}]*pointer-events:\s*none;/s)
+    expect(markup).toContain('SOG timeline; drag horizontally to select the Analysis Window')
+  })
+
+  it.each([
+    ['P only', { primary: oneGap }, 0, 184, 'P · No GPS data for 1m04s in this window'],
+    ['C only', { comparison: oneGap }, 0, 184, 'C · No GPS data for 1m04s in this window'],
+    ['both, with a count', { primary: twoGaps, comparison: oneGap }, 0, 274,
+      'P · No GPS data for 1m34s in this window (2 gaps)C · No GPS data for 1m04s in this window'],
+    ['a boundary inside the gap', { primary: oneGap }, 100, 184, 'P · No GPS data for 24s in this window'],
+    ['a window entirely inside the gap', { primary: oneGap }, 70, 100, 'P · No GPS data for 30s in this window'],
+  ])('shows a compact notice for %s', (_case, gaps, startSeconds, endSeconds, text) => {
+    const markup = renderGaps(startSeconds, endSeconds, gaps)
+    expect(notice(markup)).toBe(text)
+    expect(markup.match(/analysis-window__gap-notice"/g)).toHaveLength(1)
+  })
+
+  it.each([
+    ['no overlap', { primary: oneGap, comparison: oneGap }, 0, 60],
+    ['touching gap endpoints only', { primary: oneGap, comparison: oneGap }, 124, 184],
+    ['a clean track', {}, 0, 274],
+  ])('shows no notice or band for %s', (_case, gaps, startSeconds, endSeconds) => {
+    const markup = renderGaps(startSeconds, endSeconds, gaps)
+    expect(markup).not.toContain('analysis-window__gap-notice')
+    expect(markup).not.toContain('analysis-window__gap-band')
+  })
+
+  it('ignores Comparison gaps without a selected Comparison', () => {
+    const markup = renderGaps(0, 184, { comparison: oneGap }, false)
+    expect(markup).not.toContain('analysis-window__gap-notice')
+    expect(markup).not.toContain('analysis-window__gap-band')
   })
 })

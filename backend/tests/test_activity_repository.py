@@ -168,7 +168,8 @@ def test_persisted_activity_has_only_activity_domain_fields(
     )
 
     record = json.loads(path.read_text(encoding="utf-8"))[0]
-    expected_fields = {field.name for field in fields(StoredActivity)}
+    # The derived gap summary (#218) is written once persisted tracks are summarized.
+    expected_fields = {field.name for field in fields(StoredActivity)} - {"gap_summary"}
 
     assert set(record) == expected_fields
     assert record["center_lat"] == parsed.center_lat

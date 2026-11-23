@@ -1,3 +1,5 @@
+import { TRACK_GAP_CONFIG } from './trackGaps'
+
 /**
  * Provisional Viewer wind-relative context thresholds (Issue #192.1).
  * These are configurable presentation constants, not validated sailing standards.
@@ -15,8 +17,8 @@ export const WIND_CONTEXT_CONFIG = {
   tackIndeterminateTwaDegrees: 15,
   /** Both tack-group HEEL medians must reach this magnitude for a conclusive HEEL check. */
   heelCheckMinMagnitudeDegrees: 3,
-  /** Adjacent canonical sample intervals longer than this add no represented time. */
-  maxGapSeconds: 10,
+  /** Adjacent canonical sample intervals longer than this add no represented time (shared #218 gap threshold). */
+  maxGapSeconds: TRACK_GAP_CONFIG.gapThresholdSeconds,
   /** Each tack needs at least this much upwind moving time for an Axis and Tack angle (#192.1.1). */
   tackAxisMinTackSeconds: 60,
   /** P and C axes agree for the combined hint when within this circular difference. */
