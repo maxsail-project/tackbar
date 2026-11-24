@@ -32,7 +32,7 @@ import {
   reduceSogTimelinePoints,
 } from '../utils/sogTimeline'
 import type { DisplayManeuver } from '../utils/maneuverEvents'
-import type { InferredSessionStart } from '../utils/sessionStarts'
+import { sessionStartsInWindow, type InferredSessionStart } from '../utils/sessionStarts'
 import type { InferredSessionRace } from '../utils/sessionRaces'
 import { formatAverageSog } from '../utils/metricPresentation'
 import { formatSog } from '../utils/numberFormat'
@@ -639,7 +639,7 @@ export default function AnalysisWindow({
     || maneuvers.some((event) => event.activityRole === 'comparison')
   )
   const visibleComparisonGaps = showsComparisonLane ? comparisonGaps : []
-  const visibleSessionStarts = sessionStarts.filter((start) => start.time >= analysisWindow.start && start.time <= analysisWindow.end)
+  const visibleSessionStarts = sessionStartsInWindow(sessionStarts, analysisWindow)
   const sessionStartLayout = sessionStartControlLayout(visibleSessionStarts, analysisWindow, timelineWidth)
   const timelineHeight = (showsComparisonLane
     ? COMPARISON_TIMELINE_HEIGHT

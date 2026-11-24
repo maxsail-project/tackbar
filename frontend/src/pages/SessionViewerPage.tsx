@@ -32,6 +32,7 @@ import ManeuverEventTable, {
 } from '../components/ManeuverEventTable'
 import ManeuverProfiles from '../components/ManeuverProfiles'
 import SelectedManeuvers from '../components/SelectedManeuvers'
+import StartAnalysisSection from '../components/StartAnalysisSection'
 import WindContextSection from '../components/WindContextSection'
 import TrackMap, {
   type ContextualMapActivity,
@@ -100,6 +101,7 @@ import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeome
 import { inferSessionStarts } from '../utils/sessionStarts'
 import { inferSessionRaces } from '../utils/sessionRaces'
 import { inferSessionStartLines, visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
+import { deriveStartAnalysisRows } from '../utils/startAnalysis'
 import { prefersReducedMotion, revealMapIfNeeded } from '../utils/mapReveal'
 
 function useSessionRaceTimerEvents(access: SessionAccess) {
@@ -808,6 +810,19 @@ export function SessionViewer({
     () => resolveEffectiveTwd(twdReference, manualTwdDegrees),
     [manualTwdDegrees, twdReference],
   )
+  // START ANALYSIS (#38.1–#38.3): every inferred Start over the full canonical P/C tracks; the
+  // Windward P–C row and the line bias use the same effective TWD as Points of Sail (#38 D19, D20).
+  const startAnalysisRows = useMemo(
+    () => deriveStartAnalysisRows(
+      sessionStarts,
+      sessionStartLines,
+      sessionRaces,
+      primaryTrack?.samples ?? null,
+      comparisonActivityId === null ? undefined : comparisonTrack?.samples ?? null,
+      effectiveTwd,
+    ),
+    [comparisonActivityId, comparisonTrack, effectiveTwd, primaryTrack, sessionRaces, sessionStartLines, sessionStarts],
+  )
   // Full canonical tracks (as Summary uses) let the last in-window sample represent
   // its real interval to the next sample, clipped at the window end.
   const primaryWindContext = useMemo(
@@ -1276,6 +1291,9 @@ export function SessionViewer({
         onRangeChange={commitExternalAnalysisWindowRange}
         onManeuverSelect={selectManeuver}
       />
+      {sessionStarts.length > 0 && (
+        <StartAnalysisSection rows={startAnalysisRows} analysisWindow={analysisWindow} onSelect={selectSessionStart} />
+      )}
       {analysisWindow !== null && (
         <ManeuverEventTable
           events={displayManeuvers}

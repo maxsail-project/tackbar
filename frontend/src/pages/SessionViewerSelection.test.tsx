@@ -12,6 +12,7 @@ import type { TwdReference } from '../utils/twdReference'
 import type { TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../utils/replay'
+import { startApproachSamples, startTimerActivity } from '../utils/startAnalysisTestFixtures'
 import { SessionViewer } from './SessionViewerPage'
 
 vi.mock('../api/tackbarApi', () => ({
@@ -326,6 +327,7 @@ describe('Viewer TWD state', () => {
     expect(container.querySelector('.wind-segments-section')).toBeNull()
     expect(section()!.querySelector('.section-kicker')!.textContent).toBe('Points of Sail')
     const order = [
+      container.querySelector('.start-analysis-section')!,
       container.querySelector('[data-viewer-section="maneuver-analysis"]')!,
       section()!,
       container.querySelector('[aria-labelledby="comparison-title"]')!,
@@ -859,6 +861,91 @@ describe('Viewer selected maneuver interactions', () => {
     expect(container.querySelector('[data-start="S1"]')).toBeNull()
   })
 
+  describe('START ANALYSIS section (#38.1)', () => {
+    const gun = start + 30_000
+    const section = () => container.querySelector('.start-analysis-section')
+    const rowCells = (role: string) => [...section()!.querySelectorAll(`[data-start-analysis-role="${role}"] td`)].map((cell) => cell.textContent)
+
+    beforeEach(() => {
+      // P (a, c) behind the line at the gun; b beyond it. Tracks span gun − 30 s … gun + 130 s.
+      vi.mocked(api.getActivityTrackForAccess).mockImplementation(async (_access, activityId) => ({
+        activity_id: activityId,
+        samples: activityId === 'b'
+          ? startApproachSamples({ behindAtGun: -4.5, metersPerSecond: 3, alongMeters: 20, gun })
+          : startApproachSamples({ behindAtGun: 5, gun }),
+      }))
+      vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
+        startTimerActivity('a', gun, 84), startTimerActivity('b', gun, 84),
+      ] })
+    })
+
+    it.each(['original', 'temporary'] as const)('is placed first, collapsed, with P and C rows on %s access', async (accessKind) => {
+      await mountViewer(accessKind)
+      expect(container.querySelectorAll('.start-analysis-section')).toHaveLength(1)
+      expect(section()!.compareDocumentPosition(container.querySelector('[data-viewer-section="maneuver-analysis"]')!))
+        .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+      expect(container.querySelector('[aria-label="Analysis Window test controls"]')!.compareDocumentPosition(section()!))
+        .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+      expect(section()!.querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')).toBe('false')
+      expect(section()!.querySelector('table[aria-label="Start summary"]')!.closest('[hidden]')).not.toBeNull()
+      expect(rowCells('primary')).toEqual(['P', 'S110:00:30', '+2.5s · 5.3 kt', '+5.0 m', '50%', '—', '⚠ Ends +1m24s'])
+      expect(section()!.querySelector('[data-start-analysis-role="comparison"]')).toBeNull()
+      await choose('Compare', 'b')
+      expect(rowCells('comparison')).toEqual(['C', '−1.5s · 4.9 kt', '−4.5 m', '10%'])
+      await choose('Compare', '')
+      expect(section()!.querySelector('[data-start-analysis-role="comparison"]')).toBeNull()
+    })
+
+    it.each(['original', 'temporary'] as const)('seeks to the gun and focuses the map from a selected row on %s access', async (accessKind) => {
+      await mountViewer(accessKind)
+      await choose('Compare', 'b')
+      await click('[data-play-replay]')
+      const focusRequest = () => Number(container.querySelector('[data-focus-request]')!.getAttribute('data-focus-request'))
+      const before = focusRequest()
+      await click('[data-start-analysis-row="S1"] button')
+      expect(Number(container.querySelector('output')!.getAttribute('data-playback-time'))).toBe(gun)
+      expect(container.querySelector('[data-focus-role]')!.getAttribute('data-focus-role')).toBe('primary')
+      expect(focusRequest()).toBeGreaterThan(before)
+      expect(container.querySelector('[data-window]')!.getAttribute('data-playing')).toBe('false')
+      expect(section()!.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('true')
+      expect(container.querySelector<HTMLSelectElement>('select[aria-label="Compare"]')!.value).toBe('b')
+      // #38.2/D21: the detailed table has P and C rows per indicator and one Upwind lead row.
+      const detail = section()!.querySelector('table[aria-label="S1 details around the gun"]')!
+      const detailCells = (selector: string) => [...detail.querySelector(selector)!.children].map((cell) => cell.textContent)
+      expect(detailCells('[data-start-detail-indicator="distance"] [data-start-detail-role="primary"]'))
+        .toEqual(['Dist (m)', 'P', '+35.0', '+15.0', '+5.0', '−5.0', '−25.0'])
+      // #38 D18: no selected Activity records HDG, so the row is omitted.
+      expect(detail.querySelector('[data-start-detail-indicator="hdg"]')).toBeNull()
+      // #38 D19: with the manual TWD 355°, P (80 m east of C, 9.5 + t m further south) is to leeward.
+      await click('[data-twd-gesture]')
+      const windward = () => [...section()!.querySelector('table[aria-label="S1 details around the gun"] [data-start-detail-role="pair"]')!.children]
+        .map((cell) => cell.textContent)
+      expect(windward()).toEqual(['Lead (m)', '', 'C 1', 'C 11', 'C 16', 'C 21', 'C 31'])
+      // #38 D20/D23: the 200 m line, backed 5° from square, favours PIN; Fav names that end.
+      expect(section()!.querySelector('[data-start-analysis-detail] h3')!.textContent)
+        .toBe('S1 10:00:30 UTC · Line 200 m · PIN +5° (17 m) · TWD Manual · Viewer')
+      expect(section()!.querySelector('[data-start-analysis-value="favoured"]')!.textContent).toBe('PIN')
+    })
+
+    it.each(['original', 'temporary'] as const)('follows the Analysis Window and clears a Start leaving it on %s access (#38 D15)', async (accessKind) => {
+      await mountViewer(accessKind)
+      await click('[data-start-analysis-row="S1"] button')
+      expect(section()!.querySelector('[data-start-analysis-detail="S1"]')).not.toBeNull()
+      await click('[data-change-window]')
+      expect(section()!.querySelector('table')).toBeNull()
+      expect(section()!.querySelector('[data-start-analysis-empty]')!.textContent).toBe('No inferred Start in the Analysis Window')
+      await click('[data-reset-window]')
+      expect(section()!.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('false')
+      expect(section()!.querySelector('[data-start-analysis-detail]')).toBeNull()
+    })
+
+    it.each(['original', 'temporary'] as const)('is absent without inferred Starts on %s access', async (accessKind) => {
+      vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [] })
+      await mountViewer(accessKind)
+      expect(section()).toBeNull()
+    })
+  })
+
   it('discards a previous capability response after access changes', async () => {
     let resolveOriginal!: (value: { activities: { activity_id: string, race_timer_events: { timestamp: string, event_type: 3 }[], line_positions: [] }[] }) => void
     vi.mocked(api.getSessionRaceTimerEventsForAccess).mockImplementation((access) => access.token === 'old'
@@ -948,6 +1035,7 @@ describe('Viewer selected maneuver interactions', () => {
       '[data-map-playback-time]',
       '.selected-maneuvers',
       '[aria-label="Analysis Window test controls"]',
+      '.start-analysis-section',
       '[data-viewer-section="maneuver-analysis"]',
       '[aria-labelledby="comparison-title"]',
       '[data-viewer-section="track-analysis"]',

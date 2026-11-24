@@ -26,6 +26,14 @@ export const SESSION_START_THRESHOLDS: Readonly<SessionStartThresholds> = {
   distinctStartGapMs: 300_000,
 }
 
+/**
+ * Starts whose time lies inside the Analysis Window, either endpoint included: the rule of the SOG
+ * timeline S1/S2 labels, shared by the Start Analysis summary (#38 D15).
+ */
+export function sessionStartsInWindow<T extends { time: number }>(starts: readonly T[], window: { start: number, end: number }) {
+  return starts.filter((start) => start.time >= window.start && start.time <= window.end)
+}
+
 /** Preserve every valid timer-zero observation as an Activity candidate. */
 export function extractActivityStartCandidates(activity: SessionTimerActivity): ActivityStartCandidate[] {
   return activity.race_timer_events

@@ -173,7 +173,8 @@ function project(origin: ProgressPosition, point: ProgressPosition, axisDegrees:
   return { along: meters * Math.cos(angle), lateral: meters * Math.sin(angle) }
 }
 
-function gapAt(timeMs: number, primary: ProgressPosition, comparison: ProgressPosition, axisDegrees: number): ProgressGap {
+/** P relative to C along and across `axisDegrees` at one instant (#192.2.1; also the #38 D19 windward P–C). */
+export function gapAt(timeMs: number, primary: ProgressPosition, comparison: ProgressPosition, axisDegrees: number): ProgressGap {
   // C relative to the local frame centred on P; P relative to C is the negation.
   const c = project(primary, comparison, axisDegrees)
   return { timeMs, alongMeters: -c.along, lateralMeters: -c.lateral }
