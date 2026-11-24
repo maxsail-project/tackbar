@@ -527,6 +527,7 @@ export function SessionViewer({
   const [selectedMetric, setSelectedMetric] = useState<ViewerMetricView>(
     DEFAULT_VIEWER_METRIC_VIEW,
   )
+  const [openAnalysisPanel, setOpenAnalysisPanel] = useState<'start' | 'maneuvers' | 'points' | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [manualTwdDegrees, setManualTwdDegrees] = useState<number | null>(null)
   const [manualTwsKnots, setManualTwsKnots] = useState<string | null>(null)
@@ -810,6 +811,13 @@ export function SessionViewer({
     () => resolveEffectiveTwd(twdReference, manualTwdDegrees),
     [manualTwdDegrees, twdReference],
   )
+  useEffect(() => {
+    if (analysisWindow === null
+      || (openAnalysisPanel === 'start' && sessionStarts.length === 0)
+      || (openAnalysisPanel === 'points' && (effectiveTwd === null || twdPresentation.displayDegrees === null))) {
+      setOpenAnalysisPanel(null)
+    }
+  }, [analysisWindow, effectiveTwd, openAnalysisPanel, sessionStarts.length, twdPresentation.displayDegrees])
   // START ANALYSIS (#38.1–#38.3): every inferred Start over the full canonical P/C tracks; the
   // Windward P–C row and the line bias use the same effective TWD as Points of Sail (#38 D19, D20).
   const startAnalysisRows = useMemo(
@@ -1291,11 +1299,32 @@ export function SessionViewer({
         onRangeChange={commitExternalAnalysisWindowRange}
         onManeuverSelect={selectManeuver}
       />
-      {sessionStarts.length > 0 && (
-        <StartAnalysisSection rows={startAnalysisRows} analysisWindow={analysisWindow} onSelect={selectSessionStart} />
+      {analysisWindow !== null && (
+        <div className="content-section analysis-panel-selector" role="group" aria-label="Analysis sections">
+          {([
+            ...(sessionStarts.length > 0 ? [{ key: 'start' as const, label: 'Start' }] : []),
+            { key: 'maneuvers' as const, label: 'Maneuvers' },
+            ...(effectiveTwd !== null && twdPresentation.displayDegrees !== null
+              ? [{ key: 'points' as const, label: 'Points of Sail' }] : []),
+          ]).map(({ key, label }) => (
+            <button key={key} id={`analysis-${key}-button`} type="button"
+              className={openAnalysisPanel === key ? 'is-active' : ''}
+              aria-pressed={openAnalysisPanel === key}
+              aria-expanded={openAnalysisPanel === key}
+              aria-controls={`analysis-${key}-panel`}
+              onClick={() => setOpenAnalysisPanel((current) => current === key ? null : key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {analysisWindow !== null && sessionStarts.length > 0 && (
+        <StartAnalysisSection rows={startAnalysisRows} analysisWindow={analysisWindow} onSelect={selectSessionStart}
+          panel={{ expanded: openAnalysisPanel === 'start', id: 'analysis-start-panel', labelId: 'analysis-start-button' }} />
       )}
       {analysisWindow !== null && (
         <ManeuverEventTable
+          panel={{ expanded: openAnalysisPanel === 'maneuvers', id: 'analysis-maneuvers-panel', labelId: 'analysis-maneuvers-button' }}
           events={displayManeuvers}
           primaryDetectorMode={primaryManeuverAnalytics?.detector_mode}
           comparisonDetectorMode={comparisonManeuverAnalytics?.detector_mode}
@@ -1317,6 +1346,7 @@ export function SessionViewer({
       )}
       {analysisWindow !== null && effectiveTwd !== null && twdPresentation.displayDegrees !== null && (
         <WindContextSection
+          panel={{ expanded: openAnalysisPanel === 'points', id: 'analysis-points-panel', labelId: 'analysis-points-button' }}
           effectiveTwd={effectiveTwd}
           displayDegrees={twdPresentation.displayDegrees}
           primary={primaryWindContext}

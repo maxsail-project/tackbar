@@ -2304,6 +2304,44 @@ input:focus-visible {
   margin-top: 15px;
 }
 
+.analysis-panel-selector {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px;
+}
+.analysis-panel-selector button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 5px;
+  border: 1px solid #c9d9dc;
+  border-radius: 10px;
+  color: #49656d;
+  background: #f7fafb;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: normal;
+  cursor: pointer;
+}
+.analysis-panel-selector button.is-active {
+  border-color: #168097;
+  color: #fff;
+  background: #168097;
+}
+.analysis-panel-selector button:focus-visible {
+  outline: 2px solid #28788a;
+  outline-offset: 2px;
+}
+.analysis-panel-selector ~ [data-analysis-panel] {
+  margin-top: 0;
+}
+.analysis-panel-selector ~ [data-analysis-panel]:has(> [hidden]) {
+  display: none;
+}
+
 .vs-distribution {
   display: grid;
   gap: 14px;
@@ -3724,6 +3762,14 @@ input:focus-visible {
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.wind-section__summary--panel {
+  display: block;
+  margin: 0 0 12px;
+  text-align: left;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 .wind-context__twd {
   display: flex;

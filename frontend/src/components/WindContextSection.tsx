@@ -30,6 +30,7 @@ import WindSegmentsList, { countListedWindSegments, formatWindSegmentCount } fro
 type Role = 'primary' | 'comparison'
 
 interface WindContextSectionProps {
+  panel?: { expanded: boolean, id: string, labelId: string }
   effectiveTwd: EffectiveTwd
   /** Displayed TWD, formatted exactly as in the map TWD control. */
   displayDegrees: number
@@ -176,6 +177,7 @@ export function formatTackAxisHint(hint: TackAxisHint) {
 }
 
 export default function WindContextSection({
+  panel,
   effectiveTwd,
   displayDegrees,
   primary,
@@ -194,14 +196,19 @@ export default function WindContextSection({
   twdReference,
   twdPresentation,
 }: WindContextSectionProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [localExpanded, setExpanded] = useState(false)
+  const expanded = panel?.expanded ?? localExpanded
   const [twdDetailExpanded, setTwdDetailExpanded] = useState(false)
   const [breakdownExpanded, setBreakdownExpanded] = useState(false)
   const breakdownId = useId()
   const [notesExpanded, setNotesExpanded] = useState(false)
-  const contentId = useId()
+  const localContentId = useId()
+  const contentId = panel?.id ?? localContentId
   const notesId = useId()
   const notesRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!expanded) notesRef.current?.hidePopover?.()
+  }, [expanded])
   const rows: { role: Role, result: WindContextResult }[] = [
     { role: 'primary', result: primary },
     ...(comparison ? [{ role: 'comparison' as const, result: comparison }] : []),
@@ -243,8 +250,8 @@ export default function WindContextSection({
   }, [twdDetailExpanded])
 
   return (
-    <section className="content-section maneuver-section wind-context-section" aria-labelledby="wind-context-title">
-      <div className="maneuver-section__header">
+    <section className="content-section maneuver-section wind-context-section" data-analysis-panel={panel ? 'points' : undefined} aria-labelledby={panel?.labelId ?? 'wind-context-title'}>
+      {!panel && <div className="maneuver-section__header">
         <p className="section-kicker" id="wind-context-title">Points of Sail</p>
         <span className="wind-section__summary" data-wind-context-summary>
           {formatWindAnalysisSummary(displayDegrees, effectiveTwd.source, primary.classification, countListedWindSegments(segments, analysisWindow))}
@@ -261,9 +268,12 @@ export default function WindContextSection({
         >
           {expanded ? 'Collapse' : 'Expand'}
         </button>
-      </div>
+      </div>}
 
       <div id={contentId} hidden={!expanded}>
+        {panel && <p className="wind-section__summary wind-section__summary--panel" data-wind-context-summary>
+          {formatWindAnalysisSummary(displayDegrees, effectiveTwd.source, primary.classification, countListedWindSegments(segments, analysisWindow))}
+        </p>}
         <WindSegmentsList
           segments={segments}
           analysisWindow={analysisWindow}

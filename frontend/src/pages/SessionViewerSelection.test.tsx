@@ -61,11 +61,14 @@ vi.mock('../components/MetricChart', () => ({ default: () => null }))
 vi.mock('../components/IndividualAnalysis', () => ({ default: () => <section data-viewer-section="individual-analysis" /> }))
 vi.mock('../components/MetricSelector', () => ({ default: () => <section data-viewer-section="track-analysis" />, DEFAULT_VIEWER_METRIC_VIEW: 'VS' }))
 vi.mock('../components/ManeuverEventTable', () => ({
-  default: ({ events, onSelect, windSectors, sectorFilterResetKey }: {
+  default: ({ panel, events, onSelect, windSectors, sectorFilterResetKey }: {
+    panel?: { expanded: boolean, id: string, labelId: string },
     events: DisplayManeuver[], onSelect: (event: DisplayManeuver) => void,
     windSectors?: ReadonlyMap<string, unknown> | null, sectorFilterResetKey?: string,
   }) =>
-    <section data-viewer-section="maneuver-analysis" data-sector-available={windSectors !== null && windSectors !== undefined} data-sector-reset-key={sectorFilterResetKey}>{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</section>,
+    <section data-viewer-section="maneuver-analysis" aria-labelledby={panel?.labelId} data-sector-available={windSectors !== null && windSectors !== undefined} data-sector-reset-key={sectorFilterResetKey}>
+      <div id={panel?.id} hidden={!panel?.expanded}>{events.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-table-event={event.centerTimeMs} onClick={() => onSelect(event)}>Table event</button>)}</div>
+    </section>,
 }))
 vi.mock('../components/AnalysisWindow', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../components/AnalysisWindow')>()),
@@ -319,13 +322,53 @@ describe('Viewer TWD state', () => {
     expect(weatherTime()).toBe(new Date(start + 9_000).toISOString())
   })
 
-  it.each(['original', 'temporary'] as const)('places one collapsed Wind section after Maneuver Analysis and recomputes from effective TWD on %s access', async (accessKind) => {
+  it.each(['original', 'temporary'] as const)('uses one exclusive analysis button row and retains panel state on %s access', async (accessKind) => {
+    await mountViewer(accessKind, windSession)
+    const selector = container.querySelector<HTMLElement>('.analysis-panel-selector')!
+    const buttons = () => [...selector.querySelectorAll<HTMLButtonElement>('button')]
+    expect(buttons().map((button) => button.textContent)).toEqual(['Start', 'Maneuvers', 'Points of Sail'])
+    expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false'])
+    expect(buttons().map((button) => button.getAttribute('aria-expanded'))).toEqual(['false', 'false', 'false'])
+    expect(buttons().every((button) => container.querySelector(`#${button.getAttribute('aria-controls')}`))).toBe(true)
+    expect(container.querySelectorAll('.start-analysis-section .maneuver-section__header, .wind-context-section .maneuver-section__header')).toHaveLength(0)
+
+    await click('#analysis-start-button')
+    expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false'])
+    await click('[data-start-analysis-row="S1"] button')
+    expect(container.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('true')
+    await click('#analysis-points-button')
+    expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true'])
+    expect(container.querySelector('#analysis-start-panel')!.hasAttribute('hidden')).toBe(true)
+    expect(container.querySelector('#analysis-points-panel')!.hasAttribute('hidden')).toBe(false)
+    expect(container.querySelector('#analysis-points-panel')!.firstElementChild?.textContent).toBe('1 segment · TWD 090° · Upwind')
+    await click('#analysis-start-button')
+    expect(container.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('true')
+    await click('#analysis-start-button')
+    expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false'])
+  })
+
+  it('omits unavailable analysis buttons and adds Points of Sail with a manual TWD', async () => {
+    vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [] })
+    await mountViewer('original', session)
+    const labels = () => [...container.querySelectorAll('.analysis-panel-selector button')].map((button) => button.textContent)
+    expect(labels()).toEqual(['Maneuvers'])
+    await click('[data-twd-gesture]')
+    expect(labels()).toEqual(['Maneuvers', 'Points of Sail'])
+    await click('#analysis-points-button')
+    expect(container.querySelector('#analysis-points-button')!.getAttribute('aria-pressed')).toBe('true')
+    await click('[data-twd-auto]')
+    expect(labels()).toEqual(['Maneuvers'])
+    await click('[data-twd-gesture]')
+    expect(container.querySelector('#analysis-points-button')!.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it.each(['original', 'temporary'] as const)('places one collapsed Points of Sail panel after Maneuvers and recomputes from effective TWD on %s access', async (accessKind) => {
     await mountViewer(accessKind, windSession)
     const section = () => container.querySelector('.wind-context-section')
     expect(section()).not.toBeNull()
     expect(container.querySelectorAll('.wind-context-section')).toHaveLength(1)
     expect(container.querySelector('.wind-segments-section')).toBeNull()
-    expect(section()!.querySelector('.section-kicker')!.textContent).toBe('Points of Sail')
+    expect(container.querySelector('#analysis-points-button')!.textContent).toBe('Points of Sail')
     const order = [
       container.querySelector('.start-analysis-section')!,
       container.querySelector('[data-viewer-section="maneuver-analysis"]')!,
@@ -335,7 +378,7 @@ describe('Viewer TWD state', () => {
     for (let index = 1; index < order.length; index += 1) {
       expect(order[index - 1].compareDocumentPosition(order[index])).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     }
-    expect(section()!.querySelector('.maneuver-section__collapse')?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('#analysis-points-button')?.getAttribute('aria-expanded')).toBe('false')
     expect(section()!.querySelector('[hidden]')).not.toBeNull()
     // Segment filter and list come before the window reading inside the body.
     const body = section()!.querySelector('[hidden]')!
@@ -463,7 +506,7 @@ describe('Viewer TWD state', () => {
     const section = () => container.querySelector('.wind-context-section')!
     const segmentsSection = () => container.querySelector('.wind-context-section')!
     const rows = () => [...segmentsSection().querySelectorAll<HTMLTableRowElement>('[data-wind-segment]')]
-    const analysisExpanded = () => section().querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')
+    const analysisExpanded = () => container.querySelector('#analysis-points-button')!.getAttribute('aria-expanded')
     const kinds = () => rows().map((row) => row.dataset.windSegment)
     const pressed = () => rows().map((row) => row.querySelector('button')!.getAttribute('aria-pressed'))
     const playbackTime = () => container.querySelector('[data-playback-time]')!.getAttribute('data-playback-time')
@@ -525,7 +568,7 @@ describe('Viewer TWD state', () => {
       const comparisonCells = () => [...segmentsSection().querySelectorAll('[data-wind-segment-comparison]')].map((cell) => cell.textContent)
       expect(comparisonCells()).toEqual(['Upwind', 'Reaching'])
       // An expanded Wind section stays expanded through selection.
-      await act(async () => section().querySelector<HTMLButtonElement>('.maneuver-section__collapse')!.click())
+      await click('#analysis-points-button')
       expect(analysisExpanded()).toBe('true')
       await act(async () => rows()[0].querySelector('button')!.click())
       expect(analysisExpanded()).toBe('true')
@@ -631,7 +674,7 @@ describe('Viewer TWD state', () => {
     expect(section().querySelector('.maneuver-section__header button[aria-label$="TWD by 5°"]')).toBeNull()
     expect(section().querySelector('[hidden] [data-wind-twd-source]')).not.toBeNull()
     expect(section().querySelector('[hidden] .wind-context__twd-stepper')).not.toBeNull()
-    expect(section().querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('#analysis-points-button')!.getAttribute('aria-expanded')).toBe('false')
     expect(button('Decrease TWD by 5°').querySelector('svg')).not.toBeNull()
     expect(button('Increase TWD by 5°').querySelector('svg')).not.toBeNull()
     expect(section().querySelector('[aria-label="Reset TWD to modelled"]')).toBeNull()
@@ -886,7 +929,7 @@ describe('Viewer selected maneuver interactions', () => {
         .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
       expect(container.querySelector('[aria-label="Analysis Window test controls"]')!.compareDocumentPosition(section()!))
         .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-      expect(section()!.querySelector('.maneuver-section__collapse')!.getAttribute('aria-expanded')).toBe('false')
+      expect(container.querySelector('#analysis-start-button')!.getAttribute('aria-expanded')).toBe('false')
       expect(section()!.querySelector('table[aria-label="Start summary"]')!.closest('[hidden]')).not.toBeNull()
       expect(rowCells('primary')).toEqual(['P', 'S110:00:30', '+2.5s · 5.3 kt', '+5.0 m', '50%', '—', '⚠ Ends +1m24s'])
       expect(section()!.querySelector('[data-start-analysis-role="comparison"]')).toBeNull()
@@ -1136,6 +1179,7 @@ describe('Viewer selected maneuver interactions', () => {
     await click('[data-reset-window]')
     expect(scrollIntoView).not.toHaveBeenCalled()
 
+    await click('#analysis-maneuvers-button')
     const row = container.querySelector<HTMLButtonElement>('[data-table-event="' + (start + 2_000) + '"]')!
     row.focus()
     await click('[data-table-event="' + (start + 2_000) + '"]')

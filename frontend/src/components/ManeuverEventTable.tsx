@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ACTIVITY_COLORS } from '../config/activityColors'
 import type { ActivityManeuverAnalytics } from '../types/maneuver'
 import type { DisplayManeuver, ManeuverActivityRole } from '../utils/maneuverEvents'
@@ -31,6 +31,7 @@ export type ManeuverPresentationStatus =
   | 'error'
 
 interface ManeuverEventTableProps {
+  panel?: { expanded: boolean, id: string, labelId: string }
   events: DisplayManeuver[]
   primaryStatus: ManeuverPresentationStatus
   comparisonStatus?: ManeuverPresentationStatus
@@ -332,6 +333,7 @@ export function ManeuverEventRow({
 }
 
 export default function ManeuverEventTable({
+  panel,
   events,
   primaryStatus,
   comparisonStatus,
@@ -342,12 +344,17 @@ export default function ManeuverEventTable({
   windSectors = null,
   sectorFilterResetKey = '',
 }: ManeuverEventTableProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [localExpanded, setExpanded] = useState(false)
+  const expanded = panel?.expanded ?? localExpanded
   const [helpExpanded, setHelpExpanded] = useState(false)
   const [sort, setSort] = useState<ManeuverSortState>(INITIAL_MANEUVER_SORT)
-  const contentId = useId()
+  const localContentId = useId()
+  const contentId = panel?.id ?? localContentId
   const helpId = useId()
   const helpRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!expanded) helpRef.current?.hidePopover?.()
+  }, [expanded])
   const evidence = [
     { role: 'primary' as const, status: primaryStatus, mode: primaryDetectorMode },
     { role: 'comparison' as const, status: comparisonStatus, mode: comparisonDetectorMode },
@@ -392,8 +399,8 @@ export default function ManeuverEventTable({
   const bandOf = (event: DisplayManeuver) => lossBands.get(maneuverSelectionKey(event)) ?? null
 
   return (
-    <section className="content-section maneuver-section" aria-labelledby="maneuver-title">
-      <div className="maneuver-section__header">
+    <section className="content-section maneuver-section" data-analysis-panel={panel ? 'maneuvers' : undefined} aria-labelledby={panel?.labelId ?? 'maneuver-title'}>
+      {!panel && <div className="maneuver-section__header">
         <p className="section-kicker" id="maneuver-title">Maneuver Analysis</p>
         <button
           type="button"
@@ -407,7 +414,7 @@ export default function ManeuverEventTable({
         >
           {expanded ? 'Collapse' : 'Expand'}
         </button>
-      </div>
+      </div>}
 
       <div id={contentId} hidden={!expanded}>
           {evidence.length > 0 && <>

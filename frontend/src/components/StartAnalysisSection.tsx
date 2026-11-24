@@ -12,6 +12,7 @@ import { formatAnalysisWindowDuration } from './AnalysisWindow'
 type Role = 'primary' | 'comparison'
 
 interface StartAnalysisSectionProps {
+  panel?: { expanded: boolean, id: string, labelId: string }
   /** One row group per inferred Session Start (#38.1) with its detailed table (#38.2); the section is absent without any. */
   rows: StartAnalysisRow[]
   /** Current Analysis Window: the summary lists only Starts whose gun lies inside it, endpoints included (#38 D15). */
@@ -203,10 +204,12 @@ function StartDetailTable({ row }: { row: StartAnalysisRow }) {
 
 export const NO_START_IN_WINDOW_TEXT = 'No inferred Start in the Analysis Window'
 
-export default function StartAnalysisSection({ rows, analysisWindow, onSelect }: StartAnalysisSectionProps) {
-  const [expanded, setExpanded] = useState(false)
+export default function StartAnalysisSection({ rows, analysisWindow, onSelect, panel }: StartAnalysisSectionProps) {
+  const [localExpanded, setExpanded] = useState(false)
+  const expanded = panel?.expanded ?? localExpanded
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const contentId = useId()
+  const localContentId = useId()
+  const contentId = panel?.id ?? localContentId
   // #38 D15: same window rule as the SOG timeline Start labels; values stay full-track derived.
   const windowRows = analysisWindow === null ? [] : sessionStartsInWindow(rows, analysisWindow)
   const selectedRow = windowRows.find((row) => startKey(row) === selectedKey)
@@ -220,8 +223,8 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
   if (rows.length === 0) return null
 
   return (
-    <section className="content-section maneuver-section start-analysis-section" aria-labelledby="start-analysis-title">
-      <div className="maneuver-section__header">
+    <section className="content-section maneuver-section start-analysis-section" data-analysis-panel={panel ? 'start' : undefined} aria-labelledby={panel?.labelId ?? 'start-analysis-title'}>
+      {!panel && <div className="maneuver-section__header">
         <p className="section-kicker" id="start-analysis-title">Start Analysis</p>
         <button
           type="button"
@@ -232,7 +235,7 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect }:
         >
           {expanded ? 'Collapse' : 'Expand'}
         </button>
-      </div>
+      </div>}
 
       <div id={contentId} hidden={!expanded}>
         <p className="wind-context__note" data-start-analysis-caption>Starts inferred from race timer · times UTC</p>
