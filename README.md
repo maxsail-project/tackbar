@@ -155,6 +155,10 @@ The Viewer offers:
   with synchronized replay on the map;
 * race shortcuts from available Vakaros timing to focus that shared window,
   including a five-minute pre-start margin;
+* Start Analysis from inferred timer starts and recorded GPS evidence, with
+  neutral line-crossing and around-the-gun readings when a start line exists;
+* one compact Start, Maneuvers and Points of Sail selector for the Viewer’s
+  analysis panels;
 * SOG, COG, HEEL and TRIM signal charts and distributions;
 * Individual Analysis per Activity (SOG + COG over time, HEEL × SOG density);
 * neutral maneuver evidence: HIGH when heading is available, LOW from course
@@ -439,6 +443,11 @@ El Viewer ofrece:
   compartida, con replay sincronizado en el mapa;
 * accesos directos a carreras a partir de los tiempos disponibles de Vakaros
   para centrar esa ventana, incluidos cinco minutos previos a la salida;
+* Start Analysis a partir de salidas inferidas del temporizador y datos GPS
+  registrados, con lecturas neutrales del cruce y del entorno de la salida
+  cuando hay una línea de salida;
+* un selector compacto Start, Maneuvers y Points of Sail para los paneles de
+  análisis del Viewer;
 * charts y distribuciones de señal SOG, COG, HEEL y TRIM;
 * Individual Analysis por Activity (SOG + COG en el tiempo, densidad HEEL × SOG);
 * evidencia neutral de maniobras: HIGH cuando hay heading, LOW a partir de

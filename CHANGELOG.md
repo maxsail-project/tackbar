@@ -2,6 +2,68 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.29 Californian — Start Me Up
+
+### English
+
+This release adds a neutral Start Analysis view and makes the Viewer's analysis panels easier to reach on a phone.
+
+### Added
+
+* **Start Analysis** uses inferred Session Starts and start lines to show each selected Activity's crossing time and recorded SOG, signed distance to the line and PIN-to-BOAT position at the gun. It lists only Starts inside the Analysis Window. Selecting one seeks the shared replay clock to its inferred gun time and opens a detailed table of recorded SOG, distance, COG, Heel and, when available, HDG at −15, −5, 0, +5 and +15 seconds; a Comparison adds a neutral upwind **Lead** reading when an effective TWD exists.
+* With an inferred line and effective TWD, Start Analysis also shows line length, geometric bias, favoured end (**PIN**, **BOAT** or **Square**) and the TWD source. A short recorded race end is noted as elapsed time without inferring its cause. Values stay unavailable where line, sample, sensor or wind evidence is missing; telemetry is never interpolated through gaps.
+
+### Changed
+
+* The former **Wind Analysis** panel is named **Points of Sail**; its help label follows the new name, while Wind Segments and wind calculations keep their behavior.
+* One compact **Start · Maneuvers · Points of Sail** button row replaces three stacked analysis headers. Available panels start closed; opening one closes the other, and tapping the active button closes it. Start appears only with an inferred Start, Points of Sail only with an effective TWD, and each panel retains its internal selection and filters.
+
+### Limitations
+
+Start and line positions are inferred, not official race decisions. Line distances refer to the GPS antenna, not the bow. The course-side sign assumes PIN is the port end when looking up the course; a reversed line would invert the sign. A crossing may count up to 10 m beyond a recorded line end, while the reported line percentage keeps its measured value. No OCS, recall, result or performance ranking is inferred.
+
+### Issues
+
+- [#38](https://github.com/maxsail-project/tackbar/issues/38) — [#38] Start analysis
+- [#224](https://github.com/maxsail-project/tackbar/issues/224) — [#224] Rename the Wind Analysis section to Points of Sail
+- [#225](https://github.com/maxsail-project/tackbar/issues/225) — [#225] Analysis sections as one row of buttons
+
+### Validation
+
+The completed Issues record focused implementation checks; the product owner manually accepted #38 with private real sailing data and #225 after its phone-width check. #224 was accepted on automated evidence under its Issue-scoped authorization. [SonarQube CI on the final candidate](https://github.com/maxsail-project/tackbar/actions/runs/45304894495) passed 1406 backend tests (1 skipped), 1446 frontend tests (2 skipped), typecheck, the Quality Gate and the production build. Release preparation checked the completed Issues against the commit range, current documentation, bilingual consistency, publication absence, exact release-body correspondence and the final diff; it did not repeat product tests.
+
+---
+
+### Español
+
+Esta versión añade una vista neutral de Start Analysis y facilita el acceso a los paneles de análisis del Viewer en el móvil.
+
+### Añadido
+
+* **Start Analysis** usa las Session Starts y líneas de salida inferidas para mostrar, por cada Activity seleccionada, el tiempo de cruce y SOG registrado, la distancia con signo a la línea y la posición entre PIN y BOAT en el momento de la salida. Solo enumera las salidas incluidas en la Analysis Window. Al seleccionar una, el reloj compartido de replay va a su hora inferida y se abre una tabla con SOG, distancia, COG, Heel y, cuando existe, HDG registrados a −15, −5, 0, +5 y +15 segundos; una Comparison añade una lectura neutral de **Lead** hacia barlovento cuando hay TWD efectivo.
+* Con una línea inferida y TWD efectivo, Start Analysis también muestra la longitud de la línea, su sesgo geométrico, el extremo favorecido (**PIN**, **BOAT** o **Square**) y la fuente del TWD. Un fin de carrera registrado poco después se indica como tiempo transcurrido, sin inferir su causa. Los valores quedan indisponibles cuando falta evidencia de línea, muestra, sensor o viento; nunca se interpola telemetría a través de intervalos sin GPS.
+
+### Cambiado
+
+* El panel antes llamado **Wind Analysis** pasa a llamarse **Points of Sail**; su etiqueta de ayuda sigue el nuevo nombre, mientras Wind Segments y los cálculos de viento mantienen su comportamiento.
+* Una fila compacta de botones **Start · Maneuvers · Points of Sail** sustituye las tres cabeceras de análisis apiladas. Los paneles disponibles empiezan cerrados; abrir uno cierra el anterior y pulsar el activo lo cierra. Start aparece solo con una salida inferida, Points of Sail solo con TWD efectivo, y cada panel conserva sus selecciones y filtros internos.
+
+### Limitaciones
+
+Las salidas y líneas son inferidas, no decisiones oficiales de regata. Las distancias a la línea parten de la antena GPS, no de la proa. El signo del lado del recorrido supone que PIN está a babor al mirar hacia barlovento; una línea invertida invertiría el signo. Un cruce puede contar hasta 10 m más allá de un extremo registrado, mientras el porcentaje de línea conserva el valor medido. No se infiere OCS, llamada, resultado ni clasificación de rendimiento.
+
+### Issues
+
+- [#38](https://github.com/maxsail-project/tackbar/issues/38) — [#38] Start analysis
+- [#224](https://github.com/maxsail-project/tackbar/issues/224) — [#224] Rename the Wind Analysis section to Points of Sail
+- [#225](https://github.com/maxsail-project/tackbar/issues/225) — [#225] Analysis sections as one row of buttons
+
+### Validación
+
+Los Issues completados registran pruebas focalizadas de implementación; el responsable de producto aceptó manualmente #38 con datos reales privados de navegación y #225 tras su comprobación en ancho móvil. #224 se aceptó con evidencia automatizada según su autorización específica. El [CI de SonarQube sobre el candidato final](https://github.com/maxsail-project/tackbar/actions/runs/45304894495) pasó 1406 pruebas de backend (1 omitida), 1446 de frontend (2 omitidas), el typecheck, el Quality Gate y el build de producción. Durante la preparación se comprobaron los Issues completados frente al rango de commits, la documentación vigente, la coherencia bilingüe, la ausencia de publicación, la correspondencia exacta del cuerpo de la release y el diff final; no se repitieron las pruebas de producto.
+
+---
+
 ## v0.7.28 Californian — Race Against the Machine
 
 ### English
