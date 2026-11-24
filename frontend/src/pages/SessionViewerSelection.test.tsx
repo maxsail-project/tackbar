@@ -920,7 +920,7 @@ describe('Viewer selected maneuver interactions', () => {
       await click('[data-twd-gesture]')
       const windward = () => [...section()!.querySelector('table[aria-label="S1 details around the gun"] [data-start-detail-role="pair"]')!.children]
         .map((cell) => cell.textContent)
-      expect(windward()).toEqual(['Upwind lead (m)', '', 'C 1', 'C 11', 'C 16', 'C 21', 'C 31'])
+      expect(windward()).toEqual(['Lead (m)', '', 'C 1', 'C 11', 'C 16', 'C 21', 'C 31'])
       // #38 D20/D23: the 200 m line, backed 5° from square, favours PIN; Fav names that end.
       expect(section()!.querySelector('[data-start-analysis-detail] h3')!.textContent)
         .toBe('S1 10:00:30 UTC · Line 200 m · PIN +5° (17 m) · TWD Manual · Viewer')

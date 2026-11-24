@@ -48,8 +48,8 @@ const rows: StartAnalysisRow[] = [
     label: 'S1',
     time: START_FIXTURE_GUN,
     shortTimingMs: 84_000,
-    primary: { crossSeconds: 2.5, distanceAtGunMeters: 5, linePercent: 50.4, sogCrossKnots: 5.3 },
-    comparison: { crossSeconds: -1.5, distanceAtGunMeters: -4.5, linePercent: -15.4, sogCrossKnots: null },
+    primary: { crossSeconds: 2.5, distanceAtGunMeters: 5, linePercent: 50.4, sogCrossKnots: 5.3, crossBeyondRecordedEnd: false },
+    comparison: { crossSeconds: -1.5, distanceAtGunMeters: -4.5, linePercent: -15.4, sogCrossKnots: null, crossBeyondRecordedEnd: false },
     detail: s1Detail,
     line: { lengthMeters: 200.4, wind: { source: 'modelled', biasDegrees: 5.4, favouredEnd: 'boat', advantageMeters: 18.8 } },
   },
@@ -58,7 +58,7 @@ const rows: StartAnalysisRow[] = [
     time: START_FIXTURE_GUN + 600_000,
     shortTimingMs: null,
     primary: { ...UNAVAILABLE_START_METRICS },
-    comparison: { crossSeconds: null, distanceAtGunMeters: 73.66, linePercent: 130, sogCrossKnots: null },
+    comparison: { crossSeconds: null, distanceAtGunMeters: 73.66, linePercent: 130, sogCrossKnots: null, crossBeyondRecordedEnd: false },
     detail: { offsetsSeconds, rows: s1Detail.rows.map((row) => ({ ...row, values: series(null) })) },
     line: null,
   },
@@ -100,6 +100,8 @@ describe('START ANALYSIS formatting (#38.1, D16)', () => {
     expect([15.8, 73.66, -2.3, null].map(formatStartDistance)).toEqual(['+15.8 m', '+73.7 m', '−2.3 m', '—'])
     expect([87.4, -15.4, 130, null].map(formatStartLinePercent)).toEqual(['87%', '−15%', '130%', '—'])
     expect([84_000, 36_000, null].map(formatStartTimingNote)).toEqual(['⚠ Ends +1m24s', '⚠ Ends +36s', ''])
+    expect(formatStartCross(7.44, 4.6, true)).toBe('+7.4s · 4.6 kt ↔')
+    expect(formatStartCross(null, null, true)).toBe('—')
   })
 })
 
@@ -184,6 +186,20 @@ describe('StartAnalysisSection (#38.1)', () => {
     expect(groups[1].querySelector('[data-start-analysis-value="cross"]')!.getAttribute('aria-label')).toBe('Cross unavailable')
     expect(container.querySelectorAll('[data-start-analysis-value][style], strong, b')).toHaveLength(0)
     expect(p1.querySelector('td')!.getAttribute('style')).toContain('color')
+  })
+
+  it('marks only a selected crossing beyond a recorded end, including when SOG is unavailable', () => {
+    const marked = { ...rows[0], primary: { ...rows[0].primary, crossBeyondRecordedEnd: true }, comparison: { ...rows[0].comparison!, crossBeyondRecordedEnd: true } }
+    const container = summaryMarkup([marked, rows[1]])
+    const [primary, comparison] = container.querySelectorAll('[data-start-analysis-row="S1"] tr')
+    const cross = (row: Element) => row.querySelector('[data-start-analysis-value="cross"]')!
+    expect([cross(primary).textContent, cross(primary).getAttribute('aria-label')]).toEqual([
+      '+2.5s · 5.3 kt ↔', 'Cross +2.5 seconds, SOG 5.3 knots, beyond the recorded end',
+    ])
+    expect([cross(comparison).textContent, cross(comparison).getAttribute('aria-label')]).toEqual([
+      '−1.5s · — ↔', 'Cross −1.5 seconds, SOG unavailable, beyond the recorded end',
+    ])
+    expect(cross(container.querySelector('[data-start-analysis-row="S2"] tr')!).textContent).toBe('—')
   })
 
   it('renders the Note column only when a visible Start has a note', () => {
@@ -322,7 +338,7 @@ describe('Start detailed table (#38.2)', () => {
     expect(texts[2]).toEqual([['HDG (°)', 'P', ...series(null).map(() => '—')], ['C', ...series(null).map(() => '0')]])
     expect(texts[3]).toEqual([['COG (°)', 'P', ...series(null).map(() => '359')], ['C', ...series(null).map(() => '0')]])
     expect(texts[4]).toEqual([['Heel (°)', 'P', ...series(null).map(() => '−13')], ['C', ...series(null).map(() => '8')]])
-    expect(texts[5]).toEqual([['Upwind lead (m)', '', 'P 12', 'C 4', 'Level', 'Level', '—']])
+    expect(texts[5]).toEqual([['Lead (m)', '', 'P 12', 'C 4', 'Level', 'Level', '—']])
     expect(groups[0].querySelector('th')!.getAttribute('rowspan')).toBe('2')
     expect(groups[5].querySelector('th')!.getAttribute('rowspan')).toBe('1')
     expect(groups[0].querySelector('[data-start-detail-role="comparison"] td')!.getAttribute('style')).toContain('color')

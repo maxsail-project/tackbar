@@ -37,6 +37,8 @@ export const START_ANALYSIS_CONFIG = {
   courseSide: 'left' as StartCourseSide,
   /** Cross (s) searches a line crossing at most this far from the gun (#38 D7). */
   crossingSearchLimitSeconds: 120,
+  /** A crossing may lie this far beyond either recorded line end (#38 D24). */
+  crossingEndToleranceMeters: 10,
   /**
    * A value at the gun or at a detailed-table offset uses the nearest recorded sample within this
    * tolerance, otherwise it is unavailable (#38 D10).
@@ -61,7 +63,7 @@ export const START_ANALYSIS_CONFIG = {
     { id: 'hdg', label: 'HDG', unit: '°', format: 'direction', onlyWhenRecorded: true },
     { id: 'cog', label: 'COG', unit: '°', format: 'direction' },
     { id: 'heel', label: 'Heel', unit: '°', format: 'integer' },
-    { id: 'windwardGap', label: 'Upwind lead', unit: 'm', format: 'upwindLead' },
+    { id: 'windwardGap', label: 'Lead', unit: 'm', format: 'upwindLead' },
   ] as readonly StartDetailIndicator[],
 }
 

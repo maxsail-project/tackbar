@@ -34,21 +34,25 @@ function metrics(samples: ReturnType<typeof startFixtureSamples>, line = frame) 
   return deriveStartActivityMetrics(prepareStartSamples(samples), line, gun)
 }
 
-function expectMetrics(actual: StartActivityMetrics, expected: StartActivityMetrics) {
-  for (const key of Object.keys(expected) as (keyof StartActivityMetrics)[]) {
+type ExpectedStartMetrics = Omit<StartActivityMetrics, 'crossBeyondRecordedEnd'> & Partial<Pick<StartActivityMetrics, 'crossBeyondRecordedEnd'>>
+
+function expectMetrics(actual: StartActivityMetrics, expected: ExpectedStartMetrics) {
+  expect(actual.crossBeyondRecordedEnd).toBe(expected.crossBeyondRecordedEnd ?? false)
+  for (const key of ['crossSeconds', 'distanceAtGunMeters', 'linePercent', 'sogCrossKnots'] as const) {
     const value = expected[key]
     if (value === null) expect(actual[key], key).toBeNull()
     else expect(actual[key], key).toBeCloseTo(value, 6)
   }
 }
 
-const unavailable: StartActivityMetrics = { crossSeconds: null, distanceAtGunMeters: null, linePercent: null, sogCrossKnots: null }
+const unavailable: StartActivityMetrics = { crossSeconds: null, distanceAtGunMeters: null, linePercent: null, sogCrossKnots: null, crossBeyondRecordedEnd: false }
 
 describe('START ANALYSIS configuration (#38.1, #38.2)', () => {
   it('keeps every derivation constant, offset and indicator in one code configuration object', () => {
     expect(START_ANALYSIS_CONFIG).toEqual({
       courseSide: 'left',
       crossingSearchLimitSeconds: 120,
+      crossingEndToleranceMeters: 10,
       offsetSampleToleranceSeconds: 1,
       shortTimingThresholdSeconds: 180,
       lineBiasSquareBelowDegrees: 0.5,
@@ -60,7 +64,7 @@ describe('START ANALYSIS configuration (#38.1, #38.2)', () => {
         { id: 'hdg', label: 'HDG', unit: '°', format: 'direction', onlyWhenRecorded: true },
         { id: 'cog', label: 'COG', unit: '°', format: 'direction' },
         { id: 'heel', label: 'Heel', unit: '°', format: 'integer' },
-        { id: 'windwardGap', label: 'Upwind lead', unit: 'm', format: 'upwindLead' },
+        { id: 'windwardGap', label: 'Lead', unit: 'm', format: 'upwindLead' },
       ],
     })
   })
@@ -132,6 +136,28 @@ describe('start summary metrics (#38 D2, D6, D7)', () => {
     expectMetrics(metrics(startApproachSamples({ behindAtGun: 5, alongMeters: 260 })), {
       ...unavailable, distanceAtGunMeters: 5, linePercent: 130,
     })
+  })
+
+  it('accepts crossings through 10 m beyond either recorded end and flags only those beyond', () => {
+    for (const [alongMeters, linePercent, beyond] of [
+      [0, 0, false], [200, 100, false], [-5, -2.5, true], [205, 102.5, true], [-10, -5, true], [210, 105, true],
+    ] as const) {
+      expectMetrics(metrics(startApproachSamples({ behindAtGun: 5, alongMeters })), {
+        crossSeconds: 2.5, distanceAtGunMeters: 5, linePercent, sogCrossKnots: 5.3,
+        crossBeyondRecordedEnd: beyond,
+      })
+    }
+    for (const alongMeters of [-11, 211]) {
+      expectMetrics(metrics(startApproachSamples({ behindAtGun: 5, alongMeters })), {
+        ...unavailable, distanceAtGunMeters: 5, linePercent: alongMeters / 2,
+      })
+    }
+    const narrow = { ...START_ANALYSIS_CONFIG, crossingEndToleranceMeters: 5 }
+    const at = (alongMeters: number) => deriveStartActivityMetrics(
+      prepareStartSamples(startApproachSamples({ behindAtGun: 5, alongMeters })), frame, gun, narrow,
+    )
+    expect(at(205).crossBeyondRecordedEnd).toBe(true)
+    expect(at(206).crossSeconds).toBeNull()
   })
 
   it('skips a crossing outside the ends and keeps searching inside the segment', () => {

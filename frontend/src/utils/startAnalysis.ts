@@ -25,6 +25,8 @@ export interface StartActivityMetrics {
   linePercent: number | null
   /** Recorded SOG of the first sample on the course side after the crossing. */
   sogCrossKnots: number | null
+  /** Whether the chosen crossing lies beyond a recorded PIN/BOAT end (#38 D24). */
+  crossBeyondRecordedEnd: boolean
 }
 
 /** One summary row group per inferred Start: P values and, when a Comparison is selected, C values. */
@@ -62,7 +64,7 @@ export interface StartLineBias {
   } | null
 }
 
-/** Role of one detailed-table row: an Activity (P or C) or the single Windward P–C row. */
+/** Role of one detailed-table row: an Activity (P or C) or the single Lead row. */
 export type StartDetailRole = 'primary' | 'comparison' | 'pair'
 
 /** One detailed-table row; `values` follow the configured offsets, `null` is unavailable. */
@@ -111,6 +113,7 @@ export const UNAVAILABLE_START_METRICS: Readonly<StartActivityMetrics> = {
   distanceAtGunMeters: null,
   linePercent: null,
   sogCrossKnots: null,
+  crossBeyondRecordedEnd: false,
 }
 
 function validPosition(latitude: number, longitude: number) {
@@ -196,17 +199,20 @@ interface LineCrossing {
   time: number
   /** First sample on the course side. */
   courseSideIndex: number
+  beyondRecordedEnd: boolean
 }
 
 /**
- * Pre-start → course-side transition between two adjacent canonical samples, inside the PIN–BOAT
- * segment. Never across a gap (#218) or an invalid sample; the crossing instant is placed by linear
- * position between the two straddling samples only.
+ * Pre-start → course-side transition between two adjacent canonical samples, within the recorded
+ * PIN–BOAT ends or their D24 tolerance. Never across a gap (#218) or an invalid sample; the
+ * crossing instant is placed by linear position between the two straddling samples only.
  */
 function lineCrossingBetween(
   samples: readonly StartSample[],
   beforeIndex: number,
   measure: (sample: StartSample) => StartLinePosition,
+  lineLengthMeters: number,
+  endToleranceMeters: number,
 ): LineCrossing | null {
   const before = samples[beforeIndex]
   const after = samples[beforeIndex + 1]
@@ -216,8 +222,12 @@ function lineCrossingBetween(
   if (!(from.distanceMeters >= 0 && to.distanceMeters < 0)) return null
   const fraction = from.distanceMeters / (from.distanceMeters - to.distanceMeters)
   const lineFraction = from.lineFraction + fraction * (to.lineFraction - from.lineFraction)
-  if (lineFraction < 0 || lineFraction > 1) return null
-  return { time: before.time + fraction * (after.time - before.time), courseSideIndex: beforeIndex + 1 }
+  const beyondRecordedEnd = lineFraction < 0 || lineFraction > 1
+  const beyondMeters = lineFraction < 0
+    ? -lineFraction * lineLengthMeters
+    : lineFraction > 1 ? (lineFraction - 1) * lineLengthMeters : 0
+  if (beyondMeters > endToleranceMeters + 1e-9) return null
+  return { time: before.time + fraction * (after.time - before.time), courseSideIndex: beforeIndex + 1, beyondRecordedEnd }
 }
 
 /**
@@ -231,16 +241,18 @@ function findStartLineCrossing(
   gun: number,
   limitMs: number,
   measure: (sample: StartSample) => StartLinePosition,
+  lineLengthMeters: number,
+  endToleranceMeters: number,
 ): LineCrossing | null {
   if (behindAtGun) {
     for (let index = gunIndex; index < samples.length - 1 && !(samples[index].time > gun + limitMs); index += 1) {
-      const crossing = lineCrossingBetween(samples, index, measure)
+      const crossing = lineCrossingBetween(samples, index, measure, lineLengthMeters, endToleranceMeters)
       if (crossing) return crossing.time <= gun + limitMs ? crossing : null
     }
     return null
   }
   for (let index = gunIndex - 1; index >= 0 && !(samples[index + 1].time < gun - limitMs); index -= 1) {
-    const crossing = lineCrossingBetween(samples, index, measure)
+    const crossing = lineCrossingBetween(samples, index, measure, lineLengthMeters, endToleranceMeters)
     if (crossing) return crossing.time >= gun - limitMs ? crossing : null
   }
   return null
@@ -260,12 +272,14 @@ export function deriveStartActivityMetrics(
   const atGun = measure(samples[gunIndex])
   const crossing = findStartLineCrossing(
     samples, gunIndex, atGun.distanceMeters >= 0, gun, config.crossingSearchLimitSeconds * 1_000, measure,
+    frame.length, config.crossingEndToleranceMeters,
   )
   return {
     crossSeconds: crossing ? (crossing.time - gun) / 1_000 : null,
     distanceAtGunMeters: atGun.distanceMeters,
     linePercent: atGun.lineFraction * 100,
     sogCrossKnots: crossing ? samples[crossing.courseSideIndex].sog : null,
+    crossBeyondRecordedEnd: crossing?.beyondRecordedEnd ?? false,
   }
 }
 
