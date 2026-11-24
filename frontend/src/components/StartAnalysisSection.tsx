@@ -27,9 +27,9 @@ function formatSignedOneDecimal(value: number | null) {
   return value > 0 && text !== '0.0' ? `+${text}` : text
 }
 
-/** #38 D16/D24 Cross: compact seconds, crossing SOG and an end-tolerance marker when applicable. */
-export function formatStartCross(seconds: number | null, sogKnots: number | null, beyondRecordedEnd = false) {
-  return seconds === null ? '—' : `${formatSignedOneDecimal(seconds)}s · ${formatSog(sogKnots)}${beyondRecordedEnd ? ' ↔' : ''}`
+/** #38 D16/D26 Cross: compact seconds and crossing SOG, without an end-tolerance marker. */
+export function formatStartCross(seconds: number | null, sogKnots: number | null) {
+  return seconds === null ? '—' : `${formatSignedOneDecimal(seconds)}s · ${formatSog(sogKnots)}`
 }
 
 /** #38 D16 Dist at the gun with its unit (`+15.8 m`). */
@@ -44,14 +44,14 @@ export function formatStartLinePercent(value: number | null) {
 
 /** Summary value cells with accessible names spelling the units (#204). */
 function startSummaryCells(metrics: StartActivityMetrics) {
-  const { crossSeconds, sogCrossKnots, crossBeyondRecordedEnd, distanceAtGunMeters, linePercent } = metrics
+  const { crossSeconds, sogCrossKnots, distanceAtGunMeters, linePercent } = metrics
   return [
     {
       key: 'cross',
-      text: formatStartCross(crossSeconds, sogCrossKnots, crossBeyondRecordedEnd),
+      text: formatStartCross(crossSeconds, sogCrossKnots),
       ariaLabel: crossSeconds === null
         ? 'Cross unavailable'
-        : `Cross ${formatSignedOneDecimal(crossSeconds)} seconds, SOG ${sogCrossKnots === null ? 'unavailable' : `${formatFixed(sogCrossKnots, 1)} knots`}${crossBeyondRecordedEnd ? ', beyond the recorded end' : ''}`,
+        : `Cross ${formatSignedOneDecimal(crossSeconds)} seconds, SOG ${sogCrossKnots === null ? 'unavailable' : `${formatFixed(sogCrossKnots, 1)} knots`}`,
     },
     {
       key: 'distance',

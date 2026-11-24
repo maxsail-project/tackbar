@@ -25,8 +25,6 @@ export interface StartActivityMetrics {
   linePercent: number | null
   /** Recorded SOG of the first sample on the course side after the crossing. */
   sogCrossKnots: number | null
-  /** Whether the chosen crossing lies beyond a recorded PIN/BOAT end (#38 D24). */
-  crossBeyondRecordedEnd: boolean
 }
 
 /** One summary row group per inferred Start: P values and, when a Comparison is selected, C values. */
@@ -113,7 +111,6 @@ export const UNAVAILABLE_START_METRICS: Readonly<StartActivityMetrics> = {
   distanceAtGunMeters: null,
   linePercent: null,
   sogCrossKnots: null,
-  crossBeyondRecordedEnd: false,
 }
 
 function validPosition(latitude: number, longitude: number) {
@@ -199,7 +196,6 @@ interface LineCrossing {
   time: number
   /** First sample on the course side. */
   courseSideIndex: number
-  beyondRecordedEnd: boolean
 }
 
 /**
@@ -222,12 +218,11 @@ function lineCrossingBetween(
   if (!(from.distanceMeters >= 0 && to.distanceMeters < 0)) return null
   const fraction = from.distanceMeters / (from.distanceMeters - to.distanceMeters)
   const lineFraction = from.lineFraction + fraction * (to.lineFraction - from.lineFraction)
-  const beyondRecordedEnd = lineFraction < 0 || lineFraction > 1
   const beyondMeters = lineFraction < 0
     ? -lineFraction * lineLengthMeters
     : lineFraction > 1 ? (lineFraction - 1) * lineLengthMeters : 0
   if (beyondMeters > endToleranceMeters + 1e-9) return null
-  return { time: before.time + fraction * (after.time - before.time), courseSideIndex: beforeIndex + 1, beyondRecordedEnd }
+  return { time: before.time + fraction * (after.time - before.time), courseSideIndex: beforeIndex + 1 }
 }
 
 /**
@@ -279,7 +274,6 @@ export function deriveStartActivityMetrics(
     distanceAtGunMeters: atGun.distanceMeters,
     linePercent: atGun.lineFraction * 100,
     sogCrossKnots: crossing ? samples[crossing.courseSideIndex].sog : null,
-    crossBeyondRecordedEnd: crossing?.beyondRecordedEnd ?? false,
   }
 }
 
