@@ -5,6 +5,7 @@ from statistics import median
 
 import pytest
 
+from app.normalization.track_normalizer import normalize_track
 from app.parsers.vakaros_csv import VakarosCSVParseError, parse_vakaros_csv
 
 
@@ -71,6 +72,34 @@ def test_parse_equivalent_uncompressed_vakaros_csv() -> None:
     assert len(activity.samples) == 3613
     assert activity.start_time == activity.samples[0]["utc"]
     assert activity.end_time == activity.samples[-1]["utc"]
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_vakaros_csv_keeps_first_navigation_row_per_utc_in_source_order(
+    compressed: bool,
+) -> None:
+    content = (
+        b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim\n"
+        b"2031-06-10T10:00:02Z,38.2,-0.2,5.2,2,12,-8,2\n"
+        b"2031-06-10T10:00:00Z,38.0,-0.2,5.0,359,9,-7,1\n"
+        b"2031-06-10T10:00:00Z,39.0,-0.2,9.0,180,99,7,9\n"
+        b"2031-06-10T10:00:01Z,38.1,-0.2,5.1,1,11,-6,3\n"
+    )
+    activity = parse_vakaros_csv(
+        gzip.compress(content) if compressed else content,
+        original_filename="track.csv.gz" if compressed else "track.csv",
+    )
+
+    assert len(activity.samples) == 3
+    assert [sample["lat"] for sample in activity.samples] == [38.0, 38.1, 38.2]
+    assert [sample["cog"] for sample in activity.samples] == [359, 1, 2]
+    assert activity.start_lat == 38.0
+    assert activity.center_lat == 38.1
+    assert activity.end_lat == 38.2
+    assert activity.max_lat == 38.2
+    normalized = normalize_track("activity", activity.samples)
+    assert normalized["utc"].is_unique
+    assert normalized["dist"].iloc[1] < 20_000
 
 
 @pytest.mark.parametrize("missing_row", [0, 1, 2])

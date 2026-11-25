@@ -12,6 +12,35 @@ const sample = (second: number, cog: number | null, sog: number | null = 5): Tra
 })
 const trace = (pre: number, post: number) => Array.from({ length: 26 }, (_, index) => sample(index + 20, index + 20 < 32 ? pre : post))
 
+it('matches direct circular smoothing across equal UTC, gaps and the 0°/360° boundary', () => {
+  const course = (index: number) => index % 37 === 0 ? 180 : index % 2 ? 359 : 1
+  const segments = [
+    Array.from({ length: 2_000 }, (_, index) => sample(index / 10, course(index))),
+    Array.from({ length: 1_000 }, (_, index) => sample(199.9 + index / 10, course(index + 2_000))),
+    Array.from({ length: 500 }, (_, index) => sample(320 + index / 10, course(index + 3_000))),
+  ]
+  const runs = prepareCourseEvidence(segments.flat(), { start: origin, end: origin + 400_000 })
+  expect(runs.map((run) => run.times.length)).toEqual(segments.map((segment) => segment.length))
+
+  for (const [runIndex, run] of runs.entries()) {
+    const segment = segments[runIndex]
+    for (const [index, time] of run.times.entries()) {
+      const neighbors = segment.filter((point) => Math.abs(Date.parse(point.utc) - time) <= 2_000)
+      const sine = neighbors.reduce((sum, point) => sum + Math.sin(point.cog! * Math.PI / 180), 0)
+      const cosine = neighbors.reduce((sum, point) => sum + Math.cos(point.cog! * Math.PI / 180), 0)
+      const expected = Math.hypot(sine, cosine) <= 1e-12 * neighbors.length
+        ? null : ((Math.atan2(sine, cosine) * 180 / Math.PI) + 360) % 360
+      const actual = run.smoothed[index]
+      if (expected === null) expect(actual).toBeNull()
+      else {
+        expect(actual).not.toBeNull()
+        const difference = Math.abs(actual! - expected)
+        expect(Math.min(difference, 360 - difference)).toBeLessThan(1e-8)
+      }
+    }
+  }
+})
+
 it('matches the original full-run contextual filters on long irregular and gapped evidence', () => {
   const samples = Array.from({ length: 12_000 }, (_, index) => sample(index + (index % 7) * 0.05,
     index % 211 === 0 ? null : index % 2 ? 359 : 1,

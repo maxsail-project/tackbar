@@ -48,12 +48,29 @@ function continuousRuns(samples: readonly TrackSample[], window: AnalysisWindowR
 
 export function prepareCourseEvidence(samples: readonly TrackSample[], window: AnalysisWindowRange): PreparedCourseRun[] {
   return continuousRuns(samples, window).map((run) => {
+    const sines = run.map(({ cog }) => Math.sin(cog * Math.PI / 180))
+    const cosines = run.map(({ cog }) => Math.cos(cog * Math.PI / 180))
     let left = 0
     let right = 0
+    let sine = 0
+    let cosine = 0
     const smoothed = run.map((point) => {
-      while (run[left].time < point.time - 2_000) left += 1
-      while (right < run.length && run[right].time <= point.time + 2_000) right += 1
-      return circularMean(run.slice(left, right).map((neighbor) => neighbor.cog))
+      while (right < run.length && run[right].time <= point.time + 2_000) {
+        sine += sines[right]
+        cosine += cosines[right]
+        right += 1
+      }
+      while (run[left].time < point.time - 2_000) {
+        sine -= sines[left]
+        cosine -= cosines[left]
+        left += 1
+      }
+      const count = right - left
+      // Re-evaluate cancellations at the original precision near an undefined mean.
+      if (Math.hypot(sine, cosine) <= 1e-10 * count) {
+        return circularMean(run.slice(left, right).map((neighbor) => neighbor.cog))
+      }
+      return ((Math.atan2(sine, cosine) * 180 / Math.PI) + 360) % 360
     })
     return { times: run.map((point) => point.time), smoothed }
   })

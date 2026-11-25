@@ -32,10 +32,24 @@ describe('extractManeuverProfile', () => {
     }
   })
 
-  it.each(['invalid', 'duplicate', 'nonmonotonic'])('uses full traversal for %s UTC evidence', (kind) => {
+  it('uses the indexed path for equal UTC and matches full traversal at both window edges', () => {
     const samples = Array.from({ length: 100 }, (_, index) => sample(index))
-    samples[50] = kind === 'invalid' ? { ...samples[50], utc: 'invalid' }
-      : kind === 'duplicate' ? sample(49) : sample(48)
+    samples.splice(49, 0, sample(49, { sog: 2, cog: 1, heel: 4 }))
+    samples.splice(72, 0, sample(71, { sog: 3, cog: 2, heel: 5 }))
+    const index = prepareManeuverSampleIndex(samples)
+    expect(index.ordered).toBe(true)
+    for (const analysisWindow of [window, { start: origin + 49_000, end: origin + 71_000 }]) {
+      for (const second of [30, 49, 50, 70, 71]) {
+        const event = { center_time: utc(second) } as Maneuver
+        expect(extractManeuverProfile(event, samples, analysisWindow, index))
+          .toEqual(extractManeuverProfile(event, samples, analysisWindow))
+      }
+    }
+  })
+
+  it.each(['invalid', 'nonmonotonic'])('uses full traversal for %s UTC evidence', (kind) => {
+    const samples = Array.from({ length: 100 }, (_, index) => sample(index))
+    samples[50] = kind === 'invalid' ? { ...samples[50], utc: 'invalid' } : sample(48)
     const index = prepareManeuverSampleIndex(samples)
     expect(index.ordered).toBe(false)
     for (const analysisWindow of [window, { start: origin + 30_250, end: origin + 70_750 }]) {

@@ -126,7 +126,11 @@ def parse_vakaros_csv(
         raise VakarosCSVParseError("Vakaros CSV contains invalid timestamps") from error
     if frame["timestamp"].isna().any():
         raise VakarosCSVParseError("Vakaros CSV contains invalid timestamps")
-    frame = frame.sort_values("timestamp").reset_index(drop=True)
+    frame = (
+        frame.sort_values("timestamp", kind="stable")
+        .drop_duplicates(subset="timestamp", keep="first")
+        .reset_index(drop=True)
+    )
 
     gps_samples = frame[["latitude", "longitude"]].apply(
         pd.to_numeric,

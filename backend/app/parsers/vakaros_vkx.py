@@ -74,7 +74,13 @@ def parse_vakaros_vkx(
         )
 
     samples, race_timer_events, line_positions, shift_angle_observations = _parse_rows(data)
+    # Retain the first navigation row for each UTC in source order.
     samples.sort(key=lambda sample: sample["utc"])
+    unique_samples = []
+    for sample in samples:
+        if not unique_samples or sample["utc"] != unique_samples[-1]["utc"]:
+            unique_samples.append(sample)
+    samples = unique_samples
     latitudes = [float(sample["lat"]) for sample in samples]
     longitudes = [float(sample["lon"]) for sample in samples]
     first_sample = samples[0]

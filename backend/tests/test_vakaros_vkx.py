@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.normalization.track_normalizer import normalize_track
 from app.parsers.vakaros_vkx import (
     METRES_PER_SECOND_TO_KNOTS,
     ROW_PAYLOAD_SIZES,
@@ -347,6 +348,36 @@ def test_navigation_rows_are_sorted_and_drive_activity_metadata() -> None:
     assert activity.center_lat == pytest.approx(38.2)
     assert activity.min_lon == pytest.approx(-0.3)
     assert activity.max_lon == pytest.approx(-0.1)
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_vkx_keeps_first_navigation_row_per_utc_without_dropping_auxiliary_rows(
+    compressed: bool,
+) -> None:
+    base = 1_939_018_896_000
+    content = _vkx(
+        _position(timestamp_ms=base + 2_000, latitude_raw=383_000_000),
+        _position(timestamp_ms=base, latitude_raw=381_000_000, cog=math.radians(359)),
+        _timer(base, 1, 4),
+        _position(timestamp_ms=base, latitude_raw=390_000_000, cog=math.pi),
+        _timer(base, 2, 5),
+        _position(timestamp_ms=base + 1_000, latitude_raw=382_000_000),
+    )
+    activity = parse_vakaros_vkx(
+        gzip.compress(content) if compressed else content,
+        original_filename="Atlas.vkx.gz" if compressed else "Atlas.vkx",
+    )
+
+    assert len(activity.samples) == 3
+    assert [sample["lat"] for sample in activity.samples] == pytest.approx([38.1, 38.2, 38.3])
+    assert activity.samples[0]["cog"] == pytest.approx(359)
+    assert activity.start_lat == pytest.approx(38.1)
+    assert activity.center_lat == pytest.approx(38.2)
+    assert activity.max_lat == pytest.approx(38.3)
+    assert [event.event_type for event in activity.race_timer_events] == [1, 2]
+    normalized = normalize_track("activity", activity.samples)
+    assert normalized["utc"].is_unique
+    assert normalized["dist"].iloc[1] < 20_000
 
 
 def test_documented_rows_do_not_change_navigation_sample_schema() -> None:

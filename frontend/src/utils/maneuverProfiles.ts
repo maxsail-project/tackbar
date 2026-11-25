@@ -104,7 +104,7 @@ export interface ManeuverSampleIndex {
 export function prepareManeuverSampleIndex(samples: readonly TrackSample[]): ManeuverSampleIndex {
   const times = samples.map(sampleTime)
   const ordered = times.every((time, index) => time !== null && Number.isFinite(time)
-    && (index === 0 || (times[index - 1] !== null && time > times[index - 1]!)))
+    && (index === 0 || (times[index - 1] !== null && time >= times[index - 1]!)))
   return { samples, times, ordered }
 }
 
