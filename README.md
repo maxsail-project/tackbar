@@ -264,6 +264,17 @@ Historical requirements and decisions:
 [analytics decisions](docs/v0.7-decisions.md) and
 [mailbox operations decisions](docs/mailbox-operations-decisions.md).
 
+## Agentic Software Engineering Living Lab
+
+Alongside the sailing product, TackBar is an open-source living lab for
+AI-assisted software development, testing and agentic software engineering.
+The [Product Roadmap](ROADMAP.md) improves the sailing product; the
+[Engineering Roadmap](docs/engineering/roadmap.md) improves how it is designed,
+developed, tested, governed and maintained. Both follow the same incremental,
+evidence-driven workflow of scoped Issues, validation and review. The
+[maturity model](docs/engineering/maturity.md) guides this ongoing engineering
+initiative; it is not a certification or a completed transformation.
+
 ## Public website
 
 [tackbar.eu](https://tackbar.eu) is the public TackBar website. The application
@@ -549,6 +560,18 @@ Requisitos y decisiones históricos:
 [requisitos v0.7](docs/v0.7-collaborative-debrief-analytics-requirements.md),
 [decisiones de analítica](docs/v0.7-decisions.md) y
 [decisiones operativas del buzón](docs/mailbox-operations-decisions.md).
+
+## Laboratorio de ingeniería de software agéntica
+
+Además del producto para navegantes, TackBar es un laboratorio de código abierto
+de desarrollo y pruebas de software asistidos por IA e ingeniería de software
+agéntica. El [Product Roadmap](ROADMAP.md) mejora el producto náutico; el
+[Engineering Roadmap](docs/engineering/roadmap.md) mejora cómo se diseña,
+desarrolla, prueba, gobierna y mantiene. Ambos siguen el mismo proceso de
+ingeniería incremental basado en evidencias: Issues acotados, validación y
+revisión. El
+[modelo de madurez](docs/engineering/maturity.md) orienta esta iniciativa de
+ingeniería en curso; no es una certificación ni una transformación terminada.
 
 ## Web pública
 
