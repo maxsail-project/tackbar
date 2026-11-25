@@ -57,4 +57,35 @@ describe.skipIf(process.env.MANEUVER_BENCH !== '1')('maneuver preparation benchm
     const total = medianDuration(() => { prepareSogManeuverPopulation(maneuvers, samples, window) })
     console.log(`BENCH ${sampleCount}/${maneuverCount}: extraction=${extraction.toFixed(1)}ms indexing=${indexing.toFixed(1)}ms indexed_extraction=${indexedExtraction.toFixed(1)}ms course=${course.toFixed(1)}ms course_lookup=${courseLookup.toFixed(1)}ms aggregation=${aggregation.toFixed(1)}ms total=${total.toFixed(1)}ms`)
   }, 30_000)
+
+  it('measures the synthetic primaryProfilePopulation call at the #234 track size', () => {
+    const sampleCount = 182_370
+    const maneuverCount = 137
+    const cadenceSeconds = 0.1
+    const samples: TrackSample[] = Array.from({ length: sampleCount }, (_, index) => ({
+      utc: stamp(index * cadenceSeconds), lat: 38 + index / 1_000_000,
+      lon: -0.2 + index / 1_000_000, dist: 0.2,
+      sog: 5 + Math.sin(index / 30), cog: (359 + index / 20) % 360,
+      heel: Math.sin(index / 8), hdg: null, trim: null,
+    }))
+    for (const index of [30_000, 90_000, 150_000]) samples[index].utc = samples[index - 1].utc
+    const maneuvers: Maneuver[] = Array.from({ length: maneuverCount }, (_, index) => {
+      const center = Math.round((index + 1) * (sampleCount - 1) / (maneuverCount + 1)) * cadenceSeconds
+      return {
+        start_time: stamp(center - 5), center_time: stamp(center), end_time: stamp(center + 5),
+        heading_change_deg: null, course_change_deg: null, peak_turn_rate_deg_s: null,
+        peak_turn_rate_time: null, duration_s: 10,
+      }
+    })
+    const window = { start: origin, end: origin + (sampleCount - 1) * cadenceSeconds * 1_000 }
+    const index = prepareManeuverSampleIndex(samples)
+    if (!index.ordered) throw new Error('Duplicate UTC must retain the indexed path')
+    const primaryProfilePopulation = () => prepareSogManeuverPopulation(maneuvers, samples, window)
+    const duration = medianDuration(primaryProfilePopulation)
+    const population = primaryProfilePopulation()
+    if (population.detectedCount !== maneuverCount || population.maneuvers.length !== maneuverCount) {
+      throw new Error('Representative population has unexpected maneuver counts')
+    }
+    console.log(`BENCH synthetic primaryProfilePopulation ${sampleCount}/${maneuverCount} with 3 duplicate UTC: median=${duration.toFixed(1)}ms`)
+  }, 60_000)
 })

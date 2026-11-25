@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+import pandas as pd
 
 from app.models import Boat, ConsentStatus, InboundEmail
 from app.normalization.track_normalizer import CANONICAL_TRACK_COLUMNS
@@ -18,6 +19,7 @@ from app.repositories.consent_requests import ConsentRequestRepository
 from app.repositories.sailors import SailorRepository
 from app.repositories.sessions import SessionRepository
 from app.services import ingestion_processing as processing
+from app.services.activity_reprocessing import reprocess_activity
 from app.services.ingestion_history import ADMIN_UPLOAD, ADMIN_UPLOAD_INTERRUPTED, IngestionHistory
 from app.services.outbound_mail import OvhSmtpTransport
 from app.services.sailor_consent import SailorConsentService
@@ -515,4 +517,42 @@ def test_manual_vkx_reprocess_replaces_observations_without_changing_personal_co
         assert activity.boat_id is None and activity.device_label == "My Atlas"
         assert len(activity.race_timer_events) == len(activity.line_positions) == 2
         assert_silent(runtime, updated)
+    assert len(runtime.activities.all()) == len(runtime.sessions.all()) == 1
+
+
+def test_stored_vakaros_duplicates_remain_until_explicit_activity_reprocess(runtime):
+    original = (
+        b"timestamp,latitude,longitude,sog_kts,cog,hdg_true,heel,trim\n"
+        b"2031-06-10T10:00:00Z,38.0,-0.2,5,359,1,-6,3\n"
+        b"2031-06-10T10:00:01Z,38.1,-0.2,5,1,2,-6,3\n"
+        b"2031-06-10T10:00:01Z,39.0,-0.2,5,2,3,-6,3\n"
+        b"2031-06-10T10:00:02Z,38.2,-0.2,5,3,4,-6,3\n"
+    )
+    ingestion = process(runtime, accept(runtime, original, "historical.csv"))
+    activity_id = ingestion["activity_id"]
+    session_id = ingestion["session_id"]
+    storage = TrackStorage()
+    canonical = storage.read_normalized_track(activity_id)
+    assert len(canonical) == 3
+
+    # Simulate an Activity persisted by the former parser, without replacing its original.
+    historical = canonical.copy()
+    duplicate = historical.iloc[[1]].copy()
+    duplicate.loc[:, "lat"] = 39.0
+    historical = pd.concat([historical.iloc[:2], duplicate, historical.iloc[2:]], ignore_index=True)
+    storage.write_normalized_track(activity_id, historical)
+    assert len(storage.read_normalized_track(activity_id)) == 4
+    assert process(runtime, ingestion) == ingestion  # Ordinary access does not reparse.
+    assert len(storage.read_normalized_track(activity_id)) == 4
+
+    reused = process(runtime, ingestion, reprocess=True)
+    assert reused["activity_id"] == activity_id
+    assert reused["session_id"] == session_id
+    assert len(storage.read_normalized_track(activity_id)) == 4  # Ingestion reuse does not rebuild it.
+
+    updated = reprocess_activity(activity_id, runtime.activities, storage)
+    assert updated.id == activity_id
+    restored = storage.read_normalized_track(activity_id)
+    assert restored["utc"].is_unique
+    assert restored["lat"].tolist() == canonical["lat"].tolist()
     assert len(runtime.activities.all()) == len(runtime.sessions.all()) == 1
