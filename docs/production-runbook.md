@@ -14,7 +14,7 @@ Operational source of truth for the current simple single-VPS TackBar PoC.
 - Frontend build: `/opt/tackbar/frontend/dist`
 - Frontend served by Caddy: `/var/www/tackbar`
 
-Caddy routes `/api/*` to the backend and serves the SPA from `/var/www/tackbar`.
+Caddy routes `/api/*` to the backend and serves the SPA from `/var/www/tackbar`. The `app.tackbar.eu` site block enables response compression (`encode zstd gzip`) for both API and SPA responses; verified on 2026-11-25 (#235).
 
 The current production mailbox provider is OVHcloud Zimbra. Track sharing uses `share@tackbar.eu` and the backend connects over IMAP/TLS to `imap.mail.ovh.net:993`.
 
