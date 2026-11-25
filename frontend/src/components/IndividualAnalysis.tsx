@@ -44,14 +44,23 @@ export function IndividualAnalysisContent({
   playbackTime: number | null
   analysisWindow: AnalysisWindowRange | null
 }) {
+  // Keyed on the canonical track references and the Analysis Window, not on the
+  // `activities` array (rebuilt every render), so replay frames do not recompute
+  // the density (#236.1). The Viewer compares at most two Activities.
+  const primaryCanonicalSamples = activities[0]?.canonicalSamples ?? null
+  const comparisonCanonicalSamples = activities[1]?.canonicalSamples ?? null
+  const hasComparison = activities.length > 1
   const densityPresentation = useMemo(
     () => analysisWindow === null
       ? null
       : buildHeelSogDensityPresentation(
-          activities.map((activity) => activity.canonicalSamples ?? []),
+          (hasComparison
+            ? [primaryCanonicalSamples, comparisonCanonicalSamples]
+            : [primaryCanonicalSamples]
+          ).map((canonicalSamples) => canonicalSamples ?? []),
           analysisWindow,
         ),
-    [activities, analysisWindow],
+    [analysisWindow, comparisonCanonicalSamples, hasComparison, primaryCanonicalSamples],
   )
 
   return (
