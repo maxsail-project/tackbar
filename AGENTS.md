@@ -134,6 +134,14 @@ expressly authorized, including through the Issue-scoped continuous delivery mod
 or release. Never stage broadly with `git add .`, `git add -A` or equivalent; use exact
 intended paths when staging is authorized.
 
+For authorized commits, use an English Conventional Commit subject in the form
+`type(scope): description`, with `Ref: #N` (or `Refs:` for genuinely linked Issues).
+
+Choose a branch strategy for each increment: simple increments may use `main` when
+appropriate; complex or multi-increment work and High-impact work use a dedicated
+`feature/…` or `fix/…` branch. Continuous mode also follows its branch, pull request
+and CI safeguards below. Branch choice does not grant Git authority.
+
 An explicitly invoked Release Preparer for one concrete, already-decided release has only
 the narrow preparation authority in `agents/release-preparer.md` and
 `docs/workflows/release-preparation-workflow.md`, including their evidence-based
@@ -197,9 +205,9 @@ failures, one focused micro-fix per automated failure (each distinct failing CI 
 failing focused-test result) is allowed within the approved scope; stop if the micro-fix
 does not resolve that failure. Never retry in a loop on the same failure.
 
-**Branches.** Simple increments go directly to `main`. Complex work (several increments
-or days) uses a `feature/…` or `fix/…` branch with push CI during the increments. Once
-all increments are validated, open a new pull request only to merge the validated work;
+**Branches.** Apply the branch strategy in Git, release and production safety above.
+For work on a dedicated branch, use push CI during the increments. Once all increments
+on that branch are validated, open a new pull request only to merge the validated work;
 never reopen a closed one. Merge through the pull request only after its run, including
 the quality gate, has passed, then verify the run on `main`. The merged branch is
 deleted automatically.

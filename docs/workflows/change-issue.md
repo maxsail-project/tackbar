@@ -1,6 +1,6 @@
 # Start or resume a TackBar Issue
 
-Use this procedure as an analysis and review assistant for an existing Issue, a partially delivered Issue, a small group of related Issues, or a proposed new Issue. Start with evidence and a recommendation. Invoking this workflow grants no authority to implement, change Issues, use Git, publish, or deploy. The shared method is in the [collaboration playbook](../playbook.md); [AGENTS.md](../../AGENTS.md) governs authority and safeguards.
+Use this procedure as an analysis and review assistant for an existing Issue, a partially delivered Issue, a small group of related Issues, or a proposed new Issue. Invocation starts a read-only analysis checkpoint: report evidence and a recommendation. Implementation or mutations, including Issue changes, Git mutations, publication, or deployment, require explicit authorization. The shared method is in the [collaboration playbook](../playbook.md); [AGENTS.md](../../AGENTS.md) governs authority and safeguards.
 
 ## 1. Reconstruct the actual baseline
 
@@ -22,7 +22,7 @@ For a new or revised Issue, use the current [Product / Engineering Increment for
 
 ## 5. Hand off a defined increment
 
-After the specific delta is approved and the preparation gate passes, write a compact, source-referenced development handoff. Cite the Issue and governing sources; state the increment, verified baseline, delta, critical constraints, authorized documentation, proportional checks, and evidence to report. Include `Impact`, `Recommended development model/tool` with model and effort, `Test strategy`, and `Full regression`, plus a suggested English Conventional Commit with `Ref: #N`. The [playbook](../playbook.md#hand-off-a-bounded-increment) explains the handoff; [AGENTS.md](../../AGENTS.md#issue-scoped-continuous-delivery-mode) owns any binding model and effort requirement in continuous mode. Avoid copying the Issue or prescribing unnecessary internal steps.
+After the specific delta is approved and the preparation gate passes, write a compact, source-referenced development handoff. Cite the Issue and governing sources; state the increment, verified baseline, delta, critical constraints, authorized documentation, delivery mode, branch strategy, Git responsibilities, proportional checks, and evidence to report. Include `Impact`, `Recommended development model/tool` with model and effort, `Test strategy`, and `Full regression`, plus a suggested commit subject and Issue reference following [AGENTS.md](../../AGENTS.md#git-release-and-production-safety). The [playbook](../playbook.md#hand-off-a-bounded-increment) explains the handoff; [AGENTS.md](../../AGENTS.md#issue-scoped-continuous-delivery-mode) owns any binding model and effort requirement in continuous mode. Avoid copying the Issue or prescribing unnecessary internal steps.
 
 ## 6. Respect responsibilities and evidence
 
