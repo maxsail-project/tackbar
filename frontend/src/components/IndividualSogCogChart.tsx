@@ -37,16 +37,23 @@ export const INDIVIDUAL_SOG_COG_CHART_CONFIG = {
 
 type IndividualSignalRange = CogSignalRange
 
-function resolveRange(sogPoints: SogChartPoint[], cogPoints: CogChartPoint[]): IndividualSignalRange | null {
-  const timestamps = [...sogPoints, ...cogPoints].map((point) => point.time)
-  if (timestamps.length === 0) {
+export function resolveRange(sogPoints: SogChartPoint[], cogPoints: CogChartPoint[]): IndividualSignalRange | null {
+  let start = Number.POSITIVE_INFINITY
+  let end = Number.NEGATIVE_INFINITY
+  let count = 0
+  for (const points of [sogPoints, cogPoints]) {
+    for (let index = 0; index < points.length; index += 1) {
+      const time = points[index].time
+      count += 1
+      if (time < start) start = time
+      if (time > end) end = time
+    }
+  }
+  if (count === 0) {
     return null
   }
 
-  return {
-    start: Math.min(...timestamps),
-    end: Math.max(...timestamps),
-  }
+  return { start, end }
 }
 
 function resolveSogMaximum(sogPoints: SogChartPoint[]) {

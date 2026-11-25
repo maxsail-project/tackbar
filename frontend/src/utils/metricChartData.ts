@@ -547,7 +547,7 @@ export function buildSmoothedCogChartPoints(
 
   function finishSegment() {
     if (segment.length === 0) return
-    smoothedPoints.push(...smoothCogSegment(segment))
+    for (const smoothed of smoothCogSegment(segment)) smoothedPoints.push(smoothed)
     segment = []
   }
 
@@ -745,7 +745,7 @@ export function buildSogTrendPoints(points: SogChartPoint[]): SogTrendPoint[] {
 
   function finishSegment() {
     if (segment.length === 0) return
-    trendPoints.push(...smoothSogSegment(segment))
+    for (const smoothed of smoothSogSegment(segment)) trendPoints.push(smoothed)
     segment = []
   }
 

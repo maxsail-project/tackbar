@@ -17,6 +17,7 @@ import {
 } from '../utils/metricChartData'
 import IndividualSogCogChart, {
   INDIVIDUAL_SOG_COG_CHART_CONFIG,
+  resolveRange,
 } from './IndividualSogCogChart'
 
 function sample(
@@ -202,5 +203,19 @@ describe('Individual SOG + COG chart', () => {
     expect(markup).not.toContain('tooltip')
     expect(markup).not.toContain('onPointer')
     expect(markup).not.toContain('touch-action: none')
+  })
+})
+
+describe('resolveRange with large inputs (#233)', () => {
+  it('resolves start and end over 200k+ points without throwing', () => {
+    const size = 200_000
+    const sogPoints = Array.from({ length: size }, (_, index) => ({ time: 1000 + index, sog: 5 }))
+    const cogPoints = Array.from({ length: size }, (_, index) => ({
+      time: 500 + index * 2,
+      cog: 90,
+      kind: 'sample' as const,
+    }))
+    expect(resolveRange(sogPoints, cogPoints)).toEqual({ start: 500, end: 500 + (size - 1) * 2 })
+    expect(resolveRange([], [])).toBeNull()
   })
 })

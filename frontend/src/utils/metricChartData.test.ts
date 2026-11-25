@@ -871,3 +871,29 @@ describe('metric chart paths across gaps (#218)', () => {
     expect(buildTrimChartPoints(cleanTrack).every((point) => point.value !== null)).toBe(true)
   })
 })
+
+describe('large continuous segments (#233)', () => {
+  const size = 200_000
+
+  it('smooths a single continuous SOG segment of 200k points without throwing', () => {
+    const points = Array.from({ length: size }, (_, index) => ({ time: index * 1000, sog: 5 }))
+    const result = buildSogTrendPoints(points)
+    expect(result).toHaveLength(size)
+    expect(result[0].time).toBe(0)
+    expect(result[size - 1].time).toBe((size - 1) * 1000)
+    expect(result.every((point) => point.kind === 'sample')).toBe(true)
+  })
+
+  it('smooths a single continuous COG segment of 200k points without throwing', () => {
+    const points = Array.from({ length: size }, (_, index) => ({
+      time: index * 1000,
+      cog: 90,
+      kind: 'sample' as const,
+    }))
+    const result = buildSmoothedCogChartPoints(points)
+    expect(result).toHaveLength(size)
+    expect(result[0].time).toBe(0)
+    expect(result[size - 1].time).toBe((size - 1) * 1000)
+    expect(result.every((point) => point.kind === 'sample')).toBe(true)
+  })
+})
