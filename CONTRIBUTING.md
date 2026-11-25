@@ -14,6 +14,8 @@ Thanks for your interest. TackBar is an open-source project running a controlled
 
 An Issue's **Status** describes how well defined the work is. It does not mean the work is approved: implementation starts only after the product owner approves it.
 
+For the collaboration method, see the [playbook](docs/playbook.md). To start or resume work on an Issue, follow the [Issue-start workflow](docs/workflows/change-issue.md).
+
 ### Pull requests
 
 Please open or comment on an Issue before starting work, so the scope can be agreed first. A pull request should reference its Issue and stay within the approved scope. Behavior is specified in [`docs/current`](docs/current/index.md); changes that alter it should update the matching document.
@@ -41,6 +43,8 @@ Project questions: [maxsail.project@gmail.com](mailto:maxsail.project@gmail.com)
 3. Los maintainers aplican las etiquetas (una de `group:product`, `group:analytics` o `group:operations`, más `bug` o `research` si corresponde) y el prefijo `[#id]` del título.
 
 El **Status** de un Issue describe lo bien definido que está el trabajo. No significa que esté aprobado: la implementación empieza solo cuando el product owner lo aprueba.
+
+Para conocer el método de colaboración, consulta el [playbook](docs/playbook.md). Para empezar o retomar el trabajo sobre un Issue, sigue el [procedimiento de inicio](docs/workflows/change-issue.md).
 
 ### Pull requests
 

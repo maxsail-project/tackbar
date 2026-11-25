@@ -28,6 +28,11 @@ ordinary feature work. A historical deferred idea or open Issue does not become 
 scope by appearing in a source file. If instructions or material product interpretations
 conflict, stop before implementation and report the conflict.
 
+For Issue analysis or contributor onboarding, [the collaboration playbook](docs/playbook.md)
+explains the shared method and [the Issue-start workflow](docs/workflows/change-issue.md)
+gives the starting procedure. Consult them when relevant; they do not change this
+instruction hierarchy or grant authority.
+
 ## Product and engineering boundaries
 
 - Preserve the validated PoC: track sharing and ingestion, Sailor and optional Boat
