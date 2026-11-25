@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../api/tackbarApi'
@@ -12,6 +12,7 @@ import type { TwdReference } from '../utils/twdReference'
 import type { TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../utils/replay'
+import { calculateSummaryMetrics } from '../utils/summaryMetrics'
 import { startApproachSamples, startTimerActivity } from '../utils/startAnalysisTestFixtures'
 import { SessionViewer } from './SessionViewerPage'
 
@@ -28,7 +29,17 @@ vi.mock('../api/tackbarApi', () => ({
   TemporaryAccessNotFoundError: class extends Error {},
   TemporaryAccessUnavailableError: class extends Error {},
 }))
+vi.mock('../utils/summaryMetrics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/summaryMetrics')>()
+  return { ...actual, calculateSummaryMetrics: vi.fn(actual.calculateSummaryMetrics) }
+})
 let latestHighlights: SelectedManeuverHighlight[] | null = null
+// Every Analysis Window render, to prove no commit pairs the Comparison with a stale window (#236).
+const analysisWindowRenders: {
+  analysisWindow: { start: number, end: number } | null
+  availableRange: { start: number, end: number } | null
+  comparisonSampleCount: number
+}[] = []
 vi.mock('../components/TrackMap', () => ({
   default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset, panelRef }: {
     panelRef?: { current: HTMLDivElement | null },
@@ -72,8 +83,9 @@ vi.mock('../components/ManeuverEventTable', () => ({
 }))
 vi.mock('../components/AnalysisWindow', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../components/AnalysisWindow')>()),
-  default: ({ maneuvers, sessionStarts, sessionRaces = [], analysisWindow, availableRange, onManeuverSelect, onSessionStartSelect, onRangeChange, replay }: {
+  default: ({ maneuvers, sessionStarts, sessionRaces = [], analysisWindow, availableRange, comparisonSamples = [], onManeuverSelect, onSessionStartSelect, onRangeChange, replay }: {
     maneuvers: DisplayManeuver[]
+    comparisonSamples?: unknown[]
     sessionStarts: { label: string, time: number, activityIds: string[] }[]
     sessionRaces?: { label: string, window: { start: number, end: number } }[]
     analysisWindow: { start: number, end: number } | null
@@ -82,7 +94,8 @@ vi.mock('../components/AnalysisWindow', async (importOriginal) => ({
     onSessionStartSelect: (start: { label: string, time: number, activityIds: string[] }) => void
     onRangeChange: (range: { start: number, end: number }) => void
     replay: { playbackTime: number, isPlaying: boolean, speed: PlaybackSpeed, onSpeedChange: (speed: PlaybackSpeed) => void, onTogglePlayback: () => void } | null
-  }) => <section aria-label="Analysis Window test controls" data-window={analysisWindow ? `${analysisWindow.start}:${analysisWindow.end}` : ''} data-playing={replay?.isPlaying}>
+  }) => (analysisWindowRenders.push({ analysisWindow, availableRange, comparisonSampleCount: comparisonSamples.length }),
+  <section aria-label="Analysis Window test controls" data-window={analysisWindow ? `${analysisWindow.start}:${analysisWindow.end}` : ''} data-playing={replay?.isPlaying}>
     {maneuvers.map((event) => <button key={`${event.activityRole}:${event.centerTimeMs}`} type="button" data-marker={event.centerTimeMs} onClick={() => onManeuverSelect(event)}>Timeline event</button>)}
     {sessionStarts.filter((start) => analysisWindow && start.time >= analysisWindow.start && start.time <= analysisWindow.end)
       .map((start) => <button key={start.label} type="button" data-start={start.label} data-start-time={start.time} onClick={() => onSessionStartSelect(start)}>{start.label}</button>)}
@@ -95,7 +108,7 @@ vi.mock('../components/AnalysisWindow', async (importOriginal) => ({
       {PLAYBACK_SPEEDS.map((speed) => <option key={speed} value={speed}>x{speed}</option>)}
     </select>
     <output data-playback-time={replay?.playbackTime} />
-  </section>,
+  </section>),
 }))
 
 const start = Date.UTC(2031, 0, 1, 10)
@@ -1324,5 +1337,111 @@ describe('Viewer selected maneuver interactions', () => {
     expect(afterPrimary).not.toBe(afterComparison)
     await click('[data-change-window]')
     expect(latestHighlights).not.toBe(afterPrimary)
+  })
+})
+
+describe('Single-pass Analysis Window reconciliation (#236)', () => {
+  // C (b) spans +3 s … +13 s, so P∩C is +3 s … +10 s, narrower than P's +0 s … +10 s.
+  const comparisonStart = start + 3_000
+  const sharedRange = { start: comparisonStart, end: start + 10_000 }
+  const windowValue = () => container.querySelector('[data-window]')!.getAttribute('data-window')
+  const playing = () => container.querySelector('[data-window]')!.getAttribute('data-playing')
+  const playbackTime = () => Number(container.querySelector('output[data-playback-time]')!.getAttribute('data-playback-time'))
+  const focusRole = () => container.querySelector('[data-focus-role]')!.getAttribute('data-focus-role')
+  const resetKey = () => container.querySelector<HTMLElement>('[data-viewer-section="maneuver-analysis"]')!.dataset.sectorResetKey
+
+  beforeEach(() => {
+    analysisWindowRenders.length = 0
+    vi.mocked(api.getActivityTrackForAccess).mockImplementation(async (_access, activityId) => {
+      const result = track(activityId)
+      if (activityId === 'b') result.samples = result.samples.map((sample) => ({
+        ...sample, utc: new Date(Date.parse(sample.utc) + 3_000).toISOString(),
+      }))
+      return result
+    })
+  })
+
+  async function mountStrictViewer() {
+    await act(async () => root.render(
+      <StrictMode>
+        <SessionViewer access={{ kind: 'original', token: 'test' }} session={session} />
+      </StrictMode>,
+    ))
+    expect(container.querySelector('[data-marker]')).not.toBeNull()
+  }
+
+  it('never renders the Comparison with an Analysis Window beyond the shared range', async () => {
+    await mountViewer()
+    expect(windowValue()).toBe(`${start}:${start + 10_000}`)
+    // Without StrictMode: the mount trigger plus the arrival of P's range.
+    expect(resetKey()).toBe('a::2')
+    analysisWindowRenders.length = 0
+    await choose('Compare', 'b')
+    const withComparison = analysisWindowRenders.filter(({ comparisonSampleCount }) => comparisonSampleCount > 0)
+    expect(withComparison.length).toBeGreaterThan(0)
+    for (const { analysisWindow, availableRange } of withComparison) {
+      expect(availableRange).toEqual(sharedRange)
+      expect(analysisWindow!.start).toBeGreaterThanOrEqual(sharedRange.start)
+      expect(analysisWindow!.end).toBeLessThanOrEqual(sharedRange.end)
+    }
+    expect(windowValue()).toBe(`${sharedRange.start}:${sharedRange.end}`)
+  })
+
+  it('computes Summary metrics only for the reconciled window on Comparison selection', async () => {
+    await mountViewer()
+    vi.mocked(calculateSummaryMetrics).mockClear()
+    await choose('Compare', 'b')
+    const calls = vi.mocked(calculateSummaryMetrics).mock.calls
+    expect(calls.some(([samples]) => samples[0].utc === new Date(comparisonStart).toISOString())).toBe(true)
+    for (const [, analysisWindow] of calls) expect(analysisWindow).toEqual(sharedRange)
+  })
+
+  it('keeps the reconciliation transitions with one reset-token step per trigger under StrictMode', async () => {
+    await mountStrictViewer()
+    // Two triggers, as without StrictMode: the mount and the arrival of P's range.
+    expect(resetKey()).toBe('a::2')
+    await click('[data-change-window]')
+    expect(windowValue()).toBe(`${start + 1_000}:${start + 9_000}`)
+    expect(resetKey()).toBe('a::3')
+    await click(marker(4))
+    await click(marker(2))
+    expect(selectedTimes()).toEqual(['10:00:02', '10:00:04'])
+    expect(playbackTime()).toBe(start + 2_000)
+    expect(focusRole()).toBe('primary')
+    await click('[data-play-replay]')
+    expect(playing()).toBe('true')
+
+    // Two triggers: the Comparison ID while its track loads, then the arrival of P∩C.
+    await choose('Compare', 'b')
+    // The narrowed window is intersected with P∩C and playback is clamped into it.
+    expect(windowValue()).toBe(`${comparisonStart}:${start + 9_000}`)
+    expect(playbackTime()).toBe(comparisonStart)
+    expect(playing()).toBe('false')
+    expect(selectedTimes()).toEqual(['No latest selection', 'No previous selection'])
+    expect(mapHighlights()).toEqual([])
+    expect(focusRole()).toBe('')
+    expect(resetKey()).toBe('a:b:5')
+
+    // Clearing the Comparison is one trigger; the window inside P is preserved.
+    await choose('Compare', '')
+    expect(windowValue()).toBe(`${comparisonStart}:${start + 9_000}`)
+    expect(playbackTime()).toBe(comparisonStart)
+    expect(resetKey()).toBe('a::6')
+  })
+
+  it('preserves a narrowed window already inside the shared range under StrictMode', async () => {
+    await mountStrictViewer()
+    await click('[data-narrow-window]')
+    expect(windowValue()).toBe(`${start + 7_000}:${start + 10_000}`)
+    expect(playbackTime()).toBe(start + 7_000)
+    const before = resetKey()
+    expect(before).toBe('a::3')
+    await choose('Compare', 'b')
+    expect(windowValue()).toBe(`${start + 7_000}:${start + 10_000}`)
+    expect(playbackTime()).toBe(start + 7_000)
+    expect(playing()).toBe('false')
+    expect(resetKey()).toBe('a:b:5')
+    expect(analysisWindowRenders.every(({ analysisWindow, availableRange, comparisonSampleCount }) => comparisonSampleCount === 0
+      || (analysisWindow!.start >= availableRange!.start && analysisWindow!.end <= availableRange!.end))).toBe(true)
   })
 })
