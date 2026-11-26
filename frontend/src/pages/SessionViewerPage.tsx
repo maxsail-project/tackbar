@@ -1,5 +1,5 @@
 import TackBarBrand from '../components/TackBarBrand'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   ActivityManeuverAnalyticsNotFoundError,
@@ -513,6 +513,54 @@ function activityTrackRange(track: ActivityTrack | null) {
   )
 }
 
+/** Inputs of the last Activity/available-range reconciliation and the state it produced. */
+interface AnalysisWindowReconciliation {
+  availableRange: AnalysisWindowRange | null
+  comparisonActivityId: string | null
+  primaryActivityId: string
+  analysisWindow: AnalysisWindowRange | null
+  playbackTime: number
+  maneuverSelectionHistory: ManeuverSelectionHistory
+  maneuverSectorFilterResetToken: number
+}
+
+/** Same trigger as an effect over these values: the first render and any identity change. */
+function needsAnalysisWindowReconciliation(
+  last: AnalysisWindowReconciliation | null,
+  availableRange: AnalysisWindowRange | null,
+  comparisonActivityId: string | null,
+  primaryActivityId: string,
+) {
+  return last === null
+    || !Object.is(last.availableRange, availableRange)
+    || !Object.is(last.comparisonActivityId, comparisonActivityId)
+    || !Object.is(last.primaryActivityId, primaryActivityId)
+}
+
+function reconcileViewerAnalysisWindow(
+  availableRange: AnalysisWindowRange | null,
+  comparisonActivityId: string | null,
+  primaryActivityId: string,
+  currentWindow: AnalysisWindowRange | null,
+  currentPlaybackTime: number,
+  currentResetToken: number,
+): AnalysisWindowReconciliation {
+  const analysisWindow = availableRange === null
+    ? null
+    : reconcileAnalysisWindow(currentWindow, availableRange)
+  return {
+    availableRange,
+    comparisonActivityId,
+    primaryActivityId,
+    analysisWindow,
+    playbackTime: analysisWindow === null
+      ? 0
+      : clampPlaybackTime(currentPlaybackTime, analysisWindow.start, analysisWindow.end),
+    maneuverSelectionHistory: [null, null],
+    maneuverSectorFilterResetToken: currentResetToken + 1,
+  }
+}
+
 export function SessionViewer({
   access,
   session,
@@ -613,12 +661,58 @@ export function SessionViewer({
     if (comparisonRange === null) return primaryRange
     return intersectAnalysisWindowRanges(primaryRange, comparisonRange)
   }, [comparisonActivityId, comparisonRange, primaryRange])
-  const [analysisWindow, setAnalysisWindow] = useState<AnalysisWindowRange | null>(
+  const [analysisWindowState, setAnalysisWindow] = useState<AnalysisWindowRange | null>(
     primaryRange,
   )
   const [windSegmentFilterResetToken, setWindSegmentFilterResetToken] = useState(0)
   // Bumped on every Analysis Window commit and Activity/available-range reconciliation (#211.1).
-  const [maneuverSectorFilterResetToken, setManeuverSectorFilterResetToken] = useState(0)
+  const [maneuverSectorFilterResetTokenState, setManeuverSectorFilterResetToken] = useState(0)
+  const [playbackTimeState, setPlaybackTime] = useState(analysisWindowState?.start ?? 0)
+  const [maneuverSelectionHistoryState, setManeuverSelectionHistory] = useState<ManeuverSelectionHistory>([null, null])
+  const [mapFocusRequest, setMapFocusRequest] = useState<MapFocusRequest | null>(null)
+  // Activity/available-range reconciliation (#236): adjusted during render, before any window-
+  // dependent computation, so no commit shows the new selection with the previous window.
+  const [lastReconciliation, setLastReconciliation] = useState<AnalysisWindowReconciliation | null>(null)
+  const pendingReconciliation = needsAnalysisWindowReconciliation(
+    lastReconciliation,
+    availableRange,
+    comparisonActivityId,
+    primaryActivityId,
+  )
+    ? reconcileViewerAnalysisWindow(
+        availableRange,
+        comparisonActivityId,
+        primaryActivityId,
+        analysisWindowState,
+        playbackTimeState,
+        maneuverSectorFilterResetTokenState,
+      )
+    : null
+  if (pendingReconciliation !== null) {
+    // Absolute values derived from this render's state keep the update idempotent when
+    // StrictMode renders twice: one trigger always advances the token by exactly one.
+    setLastReconciliation(pendingReconciliation)
+    setIsPlaying(false)
+    setMapFocusRequest(null)
+    setManeuverSelectionHistory(pendingReconciliation.maneuverSelectionHistory)
+    setManeuverSectorFilterResetToken(pendingReconciliation.maneuverSectorFilterResetToken)
+    setAnalysisWindow(pendingReconciliation.analysisWindow)
+    setPlaybackTime(pendingReconciliation.playbackTime)
+  }
+  // The rest of this pass already reads the reconciled values, so memoized results computed
+  // here are reused unchanged by React's immediate re-render.
+  const analysisWindow = pendingReconciliation === null
+    ? analysisWindowState
+    : pendingReconciliation.analysisWindow
+  const playbackTime = pendingReconciliation === null
+    ? playbackTimeState
+    : pendingReconciliation.playbackTime
+  const maneuverSelectionHistory = pendingReconciliation === null
+    ? maneuverSelectionHistoryState
+    : pendingReconciliation.maneuverSelectionHistory
+  const maneuverSectorFilterResetToken = pendingReconciliation === null
+    ? maneuverSectorFilterResetTokenState
+    : pendingReconciliation.maneuverSectorFilterResetToken
   const windowStart = analysisWindow?.start ?? null
   const windowEnd = analysisWindow?.end ?? null
   // Gaps of the full canonical tracks, so a window boundary inside a gap still sees it (#218 D4).
@@ -682,14 +776,17 @@ export function SessionViewer({
       : null,
     [analysisWindow, comparisonTrack, comparisonWindowSamples],
   )
-  const [playbackTime, setPlaybackTime] = useState(windowStart ?? 0)
-  const [maneuverSelectionHistory, setManeuverSelectionHistory] = useState<ManeuverSelectionHistory>([null, null])
   const playbackTimeRef = useRef(playbackTime)
   const mapFocusRequestIdRef = useRef(0)
   const mapPanelRef = useRef<HTMLElement>(null)
-  const [mapFocusRequest, setMapFocusRequest] = useState<MapFocusRequest | null>(null)
   const analysisWindowRef = useRef(analysisWindow)
   const speedRef = useRef(speed)
+  // Refs follow a reconciliation in its own commit, before replay frames or handlers read them.
+  useLayoutEffect(() => {
+    if (lastReconciliation === null) return
+    analysisWindowRef.current = lastReconciliation.analysisWindow
+    playbackTimeRef.current = lastReconciliation.playbackTime
+  }, [lastReconciliation])
   const primaryReplayPresentation = useMemo(
     () => resolveReplayPresentation(
       primaryWindowSamples,
@@ -932,27 +1029,6 @@ export function SessionViewer({
       setIsPlaying(false)
     }
   }, [primaryTrackState.status])
-
-  useEffect(() => {
-    const nextWindow = availableRange === null
-      ? null
-      : reconcileAnalysisWindow(analysisWindowRef.current, availableRange)
-    const nextPlaybackTime = nextWindow === null
-      ? 0
-      : clampPlaybackTime(
-          playbackTimeRef.current,
-          nextWindow.start,
-          nextWindow.end,
-        )
-    setIsPlaying(false)
-    setMapFocusRequest(null)
-    setManeuverSelectionHistory([null, null])
-    setManeuverSectorFilterResetToken((token) => token + 1)
-    setAnalysisWindow(nextWindow)
-    analysisWindowRef.current = nextWindow
-    setPlaybackTime(nextPlaybackTime)
-    playbackTimeRef.current = nextPlaybackTime
-  }, [availableRange, comparisonActivityId, primaryActivityId])
 
   useEffect(() => {
     if (!isPlaying || windowStart === null || windowEnd === null) return
