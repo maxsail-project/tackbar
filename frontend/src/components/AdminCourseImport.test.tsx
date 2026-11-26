@@ -11,6 +11,9 @@ vi.mock('../api/adminApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../api/adminApi')>(),
   createGeoRacingCourseDraft: vi.fn(),
   validateCourse: vi.fn(),
+  attachSessionCourse: vi.fn(),
+  listSessionCourses: vi.fn(),
+  suggestSessionCourseGun: vi.fn(),
 }))
 vi.mock('./CourseMapPreview', () => ({
   default: ({ course, gunUtc }: { course: { elements: unknown[], start_line: unknown }, gunUtc: string | null }) =>
@@ -20,12 +23,23 @@ vi.mock('./CourseMapPreview', () => ({
 let container: HTMLDivElement
 let root: Root
 const onUnauthorized = vi.fn()
+const confirm = vi.fn(() => true)
+const sessions = [
+  { id: 'session-old', created_at: '2031-01-01T00:00:00Z', expires_at: '2031-12-01T00:00:00Z', total_activity_count: 1, visible_activity_count: 1,
+    sailor_count: 1, capability_state: 'active', sailing_start: '2031-01-01T10:00:00Z', sailing_end: '2031-01-01T11:00:00Z',
+    location_label: 'Elsewhere', location_country: null },
+  { id: 'session-race', created_at: '2031-03-14T00:00:00Z', expires_at: '2031-12-01T00:00:00Z', total_activity_count: 4, visible_activity_count: 4,
+    sailor_count: 4, capability_state: 'active', sailing_start: '2031-03-14T09:50:00Z', sailing_end: '2031-03-14T11:10:00Z',
+    location_label: 'Rio de Janeiro', location_country: 'Brazil' },
+] as never[]
 const originalTz = process.env.TZ
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
   vi.mocked(api.createGeoRacingCourseDraft).mockResolvedValue(courseDraftFixture())
+  vi.mocked(api.listSessionCourses).mockResolvedValue({ courses: [] })
+  confirm.mockReturnValue(true)
 })
 afterEach(async () => {
   await act(async () => root.unmount()); container.remove(); vi.clearAllMocks(); vi.unstubAllGlobals()
@@ -55,13 +69,13 @@ const labelled = (scope: ParentNode, text: string) =>
   [...scope.querySelectorAll('label')].find((item) => item.textContent?.startsWith(text))!.querySelector('input, select') as HTMLInputElement
 
 async function renderTool() {
-  await act(async () => root.render(<AdminCourseImport adminKey="key" onUnauthorized={onUnauthorized} />))
+  await act(async () => root.render(<AdminCourseImport adminKey="key" sessions={sessions} onUnauthorized={onUnauthorized} confirm={confirm} />))
 }
 async function upload(name = 'Synthetic Race 7_elements.gpx') {
   await renderTool()
   const input = query<HTMLInputElement>('input[type="file"]')!
   await act(async () => {
-    Object.defineProperty(input, 'files', { value: [new File(['<gpx/>'], name)], configurable: true })
+    Object.defineProperty(input, 'files', { value: [new File(['<gpx>elements</gpx>'], name)], configurable: true })
     input.dispatchEvent(new Event('change', { bubbles: true }))
   })
   await act(async () => query<HTMLFormElement>('form[aria-label="Import GeoRacing course"]')!.requestSubmit())
@@ -169,7 +183,7 @@ describe('Admin Courses tool', () => {
     await press(button('Validate course'))
     expect(container.textContent).toContain('The course is not valid:')
     expect(container.textContent).toContain('race: race gun_utc must lie within time_range')
-    expect(container.textContent).not.toContain('Download course JSON')
+    expect([...container.querySelectorAll('button')].some((item) => item.textContent === 'Download course JSON')).toBe(false)
   })
 
   it('downloads the validated course JSON named after the race label', async () => {
@@ -187,6 +201,72 @@ describe('Admin Courses tool', () => {
     expect(JSON.parse(await blob.text())).toMatchObject({ course_id: 'c-1', race: { label: 'Race 1 - Group D' } })
     // Any further edit invalidates the validated result.
     await type(labelled(container, 'Race label'), 'Race 2')
-    expect(container.textContent).not.toContain('Download course JSON')
+    expect([...container.querySelectorAll('button')].some((item) => item.textContent === 'Download course JSON')).toBe(false)
+  })
+
+  it('lists Sessions overlapping the course first and attaches the reviewed course with its original bytes', async () => {
+    vi.mocked(api.attachSessionCourse).mockImplementation(async (_key, _session, _name, course) => ({ course: { ...course, course_id: 'c-1' }, replaced_course_ids: [] }))
+    await upload()
+    const picker = labelled(container, 'Session') as unknown as HTMLSelectElement
+    expect([...picker.options].map((option) => option.textContent)).toEqual([
+      'Select a Session',
+      'Rio de Janeiro, Brazil · 2031-03-14 09:50–11:10 UTC · 4 Activities',
+      'Elsewhere · 2031-01-01 10:00–11:00 UTC · 1 Activities',
+    ])
+    expect(button('Attach to Session').disabled).toBe(true)
+    await choose(picker, 'session-race')
+    expect(api.listSessionCourses).toHaveBeenCalledWith('key', 'session-race')
+    await press(button('Attach to Session'))
+    await vi.waitFor(() => expect(api.attachSessionCourse).toHaveBeenCalled())
+    const [key, sessionId, filename, course, original] = vi.mocked(api.attachSessionCourse).mock.calls[0]
+    expect([key, sessionId, filename]).toEqual(['key', 'session-race', 'Synthetic Race 7_elements.gpx'])
+    expect(atob(original)).toBe('<gpx>elements</gpx>')
+    expect(course.source.sha256).toBe('0'.repeat(64))
+    expect(confirm).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(container.textContent).toContain('Attached \u201cSynthetic Race 7\u201d to Rio de Janeiro, Brazil'))
+    // Download stays available as a secondary option (D9).
+    expect(button('Validate course').className).not.toContain('admin-primary')
+    expect(button('Attach to Session').className).toContain('admin-primary')
+  })
+
+  it('asks before replacing an overlapping course and attaches nothing when declined', async () => {
+    vi.mocked(api.listSessionCourses).mockResolvedValue({ courses: [{
+      course_id: 'old', available: true, race_label: 'Race 7 (first import)', time_range: { from: '2031-03-14T10:10:00Z', to: '2031-03-14T10:50:00Z' },
+      gun_utc: null, source_filename: 'old.gpx', imported_at: '2031-03-14T12:00:00Z', element_count: 4,
+    }] })
+    confirm.mockReturnValue(false)
+    await upload()
+    await choose(labelled(container, 'Session') as unknown as HTMLSelectElement, 'session-race')
+    expect(container.textContent).toContain('Already attached: Race 7 (first import)')
+    await press(button('Attach to Session'))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Replace Race 7 (first import) in this Session?'))
+    expect(api.attachSessionCourse).not.toHaveBeenCalled()
+  })
+
+  it('shows attach errors readably', async () => {
+    vi.mocked(api.attachSessionCourse).mockRejectedValueOnce(new api.AdminApiError(422, undefined, 'The uploaded original is not the file this course was reviewed from'))
+    await upload()
+    await choose(labelled(container, 'Session') as unknown as HTMLSelectElement, 'session-race')
+    await press(button('Attach to Session'))
+    await vi.waitFor(() => expect(container.textContent).toContain('The course could not be attached:'))
+    expect(container.textContent).toContain('The uploaded original is not the file this course was reviewed from')
+  })
+
+  it('shows a gun suggestion that the Admin may apply, and an explicit no-crossing result', async () => {
+    vi.mocked(api.suggestSessionCourseGun).mockResolvedValueOnce({ suggestion: {
+      gun_utc: '2031-03-14T10:05:20Z', crossing_utc: '2031-03-14T10:05:19.600Z', activity_id: 'a-1', basis: 'earliest_start_line_crossing',
+    } })
+    await upload()
+    expect(button('Suggest gun').disabled).toBe(true)
+    await choose(labelled(container, 'Session') as unknown as HTMLSelectElement, 'session-race')
+    await press(button('Suggest gun'))
+    expect(api.suggestSessionCourseGun).toHaveBeenCalledWith('key', 'session-race', expect.objectContaining({ race: expect.objectContaining({ gun_utc: null }) }))
+    expect(container.textContent).toContain('Suggested gun: 2031-03-14 10:05:20 UTC')
+    expect(labelled(container, 'Gun').value).toBe('')
+    await press(button('Use as gun'))
+    expect(labelled(container, 'Gun').value).toBe('2031-03-14 10:05:20')
+    vi.mocked(api.suggestSessionCourseGun).mockResolvedValueOnce({ suggestion: null })
+    await press(button('Suggest gun'))
+    expect(container.textContent).toContain('No start-line crossing was found in the course time range.')
   })
 })

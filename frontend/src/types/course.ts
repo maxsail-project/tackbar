@@ -78,3 +78,29 @@ export interface CourseImportDraft {
   tracks: CourseDraftTrack[]
   suggested_course: ReviewedCourse
 }
+
+/** Shared-read course context (#242 D7): no content hash or stored paths. */
+export interface PublicCourseContext extends Omit<CourseContextV1, 'source'> {
+  source: Omit<CourseSource, 'sha256'>
+}
+
+export interface SessionCourses { courses: PublicCourseContext[] }
+
+/** Admin summary of a course attached to a Session. */
+export interface AttachedCourseSummary {
+  course_id: string
+  available: boolean
+  race_label: string | null
+  time_range: CourseTimeRange | null
+  gun_utc: string | null
+  source_filename: string | null
+  imported_at: string | null
+  element_count: number | null
+}
+
+export interface CourseGunSuggestion {
+  gun_utc: string
+  crossing_utc: string
+  activity_id: string
+  basis: 'earliest_start_line_crossing'
+}

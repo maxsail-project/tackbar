@@ -8,6 +8,7 @@ import {
   getActivityManeuversForAccess,
   getActivityTrackForAccess,
   getSessionForAccess,
+  getSessionCoursesForAccess,
   getSessionRaceTimerEventsForAccess,
   SessionNotFoundError,
   TemporaryAccessExpiredError,
@@ -103,6 +104,7 @@ import { inferSessionRaces } from '../utils/sessionRaces'
 import { inferSessionStartLines, visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
 import { deriveStartAnalysisRows } from '../utils/startAnalysis'
 import { prefersReducedMotion, revealMapIfNeeded } from '../utils/mapReveal'
+import type { PublicCourseContext } from '../types/course'
 
 function useSessionRaceTimerEvents(access: SessionAccess) {
   const accessKey = `${access.kind}:${access.token}`
@@ -130,6 +132,31 @@ function useSessionRaceTimerEvents(access: SessionAccess) {
   }, [access.kind, access.token, accessKey])
 
   return state.accessKey === accessKey && state.status === 'ready' ? state.data : null
+}
+
+const NO_SESSION_COURSES: PublicCourseContext[] = []
+
+/** Session course contexts (#242); any failure leaves the Viewer without courses. */
+function useSessionCourses(access: SessionAccess): PublicCourseContext[] {
+  const accessKey = `${access.kind}:${access.token}`
+  const [state, setState] = useState<{ accessKey: string, courses: PublicCourseContext[] }>({ accessKey, courses: NO_SESSION_COURSES })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let current = true
+    setState({ accessKey, courses: NO_SESSION_COURSES })
+    getSessionCoursesForAccess(access, controller.signal).then((data) => {
+      if (current) setState({ accessKey, courses: data.courses })
+    }).catch(() => {
+      if (current) setState({ accessKey, courses: NO_SESSION_COURSES })
+    })
+    return () => {
+      current = false
+      controller.abort()
+    }
+  }, [access.kind, access.token, accessKey])
+
+  return state.accessKey === accessKey ? state.courses : NO_SESSION_COURSES
 }
 
 type TrackLoadStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error'
@@ -583,6 +610,7 @@ export function SessionViewer({
   const trackCache = useRef(new Map<string, ActivityTrack>()).current
   const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
   const sessionRaceTimerEvents = useSessionRaceTimerEvents(access)
+  const sessionCourses = useSessionCourses(access)
   const sessionStarts = useMemo(
     () => sessionRaceTimerEvents ? inferSessionStarts(sessionRaceTimerEvents.activities) : [],
     [sessionRaceTimerEvents],
@@ -1285,6 +1313,7 @@ export function SessionViewer({
           comparisonVisibleSamples={comparisonWindowSamples}
           contextualActivities={contextualMapActivities}
           sessionStartLines={analysisWindow ? visibleDeduplicatedSessionStartLines(sessionStartLines, analysisWindow) : []}
+          courses={sessionCourses}
           fitContextKey={createMapFitContextKey(
             primaryTrack.activity_id,
             comparisonTrack?.activity_id ?? null,

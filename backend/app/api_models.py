@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.course.schema import PublicCourseContext
+
 
 class SailorContextResponse(BaseModel):
     id: str
@@ -171,3 +173,9 @@ class ActivityManeuverAnalyticsResponse(BaseModel):
     signal_basis: list[Literal["hdg", "cog", "heel", "sog"]]
     reason: str | None = None
     maneuvers: list[ManeuverResponse]
+
+
+class SharedSessionCoursesResponse(BaseModel):
+    """Session course contexts for a shared capability (#242 D7)."""
+
+    courses: list[PublicCourseContext]

@@ -1,5 +1,5 @@
 import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary } from '../types/admin'
-import type { CourseContextV1, CourseImportDraft, ReviewedCourse } from '../types/course'
+import type { AttachedCourseSummary, CourseContextV1, CourseGunSuggestion, CourseImportDraft, ReviewedCourse } from '../types/course'
 
 export type IngestionStatusFilter = 'all' | AdminIngestion['status']
 export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
@@ -108,3 +108,13 @@ export const createGeoRacingCourseDraft = (key: string, file: File) =>
   adminRequest<CourseImportDraft>(`/api/admin/course-imports/georacing/draft?${new URLSearchParams({ filename: file.name })}`, key, 'POST', file)
 export const validateCourse = (key: string, course: ReviewedCourse) =>
   adminRequest<{ course: CourseContextV1 }>('/api/admin/course-imports/validate', key, 'POST', course)
+export const listSessionCourses = (key: string, sessionId: string) =>
+  adminRequest<{ courses: AttachedCourseSummary[] }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses`, key)
+export const attachSessionCourse = (key: string, sessionId: string, filename: string, course: ReviewedCourse, originalBase64: string) =>
+  adminRequest<{ course: CourseContextV1; replaced_course_ids: string[] }>(
+    `/api/admin/sessions/${encodeURIComponent(sessionId)}/courses?${new URLSearchParams({ filename })}`,
+    key, 'POST', { course, original_base64: originalBase64 })
+export const detachSessionCourse = (key: string, sessionId: string, courseId: string) =>
+  adminRequest<{ courses: AttachedCourseSummary[] }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/${encodeURIComponent(courseId)}/detach`, key, 'POST')
+export const suggestSessionCourseGun = (key: string, sessionId: string, course: ReviewedCourse) =>
+  adminRequest<{ suggestion: CourseGunSuggestion | null }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/gun-suggestion`, key, 'POST', course)

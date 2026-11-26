@@ -215,6 +215,32 @@ class CourseContextV1(_CourseBody):
     course_id: UUID
 
 
+class PublicCourseSource(_Strict):
+    """Shared-read provenance: no content hash and no stored paths (#242 D7)."""
+
+    kind: SourceKind
+    filename: Annotated[
+        str,
+        StringConstraints(min_length=1, max_length=MAX_FILENAME_LENGTH, pattern=_NO_CONTROL),
+    ]
+    imported_at: UtcDatetime
+
+
+class PublicCourseContext(_CourseBody):
+    """A Session course context as exposed to shared Session capabilities."""
+
+    course_id: UUID
+    source: PublicCourseSource
+
+
+def public_course(course: CourseContextV1) -> PublicCourseContext:
+    payload = course.model_dump(by_alias=True)
+    payload["source"] = {
+        key: payload["source"][key] for key in ("kind", "filename", "imported_at")
+    }
+    return PublicCourseContext.model_validate(payload)
+
+
 def course_json(course: CourseContextV1) -> dict:
     """Canonical JSON form: aliases (``from``), UTC ``Z`` timestamps."""
     return course.model_dump(mode="json", by_alias=True)

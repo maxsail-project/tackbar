@@ -24,6 +24,8 @@ import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import type { ManeuverActivityRole } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import type { SessionStartLine } from '../utils/sessionStartLines'
+import { COURSE_LINE_COLOR } from '../config/courseColors'
+import { courseStateAt, type CourseShape } from '../utils/courseState'
 import type { TwdReference } from '../utils/twdReference'
 import { resolveGestureTwd, type TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
@@ -55,6 +57,8 @@ interface TrackMapProps {
   comparisonVisibleSamples?: TrackSample[]
   contextualActivities?: ContextualMapActivity[]
   sessionStartLines?: SessionStartLine[]
+  /** Session course contexts (#242): elements and lines valid at `playbackTime` are drawn. */
+  courses?: (CourseShape & { course_id: string })[]
   fitContextKey: string
   focusRequest?: MapFocusRequest | null
   selectedManeuverHighlights?: SelectedManeuverHighlight[]
@@ -504,11 +508,14 @@ export function mapWeatherDetailDismissHandlers(onDismiss: () => void, onTwdDism
   }
 }
 
+const NO_COURSES: (CourseShape & { course_id: string })[] = []
+
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
   contextualActivities = [],
   sessionStartLines = [],
+  courses = NO_COURSES,
   fitContextKey,
   focusRequest = null,
   selectedManeuverHighlights = [],
@@ -544,6 +551,10 @@ export default function TrackMap({
   panelRef,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
+  const courseStates = useMemo(
+    () => courses.map((course) => ({ courseId: course.course_id, state: courseStateAt(course, playbackTime) })),
+    [courses, playbackTime],
+  )
   const ownMapPanelRef = useRef<HTMLElement>(null)
   const mapPanelRef = panelRef ?? ownMapPanelRef
   const committedBearing = twdPresentation.bearing
@@ -841,6 +852,23 @@ export default function TrackMap({
             <span className="session-start-line-endpoint" role="img" aria-label={`${label} Session start line endpoint`}>{label}</span>
           </Marker>
         ))}
+        {courseStates.flatMap(({ courseId, state }) => [
+          ...(state.startLine ? [{ kind: 'start', line: state.startLine }] : []),
+          ...(state.finishLine ? [{ kind: 'finish', line: state.finishLine }] : []),
+        ].map(({ kind, line }) => (
+          <Source key={`course-${kind}-line-${courseId}`} id={`course-${kind}-line-${courseId}`} type="geojson" data={{
+            type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[line.pin.lon, line.pin.lat], [line.boat.lon, line.boat.lat]] },
+          }}>
+            <Layer id={`course-${kind}-line-layer-${courseId}`} type="line" layout={TRACK_LAYOUT}
+              paint={{ 'line-color': COURSE_LINE_COLOR, 'line-opacity': 0.85, 'line-width': 2.5, ...(kind === 'finish' ? { 'line-dasharray': [2, 1.5] } : {}) }} />
+          </Source>
+        )))}
+        {courseStates.flatMap(({ courseId, state }) => state.elements.map((element) => (
+          <Marker key={`course-element-${courseId}-${element.id}`} longitude={element.lon} latitude={element.lat} anchor="center" style={{ zIndex: 2 }}>
+            <span className="session-start-line-endpoint course-element-label" data-role={element.role}
+              style={{ background: element.color }} role="img" aria-label={`${element.label} course element`}>{element.label}</span>
+          </Marker>
+        )))}
         {contextualGeometries.map(({ activity, geometry }) => geometry && (
           <Source
             key={activity.id}

@@ -25,6 +25,7 @@ from app.services.runtime_maintenance import (
     RuntimeMutationPreflightError,
     preflight_runtime_mutation,
 )
+from app.storage.course_storage import CourseStorage, canonical_course_id
 from app.storage.track_storage import TrackStorage
 
 
@@ -76,6 +77,8 @@ class SailorDeletionPlan:
     ingestion_original_ids: tuple[str, ...]
     deleted_session_ids: tuple[str, ...]
     retained_session_updates: tuple[RetainedSessionUpdate, ...]
+    # Issue #242 D11: course contexts owned by deleted Sessions.
+    deleted_course_context_ids: tuple[str, ...]
     warnings: tuple[str, ...]
     _original_bytes: dict[str, bytes | None] = field(
         repr=False,
@@ -99,6 +102,11 @@ class SailorDeletionPlan:
         compare=False,
     )
     _ingestion_original_directories: tuple[Path, ...] = field(
+        repr=False,
+        compare=False,
+    )
+    _course_context_paths: tuple[Path, ...] = field(repr=False, compare=False)
+    _course_original_directories: tuple[Path, ...] = field(
         repr=False,
         compare=False,
     )
@@ -206,6 +214,37 @@ def plan_sailor_deletion(
         retained_updates.append(
             RetainedSessionUpdate(session.id, removed, remaining)
         )
+
+    deleted_session_id_set = set(deleted_session_ids)
+    deleted_course_ids: list[str] = []
+    retained_course_ids: set[str] = set()
+    for session in state.sessions:
+        if session.id in deleted_session_id_set:
+            deleted_course_ids.extend(session.course_context_ids)
+        else:
+            retained_course_ids.update(session.course_context_ids)
+    if set(deleted_course_ids) & retained_course_ids:
+        raise SailorDeletionError(
+            "Deleted and retained Sessions share one course context"
+        )
+    course_storage = CourseStorage(root)
+    course_context_paths: list[Path] = []
+    course_original_directories: list[Path] = []
+    for course_id in dict.fromkeys(deleted_course_ids):
+        try:
+            canonical_course_id(course_id)
+        except ValueError as error:
+            raise SailorDeletionError(
+                "Unsafe course context reference in a deleted Session"
+            ) from error
+        context_path = course_storage.context_path(course_id)
+        lock_path = course_storage.context_lock_path(course_id)
+        original_directory = course_storage.original_directory(course_id)
+        _validate_deletion_path(context_path, root, expected_kind="file")
+        _validate_deletion_path(lock_path, root, expected_kind="file")
+        _validate_deletion_path(original_directory, root, expected_kind="directory")
+        course_context_paths.extend((context_path, lock_path))
+        course_original_directories.append(original_directory)
 
     updated_records = {
         **state.records,
@@ -329,6 +368,7 @@ def plan_sailor_deletion(
         ingestion_original_ids=tuple(ingestion_original_ids),
         deleted_session_ids=tuple(deleted_session_ids),
         retained_session_updates=tuple(retained_updates),
+        deleted_course_context_ids=tuple(dict.fromkeys(deleted_course_ids)),
         warnings=tuple(warnings),
         _original_bytes=state.original_bytes,
         _updated_records=updated_records,
@@ -339,6 +379,8 @@ def plan_sailor_deletion(
         _ingestion_original_directories=tuple(
             sorted(ingestion_original_directories, key=str)
         ),
+        _course_context_paths=tuple(course_context_paths),
+        _course_original_directories=tuple(course_original_directories),
     )
 
 
@@ -404,6 +446,12 @@ def apply_sailor_deletion(plan: SailorDeletionPlan) -> SailorDeletionResult:
                         "Ingestion original directory retained because it "
                         f"contains unreferenced files: {original_directory.name}"
                     )
+        for context_path in plan._course_context_paths:
+            if context_path.exists():
+                context_path.unlink()
+        for original_directory in plan._course_original_directories:
+            if original_directory.exists():
+                shutil.rmtree(original_directory)
     except OSError as error:
         raise SailorDeletionError(
             "Metadata was updated, but target-owned filesystem cleanup failed"
@@ -424,9 +472,14 @@ def _sailor_deletion_mutation_paths(
         *plan._activity_original_directories,
         *plan._ingestion_original_paths,
         *plan._ingestion_original_directories,
+        *plan._course_context_paths,
+        *plan._course_original_directories,
     ]
     try:
-        for directory in plan._activity_original_directories:
+        for directory in (
+            *plan._activity_original_directories,
+            *plan._course_original_directories,
+        ):
             if directory.exists():
                 mutation_paths.extend(directory.rglob("*"))
     except OSError as error:
@@ -486,6 +539,10 @@ def format_sailor_deletion_report(
             f"  KEEP SESSION {update.session_id} / "
             f"REMOVE TARGET ACTIVITIES {removed}"
         )
+    lines.append(_identified_count(
+        "Course contexts of deleted Sessions",
+        plan.deleted_course_context_ids,
+    ))
     lines.append("Boats: unchanged")
     report_warnings = plan.warnings if warnings is None else warnings
     if report_warnings:
@@ -837,6 +894,11 @@ def _verify_post_deletion(
         raise SailorDeletionError("Target Activity original remains after deletion")
     if any(path.exists() for path in plan._ingestion_original_paths):
         raise SailorDeletionError("Target ingestion original remains after deletion")
+    if any(
+        path.exists()
+        for path in (*plan._course_context_paths, *plan._course_original_directories)
+    ):
+        raise SailorDeletionError("Deleted Session course context remains after deletion")
 
 
 def _restore_metadata(

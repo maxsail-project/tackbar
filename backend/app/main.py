@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from starlette.concurrency import run_in_threadpool
 
 from app.admin_course_routes import router as admin_course_router
+from app.admin_course_routes import session_router as admin_session_course_router
 from app.admin_routes import router as admin_router
 from app.personal_context_routes import router as personal_context_router
 from app.consent_api_models import PublicConsentResponse
@@ -10,6 +11,7 @@ from app.api_models import (
     ActivityManeuverAnalyticsResponse,
     ActivityTrackResponse,
     SharedSessionDetailResponse,
+    SharedSessionCoursesResponse,
     SharedSessionRaceTimerEventsResponse,
     TemporarySessionShareResponse,
     TemporarySharedSessionDetailResponse,
@@ -45,7 +47,9 @@ from app.services.shared_session_reader import (
     SharedSessionReader,
 )
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
+from app.storage.course_storage import CourseStorage
 from app.storage.track_storage import TrackStorage
+from app.services.session_courses import SessionCourseService
 from app.personal_api_models import PersonalTackBarResponse
 from app.services.personal_capabilities import PersonalCapabilityService
 from app.services.personal_reader import PersonalReader
@@ -73,6 +77,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="TackBar API", version="0.1.0", lifespan=lifespan)
 app.include_router(admin_router)
 app.include_router(admin_course_router)
+app.include_router(admin_session_course_router)
 app.include_router(personal_context_router)
 
 
@@ -187,6 +192,24 @@ def get_shared_race_timer_events(
     return events
 
 
+@app.get(
+    "/api/shared/sessions/{token}/courses",
+    response_model=SharedSessionCoursesResponse,
+)
+def get_shared_session_courses(token: str) -> SharedSessionCoursesResponse:
+    try:
+        courses = _shared_session_reader().get_courses(token)
+    except (
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise _integrity_error() from error
+    if courses is None:
+        raise _session_not_found()
+    return courses
+
+
 @app.post(
     "/api/shared/sessions/{token}/temporary-share",
     response_model=TemporarySessionShareResponse,
@@ -285,6 +308,39 @@ def get_temporary_shared_race_timer_events(
     if events is None:
         raise _temporary_share_not_found()
     return events
+
+
+@app.get(
+    "/api/temporary/sessions/{token}/courses",
+    response_model=SharedSessionCoursesResponse,
+)
+def get_temporary_shared_session_courses(
+    token: str,
+    response: Response,
+) -> SharedSessionCoursesResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        resolution = _resolve_temporary_share(token)
+        if resolution.session is None:
+            raise ValueError("Valid temporary share resolution is incomplete")
+        courses = _shared_session_reader().get_courses_for_resolved(
+            resolution.session
+        )
+    except HTTPException:
+        raise
+    except (
+        SessionDataIntegrityError,
+        SessionCapabilityIntegrityError,
+        ValueError,
+    ) as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Persisted Session data is inconsistent",
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    if courses is None:
+        raise _temporary_share_not_found()
+    return courses
 
 
 @app.get(
@@ -444,6 +500,7 @@ def _shared_session_reader() -> SharedSessionReader:
         ActivityTrackReader(activities, sailors, track_storage),
         track_storage,
         ManeuverAnalyticsStorage(),
+        SessionCourseService(sessions, CourseStorage()),
     )
 
 

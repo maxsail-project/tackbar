@@ -21,6 +21,7 @@ vi.mock('../api/tackbarApi', () => ({
   getActivityManeuversForAccess: vi.fn(),
   getSessionForAccess: vi.fn(),
   getSessionRaceTimerEventsForAccess: vi.fn(),
+  getSessionCoursesForAccess: vi.fn(),
   createTemporarySessionShare: vi.fn(),
   ActivityTrackNotFoundError: class extends Error {},
   ActivityManeuverAnalyticsNotFoundError: class extends Error {},
@@ -41,8 +42,9 @@ const analysisWindowRenders: {
   comparisonSampleCount: number
 }[] = []
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset, panelRef }: {
+  default: ({ courses = [], selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset, panelRef }: {
     panelRef?: { current: HTMLDivElement | null },
+    courses?: { course_id: string }[],
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
     focusRequest: { activityRole: string, requestId: number } | null,
     historicalConditionsSample: HistoricalConditionsSample | null,
@@ -53,7 +55,7 @@ vi.mock('../components/TrackMap', () => ({
   }) => {
     latestHighlights = selectedManeuverHighlights
     return (
-    <div ref={panelRef} data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
+    <div ref={panelRef} data-map-courses={courses.map((course) => course.course_id).join(',')} data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
       <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
       <button data-tws-minus onClick={() => onTwsStep(-1)}>−1 kt</button><button data-tws-plus onClick={() => onTwsStep(1)}>+1 kt</button><button data-tws-reset onClick={onTwsReset}>Reset TWS</button>
       {selectedManeuverHighlights.map((highlight) =>
@@ -209,6 +211,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.mocked(api.getActivityTrackForAccess).mockImplementation(async (_access, activityId) => track(activityId))
   vi.mocked(api.getActivityManeuversForAccess).mockImplementation(async (_access, activityId) => analytics(activityId))
+  vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [] })
   vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
     { activity_id: 'a', race_timer_events: [{ timestamp: new Date(start + 5_000).toISOString(), event_type: 3 }], line_positions: [] },
     { activity_id: 'b', race_timer_events: [{ timestamp: new Date(start + 5_500).toISOString(), event_type: 3 }], line_positions: [] },
@@ -856,6 +859,21 @@ describe('Viewer selected maneuver interactions', () => {
     expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
     expect(api.getSessionRaceTimerEventsForAccess).toHaveBeenCalledTimes(1)
     expect(vi.mocked(api.getSessionRaceTimerEventsForAccess).mock.calls[0][0].kind).toBe(accessKind)
+  })
+
+  it.each(['original', 'temporary'] as const)('passes Session courses read with %s access to the map', async (accessKind) => {
+    vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [{ course_id: 'course-1' }] } as never)
+    await mountViewer(accessKind)
+    expect(api.getSessionCoursesForAccess).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(api.getSessionCoursesForAccess).mock.calls[0][0].kind).toBe(accessKind)
+    expect(document.querySelector('[data-map-courses]')?.getAttribute('data-map-courses')).toBe('course-1')
+  })
+
+  it('keeps the Viewer usable without courses when the course read fails', async () => {
+    vi.mocked(api.getSessionCoursesForAccess).mockRejectedValue(new Error('unavailable'))
+    await mountViewer()
+    expect(document.querySelector('[data-map-courses]')?.getAttribute('data-map-courses')).toBe('')
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
   })
 
   it('filters stable Sxx labels by window, restores them on Reset, and seeks without changing selection or window', async () => {

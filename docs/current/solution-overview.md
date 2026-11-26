@@ -35,6 +35,7 @@ flowchart TB
     SES["Session"]
     ANALYTICS["Maneuver analytics / artifacts"]
     CONTEXT["Session context enrichment"]
+    COURSE["Session course contexts (per race)"]
     ACCESS["Consent and purpose-specific capabilities"]
     API["FastAPI: authorized read, personal writes / Admin APIs"]
     STORE[("Private persistence: JSON metadata, CSV.GZ tracks, originals, artifacts")]
@@ -45,6 +46,9 @@ flowchart TB
     ACT --> MATCH --> SES
     ACT --> ANALYTICS
     SES --> CONTEXT
+    SES -->|"owns, one per race"| COURSE
+    COURSE --> STORE
+    COURSE --> API
     ACT --> STORE
     SES --> STORE
     ANALYTICS --> STORE
@@ -70,6 +74,7 @@ flowchart TB
   VIEWER --> API
   ADMIN --> API
   ADMIN --> UPLOAD
+  ADMIN -.->|"GeoRacing course import, review and attach"| COURSE
   PERSONAL -.->|"opens only a usable shared Session link"| VIEWER
 
   GEO["Geoapify"] -.-> CONTEXT
@@ -102,6 +107,11 @@ flowchart TB
   the Viewer map as TWD and, with any labelled Viewer correction, feed the
   Viewer's ephemeral wind-relative window context; backend maneuver
   analytics do not consume it.
+- **Course contexts are Admin-attached and descriptive.** An Admin turns a
+  GeoRacing elements export into a reviewed course and attaches it to a
+  Session; the Viewer draws its marks and lines at replay time through the
+  shared reads. A course never creates, splits or merges Activities or
+  Sessions.
 - **Providers and storage are backend concerns.** The frontend consumes
   APIs, not private files; acquisition and context providers remain replaceable.
 
@@ -115,7 +125,7 @@ flowchart TB
 | Shared Viewer, selection, UTC analysis and replay | [Session Viewer](session-viewer.md) |
 | Maneuver detection, measures and artifacts | [Analytics](analytics.md) |
 | Personal history, own context and profile | [Personal TackBar](personal-tackbar.md) |
-| Protected operations and manual upload | [Admin](admin.md) |
+| Protected operations, manual upload and course import | [Admin](admin.md) |
 | Geography and historical weather/marine context | [Session Context](session-context.md) |
 
 ## Maintenance

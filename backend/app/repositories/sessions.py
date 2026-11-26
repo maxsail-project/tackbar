@@ -62,6 +62,12 @@ class SessionRepository:
                 )
             if record["expires_at"] <= record["created_at"]:
                 raise ValueError("Session expiry must be after creation")
+            course_context_ids = record.get("course_context_ids", [])
+            if not isinstance(course_context_ids, list) or not all(
+                isinstance(course_id, str) for course_id in course_context_ids
+            ):
+                raise ValueError("Session course_context_ids must be a list of strings")
+            record["course_context_ids"] = list(course_context_ids)
             sessions.append(Session(**record))
         if migrated:
             self._save(sessions)
@@ -160,6 +166,9 @@ def _require_utc(value: datetime) -> datetime:
 
 def _serialize_session(session: Session) -> dict[str, object]:
     record = asdict(session)
+    # Sessions without courses keep their pre-#242 serialized shape.
+    if not record["course_context_ids"]:
+        del record["course_context_ids"]
     return _json_value(record)
 
 

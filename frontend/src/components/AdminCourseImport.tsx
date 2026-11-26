@@ -1,15 +1,20 @@
 import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react'
-import { AdminApiError, createGeoRacingCourseDraft, validateCourse } from '../api/adminApi'
-import { COURSE_ROLES, type CourseContextV1, type CourseImportDraft, type CourseRole } from '../types/course'
+import {
+  AdminApiError, attachSessionCourse, createGeoRacingCourseDraft, listSessionCourses, suggestSessionCourseGun, validateCourse,
+} from '../api/adminApi'
+import type { AdminSessionSummary } from '../types/admin'
+import {
+  COURSE_ROLES, type AttachedCourseSummary, type CourseContextV1, type CourseGunSuggestion, type CourseImportDraft, type CourseRole,
+} from '../types/course'
 import {
   buildReviewedCourse, courseElements, courseFilename, editableTracks, editInterval, formatUtcInput, formatUtcTime,
   MAX_GATE_ID_LENGTH, MAX_RACE_LABEL_LENGTH, parseUtcInput, reviewIssues, validationMessages,
   type EditableInterval, type EditableTrack, type IntervalEdit, type RaceInputs,
 } from '../utils/courseImport'
 
-// Admin Courses tool (Issue #242, increment 242.2): stateless review of a
-// GeoRacing elements GPX into a downloadable course context JSON. Nothing is
-// persisted or attached to a Session.
+// Admin Courses tool (Issue #242): review a GeoRacing elements GPX (242.2) and
+// attach the course with its original to an explicitly chosen Session (242.3,
+// D9). JSON download remains a secondary option.
 
 const CourseMapPreview = lazy(() => import('./CourseMapPreview'))
 
@@ -34,6 +39,36 @@ export function courseDraftError(error: unknown) {
   return 'The draft request failed. Try again.'
 }
 
+/** Human-readable Session choice; times in UTC like the rest of the tool. */
+export function sessionOptionLabel(session: AdminSessionSummary) {
+  const place = [session.location_label, session.location_country].filter(Boolean).join(', ') || 'Session'
+  const time = session.sailing_start && session.sailing_end
+    ? `${formatUtcInput(session.sailing_start).slice(0, 16)}–${formatUtcTime(session.sailing_end).slice(0, 5)} UTC`
+    : 'sailing time unavailable'
+  return `${place} · ${time} · ${session.total_activity_count} Activities`
+}
+
+function overlaps(a: { from: string, to: string }, b: { from: string, to: string }) {
+  return Date.parse(a.from) < Date.parse(b.to) && Date.parse(b.from) < Date.parse(a.to)
+}
+
+/** Sessions whose sailing interval overlaps the course first, newest first otherwise. */
+export function orderedSessionChoices(sessions: AdminSessionSummary[], range: { from: string, to: string }) {
+  const overlapping = (session: AdminSessionSummary) => Boolean(session.sailing_start && session.sailing_end
+    && overlaps({ from: session.sailing_start, to: session.sailing_end }, range))
+  return [...sessions].sort((a, b) => Number(overlapping(b)) - Number(overlapping(a))
+    || Date.parse(b.sailing_start ?? '') - Date.parse(a.sailing_start ?? ''))
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''))
+    reader.onerror = () => reject(reader.error ?? new Error('File could not be read'))
+    reader.readAsDataURL(file)
+  })
+}
+
 function downloadJson(filename: string, value: unknown) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' }))
   const anchor = document.createElement('a')
@@ -45,10 +80,23 @@ function downloadJson(filename: string, value: unknown) {
   URL.revokeObjectURL(url)
 }
 
-export default function AdminCourseImport({ adminKey, onUnauthorized }: {
-  adminKey: string; onUnauthorized: (error: AdminApiError) => void
+export default function AdminCourseImport({ adminKey, sessions = [], onUnauthorized, confirm = (message) => window.confirm(message) }: {
+  adminKey: string
+  sessions?: AdminSessionSummary[]
+  onUnauthorized: (error: AdminApiError) => void
+  confirm?: (message: string) => boolean
 }) {
   const [file, setFile] = useState<File | null>(null)
+  // The exact file the draft was built from; attachment re-sends these bytes.
+  const [draftFile, setDraftFile] = useState<File | null>(null)
+  const [sessionId, setSessionId] = useState('')
+  const [attachedToSession, setAttachedToSession] = useState<AttachedCourseSummary[] | null>(null)
+  const [attaching, setAttaching] = useState(false)
+  const [attachErrors, setAttachErrors] = useState<string[]>([])
+  const [attachResult, setAttachResult] = useState<string | null>(null)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestion, setSuggestion] = useState<CourseGunSuggestion | null | undefined>(undefined)
+  const [suggestionError, setSuggestionError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draft, setDraft] = useState<CourseImportDraft | null>(null)
@@ -68,6 +116,8 @@ export default function AdminCourseImport({ adminKey, onUnauthorized }: {
     try {
       const next = await createGeoRacingCourseDraft(adminKey, file)
       setDraft(next)
+      setDraftFile(file)
+      setAttachResult(null); setAttachErrors([]); setSuggestion(undefined); setSuggestionError(null)
       setTracks(editableTracks(next))
       setRace({ label: next.suggested_course.race.label, gun: '', end: '' })
       setValidationErrors([]); setValidated(null)
@@ -78,11 +128,21 @@ export default function AdminCourseImport({ adminKey, onUnauthorized }: {
   }
 
   // Any review change invalidates a previous validation result.
+  const resetResults = () => { setValidated(null); setValidationErrors([]); setAttachResult(null); setAttachErrors([]) }
   const updateTracks = (change: (items: EditableTrack[]) => EditableTrack[]) => {
-    setTracks(change); setValidated(null); setValidationErrors([])
+    setTracks(change); resetResults(); setSuggestion(undefined)
   }
   const updateRace = (change: Partial<RaceInputs>) => {
-    setRace((current) => ({ ...current, ...change })); setValidated(null); setValidationErrors([])
+    setRace((current) => ({ ...current, ...change })); resetResults()
+  }
+  const chooseSession = async (next: string) => {
+    setSessionId(next); setAttachedToSession(null); setSuggestion(undefined); setSuggestionError(null); setAttachResult(null); setAttachErrors([])
+    if (!next) return
+    try {
+      setAttachedToSession((await listSessionCourses(adminKey, next)).courses)
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.status === 401) onUnauthorized(cause)
+    }
   }
   const updateTrack = (trackId: string, change: Partial<EditableTrack>) =>
     updateTracks((items) => items.map((item) => item.track.track_id === trackId ? { ...item, ...change } : item))
@@ -108,12 +168,47 @@ export default function AdminCourseImport({ adminKey, onUnauthorized }: {
     } finally { setValidating(false) }
   }
 
+  const failureMessages = (cause: unknown) => {
+    if (cause instanceof AdminApiError && cause.status === 422) return validationMessages(cause.detail)
+    if (cause instanceof AdminApiError && cause.status === 413) return ['The request exceeds the upload limit.']
+    if (cause instanceof AdminApiError && cause.status === 404) return ['The selected Session no longer exists. Refresh Admin and choose again.']
+    return [courseDraftError(cause)]
+  }
+
+  const suggestGun = async () => {
+    if (!draft || !sessionId || issues.length > 0 || suggesting) return
+    setSuggesting(true); setSuggestionError(null); setSuggestion(undefined)
+    try {
+      setSuggestion((await suggestSessionCourseGun(adminKey, sessionId, buildReviewedCourse(draft, tracks, race))).suggestion)
+    } catch (cause) {
+      setSuggestionError(failureMessages(cause).join(' '))
+      if (cause instanceof AdminApiError && cause.status === 401) onUnauthorized(cause)
+    } finally { setSuggesting(false) }
+  }
+
+  const attach = async () => {
+    if (!draft || !draftFile || !sessionId || issues.length > 0 || attaching) return
+    const replaced = (attachedToSession ?? []).filter((course) => course.time_range && overlaps(course.time_range, draft.time_range))
+    if (replaced.length > 0 && !confirm(`Replace ${replaced.map((course) => course.race_label ?? 'an unavailable course').join(', ')} in this Session? The replaced course and its preserved original are deleted.`)) return
+    setAttaching(true); setAttachErrors([]); setAttachResult(null)
+    try {
+      const result = await attachSessionCourse(adminKey, sessionId, draftFile.name, buildReviewedCourse(draft, tracks, race), await fileToBase64(draftFile))
+      const session = sessions.find((item) => item.id === sessionId)
+      setAttachResult(`Attached “${result.course.race.label}” to ${session ? sessionOptionLabel(session) : 'the Session'}${result.replaced_course_ids.length ? ` · replaced ${result.replaced_course_ids.length} earlier course${result.replaced_course_ids.length === 1 ? '' : 's'}` : ''}.`)
+      setAttachedToSession((await listSessionCourses(adminKey, sessionId)).courses)
+    } catch (cause) {
+      setAttachErrors(failureMessages(cause))
+      if (cause instanceof AdminApiError && cause.status === 401) onUnauthorized(cause)
+    } finally { setAttaching(false) }
+  }
+
   const gunUtc = race.gun.trim() ? parseUtcInput(race.gun) : null
+  const sessionChoices = draft ? orderedSessionChoices(sessions, draft.time_range) : []
 
   return <div className="admin-course-import">
     <form className="admin-upload" aria-label="Import GeoRacing course" onSubmit={(event) => void upload(event)}>
       <h2>Import GeoRacing course</h2>
-      <p className="admin-meta">One GeoRacing elements GPX (uncompressed .gpx, up to 16 MiB). Nothing is stored: review the draft, validate it and download the course JSON.</p>
+      <p className="admin-meta">One GeoRacing elements GPX (uncompressed .gpx, up to 16 MiB). Review the draft, then attach it to a Session. Nothing is stored until you attach.</p>
       <div className="admin-upload__fields">
         <label>Elements GPX<input type="file" accept=".gpx" disabled={uploading} onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
       </div>
@@ -150,16 +245,43 @@ export default function AdminCourseImport({ adminKey, onUnauthorized }: {
         </Suspense>
       </section>
 
-      <section className="admin-upload admin-course-validate" aria-label="Validate and download">
-        <h2>Validate and download</h2>
+      <section className="admin-upload admin-course-attach" aria-label="Attach to Session">
+        <h2>Attach to Session</h2>
         <p className="admin-meta">
           Start line: {previewCourse.start_line ? `${previewCourse.start_line.boat} – ${previewCourse.start_line.pin}` : 'needs exactly one committee boat and one start pin'} ·
           Finish line: {previewCourse.finish_line ? `${previewCourse.finish_line.boat} – ${previewCourse.finish_line.pin}` : 'needs exactly one committee boat and one finish pin'}
         </p>
-        {issues.length > 0 && <div className="admin-error" role="alert"><p>Resolve before validating:</p><ul>{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>}
+        <div className="admin-upload__fields">
+          <label>Session<select value={sessionId} disabled={attaching} onChange={(event) => void chooseSession(event.target.value)}>
+            <option value="">Select a Session</option>
+            {sessionChoices.map((session) => <option key={session.id} value={session.id}>{sessionOptionLabel(session)}</option>)}
+          </select></label>
+        </div>
+        {sessions.length === 0 && <p className="admin-meta">No Sessions are available.</p>}
+        {attachedToSession && attachedToSession.length > 0 && <p className="admin-meta">Already attached: {attachedToSession.map((course) => course.race_label ?? 'unavailable course').join(', ')}. A course overlapping this race’s time range is replaced.</p>}
+        {issues.length > 0 && <div className="admin-error" role="alert"><p>Resolve before attaching:</p><ul>{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>}
+        <div className="admin-actions">
+          <button type="button" className="admin-section-action" disabled={!sessionId || suggesting || issues.length > 0 || !previewCourse.start_line} onClick={() => void suggestGun()}>{suggesting ? 'Searching crossings…' : 'Suggest gun'}</button>
+        </div>
+        {suggestion && <div className="admin-course-suggestion" role="status">
+          <p>Suggested gun: <strong>{formatUtcInput(suggestion.gun_utc)} UTC</strong> — earliest start-line crossing by a member Activity ({formatUtcTime(suggestion.crossing_utc)} UTC). A suggestion only; the gun is what you enter.</p>
+          <div className="admin-actions"><button type="button" className="admin-section-action" onClick={() => updateRace({ gun: formatUtcInput(suggestion.gun_utc) })}>Use as gun</button></div>
+        </div>}
+        {suggestion === null && <p className="admin-meta" role="status">No start-line crossing was found in the course time range.</p>}
+        {suggestionError && <p className="admin-error" role="alert">{suggestionError}</p>}
+        {attachErrors.length > 0 && <div className="admin-error" role="alert"><p>The course could not be attached:</p><ul>{attachErrors.map((message, index) => <li key={index}>{message}</li>)}</ul></div>}
+        <div className="admin-actions">
+          <button type="button" className="admin-primary" disabled={!sessionId || attaching || issues.length > 0} onClick={() => void attach()}>{attaching ? 'Attaching…' : 'Attach to Session'}</button>
+        </div>
+        {attachResult && <p role="status">{attachResult}</p>}
+      </section>
+
+      <section className="admin-upload admin-course-validate" aria-label="Download course JSON">
+        <h2>Download course JSON (optional)</h2>
+        <p className="admin-meta">A downloaded JSON is for reference only; attaching requires the original GPX.</p>
         {validationErrors.length > 0 && <div className="admin-error" role="alert"><p>The course is not valid:</p><ul>{validationErrors.map((message, index) => <li key={index}>{message}</li>)}</ul></div>}
         <div className="admin-actions">
-          <button type="button" className="admin-primary" disabled={validating || issues.length > 0} onClick={() => void validate()}>{validating ? 'Validating…' : 'Validate course'}</button>
+          <button type="button" className="admin-section-action" disabled={validating || issues.length > 0} onClick={() => void validate()}>{validating ? 'Validating…' : 'Validate course'}</button>
           {validated && <button type="button" className="admin-section-action" onClick={() => downloadJson(courseFilename(validated.race.label), validated)}>Download course JSON</button>}
         </div>
         {validated && <p role="status">Valid course context · schema v{validated.schema_version} · {validated.elements.length} elements · {courseFilename(validated.race.label)}</p>}
