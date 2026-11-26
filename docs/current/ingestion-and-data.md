@@ -77,6 +77,7 @@ The **Current contract** below states product and operational guarantees. The **
 ### Ownership boundaries
 
 - [Domain and Sessions](domain-and-sessions.md) owns Sailor, Boat, Activity and Session definitions, matching and lifetime. This document owns acquisition, normalization, exact-file deduplication, ingestion state and data persistence.
+- Admin course import ([Admin](admin.md#course-import-georacing-draft-and-validation)) is not an ingestion path: it creates no Ingestion, Activity or Sailor, and a multi-`trk` GPX received by email or Admin track upload is still rejected.
 - [Access and Consent](access-and-consent.md) owns consent, capabilities and ACTIVE-only authorization. [Admin](admin.md) owns Admin interactions. The [production runbook](../production-runbook.md) owns credentials, service commands, deployment and operational recovery instructions.
 
 ## Provenance and review
