@@ -2,6 +2,74 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.30 Californian — Blink and You'll Miss It
+
+### English
+
+This release keeps Individual Analysis usable on large tracks and removes avoidable work when opening a Comparison or replaying a Session.
+
+### Fixed
+
+* Individual Analysis now calculates chart ranges and appends smoothed SOG/COG segments without spreading track-sized arrays into JavaScript calls. A full Analysis Window over a large accepted Activity no longer fails with an argument-limit error.
+* New Vakaros CSV and VKX processing retains the first navigation row in source order for each UTC and discards later rows at that time. Existing stored Activity tracks remain unchanged until explicit Activity Reprocess from the preserved original. The Viewer maneuver-profile index also handles equal UTC values in existing tracks, while circular course calculations and profile output retain their previous results.
+* The HEEL/SOG density presentation is reused across replay frames until its canonical tracks or Analysis Window change. Selecting a Comparison reconciles the shared Analysis Window before the Viewer commits the new selection, avoiding the stale intermediate window and duplicate heavy calculations. Selection, reset and replay semantics remain unchanged.
+
+### Repository and operations
+
+* The engineering maturity model, evidence-based baseline and adoption roadmap are available in the repository, with a short bilingual README introduction. This records the ongoing engineering initiative without asserting a completed maturity level.
+* The production runbook records response compression already enabled in Caddy. This release makes no server configuration change.
+
+### Limitations
+
+The real production-track profiling targets for the maneuver and Viewer improvements have not been re-measured; the product owner accepted that deferred verification. The representative local maneuver-profile benchmark used synthetic data and does not establish the target on the real track. Existing Vakaros Activities are not bulk reprocessed.
+
+### Issues
+
+- [#231](https://github.com/maxsail-project/tackbar/issues/231) — [#231] Establish the engineering maturity baseline
+- [#233](https://github.com/maxsail-project/tackbar/issues/233) — [#233] Individual Analysis crashes the Viewer on large Activities
+- [#234](https://github.com/maxsail-project/tackbar/issues/234) — [#234] Maneuver profile population full-scans tracks with duplicate timestamps
+- [#235](https://github.com/maxsail-project/tackbar/issues/235) — [#235] Enable response compression in production
+- [#236](https://github.com/maxsail-project/tackbar/issues/236) — [#236] Single-pass Comparison selection and per-frame density in Viewer
+
+### Validation
+
+The completed product Issues record focused tests, independent review and product-owner manual acceptance; #234 and #236 explicitly defer real-track production profiling. [SonarQube CI on the final candidate](https://github.com/maxsail-project/tackbar/actions/runs/45815280489) passed 1411 backend tests (1 skipped), 1459 frontend tests (3 skipped), typecheck, the Quality Gate and the production build. Release preparation checked completed-Issue inclusion, current documentation, bilingual consistency, publication absence, exact release-body correspondence and the final diff; it did not repeat product tests.
+
+---
+
+### Español
+
+Esta versión mantiene utilizable Individual Analysis con tracks grandes y evita trabajo innecesario al abrir una Comparison o reproducir una Session.
+
+### Corregido
+
+* Individual Analysis ahora calcula los rangos de los gráficos y añade segmentos suavizados de SOG/COG sin expandir arrays del tamaño del track en llamadas de JavaScript. Una Analysis Window completa de una Activity grande admitida ya no falla por el límite de argumentos.
+* El nuevo procesamiento de CSV y VKX de Vakaros conserva la primera fila de navegación en orden de origen para cada UTC y descarta las filas posteriores con esa hora. Los tracks de Activities ya almacenados permanecen intactos hasta un Activity Reprocess explícito desde el original conservado. El índice de perfiles de maniobra del Viewer también admite valores UTC iguales en tracks existentes, mientras los cálculos circulares de rumbo y los perfiles conservan sus resultados anteriores.
+* La presentación de densidad HEEL/SOG se reutiliza durante los fotogramas de replay hasta que cambian los tracks canónicos o la Analysis Window. Al seleccionar una Comparison, la Analysis Window compartida se reconcilia antes de que el Viewer confirme la nueva selección, evitando la ventana intermedia desactualizada y los cálculos pesados duplicados. Las reglas de selección, reinicio y replay no cambian.
+
+### Repositorio y operaciones
+
+* El modelo de madurez de ingeniería, la evaluación inicial basada en evidencias y la hoja de ruta de adopción están disponibles en el repositorio, con una breve introducción bilingüe en README. Esto documenta la iniciativa de ingeniería en curso sin afirmar que se haya alcanzado un nivel de madurez.
+* El runbook de producción documenta la compresión de respuestas ya activada en Caddy. Esta versión no cambia la configuración del servidor.
+
+### Limitaciones
+
+Los objetivos de rendimiento con el track real de producción para las mejoras de maniobras y del Viewer aún no se han vuelto a medir; el responsable de producto aceptó aplazar esa verificación. La prueba local representativa de perfiles de maniobra usó datos sintéticos y no demuestra el objetivo con el track real. Las Activities Vakaros existentes no se reprocesan en bloque.
+
+### Issues
+
+- [#231](https://github.com/maxsail-project/tackbar/issues/231) — [#231] Establish the engineering maturity baseline
+- [#233](https://github.com/maxsail-project/tackbar/issues/233) — [#233] Individual Analysis crashes the Viewer on large Activities
+- [#234](https://github.com/maxsail-project/tackbar/issues/234) — [#234] Maneuver profile population full-scans tracks with duplicate timestamps
+- [#235](https://github.com/maxsail-project/tackbar/issues/235) — [#235] Enable response compression in production
+- [#236](https://github.com/maxsail-project/tackbar/issues/236) — [#236] Single-pass Comparison selection and per-frame density in Viewer
+
+### Validación
+
+Los Issues de producto completados registran pruebas focalizadas, revisión independiente y aceptación manual del responsable de producto; #234 y #236 aplazan expresamente las mediciones con el track real en producción. El [CI de SonarQube sobre el candidato final](https://github.com/maxsail-project/tackbar/actions/runs/45815280489) pasó 1411 pruebas de backend (1 omitida), 1459 de frontend (3 omitidas), el typecheck, el Quality Gate y el build de producción. Durante la preparación se comprobaron la inclusión de los Issues completados, la documentación vigente, la coherencia bilingüe, la ausencia de publicación, la correspondencia exacta del cuerpo de la release y el diff final; no se repitieron las pruebas de producto.
+
+---
+
 ## v0.7.29 Californian — Start Me Up
 
 ### English
