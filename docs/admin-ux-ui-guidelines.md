@@ -57,7 +57,7 @@ Do not make navigation look like a maintenance action.
 The top-level Admin order is:
 
 ```text
-INGESTIONS → ACTIVITIES → SAILORS → SESSIONS
+INGESTIONS → ACTIVITIES → SAILORS → SESSIONS → COURSES
 ```
 
 Each primary entity belongs to exactly one top-level Admin section.

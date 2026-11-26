@@ -142,3 +142,24 @@ describe('Admin entity detail freshness on section return', () => {
     expect(container.querySelector('.admin-activity-detail')).toBeNull()
   })
 })
+
+describe('Admin Courses section', () => {
+  it('lists Courses last and keeps the existing section order', async () => {
+    await enter()
+    expect([...container.querySelectorAll('.admin-tabs button')].map((item) => item.textContent))
+      .toEqual(['Ingestions', 'Activities', 'Sailors', 'Sessions', 'Courses'])
+  })
+
+  it('loads the Courses tool on demand and leaves other sections unchanged', async () => {
+    await enter()
+    expect(container.textContent).not.toContain('Import GeoRacing course')
+    await tab('Courses')
+    await vi.waitFor(() => expect(container.querySelector('form[aria-label="Import GeoRacing course"]')).not.toBeNull())
+    expect(container.querySelector('.admin-ingestion-list')).toBeNull()
+    await tab('Sessions')
+    expect(container.querySelector('.admin-session-summary')).not.toBeNull()
+    expect(container.querySelector<HTMLElement>('form[aria-label="Import GeoRacing course"]')?.closest('section')?.hidden).toBe(true)
+    await tab('Ingestions')
+    expect(container.querySelector('.admin-ingestion-section-header h1')?.textContent).toBe('Ingestions')
+  })
+})

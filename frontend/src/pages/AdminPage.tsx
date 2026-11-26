@@ -1,6 +1,9 @@
 import TackBarBrand from '../components/TackBarBrand'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
 import AdminTrackUpload from '../components/AdminTrackUpload'
+
+// Courses (Issue #242) is code-split so other sections do not load its tool or map preview.
+const AdminCourseImport = lazy(() => import('../components/AdminCourseImport'))
 import { ingestionIsRunning, ingestionStatusLabels, pollAdminIngestions } from '../utils/adminIngestionPolling'
 import {
   AdminApiError,
@@ -35,7 +38,7 @@ import {
 import type { AdminActivity, AdminActivitySummary, AdminBoat, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary, AdminVkxRecordHandling, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 import { sessionDisplayLocation } from '../utils/sessionPresentation'
 
-export type Section = 'sailors' | 'sessions' | 'ingestions' | 'activities'
+export type Section = 'sailors' | 'sessions' | 'ingestions' | 'activities' | 'courses'
 type AdminDrilldown =
   | { kind: 'ingestion'; value: AdminIngestionDetail }
   | { kind: 'activity'; value: AdminActivity }
@@ -166,7 +169,7 @@ export function filterAdminSessions(sessions: AdminSessionSummary[], activities:
   })
 }
 
-export const ADMIN_SECTION_ORDER: Section[] = ['ingestions', 'activities', 'sailors', 'sessions']
+export const ADMIN_SECTION_ORDER: Section[] = ['ingestions', 'activities', 'sailors', 'sessions', 'courses']
 export const DEFAULT_ADMIN_SECTION: Section = 'ingestions'
 
 export const consentLabels: Record<ConsentOperationalGroup, string> = {
@@ -285,6 +288,8 @@ export default function AdminPage() {
   const detailRevision = useRef(0)
   const [drilldown, setDrilldown] = useState<AdminDrilldown[]>([])
   const [busy, setBusy] = useState(false)
+  // Mounted on first visit and kept while Admin access lasts, so an unsaved course review survives tab changes.
+  const [coursesVisited, setCoursesVisited] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleError = (cause: unknown) => {
@@ -298,6 +303,7 @@ export default function AdminPage() {
       setIngestions([])
       setLastUploadId(null)
       setUploadOpen(false)
+      setCoursesVisited(false)
       setSelectedSailor(null)
       setSelectedSession(null)
       setSelectedActivity(null)
@@ -497,6 +503,7 @@ export default function AdminPage() {
       detailRevision.current += 1
       setSelectedActivity(null); setSelectedSailor(null); setSelectedSession(null)
     }
+    if (next === 'courses') setCoursesVisited(true)
     setSection(next)
     setDrilldown([])
   }
@@ -524,7 +531,10 @@ export default function AdminPage() {
       {ADMIN_SECTION_ORDER.map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => changeSection(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
     </nav>
     {error && <p className="admin-error admin-feedback" role="alert">{error}</p>}
-    {section === 'activities' ? <section className="admin-content"><h1>Activities</h1><AdminSearch value={activitySearch} busy={busy} placeholder="Sailor, Boat, Device or filename" onChange={(value) => { setActivitySearch(value); setSelectedActivity(null) }} />{visibleActivities.length === 0 && <p className="admin-meta">No Activities match the search.</p>}<div className="admin-list admin-activity-list">
+    {coursesVisited && <section className="admin-content" hidden={section !== 'courses'}><h1>Courses</h1>
+      <Suspense fallback={<p className="admin-meta">Loading Courses…</p>}><AdminCourseImport adminKey={adminKey} onUnauthorized={handleError} /></Suspense>
+    </section>}
+    {section === 'courses' ? null : section === 'activities' ? <section className="admin-content"><h1>Activities</h1><AdminSearch value={activitySearch} busy={busy} placeholder="Sailor, Boat, Device or filename" onChange={(value) => { setActivitySearch(value); setSelectedActivity(null) }} />{visibleActivities.length === 0 && <p className="admin-meta">No Activities match the search.</p>}<div className="admin-list admin-activity-list">
       {visibleActivities.map((activity) => <ActivityCard key={activity.id} activity={activity} detail={selectedActivity?.id === activity.id ? selectedActivity : null} session={sessions.find((session) => session.id === activity.session_id)} sourceIngestion={ingestions.find((ingestion) => ingestion.id === selectedActivity?.source_ingestion_id)} busy={busy} onSelect={() => void selectActivity(activity.id)} onFollow={(kind, id) => void followRelation(kind, id)} onRecalculate={() => void recalculateManeuvers()} />)}
     </div></section> : section === 'sailors' ? <section className="admin-content"><h1>Sailors</h1><AdminSearch value={sailorSearch} busy={busy} placeholder="Name, email or Boat" onChange={(value) => { setSailorSearch(value); setSelectedSailor(null) }} />{visibleSailors.length === 0 && <p className="admin-meta">No Sailors match the search.</p>}<div className="admin-list admin-sailor-list">
       {visibleSailors.map((sailor) => <SailorCard key={sailor.id} sailor={sailor} detail={selectedSailor?.id === sailor.id ? selectedSailor : null} activities={activities.filter((activity) => activity.sailor_id === sailor.id)} busy={busy} onSelect={() => void selectSailor(sailor.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSessionSelect={(id) => void followRelation('session', id)} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConsentRequestSend={() => sailorAction(() => sendConsentRequest(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} onPersonalRegenerate={() => { if (window.confirm('Regenerate personal access? The current personal link will stop working.')) void sailorAction(() => regeneratePersonalCapability(adminKey, sailor.id)) }} onPersonalRevoke={() => { if (window.confirm('Revoke personal access? Consent and shared Sessions will remain unchanged.')) void sailorAction(() => revokePersonalCapability(adminKey, sailor.id)) }} onWelcomeEmailResend={() => void sailorAction(() => resendWelcomeEmail(adminKey, sailor.id))} />)}
