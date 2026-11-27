@@ -5,6 +5,7 @@ import {
   type StartDetailIndicatorId,
 } from '../config/startAnalysis'
 import type { TrackSample } from '../types/track'
+import type { SessionStartSource } from './courseStarts'
 import { isTrackGapInterval } from './trackGaps'
 import type { InferredSessionRace } from './sessionRaces'
 import type { SessionStartLine } from './sessionStartLines'
@@ -30,8 +31,10 @@ export interface StartActivityMetrics {
 /** One summary row group per inferred Start: P values and, when a Comparison is selected, C values. */
 export interface StartAnalysisRow {
   label: string
-  /** Gun: the inferred timer zero of the Session Start (#38 D9). */
+  /** Gun: the course gun (#242) or the inferred timer zero of the Session Start (#38 D9). */
   time: number
+  /** Set only for a course Start (#242); absent for a Start inferred from the race timer. */
+  source?: 'course'
   /** Time from the gun to the paired RACE_END when it is within the short-timing threshold (#38 D8). */
   shortTimingMs: number | null
   primary: StartActivityMetrics
@@ -407,7 +410,7 @@ export function deriveStartDetailTable(
  * (`null`) reads unavailable.
  */
 export function deriveStartAnalysisRows(
-  starts: readonly InferredSessionStart[],
+  starts: readonly (InferredSessionStart & { source?: SessionStartSource })[],
   lines: readonly SessionStartLine[],
   races: readonly Pick<InferredSessionRace, 'startTime' | 'endTime'>[],
   primarySamples: readonly TrackSample[] | null,
@@ -426,6 +429,7 @@ export function deriveStartAnalysisRows(
     return {
       label: start.label,
       time: start.time,
+      ...(start.source === 'course' ? { source: 'course' as const } : {}),
       shortTimingMs: startShortTimingMs(start, races, config),
       primary: metrics(primary),
       comparison: comparisonSamples === undefined ? null : metrics(comparison),

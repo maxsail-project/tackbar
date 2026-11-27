@@ -13,7 +13,7 @@ import type { TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../utils/replay'
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
-import { startApproachSamples, startTimerActivity } from '../utils/startAnalysisTestFixtures'
+import { startApproachSamples, startTimerActivity, START_FIXTURE_BOAT, START_FIXTURE_PIN } from '../utils/startAnalysisTestFixtures'
 import { SessionViewer } from './SessionViewerPage'
 
 vi.mock('../api/tackbarApi', () => ({
@@ -21,6 +21,7 @@ vi.mock('../api/tackbarApi', () => ({
   getActivityManeuversForAccess: vi.fn(),
   getSessionForAccess: vi.fn(),
   getSessionRaceTimerEventsForAccess: vi.fn(),
+  getSessionCoursesForAccess: vi.fn(),
   createTemporarySessionShare: vi.fn(),
   ActivityTrackNotFoundError: class extends Error {},
   ActivityManeuverAnalyticsNotFoundError: class extends Error {},
@@ -41,8 +42,9 @@ const analysisWindowRenders: {
   comparisonSampleCount: number
 }[] = []
 vi.mock('../components/TrackMap', () => ({
-  default: ({ selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset, panelRef }: {
+  default: ({ courses = [], selectedManeuverHighlights, playbackTime, focusRequest, historicalConditionsSample, twdReference, twdPresentation, onTwdStep, onTwdAutomatic, onTwdGestureCommit, twsReference, twsPresentation, onTwsStep, onTwsReset, panelRef }: {
     panelRef?: { current: HTMLDivElement | null },
+    courses?: { course_id: string }[],
     selectedManeuverHighlights: SelectedManeuverHighlight[], playbackTime: number,
     focusRequest: { activityRole: string, requestId: number } | null,
     historicalConditionsSample: HistoricalConditionsSample | null,
@@ -53,7 +55,7 @@ vi.mock('../components/TrackMap', () => ({
   }) => {
     latestHighlights = selectedManeuverHighlights
     return (
-    <div ref={panelRef} data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
+    <div ref={panelRef} data-map-courses={courses.map((course) => course.course_id).join(',')} data-map-playback-time={playbackTime} data-focus-role={focusRequest?.activityRole ?? ''} data-focus-request={focusRequest?.requestId ?? ''} data-weather-time={historicalConditionsSample?.time ?? ''} data-twd={twdPresentation.displayDegrees ?? 'unavailable'} data-twd-bearing={twdPresentation.bearing} data-twd-manual={twdPresentation.manual} data-twd-original={twdReference.status === 'available' ? twdReference.directionDegrees : 'unavailable'} data-tws={twsPresentation.speedKnots ?? 'unavailable'} data-tws-manual={twsPresentation.manual} data-tws-original={twsReference.status === 'available' ? twsReference.speedKnots : 'unavailable'}>
       <button data-twd-minus onClick={() => onTwdStep(-5)}>−5</button><button data-twd-plus onClick={() => onTwdStep(5)}>+5</button><button data-twd-auto onClick={onTwdAutomatic}>Auto</button><button data-twd-gesture onClick={() => onTwdGestureCommit(355)}>Gesture</button>
       <button data-tws-minus onClick={() => onTwsStep(-1)}>−1 kt</button><button data-tws-plus onClick={() => onTwsStep(1)}>+1 kt</button><button data-tws-reset onClick={onTwsReset}>Reset TWS</button>
       {selectedManeuverHighlights.map((highlight) =>
@@ -209,6 +211,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.mocked(api.getActivityTrackForAccess).mockImplementation(async (_access, activityId) => track(activityId))
   vi.mocked(api.getActivityManeuversForAccess).mockImplementation(async (_access, activityId) => analytics(activityId))
+  vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [] })
   vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
     { activity_id: 'a', race_timer_events: [{ timestamp: new Date(start + 5_000).toISOString(), event_type: 3 }], line_positions: [] },
     { activity_id: 'b', race_timer_events: [{ timestamp: new Date(start + 5_500).toISOString(), event_type: 3 }], line_positions: [] },
@@ -858,6 +861,32 @@ describe('Viewer selected maneuver interactions', () => {
     expect(vi.mocked(api.getSessionRaceTimerEventsForAccess).mock.calls[0][0].kind).toBe(accessKind)
   })
 
+  it.each(['original', 'temporary'] as const)('passes Session courses read with %s access to the map', async (accessKind) => {
+    vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [{ course_id: 'course-1', race: { gun_utc: null, end_utc: null }, elements: [] }] } as never)
+    await mountViewer(accessKind)
+    expect(api.getSessionCoursesForAccess).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(api.getSessionCoursesForAccess).mock.calls[0][0].kind).toBe(accessKind)
+    expect(document.querySelector('[data-map-courses]')?.getAttribute('data-map-courses')).toBe('course-1')
+  })
+
+  it('keeps inferred S1 controls when a course time range covers that Start (map-only hiding)', async () => {
+    vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [{
+      course_id: 'course-1', start_line: { boat: 'rc', pin: 'pin' }, finish_line: null, elements: [],
+      race: { gun_utc: null, end_utc: null },
+      time_range: { from: new Date(start).toISOString(), to: new Date(start + 60_000).toISOString() },
+    }] } as never)
+    await mountViewer()
+    expect(document.querySelector('[data-map-courses]')?.getAttribute('data-map-courses')).toBe('course-1')
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
+  })
+
+  it('keeps the Viewer usable without courses when the course read fails', async () => {
+    vi.mocked(api.getSessionCoursesForAccess).mockRejectedValue(new Error('unavailable'))
+    await mountViewer()
+    expect(document.querySelector('[data-map-courses]')?.getAttribute('data-map-courses')).toBe('')
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
+  })
+
   it('filters stable Sxx labels by window, restores them on Reset, and seeks without changing selection or window', async () => {
     await mountViewer()
     expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
@@ -993,6 +1022,48 @@ describe('Viewer selected maneuver interactions', () => {
       await click('[data-reset-window]')
       expect(section()!.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('false')
       expect(section()!.querySelector('[data-start-analysis-detail]')).toBeNull()
+    })
+
+    const sharedCourse = (race: { gun_utc: string | null, end_utc: string | null }) => {
+      const range = { from: new Date(gun - 30_000).toISOString(), to: new Date(gun + 120_000).toISOString() }
+      const element = (id: string, role: string, point: { latitude: number, longitude: number }) => ({
+        id, role, gate: null, label: id, positions: [{ ...range, lat: point.latitude, lon: point.longitude }],
+      })
+      return { courses: [{
+        course_id: 'course-1', race, time_range: range, start_line: { boat: 'rc', pin: 'pin' }, finish_line: null,
+        elements: [element('rc', 'committee_boat', START_FIXTURE_BOAT), element('pin', 'start_pin', START_FIXTURE_PIN)],
+      }] } as never
+    }
+
+    it.each(['original', 'temporary'] as const)('takes the Start of a GPX-only Session from the course on %s access (#242)', async (accessKind) => {
+      vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [] })
+      vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue(sharedCourse({
+        gun_utc: new Date(gun).toISOString(), end_utc: new Date(gun + 100_000).toISOString(),
+      }))
+      await mountViewer(accessKind)
+      expect(rowCells('primary')).toEqual(['P', 'S110:00:30Course · Admin', '+2.5s · 5.3 kt', '+5.0 m', '50%', '—', '⚠ Ends +1m40s'])
+      expect(container.querySelector('[data-start="S1"]')!.getAttribute('data-start-time')).toBe(String(gun))
+      expect([...container.querySelectorAll('[data-race]')].map((button) => button.textContent)).toEqual(['R1'])
+    })
+
+    it('replaces the inferred Start inside the course range, and keeps it without a course gun (#242 D3)', async () => {
+      // The timer zero is 2 s after the course gun, inside the course range.
+      vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
+        startTimerActivity('a', gun + 2_000), startTimerActivity('b', gun + 2_000),
+      ] })
+      vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue(sharedCourse({ gun_utc: new Date(gun).toISOString(), end_utc: null }))
+      await mountViewer()
+      const startTimes = () => [...container.querySelectorAll('[data-start]')].map((button) => button.getAttribute('data-start-time'))
+      expect(startTimes()).toEqual([String(gun)])
+      expect(section()!.querySelectorAll('[data-start-analysis-row]')).toHaveLength(1)
+      expect(container.querySelector('[data-race]')).toBeNull()
+
+      await act(async () => root.unmount())
+      root = createRoot(container)
+      vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue(sharedCourse({ gun_utc: null, end_utc: null }))
+      await mountViewer()
+      expect(startTimes()).toEqual([String(gun + 2_000)])
+      expect(section()!.textContent).not.toContain('Course · Admin')
     })
 
     it.each(['original', 'temporary'] as const)('is absent without inferred Starts on %s access', async (accessKind) => {

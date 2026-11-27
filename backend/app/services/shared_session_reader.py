@@ -12,11 +12,13 @@ from app.api_models import (
     SharedActivityRaceTimerEventsResponse,
     SharedRaceTimerEventResponse,
     SharedLinePositionResponse,
+    SharedSessionCoursesResponse,
 )
 from app.models import Session
 from app.services.activity_track_reader import ActivityTrackReader
 from app.services.maneuver_analytics import get_or_generate_maneuver_analytics
 from app.services.session_capabilities import SessionCapabilityService
+from app.services.session_courses import SessionCourseService
 from app.services.session_reader import SessionReader
 from app.storage.maneuver_analytics_storage import ManeuverAnalyticsStorage
 from app.storage.track_storage import TrackStorage
@@ -34,8 +36,10 @@ class SharedSessionReader:
         tracks: ActivityTrackReader,
         track_storage: TrackStorage,
         analytics_storage: ManeuverAnalyticsStorage,
+        courses: SessionCourseService | None = None,
     ) -> None:
         self.capabilities = capabilities
+        self.courses = courses
         self.sessions = sessions
         self.tracks = tracks
         self.track_storage = track_storage
@@ -134,6 +138,25 @@ class SharedSessionReader:
             )
             for visible in detail.activities
         ])
+
+    def get_courses(self, token: str) -> SharedSessionCoursesResponse | None:
+        resolved = self.capabilities.resolve(token)
+        if resolved is None:
+            return None
+        return self.get_courses_for_resolved(resolved)
+
+    def get_courses_for_resolved(
+        self, resolved: Session,
+    ) -> SharedSessionCoursesResponse | None:
+        # Same current shared-visibility recheck as the other shared reads.
+        if self.sessions.get_session(resolved.id) is None:
+            return None
+        if self.courses is None:
+            return SharedSessionCoursesResponse(courses=[])
+        # Unreadable or unknown-version course files are omitted, never fatal.
+        return SharedSessionCoursesResponse(
+            courses=self.courses.public_courses_for(resolved),
+        )
 
     def get_track(
         self,

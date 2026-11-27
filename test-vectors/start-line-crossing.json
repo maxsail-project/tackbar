@@ -1,0 +1,276 @@
+{
+  "description": "Start-line crossing cases shared by Start Analysis (frontend, #38) and the Admin gun suggestion (backend, #242) so the two implementations cannot drift. Synthetic coordinates. Times are seconds from the gun, which is also the first sample; the course side is to the left of PIN->BOAT; expected_crossing_s is null for no crossing.",
+  "gun_utc": "2031-03-14T10:00:00Z",
+  "line": {
+    "pin": {
+      "lat": 10.25,
+      "lon": -30.0
+    },
+    "boat": {
+      "lat": 10.25,
+      "lon": -30.00137086
+    }
+  },
+  "cases": [
+    {
+      "name": "crossing",
+      "description": "behind to course side in the middle of the line",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -30.00068543
+        },
+        {
+          "t": 1,
+          "lat": 10.250008993,
+          "lon": -30.00068543
+        },
+        {
+          "t": 2,
+          "lat": 10.249991007,
+          "lon": -30.00068543
+        },
+        {
+          "t": 3,
+          "lat": 10.24997302,
+          "lon": -30.00068543
+        }
+      ],
+      "expected_crossing_s": 1.5
+    },
+    {
+      "name": "sub_second_interpolation",
+      "description": "crossing placed between sub-second samples by linear position",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.250035973,
+          "lon": -30.000548344
+        },
+        {
+          "t": 0.4,
+          "lat": 10.25002698,
+          "lon": -30.000548344
+        },
+        {
+          "t": 1.4,
+          "lat": 10.249991007,
+          "lon": -30.000548344
+        },
+        {
+          "t": 2.4,
+          "lat": 10.249982014,
+          "lon": -30.000548344
+        }
+      ],
+      "expected_crossing_s": 1.15
+    },
+    {
+      "name": "beyond_pin_within_tolerance",
+      "description": "9.9 m beyond the PIN end",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -29.999909523
+        },
+        {
+          "t": 1,
+          "lat": 10.250008993,
+          "lon": -29.999909523
+        },
+        {
+          "t": 2,
+          "lat": 10.249991007,
+          "lon": -29.999909523
+        }
+      ],
+      "expected_crossing_s": 1.5
+    },
+    {
+      "name": "beyond_boat_within_tolerance",
+      "description": "9.9 m beyond the BOAT end",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -30.001461337
+        },
+        {
+          "t": 1,
+          "lat": 10.250008993,
+          "lon": -30.001461337
+        },
+        {
+          "t": 2,
+          "lat": 10.249991007,
+          "lon": -30.001461337
+        }
+      ],
+      "expected_crossing_s": 1.5
+    },
+    {
+      "name": "beyond_pin_over_tolerance",
+      "description": "10.1 m beyond the PIN end",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -29.999907695
+        },
+        {
+          "t": 1,
+          "lat": 10.250008993,
+          "lon": -29.999907695
+        },
+        {
+          "t": 2,
+          "lat": 10.249991007,
+          "lon": -29.999907695
+        }
+      ],
+      "expected_crossing_s": null
+    },
+    {
+      "name": "beyond_boat_over_tolerance",
+      "description": "10.1 m beyond the BOAT end",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -30.001463165
+        },
+        {
+          "t": 1,
+          "lat": 10.250008993,
+          "lon": -30.001463165
+        },
+        {
+          "t": 2,
+          "lat": 10.249991007,
+          "lon": -30.001463165
+        }
+      ],
+      "expected_crossing_s": null
+    },
+    {
+      "name": "gap_over_10_s",
+      "description": "the straddling samples are 12 s apart",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -30.00068543
+        },
+        {
+          "t": 1,
+          "lat": 10.250008993,
+          "lon": -30.00068543
+        },
+        {
+          "t": 13,
+          "lat": 10.249991007,
+          "lon": -30.00068543
+        },
+        {
+          "t": 14,
+          "lat": 10.24997302,
+          "lon": -30.00068543
+        }
+      ],
+      "expected_crossing_s": null
+    },
+    {
+      "name": "gap_of_10_s",
+      "description": "a 10 s interval is still adjacent",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -30.00068543
+        },
+        {
+          "t": 1,
+          "lat": 10.250008993,
+          "lon": -30.00068543
+        },
+        {
+          "t": 11,
+          "lat": 10.249991007,
+          "lon": -30.00068543
+        }
+      ],
+      "expected_crossing_s": 6.0
+    },
+    {
+      "name": "wrong_direction",
+      "description": "rounds the PIN end to the course side, then crosses back to behind",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -29.999543047
+        },
+        {
+          "t": 1,
+          "lat": 10.24997302,
+          "lon": -29.999543047
+        },
+        {
+          "t": 2,
+          "lat": 10.24997302,
+          "lon": -29.999817219
+        },
+        {
+          "t": 3,
+          "lat": 10.24997302,
+          "lon": -30.000182781
+        },
+        {
+          "t": 4,
+          "lat": 10.24997302,
+          "lon": -30.00068543
+        },
+        {
+          "t": 5,
+          "lat": 10.25002698,
+          "lon": -30.00068543
+        }
+      ],
+      "expected_crossing_s": null
+    },
+    {
+      "name": "skips_outside_then_crosses",
+      "description": "a crossing outside the ends, then one inside the line",
+      "samples": [
+        {
+          "t": 0,
+          "lat": 10.25002698,
+          "lon": -29.999725828
+        },
+        {
+          "t": 1,
+          "lat": 10.24997302,
+          "lon": -29.999725828
+        },
+        {
+          "t": 2,
+          "lat": 10.25002698,
+          "lon": -29.999725828
+        },
+        {
+          "t": 3,
+          "lat": 10.250008993,
+          "lon": -30.00068543
+        },
+        {
+          "t": 4,
+          "lat": 10.249991007,
+          "lon": -30.00068543
+        }
+      ],
+      "expected_crossing_s": 3.5
+    }
+  ]
+}

@@ -1,6 +1,10 @@
 import TackBarBrand from '../components/TackBarBrand'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import AdminTrackUpload from '../components/AdminTrackUpload'
+import AdminSessionCourses from '../components/AdminSessionCourses'
+
+// Courses (Issue #242) is code-split so other sections do not load its tool or map preview.
+const AdminCourseImport = lazy(() => import('../components/AdminCourseImport'))
 import { ingestionIsRunning, ingestionStatusLabels, pollAdminIngestions } from '../utils/adminIngestionPolling'
 import {
   AdminApiError,
@@ -35,7 +39,7 @@ import {
 import type { AdminActivity, AdminActivitySummary, AdminBoat, AdminConsentRequestState, AdminIngestion, AdminIngestionDetail, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary, AdminVkxRecordHandling, CapabilityState, ConsentOperationalGroup } from '../types/admin'
 import { sessionDisplayLocation } from '../utils/sessionPresentation'
 
-export type Section = 'sailors' | 'sessions' | 'ingestions' | 'activities'
+export type Section = 'sailors' | 'sessions' | 'ingestions' | 'activities' | 'courses'
 type AdminDrilldown =
   | { kind: 'ingestion'; value: AdminIngestionDetail }
   | { kind: 'activity'; value: AdminActivity }
@@ -166,7 +170,7 @@ export function filterAdminSessions(sessions: AdminSessionSummary[], activities:
   })
 }
 
-export const ADMIN_SECTION_ORDER: Section[] = ['ingestions', 'activities', 'sailors', 'sessions']
+export const ADMIN_SECTION_ORDER: Section[] = ['ingestions', 'activities', 'sailors', 'sessions', 'courses']
 export const DEFAULT_ADMIN_SECTION: Section = 'ingestions'
 
 export const consentLabels: Record<ConsentOperationalGroup, string> = {
@@ -285,6 +289,8 @@ export default function AdminPage() {
   const detailRevision = useRef(0)
   const [drilldown, setDrilldown] = useState<AdminDrilldown[]>([])
   const [busy, setBusy] = useState(false)
+  // Mounted on first visit and kept while Admin access lasts, so an unsaved course review survives tab changes.
+  const [coursesVisited, setCoursesVisited] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleError = (cause: unknown) => {
@@ -298,6 +304,7 @@ export default function AdminPage() {
       setIngestions([])
       setLastUploadId(null)
       setUploadOpen(false)
+      setCoursesVisited(false)
       setSelectedSailor(null)
       setSelectedSession(null)
       setSelectedActivity(null)
@@ -497,6 +504,7 @@ export default function AdminPage() {
       detailRevision.current += 1
       setSelectedActivity(null); setSelectedSailor(null); setSelectedSession(null)
     }
+    if (next === 'courses') setCoursesVisited(true)
     setSection(next)
     setDrilldown([])
   }
@@ -524,12 +532,15 @@ export default function AdminPage() {
       {ADMIN_SECTION_ORDER.map((item) => <button key={item} className={section === item ? 'is-active' : ''} onClick={() => changeSection(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
     </nav>
     {error && <p className="admin-error admin-feedback" role="alert">{error}</p>}
-    {section === 'activities' ? <section className="admin-content"><h1>Activities</h1><AdminSearch value={activitySearch} busy={busy} placeholder="Sailor, Boat, Device or filename" onChange={(value) => { setActivitySearch(value); setSelectedActivity(null) }} />{visibleActivities.length === 0 && <p className="admin-meta">No Activities match the search.</p>}<div className="admin-list admin-activity-list">
+    {coursesVisited && <section className="admin-content" hidden={section !== 'courses'}><h1>Courses</h1>
+      <Suspense fallback={<p className="admin-meta">Loading Courses…</p>}><AdminCourseImport adminKey={adminKey} sessions={sessions} onUnauthorized={handleError} /></Suspense>
+    </section>}
+    {section === 'courses' ? null : section === 'activities' ? <section className="admin-content"><h1>Activities</h1><AdminSearch value={activitySearch} busy={busy} placeholder="Sailor, Boat, Device or filename" onChange={(value) => { setActivitySearch(value); setSelectedActivity(null) }} />{visibleActivities.length === 0 && <p className="admin-meta">No Activities match the search.</p>}<div className="admin-list admin-activity-list">
       {visibleActivities.map((activity) => <ActivityCard key={activity.id} activity={activity} detail={selectedActivity?.id === activity.id ? selectedActivity : null} session={sessions.find((session) => session.id === activity.session_id)} sourceIngestion={ingestions.find((ingestion) => ingestion.id === selectedActivity?.source_ingestion_id)} busy={busy} onSelect={() => void selectActivity(activity.id)} onFollow={(kind, id) => void followRelation(kind, id)} onRecalculate={() => void recalculateManeuvers()} />)}
     </div></section> : section === 'sailors' ? <section className="admin-content"><h1>Sailors</h1><AdminSearch value={sailorSearch} busy={busy} placeholder="Name, email or Boat" onChange={(value) => { setSailorSearch(value); setSelectedSailor(null) }} />{visibleSailors.length === 0 && <p className="admin-meta">No Sailors match the search.</p>}<div className="admin-list admin-sailor-list">
       {visibleSailors.map((sailor) => <SailorCard key={sailor.id} sailor={sailor} detail={selectedSailor?.id === sailor.id ? selectedSailor : null} activities={activities.filter((activity) => activity.sailor_id === sailor.id)} busy={busy} onSelect={() => void selectSailor(sailor.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSessionSelect={(id) => void followRelation('session', id)} onRequested={() => sailorAction(() => markConsentRequested(adminKey, sailor.id))} onConsentRequestSend={() => sailorAction(() => sendConsentRequest(adminKey, sailor.id))} onConfirm={() => sailorAction(() => confirmConsent(adminKey, sailor.id))} onRevoke={() => { if (window.confirm('Record consent withdrawal?')) void sailorAction(() => revokeConsent(adminKey, sailor.id)) }} onNewCycle={() => confirmNewConsentCycle((message) => window.confirm(message), () => void sailorAction(() => startNewConsentCycle(adminKey, sailor.id)))} onPersonalRegenerate={() => { if (window.confirm('Regenerate personal access? The current personal link will stop working.')) void sailorAction(() => regeneratePersonalCapability(adminKey, sailor.id)) }} onPersonalRevoke={() => { if (window.confirm('Revoke personal access? Consent and shared Sessions will remain unchanged.')) void sailorAction(() => revokePersonalCapability(adminKey, sailor.id)) }} onWelcomeEmailResend={() => void sailorAction(() => resendWelcomeEmail(adminKey, sailor.id))} />)}
     </div></section> : section === 'sessions' ? <section className="admin-content"><h1>Sessions</h1><AdminSearch value={sessionSearch} busy={busy} placeholder="Location, date, Sailor or Boat" onChange={(value) => { setSessionSearch(value); setSelectedSession(null) }} />{visibleSessions.length === 0 && <p className="admin-meta">No Sessions match the search.</p>}<div className="admin-list admin-session-list">
-      {visibleSessions.map((session) => <SessionCard key={session.id} session={session} detail={selectedSession?.id === session.id ? selectedSession : null} activities={activities.filter((activity) => activity.session_id === session.id)} busy={busy} onSelect={() => void selectSession(session.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSailorSelect={(id) => void followRelation('sailor', id)} onEnrich={() => void sessionAction(() => enrichSession(adminKey, session.id))} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} />)}
+      {visibleSessions.map((session) => <SessionCard key={session.id} session={session} detail={selectedSession?.id === session.id ? selectedSession : null} activities={activities.filter((activity) => activity.session_id === session.id)} busy={busy} onSelect={() => void selectSession(session.id)} onActivitySelect={(id) => void followRelation('activity', id)} onSailorSelect={(id) => void followRelation('sailor', id)} onEnrich={() => void sessionAction(() => enrichSession(adminKey, session.id))} onRegenerate={() => { if (window.confirm('Regenerate capability? The current shared link will stop working.')) void sessionAction(() => regenerateCapability(adminKey, session.id)) }} onRevoke={() => { if (window.confirm('Revoke this shared capability?')) void sessionAction(() => revokeCapability(adminKey, session.id)) }} onRenew={(days) => { if (window.confirm(`Set expiry to ${days} days from now?`)) void sessionAction(() => renewSession(adminKey, session.id, days)) }} coursesSection={selectedSession?.id === session.id ? <AdminSessionCourses adminKey={adminKey} sessionId={session.id} onUnauthorized={handleError} /> : null} />)}
     </div></section> : <section className="admin-content"><IngestionSectionHeader busy={busy} onReview={() => void mailboxAction()} uploadOpen={uploadOpen} onUpload={() => setUploadOpen((current) => !current)} />
       {uploadOpen && <AdminTrackUpload adminKey={adminKey} sailors={sailors} onAccepted={acceptUpload} onUnauthorized={handleError} />}
       {lastUpload && <IngestionUploadResult ingestion={lastUpload} onInspect={() => { setIngestionStatus('all'); setIngestionDisposition('all'); setIngestionSailor('all'); setIngestionSearch(''); void selectIngestion(lastUpload.id, true) }} />}
@@ -811,7 +822,7 @@ export function HistoricalConditionsInspection({ conditions }: { conditions: Adm
   </details>
 }
 
-export function SessionCard({ session, detail = null, activities = [], busy, onSelect, onActivitySelect, onSailorSelect, onEnrich = () => undefined, onRegenerate, onRevoke, onRenew }: { session: AdminSessionSummary, detail?: AdminSession | null, activities?: AdminActivitySummary[], busy: boolean, onSelect: () => void, onActivitySelect?: (id: string) => void, onSailorSelect?: (id: string) => void, onEnrich?: () => void, onRegenerate: () => void, onRevoke: () => void, onRenew: (days: number) => void }) {
+export function SessionCard({ session, detail = null, activities = [], busy, onSelect, onActivitySelect, onSailorSelect, onEnrich = () => undefined, onRegenerate, onRevoke, onRenew, coursesSection = null }: { session: AdminSessionSummary, detail?: AdminSession | null, activities?: AdminActivitySummary[], busy: boolean, onSelect: () => void, onActivitySelect?: (id: string) => void, onSailorSelect?: (id: string) => void, onEnrich?: () => void, onRegenerate: () => void, onRevoke: () => void, onRenew: (days: number) => void, coursesSection?: ReactNode }) {
   const lifetime = sessionLifetimePresentation(session.expires_at)
   return <article className={`admin-card admin-entity-card admin-session-card${detail ? ' is-expanded is-selected' : ''}`} aria-current={detail ? 'true' : undefined}>
     <button className="admin-entity-summary admin-session-summary" type="button" aria-expanded={Boolean(detail)} disabled={busy} onClick={onSelect}>
@@ -819,11 +830,11 @@ export function SessionCard({ session, detail = null, activities = [], busy, onS
       <p className="admin-session-expiration">{lifetime.expiration}</p>
       <DisclosureAffordance expanded={Boolean(detail)} />
     </button>
-    {detail && <SessionOperationalDetail session={detail} activities={activities} busy={busy} onActivitySelect={onActivitySelect} onSailorSelect={onSailorSelect} onEnrich={onEnrich} onRegenerate={onRegenerate} onRevoke={onRevoke} onRenew={onRenew} />}
+    {detail && <SessionOperationalDetail session={detail} activities={activities} busy={busy} onActivitySelect={onActivitySelect} onSailorSelect={onSailorSelect} onEnrich={onEnrich} onRegenerate={onRegenerate} onRevoke={onRevoke} onRenew={onRenew} coursesSection={coursesSection} />}
   </article>
 }
 
-export function SessionOperationalDetail({ session, activities = [], busy, onActivitySelect, onSailorSelect, onEnrich = () => undefined, onRegenerate, onRevoke, onRenew }: { session: AdminSession, activities?: AdminActivitySummary[], busy: boolean, onActivitySelect?: (id: string) => void, onSailorSelect?: (id: string) => void, onEnrich?: () => void, onRegenerate: () => void, onRevoke: () => void, onRenew: (days: number) => void }) {
+export function SessionOperationalDetail({ session, activities = [], busy, onActivitySelect, onSailorSelect, onEnrich = () => undefined, onRegenerate, onRevoke, onRenew, coursesSection = null }: { session: AdminSession, activities?: AdminActivitySummary[], busy: boolean, onActivitySelect?: (id: string) => void, onSailorSelect?: (id: string) => void, onEnrich?: () => void, onRegenerate: () => void, onRevoke: () => void, onRenew: (days: number) => void, coursesSection?: ReactNode }) {
   const [days, setDays] = useState(90)
   const lifetime = sessionLifetimePresentation(session.expires_at)
   const capabilityUrl = session.capability_state === 'active' && session.capability_path ? `${window.location.origin}${session.capability_path}` : null
@@ -850,6 +861,7 @@ export function SessionOperationalDetail({ session, activities = [], busy, onAct
       {session.location && <div className="admin-session-location-source"><RelationButton label="Location source Activity" id={session.location.source_activity_id} value={activityIdentities.get(session.location.source_activity_id)} onFollow={() => onActivitySelect?.(session.location!.source_activity_id)} /></div>}
       <HistoricalConditionsInspection conditions={session.historical_conditions} />
     </section>
+    {coursesSection}
     <section className="admin-session-section" aria-label="Maintenance"><h3>Maintenance</h3>
       <div className="admin-actions"><button disabled={busy} onClick={onEnrich}>Enrich Session</button></div>
       <form className="renew-form" onSubmit={(event) => { event.preventDefault(); if (days >= 1 && days <= 365) onRenew(days) }}><label>Renew Session <span>Sets expiry to days from now</span><input type="number" min="1" max="365" value={days} onChange={(event) => setDays(Number(event.target.value))} /></label><button type="submit" disabled={busy || days < 1 || days > 365}>Renew</button></form>

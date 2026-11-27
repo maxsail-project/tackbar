@@ -203,6 +203,16 @@ function StartDetailTable({ row }: { row: StartAnalysisRow }) {
 }
 
 export const NO_START_IN_WINDOW_TEXT = 'No inferred Start in the Analysis Window'
+export const NO_COURSE_OR_INFERRED_START_IN_WINDOW_TEXT = 'No Start in the Analysis Window'
+/** Source of a course Start (#242): the course attached by the Admin. */
+export const COURSE_START_SOURCE_TEXT = 'Course · Admin'
+
+/** Caption naming where the Session's Starts come from; unchanged without course Starts. */
+export function startAnalysisCaption(rows: readonly Pick<StartAnalysisRow, 'source'>[]) {
+  const courses = rows.filter((row) => row.source === 'course').length
+  if (courses === 0) return 'Starts inferred from race timer · times UTC'
+  return courses === rows.length ? 'Starts from course · times UTC' : 'Starts from course and race timer · times UTC'
+}
 
 export default function StartAnalysisSection({ rows, analysisWindow, onSelect, panel }: StartAnalysisSectionProps) {
   const [localExpanded, setExpanded] = useState(false)
@@ -238,10 +248,11 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect, p
       </div>}
 
       <div id={contentId} hidden={!expanded}>
-        <p className="wind-context__note" data-start-analysis-caption>Starts inferred from race timer · times UTC</p>
+        <p className="wind-context__note" data-start-analysis-caption>{startAnalysisCaption(rows)}</p>
         {windowRows.length > 0 && <p className="wind-context__note" data-start-analysis-help>{START_SUMMARY_HELP_TEXT}</p>}
         {windowRows.length === 0 ? (
-          <p className="maneuver-empty" data-start-analysis-empty>{NO_START_IN_WINDOW_TEXT}</p>
+          <p className="maneuver-empty" data-start-analysis-empty>{rows.some((row) => row.source === 'course')
+            ? NO_COURSE_OR_INFERRED_START_IN_WINDOW_TEXT : NO_START_IN_WINDOW_TEXT}</p>
         ) : (
           <div className="maneuver-event-table-wrap">
             <table className="start-analysis-table" aria-label="Start summary">
@@ -284,10 +295,11 @@ export default function StartAnalysisSection({ rows, analysisWindow, onSelect, p
                               type="button"
                               className="maneuver-event-table__button start-analysis-table__button"
                               aria-pressed={selected}
-                              aria-label={`Move replay to ${row.label} gun at ${time} UTC, inferred from race timer`}
+                              aria-label={`Move replay to ${row.label} gun at ${time} UTC, ${row.source === 'course' ? COURSE_START_SOURCE_TEXT : 'inferred from race timer'}`}
                             >
                               <span className="start-analysis-table__start-label">{row.label}</span>
                               <span className="start-analysis-table__start-time">{time}</span>
+                              {row.source === 'course' && <span className="start-analysis-table__start-source">{COURSE_START_SOURCE_TEXT}</span>}
                             </button>
                           </td>
                         )}

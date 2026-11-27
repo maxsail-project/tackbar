@@ -39,6 +39,8 @@ SAFE_FIELDS: dict[type, set[str]] = {
         "location_label", "location_region", "location_country", "location_country_code",
         "location_provider", "location_resolved_at", "location_source_activity_id",
         "historical_conditions",
+        # #242: internal course-context ids only; no secret or personal content.
+        "course_context_ids",
     },
     HistoricalConditions: {"coverage_start", "coverage_end", "requested_latitude", "requested_longitude", "weather_source", "marine_source", "hourly"},
     HistoricalConditionsSource: {"provider", "route", "retrieved_at", "grid_latitude", "grid_longitude"},

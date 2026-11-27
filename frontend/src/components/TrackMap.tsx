@@ -24,6 +24,9 @@ import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import type { ManeuverActivityRole } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import type { SessionStartLine } from '../utils/sessionStartLines'
+import { courseLinePaint } from '../config/courseColors'
+import { courseStateAt, isWithinCourseStartLineRange, type ViewerCourse } from '../utils/courseState'
+import CourseElementLabel from './CourseElementLabel'
 import type { TwdReference } from '../utils/twdReference'
 import { resolveGestureTwd, type TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
@@ -55,6 +58,8 @@ interface TrackMapProps {
   comparisonVisibleSamples?: TrackSample[]
   contextualActivities?: ContextualMapActivity[]
   sessionStartLines?: SessionStartLine[]
+  /** Session course contexts (#242): elements and lines valid at `playbackTime` are drawn. */
+  courses?: ViewerCourse[]
   fitContextKey: string
   focusRequest?: MapFocusRequest | null
   selectedManeuverHighlights?: SelectedManeuverHighlight[]
@@ -504,11 +509,14 @@ export function mapWeatherDetailDismissHandlers(onDismiss: () => void, onTwdDism
   }
 }
 
+const NO_COURSES: ViewerCourse[] = []
+
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
   contextualActivities = [],
-  sessionStartLines = [],
+  sessionStartLines: inferredStartLines = [],
+  courses = NO_COURSES,
   fitContextKey,
   focusRequest = null,
   selectedManeuverHighlights = [],
@@ -544,6 +552,15 @@ export default function TrackMap({
   panelRef,
 }: TrackMapProps) {
   const mapRef = useRef<MapRef>(null)
+  const courseStates = useMemo(
+    () => courses.map((course) => ({ courseId: course.course_id, state: courseStateAt(course, playbackTime) })),
+    [courses, playbackTime],
+  )
+  // #242 B (map only): a course start line replaces the inferred VKX line inside its time range.
+  const sessionStartLines = useMemo(
+    () => inferredStartLines.filter((line) => !isWithinCourseStartLineRange(courses, line.time)),
+    [inferredStartLines, courses],
+  )
   const ownMapPanelRef = useRef<HTMLElement>(null)
   const mapPanelRef = panelRef ?? ownMapPanelRef
   const committedBearing = twdPresentation.bearing
@@ -841,6 +858,21 @@ export default function TrackMap({
             <span className="session-start-line-endpoint" role="img" aria-label={`${label} Session start line endpoint`}>{label}</span>
           </Marker>
         ))}
+        {courseStates.flatMap(({ courseId, state }) => [
+          ...(state.startLine ? [{ kind: 'start' as const, line: state.startLine }] : []),
+          ...(state.finishLine ? [{ kind: 'finish' as const, line: state.finishLine }] : []),
+        ].map(({ kind, line }) => (
+          <Source key={`course-${kind}-line-${courseId}`} id={`course-${kind}-line-${courseId}`} type="geojson" data={{
+            type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[line.pin.lon, line.pin.lat], [line.boat.lon, line.boat.lat]] },
+          }}>
+            <Layer id={`course-${kind}-line-layer-${courseId}`} type="line" layout={TRACK_LAYOUT} paint={courseLinePaint(kind)} />
+          </Source>
+        )))}
+        {courseStates.flatMap(({ courseId, state }) => state.elements.map((element) => (
+          <Marker key={`course-element-${courseId}-${element.id}`} longitude={element.lon} latitude={element.lat} anchor="center" style={{ zIndex: 2 }}>
+            <CourseElementLabel element={element} />
+          </Marker>
+        )))}
         {contextualGeometries.map(({ activity, geometry }) => geometry && (
           <Source
             key={activity.id}

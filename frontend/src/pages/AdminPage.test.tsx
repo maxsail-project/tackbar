@@ -116,7 +116,7 @@ describe('minimal Admin UI', () => {
     expect(markup).toContain('value="processing">Processing')
   })
   it('presents the Admin sections in operational order and starts at Ingestions', () => {
-    expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'activities', 'sailors', 'sessions'])
+    expect(ADMIN_SECTION_ORDER).toEqual(['ingestions', 'activities', 'sailors', 'sessions', 'courses'])
     expect(DEFAULT_ADMIN_SECTION).toBe('ingestions')
   })
 

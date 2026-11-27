@@ -31,12 +31,13 @@ function raceEndTimes(activities: SessionTimerActivity[]): number[] {
 }
 
 /**
- * Anchor each inferred Session Start `Sn` (unchanged #153 inference) on the latest valid
- * `RACE_END` of any visible Activity strictly after `Sn` and before `Sn+1` (no upper bound
- * for the last Start). A Start without such an end yields no race (#220 D3).
+ * Anchor each Session Start `Sn` on its race end. A course Start with a course `end_utc` ends
+ * there (#242 D10); otherwise the latest valid `RACE_END` of any visible Activity strictly
+ * after `Sn` and before `Sn+1` (no upper bound for the last Start). A Start without such an
+ * end yields no race (#220 D3).
  */
 export function inferSessionRaces(
-  starts: InferredSessionStart[],
+  starts: (InferredSessionStart & { courseEndTime?: number | null })[],
   activities: SessionTimerActivity[],
   settings: Partial<SessionRaceSettings> = {},
 ): InferredSessionRace[] {
@@ -46,8 +47,8 @@ export function inferSessionRaces(
   return orderedStarts.flatMap((start, index) => {
     const nextStartTime = orderedStarts[index + 1]?.time ?? Number.POSITIVE_INFINITY
     const candidates = ends.filter((time) => time > start.time && time < nextStartTime)
-    if (candidates.length === 0) return []
-    const endTime = Math.max(...candidates)
+    const endTime = start.courseEndTime ?? (candidates.length === 0 ? null : Math.max(...candidates))
+    if (endTime === null) return []
     return [{
       label: start.label.replace(/^S/, 'R'),
       startTime: start.time,

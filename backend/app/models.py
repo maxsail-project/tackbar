@@ -270,6 +270,9 @@ class Session:
     location_resolved_at: datetime | None = None
     location_source_activity_id: str | None = None
     historical_conditions: HistoricalConditions | None = None
+    # Issue #242 D1: Admin-attached course contexts (course_contexts/<id>.json),
+    # ordered by course time_range.from. Absent in older records means none.
+    course_context_ids: list[str] = field(default_factory=list)
 
     @property
     def has_geographic_context(self) -> bool:

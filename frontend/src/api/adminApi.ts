@@ -1,15 +1,19 @@
 import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary } from '../types/admin'
+import type { AttachedCourseSummary, CourseContextV1, CourseGunSuggestion, CourseImportDraft, CourseSessionCandidate, ReviewedCourse } from '../types/course'
 
 export type IngestionStatusFilter = 'all' | AdminIngestion['status']
 export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
 
 export class AdminApiError extends Error {
   readonly status: number | null
+  // Controlled backend error detail (FastAPI `detail`), when the body had one.
+  readonly detail: unknown
 
-  constructor(status: number | null, options?: ErrorOptions) {
+  constructor(status: number | null, options?: ErrorOptions, detail?: unknown) {
     super('Admin API request failed.', options)
     this.name = 'AdminApiError'
     this.status = status
+    this.detail = detail
   }
 }
 
@@ -35,11 +39,20 @@ async function adminRequest<T>(
   } catch (error) {
     throw new AdminApiError(null, { cause: error })
   }
-  if (!response.ok) throw new AdminApiError(response.status)
+  if (!response.ok) throw new AdminApiError(response.status, undefined, await errorDetail(response))
   try {
     return await response.json() as T
   } catch (error) {
     throw new AdminApiError(response.status, { cause: error })
+  }
+}
+
+async function errorDetail(response: Response): Promise<unknown> {
+  try {
+    const body = await response.json() as { detail?: unknown }
+    return body?.detail
+  } catch {
+    return undefined
   }
 }
 
@@ -91,3 +104,23 @@ export const reprocessIngestion = (key: string, id: string) => adminRequest<Admi
 export const discardIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/discard`, key, 'POST')
 export const restoreIngestion = (key: string, id: string) => adminRequest<AdminIngestion>(`/api/admin/ingestions/${encodeURIComponent(id)}/restore`, key, 'POST')
 export const reviewMailbox = (key: string) => adminRequest<AdminMailboxReview>('/api/admin/ingestions/review-mailbox', key, 'POST')
+export const createGeoRacingCourseDraft = (key: string, file: File) =>
+  adminRequest<CourseImportDraft>(`/api/admin/course-imports/georacing/draft?${new URLSearchParams({ filename: file.name })}`, key, 'POST', file)
+export const validateCourse = (key: string, course: ReviewedCourse) =>
+  adminRequest<{ course: CourseContextV1 }>('/api/admin/course-imports/validate', key, 'POST', course)
+export const listSessionCourses = (key: string, sessionId: string) =>
+  adminRequest<{ courses: AttachedCourseSummary[] }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses`, key)
+export const attachSessionCourse = (key: string, sessionId: string, filename: string, course: ReviewedCourse, originalBase64: string) =>
+  adminRequest<{ course: CourseContextV1; replaced_course_ids: string[] }>(
+    `/api/admin/sessions/${encodeURIComponent(sessionId)}/courses?${new URLSearchParams({ filename })}`,
+    key, 'POST', { course, original_base64: originalBase64 })
+export const detachSessionCourse = (key: string, sessionId: string, courseId: string) =>
+  adminRequest<{ courses: AttachedCourseSummary[] }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/${encodeURIComponent(courseId)}/detach`, key, 'POST')
+export const updateSessionCourseRaceTimes = (key: string, sessionId: string, courseId: string, times: { gun_utc: string | null; end_utc: string | null }) =>
+  adminRequest<{ courses: AttachedCourseSummary[] }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/${encodeURIComponent(courseId)}/race-times`, key, 'PATCH', times)
+export const suggestAttachedCourseGun = (key: string, sessionId: string, courseId: string) =>
+  adminRequest<{ suggestion: CourseGunSuggestion | null }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/${encodeURIComponent(courseId)}/gun-suggestion`, key, 'POST')
+export const suggestSessionCourseGun = (key: string, sessionId: string, course: ReviewedCourse) =>
+  adminRequest<{ suggestion: CourseGunSuggestion | null }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/gun-suggestion`, key, 'POST', course)
+export const findCourseSessionCandidates = (key: string, course: ReviewedCourse) =>
+  adminRequest<{ candidates: CourseSessionCandidate[] }>('/api/admin/course-imports/session-candidates', key, 'POST', course)

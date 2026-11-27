@@ -1,4 +1,5 @@
 import type { PersonalActivity, PersonalActivityPatch, PersonalBoat, PersonalBoatInput, PersonalDefaultBoat, PersonalProfile, PersonalTackBar } from '../types/personal'
+import type { SessionCourses } from '../types/course'
 import type {
   SessionAccess,
   SessionRaceTimerEvents,
@@ -288,6 +289,19 @@ export function getSessionRaceTimerEventsForAccess(access: SessionAccess, signal
     ? `/api/shared/sessions/${encodeURIComponent(access.token)}/race-timer-events`
     : `/api/temporary/sessions/${encodeURIComponent(access.token)}/race-timer-events`
   return requestJson<SessionRaceTimerEvents>(
+    path,
+    signal,
+    access.kind === 'original' ? () => new SessionNotFoundError() : undefined,
+    'GET',
+    access.kind === 'temporary' ? temporaryAccessError : undefined,
+  )
+}
+
+export function getSessionCoursesForAccess(access: SessionAccess, signal?: AbortSignal) {
+  const path = access.kind === 'original'
+    ? `/api/shared/sessions/${encodeURIComponent(access.token)}/courses`
+    : `/api/temporary/sessions/${encodeURIComponent(access.token)}/courses`
+  return requestJson<SessionCourses>(
     path,
     signal,
     access.kind === 'original' ? () => new SessionNotFoundError() : undefined,
