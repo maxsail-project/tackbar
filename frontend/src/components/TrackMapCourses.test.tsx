@@ -2,6 +2,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { CSSProperties, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { COURSE_CHANGE_MARK_COLOR, COURSE_LINE_COLOR, COURSE_MARK_COLOR } from '../config/courseColors'
 import type { CourseElement } from '../types/course'
 import type { TrackSample } from '../types/track'
@@ -70,16 +71,46 @@ function render(playbackTime: number, courses = [course], sessionStartLines: Sta
   />)
   return container
 }
-const labels = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.course-element-label')]
+const labels = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.course-element__label')]
   .map((label) => label.textContent)
+const element$ = (container: HTMLElement, label: string) => container.querySelector<HTMLElement>(`[aria-label="${label} course element"]`)!
+const styles = readFileSync('src/styles.css', 'utf8')
+const cssRule = (selector: string) => {
+  const start = styles.search(new RegExp(`(^|\\n)${selector.replaceAll('.', '\\.')} \\{`))
+  const match = start < 0 ? null : /\{([^}]*)\}/.exec(styles.slice(start))
+  if (!match) throw new Error(`missing CSS rule ${selector}`)
+  return Object.fromEntries(match[1].split(';').map((d) => d.trim()).filter(Boolean)
+    .map((d) => [d.slice(0, d.indexOf(':')).trim(), d.slice(d.indexOf(':') + 1).trim()]))
+}
 
 describe('Session course on the Viewer map', () => {
-  it('draws the elements valid at playbackTime with their labels in the endpoint label style', () => {
+  it('draws the elements valid at playbackTime as endpoint circles with the GPX label beside them', () => {
     const map = render(at('10:05:00'))
     expect(labels(map)).toEqual(['Race committee', 'Start Pin'])
-    const label = map.querySelector<HTMLElement>('.course-element-label')!
-    expect(label.classList.contains('session-start-line-endpoint')).toBe(true)
-    expect(label.getAttribute('aria-label')).toBe('Race committee course element')
+    const marker = element$(map, 'Race committee')
+    const circle = marker.querySelector<HTMLElement>('.session-start-line-endpoint')!
+    // The circle is the endpoint marker, without text; the label is its sibling, outside it.
+    expect(circle.className).toBe('session-start-line-endpoint course-element__mark')
+    expect(circle.textContent).toBe('')
+    expect(circle.contains(marker.querySelector('.course-element__label'))).toBe(false)
+    expect(marker.querySelector('.course-element__label')?.textContent).toBe('Race committee')
+  })
+
+  it('anchors the circle centre at the element position: the marker block is exactly the circle', () => {
+    const map = render(at('10:05:00'))
+    const marker = element$(map, 'Race committee').closest<HTMLElement>('.maplibregl-marker')!
+    expect(marker.getAttribute('data-latitude')).toBe('10.25')
+    expect(marker.getAttribute('data-longitude')).toBe('-30.5')
+    const endpoint = cssRule('.session-start-line-endpoint')
+    expect(endpoint).toMatchObject({ width: '26px', height: '26px', 'border-radius': '50%', border: '1px solid #fff', 'pointer-events': 'none' })
+    expect(cssRule('.course-element')).toMatchObject({ position: 'relative', width: '26px', height: '26px', 'pointer-events': 'none' })
+    // The label is taken out of flow to the right of the circle and never intercepts gestures.
+    const label = cssRule('.course-element__label')
+    expect(label).toMatchObject({ position: 'absolute', left: 'calc(100% + 4px)', 'max-width': '160px',
+      'text-overflow': 'ellipsis', 'white-space': 'nowrap', overflow: 'hidden', 'pointer-events': 'none',
+      'font-size': endpoint['font-size'], 'font-weight': endpoint['font-weight'] })
+    expect(label['text-shadow']).toContain('#fff')
+    expect(styles).not.toContain('.course-element-label')
   })
 
   it('switches positions exactly at interval bounds; the later interval applies where two touch', () => {
@@ -109,7 +140,7 @@ describe('Session course on the Viewer map', () => {
 
   it('colors the change mark red and other elements with the course color', () => {
     const map = render(at('10:26:00'))
-    const color = (label: string) => map.querySelector<HTMLElement>(`[aria-label="${label} course element"]`)?.style.background
+    const color = (label: string) => element$(map, label).querySelector<HTMLElement>('.session-start-line-endpoint')?.style.background
     const rgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`
     expect(color('Change Mark')).toBe(rgb(COURSE_CHANGE_MARK_COLOR))
     expect(color('Race committee')).toBe(rgb(COURSE_MARK_COLOR))
@@ -126,17 +157,17 @@ describe('Session course on the Viewer map', () => {
     expect(defaultProps.innerHTML).toBe(withoutCourse.innerHTML)
   })
 
-  it('shows the GPX label itself (no code) in a pill with the endpoint style, zIndex and full-label tooltip', () => {
+  it('shows the long GPX label itself (no code), ellipsized by CSS, with the full label as name and tooltip', () => {
     const long = 'Buoy Windward Gate Member With A Very Long GeoRacing Name'
     const map = render(at('10:05:00'), [{ ...course, elements: [
       ...course.elements,
       { id: 'w1', role: 'gate', gate: 'Windward gate with a long id', label: long, positions: [{ from: '2031-03-14T10:00:00Z', to: '2031-03-14T10:30:00Z', lat: 10.27, lon: -30.5 }] },
     ] }])
-    const label = map.querySelector<HTMLElement>(`[aria-label="${long} course element"]`)!
-    expect(label.textContent).toBe(long)
+    const label = element$(map, long)
+    expect(label.getAttribute('role')).toBe('img')
     expect(label.getAttribute('title')).toBe(long)
-    expect(label.querySelector('.course-element-label__text')?.textContent).toBe(long)
-    expect(label.className).toBe('session-start-line-endpoint course-element-label')
+    expect(label.querySelector('.course-element__label')?.textContent).toBe(long)
+    expect(label.querySelector('.course-element__label')?.getAttribute('aria-hidden')).toBe('true')
     expect(label.closest<HTMLElement>('.maplibregl-marker')?.style.zIndex).toBe('2')
     expect(labels(map)).toContain('Race committee')
   })
@@ -158,12 +189,14 @@ describe('Session course on the Viewer map', () => {
     expect(render(at('10:05:00'), [], [inferred('S1', at('10:05:00'))]).querySelector('[data-source="session-start-line-S1"]')).not.toBeNull()
   })
 
-  it('uses the same markers and line paint in the Admin Courses preview', () => {
+  it('uses the same shared marker component and line paint in the Admin Courses preview', () => {
     const preview = document.createElement('div')
     preview.innerHTML = renderToStaticMarkup(<CourseMapPreview course={course} timeRange={course.time_range} gunUtc={null} />)
     const viewer = render(at('10:00:00'))
     const label = preview.querySelector<HTMLElement>('[aria-label="Race committee course element"]')!
-    expect(label.outerHTML).toBe(viewer.querySelector<HTMLElement>('[aria-label="Race committee course element"]')!.outerHTML)
+    expect(label.outerHTML).toBe(element$(viewer, 'Race committee').outerHTML)
+    expect(label.querySelector('.session-start-line-endpoint.course-element__mark')).not.toBeNull()
+    expect(label.closest<HTMLElement>('.maplibregl-marker')?.getAttribute('data-latitude')).toBe('10.25')
     expect(label.closest<HTMLElement>('.maplibregl-marker')?.style.zIndex).toBe('2')
     expect(preview.querySelector('[data-layer="course-start-line-layer"]')?.getAttribute('data-color')).toBe(COURSE_LINE_COLOR)
     expect(preview.querySelector('[data-layer="course-start-line-layer"]')?.hasAttribute('data-dasharray')).toBe(false)

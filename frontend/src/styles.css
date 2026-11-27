@@ -4084,18 +4084,32 @@ input:focus-visible {
   .admin-course-track__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Session course elements (Issue #242): the start-line endpoint label style,
-   widened to fit the element label; the background is the D8 element color. */
-.session-start-line-endpoint.course-element-label {
-  width: auto;
-  min-width: 26px;
-  max-width: 160px;
-  padding: 0 9px;
-  border-radius: 13px;
+/* Session course elements (Issue #242): the start-line endpoint circle in the
+   D8 element color, with the GPX label beside it. The block has the circle's
+   size so the centre-anchored marker centres the circle on the position. */
+.course-element {
+  position: relative;
+  display: block;
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
 }
-.course-element-label__text {
-  min-width: 0;
+.course-element__mark {
+  display: block;
+}
+.course-element__label {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 4px);
+  max-width: 160px;
   overflow: hidden;
+  transform: translateY(-50%);
+  color: var(--color-navy);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.2;
   text-overflow: ellipsis;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff;
   white-space: nowrap;
+  pointer-events: none;
 }
