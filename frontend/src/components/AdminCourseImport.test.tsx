@@ -15,6 +15,7 @@ vi.mock('../api/adminApi', async (importOriginal) => ({
   listSessionCourses: vi.fn(),
   suggestSessionCourseGun: vi.fn(),
   findCourseSessionCandidates: vi.fn(),
+  detachSessionCourse: vi.fn(),
 }))
 vi.mock('./CourseMapPreview', () => ({
   default: ({ course, gunUtc }: { course: { elements: unknown[], start_line: unknown }, gunUtc: string | null }) =>
@@ -275,16 +276,107 @@ describe('Admin Courses tool', () => {
   describe('candidate Session preselection', () => {
     const picker = () => labelled(container, 'Session') as unknown as HTMLSelectElement
 
-    it('preselects exactly one candidate, labels it, and still needs the explicit Attach click', async () => {
+    const hasPicker = () => [...container.querySelectorAll('label')].some((item) => item.textContent?.startsWith('Session'))
+    const hasButton = (label: string) => [...container.querySelectorAll('button')].some((item) => item.textContent === label)
+    const summary = (courseId: string, raceLabel: string) => ({
+      course_id: courseId, available: true, race_label: raceLabel, time_range: courseDraftFixture().time_range,
+      gun_utc: null, source_filename: 'x.gpx', imported_at: '2031-03-14T12:00:00Z', element_count: 4,
+    })
+    const attachedText = 'Attached to Session Elsewhere · 2031-01-01 10:00–11:00 UTC · 1 Activities — matched automatically'
+
+    // Validation succeeds and each attach shows up in the Session's course list.
+    async function uploadSingle() {
+      let attachCount = 0
+      vi.mocked(api.validateCourse).mockImplementation(async (_key, course) => ({ course: { ...course, course_id: 'v-1' } }))
+      vi.mocked(api.attachSessionCourse).mockImplementation(async (_key, _session, _name, course) => {
+        attachCount += 1
+        vi.mocked(api.listSessionCourses).mockResolvedValue({ courses: [summary(`c-${attachCount}`, course.race.label)] })
+        return { course: { ...course, course_id: `c-${attachCount}` }, replaced_course_ids: [] }
+      })
       vi.mocked(api.findCourseSessionCandidates).mockResolvedValue({ candidates: [{ session_id: 'session-old', overlap_seconds: 1800, min_distance_m: 420 }] })
       await upload()
-      await vi.waitFor(() => expect(picker().value).toBe('session-old'))
+      await vi.waitFor(() => expect(button('Validate and attach').disabled).toBe(false))
+    }
+
+    it('never attaches on draft load and offers no picker or Attach click for exactly one candidate', async () => {
+      await uploadSingle()
       expect(api.findCourseSessionCandidates).toHaveBeenCalledWith('key', expect.objectContaining({ time_range: courseDraftFixture().time_range }))
-      expect(picker().options[1].textContent).toBe('Elsewhere · 2031-01-01 10:00–11:00 UTC · 1 Activities · candidate · 30 min overlap · 420 m from start line')
-      expect(api.listSessionCourses).toHaveBeenCalledWith('key', 'session-old')
-      expect(container.textContent).toContain('One candidate Session sailed near the start line during the course and is preselected.')
+      expect(container.textContent).toContain('Elsewhere · 2031-01-01 10:00–11:00 UTC · 1 Activities · candidate · 30 min overlap · 420 m from start line. Validating the review attaches the course to it automatically.')
+      expect(api.validateCourse).not.toHaveBeenCalled()
       expect(api.attachSessionCourse).not.toHaveBeenCalled()
-      expect(button('Attach to Session').disabled).toBe(false)
+      expect(hasPicker()).toBe(false)
+      expect(hasButton('Attach to Session')).toBe(false)
+      expect(hasButton('Validate course')).toBe(false)
+    })
+
+    it('validates and attaches once with the original, confirms, keeps download secondary and can detach', async () => {
+      vi.mocked(api.detachSessionCourse).mockResolvedValue({ courses: [] })
+      await uploadSingle()
+      await press(button('Validate and attach'))
+      await vi.waitFor(() => expect(container.textContent).toContain(attachedText))
+      expect(api.validateCourse).toHaveBeenCalledTimes(1)
+      expect(api.attachSessionCourse).toHaveBeenCalledTimes(1)
+      const [, sessionId, filename, course, original] = vi.mocked(api.attachSessionCourse).mock.calls[0]
+      expect([sessionId, filename]).toEqual(['session-old', 'Synthetic Race 7_elements.gpx'])
+      expect(atob(original)).toBe('<gpx>elements</gpx>')
+      expect(course).toEqual(vi.mocked(api.validateCourse).mock.calls[0][1])
+      expect(confirm).not.toHaveBeenCalled()
+      expect(button('Download course JSON').className).not.toContain('admin-primary')
+      await press(button('Detach'))
+      expect(api.detachSessionCourse).toHaveBeenCalledWith('key', 'session-old', 'c-1')
+      expect(container.textContent).toContain('Detached from the Session.')
+      expect(container.textContent).not.toContain('matched automatically')
+    })
+
+    it('does not attach when validation fails', async () => {
+      await uploadSingle()
+      vi.mocked(api.validateCourse).mockRejectedValueOnce(new api.AdminApiError(422, undefined, 'bad course'))
+      await press(button('Validate and attach'))
+      expect(container.textContent).toContain('The course is not valid:')
+      expect(api.attachSessionCourse).not.toHaveBeenCalled()
+    })
+
+    it('keeps the validated JSON and shows the error when attaching fails', async () => {
+      await uploadSingle()
+      vi.mocked(api.attachSessionCourse).mockRejectedValueOnce(new api.AdminApiError(422, undefined, 'The uploaded original is not the file this course was reviewed from'))
+      await press(button('Validate and attach'))
+      await vi.waitFor(() => expect(container.textContent).toContain('The course could not be attached:'))
+      expect(container.textContent).toContain('The uploaded original is not the file this course was reviewed from')
+      expect(container.textContent).toContain('Valid course context · schema v1')
+      expect(hasButton('Download course JSON')).toBe(true)
+      expect(container.textContent).not.toContain('matched automatically')
+    })
+
+    it('replaces the course attached in this review without a dialog on re-validation', async () => {
+      await uploadSingle()
+      await press(button('Validate and attach'))
+      await vi.waitFor(() => expect(container.textContent).toContain(attachedText))
+      await type(labelled(container, 'Race label'), 'Race 7 corrected')
+      await press(button('Validate and attach'))
+      await vi.waitFor(() => expect(api.attachSessionCourse).toHaveBeenCalledTimes(2))
+      await vi.waitFor(() => expect(container.textContent).toContain(attachedText))
+      expect(confirm).not.toHaveBeenCalled()
+    })
+
+    it('keeps the replace confirmation for a course not attached in this review', async () => {
+      await uploadSingle()
+      vi.mocked(api.listSessionCourses).mockResolvedValue({ courses: [summary('old', 'Race 7 (first import)')] })
+      confirm.mockReturnValue(false)
+      await press(button('Validate and attach'))
+      await vi.waitFor(() => expect(container.textContent).toContain('Not attached: the replacement was not confirmed.'))
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Replace Race 7 (first import) in this Session?'))
+      expect(api.attachSessionCourse).not.toHaveBeenCalled()
+      expect(hasButton('Download course JSON')).toBe(true)
+    })
+
+    it('does not attach when the reviewed course no longer has exactly one candidate', async () => {
+      await uploadSingle()
+      vi.mocked(api.findCourseSessionCandidates).mockResolvedValue({ candidates: [] })
+      await press(button('Validate and attach'))
+      await vi.waitFor(() => expect(container.textContent).toContain('there is no longer exactly one candidate Session'))
+      expect(api.attachSessionCourse).not.toHaveBeenCalled()
+      expect(picker().value).toBe('')
+      expect(button('Attach to Session').disabled).toBe(true)
     })
 
     it('lists several candidates first with overlap and distance and preselects none', async () => {
@@ -297,6 +389,7 @@ describe('Admin Courses tool', () => {
       expect(picker().value).toBe('')
       expect([...picker().options].slice(1).map((option) => option.value)).toEqual(['session-old', 'session-race'])
       expect(picker().options[2].textContent).toContain('candidate · 60 min overlap · 1.5 km from start line')
+      await validated()
       expect(api.attachSessionCourse).not.toHaveBeenCalled()
     })
 
@@ -305,6 +398,8 @@ describe('Admin Courses tool', () => {
       await vi.waitFor(() => expect(container.textContent).toContain('No candidate Session sailed near the start line during the course.'))
       expect(picker().value).toBe('')
       expect([...picker().options].some((option) => option.textContent?.includes('candidate ·'))).toBe(false)
+      await validated()
+      expect(api.attachSessionCourse).not.toHaveBeenCalled()
     })
   })
 })
