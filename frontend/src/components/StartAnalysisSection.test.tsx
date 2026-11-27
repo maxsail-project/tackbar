@@ -140,6 +140,28 @@ describe('START ANALYSIS table alignment (#38 D22)', () => {
   })
 })
 
+describe('course Start source (#242)', () => {
+  const courseRow = { ...rows[1], source: 'course' as const }
+  const caption = (container: ParentNode) => container.querySelector('[data-start-analysis-caption]')!.textContent
+
+  it('shows Course · Admin in the secondary text of course rows only', () => {
+    const container = summaryMarkup([rows[0], courseRow])
+    const [vkx, fromCourse] = container.querySelectorAll('tbody')
+    expect(vkx.querySelector('.start-analysis-table__start-source')).toBeNull()
+    expect(vkx.querySelector('button')!.getAttribute('aria-label')).toBe('Move replay to S1 gun at 10:00:00 UTC, inferred from race timer')
+    expect(fromCourse.querySelector('.start-analysis-table__start-source')!.textContent).toBe('Course · Admin')
+    expect(fromCourse.querySelector('button')!.getAttribute('aria-label')).toBe('Move replay to S2 gun at 10:10:00 UTC, Course · Admin')
+    expect(caption(container)).toBe('Starts from course and race timer · times UTC')
+  })
+
+  it('names the course source in the caption and empty text without inferred Starts', () => {
+    expect(caption(summaryMarkup([courseRow]))).toBe('Starts from course · times UTC')
+    expect(caption(summaryMarkup(rows))).toBe('Starts inferred from race timer · times UTC')
+    const empty = summaryMarkup([courseRow], { start: 0, end: 1 })
+    expect(empty.querySelector('[data-start-analysis-empty]')!.textContent).toBe('No Start in the Analysis Window')
+  })
+})
+
 describe('StartAnalysisSection (#38.1)', () => {
   it('is a collapsed-by-default section with an accessible summary table', () => {
     const markup = renderToStaticMarkup(<StartAnalysisSection rows={rows} analysisWindow={fullWindow} onSelect={vi.fn()} />)

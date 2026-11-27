@@ -393,6 +393,47 @@ def test_first_crossing_follows_the_start_analysis_rule(reviewed_payload):
     assert first_crossing(course, "a", before_range) is None
 
 
+# Shared with frontend/src/utils/startLineVectors.test.ts (Start Analysis #38):
+# both implementations of the crossing rule must read the same results.
+CROSSING_VECTORS = json.loads(
+    (Path(__file__).resolve().parents[2] / "test-vectors" / "start-line-crossing.json")
+    .read_text(encoding="utf-8")
+)
+
+
+def vector_course() -> ReviewedCourse:
+    gun = datetime.fromisoformat(CROSSING_VECTORS["gun_utc"])
+    time_range = {"from": gun.isoformat(), "to": (gun + timedelta(minutes=5)).isoformat()}
+    ends = (("rc", "committee_boat", "boat"), ("pin", "start_pin", "pin"))
+    return ReviewedCourse.model_validate({
+        "schema_version": 1,
+        "source": {"kind": "georacing_elements_gpx", "filename": "vectors.gpx",
+                   "sha256": "0" * 64, "imported_at": gun.isoformat()},
+        "race": {"label": "Vectors"},
+        "time_range": time_range,
+        "start_line": {"boat": "rc", "pin": "pin"},
+        "elements": [
+            {"id": element_id, "role": role, "label": role,
+             "positions": [{**time_range, **CROSSING_VECTORS["line"][end]}]}
+            for element_id, role, end in ends
+        ],
+    })
+
+
+@pytest.mark.parametrize("case", CROSSING_VECTORS["cases"], ids=lambda case: case["name"])
+def test_shared_start_line_crossing_vectors(case):
+    gun = datetime.fromisoformat(CROSSING_VECTORS["gun_utc"])
+    points = [
+        TrackPoint(utc=gun + timedelta(seconds=sample["t"]), lat=sample["lat"], lon=sample["lon"])
+        for sample in case["samples"]
+    ]
+    crossing = first_crossing(vector_course(), "a", points)
+    if case["expected_crossing_s"] is None:
+        assert crossing is None
+    else:
+        assert (crossing.utc - gun).total_seconds() == pytest.approx(case["expected_crossing_s"], abs=1e-3)
+
+
 def test_suggest_gun_picks_the_earliest_crossing_and_rounds_to_a_second(reviewed_payload):
     course = reviewed(reviewed_payload)
     late = boat_track(((75, 100), (75, -100), 40), start_s=600)

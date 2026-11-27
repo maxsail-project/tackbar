@@ -101,7 +101,8 @@ import { prepareSogManeuverPopulation } from '../utils/typicalSogProfile'
 import { createSelectedManeuverHighlights } from '../utils/selectedManeuverGeometry'
 import { inferSessionStarts } from '../utils/sessionStarts'
 import { inferSessionRaces } from '../utils/sessionRaces'
-import { inferSessionStartLines, visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
+import { visibleDeduplicatedSessionStartLines } from '../utils/sessionStartLines'
+import { mergeSessionStarts } from '../utils/courseStarts'
 import { deriveStartAnalysisRows } from '../utils/startAnalysis'
 import { prefersReducedMotion, revealMapIfNeeded } from '../utils/mapReveal'
 import type { PublicCourseContext } from '../types/course'
@@ -611,17 +612,15 @@ export function SessionViewer({
   const maneuverCache = useRef(new Map<string, ActivityManeuverAnalytics>()).current
   const sessionRaceTimerEvents = useSessionRaceTimerEvents(access)
   const sessionCourses = useSessionCourses(access)
-  const sessionStarts = useMemo(
-    () => sessionRaceTimerEvents ? inferSessionStarts(sessionRaceTimerEvents.activities) : [],
-    [sessionRaceTimerEvents],
-  )
-  const sessionStartLines = useMemo(
-    () => sessionRaceTimerEvents ? inferSessionStartLines(sessionStarts, sessionRaceTimerEvents.activities) : [],
-    [sessionRaceTimerEvents, sessionStarts],
-  )
-  // Ephemeral race shortcuts for the Analysis Window header (#220).
+  // Session Starts and lines from VKX inference (#153), replaced by the course gun and start
+  // line within a course time range (#242 D3) and labelled over the merged list.
+  const { starts: sessionStarts, lines: sessionStartLines } = useMemo(() => {
+    const activities = sessionRaceTimerEvents?.activities ?? []
+    return mergeSessionStarts(inferSessionStarts(activities), activities, sessionCourses)
+  }, [sessionCourses, sessionRaceTimerEvents])
+  // Ephemeral race shortcuts for the Analysis Window header (#220, #242 D10).
   const sessionRaces = useMemo(
-    () => sessionRaceTimerEvents ? inferSessionRaces(sessionStarts, sessionRaceTimerEvents.activities) : [],
+    () => inferSessionRaces(sessionStarts, sessionRaceTimerEvents?.activities ?? []),
     [sessionRaceTimerEvents, sessionStarts],
   )
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
@@ -1312,7 +1311,10 @@ export function SessionViewer({
           primaryVisibleSamples={primaryWindowSamples}
           comparisonVisibleSamples={comparisonWindowSamples}
           contextualActivities={contextualMapActivities}
-          sessionStartLines={analysisWindow ? visibleDeduplicatedSessionStartLines(sessionStartLines, analysisWindow) : []}
+          // A course start line is drawn by the course layer, never again as a Session start line.
+          sessionStartLines={analysisWindow ? visibleDeduplicatedSessionStartLines(
+            sessionStartLines.filter((line) => line.source === 'vkx'), analysisWindow,
+          ) : []}
           courses={sessionCourses}
           fitContextKey={createMapFitContextKey(
             primaryTrack.activity_id,

@@ -3892,8 +3892,10 @@ input:focus-visible {
 .start-analysis-table__start--selected .start-analysis-table__activity { box-shadow: inset 3px 0 #28788a; }
 /* #38 D16: `S<n>` on the first line, the smaller UTC time on the second. */
 .start-analysis-table__start-label,
-.start-analysis-table__start-time { display: block; }
-.start-analysis-table__start-time {
+.start-analysis-table__start-time,
+.start-analysis-table__start-source { display: block; }
+.start-analysis-table__start-time,
+.start-analysis-table__start-source {
   color: #526d74;
   font-size: 0.7rem;
 }

@@ -13,7 +13,7 @@ import type { TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../utils/replay'
 import { calculateSummaryMetrics } from '../utils/summaryMetrics'
-import { startApproachSamples, startTimerActivity } from '../utils/startAnalysisTestFixtures'
+import { startApproachSamples, startTimerActivity, START_FIXTURE_BOAT, START_FIXTURE_PIN } from '../utils/startAnalysisTestFixtures'
 import { SessionViewer } from './SessionViewerPage'
 
 vi.mock('../api/tackbarApi', () => ({
@@ -862,7 +862,7 @@ describe('Viewer selected maneuver interactions', () => {
   })
 
   it.each(['original', 'temporary'] as const)('passes Session courses read with %s access to the map', async (accessKind) => {
-    vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [{ course_id: 'course-1' }] } as never)
+    vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [{ course_id: 'course-1', race: { gun_utc: null, end_utc: null }, elements: [] }] } as never)
     await mountViewer(accessKind)
     expect(api.getSessionCoursesForAccess).toHaveBeenCalledTimes(1)
     expect(vi.mocked(api.getSessionCoursesForAccess).mock.calls[0][0].kind).toBe(accessKind)
@@ -872,6 +872,7 @@ describe('Viewer selected maneuver interactions', () => {
   it('keeps inferred S1 controls when a course time range covers that Start (map-only hiding)', async () => {
     vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [{
       course_id: 'course-1', start_line: { boat: 'rc', pin: 'pin' }, finish_line: null, elements: [],
+      race: { gun_utc: null, end_utc: null },
       time_range: { from: new Date(start).toISOString(), to: new Date(start + 60_000).toISOString() },
     }] } as never)
     await mountViewer()
@@ -1021,6 +1022,48 @@ describe('Viewer selected maneuver interactions', () => {
       await click('[data-reset-window]')
       expect(section()!.querySelector('[data-start-analysis-row="S1"] button')!.getAttribute('aria-pressed')).toBe('false')
       expect(section()!.querySelector('[data-start-analysis-detail]')).toBeNull()
+    })
+
+    const sharedCourse = (race: { gun_utc: string | null, end_utc: string | null }) => {
+      const range = { from: new Date(gun - 30_000).toISOString(), to: new Date(gun + 120_000).toISOString() }
+      const element = (id: string, role: string, point: { latitude: number, longitude: number }) => ({
+        id, role, gate: null, label: id, positions: [{ ...range, lat: point.latitude, lon: point.longitude }],
+      })
+      return { courses: [{
+        course_id: 'course-1', race, time_range: range, start_line: { boat: 'rc', pin: 'pin' }, finish_line: null,
+        elements: [element('rc', 'committee_boat', START_FIXTURE_BOAT), element('pin', 'start_pin', START_FIXTURE_PIN)],
+      }] } as never
+    }
+
+    it.each(['original', 'temporary'] as const)('takes the Start of a GPX-only Session from the course on %s access (#242)', async (accessKind) => {
+      vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [] })
+      vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue(sharedCourse({
+        gun_utc: new Date(gun).toISOString(), end_utc: new Date(gun + 100_000).toISOString(),
+      }))
+      await mountViewer(accessKind)
+      expect(rowCells('primary')).toEqual(['P', 'S110:00:30Course · Admin', '+2.5s · 5.3 kt', '+5.0 m', '50%', '—', '⚠ Ends +1m40s'])
+      expect(container.querySelector('[data-start="S1"]')!.getAttribute('data-start-time')).toBe(String(gun))
+      expect([...container.querySelectorAll('[data-race]')].map((button) => button.textContent)).toEqual(['R1'])
+    })
+
+    it('replaces the inferred Start inside the course range, and keeps it without a course gun (#242 D3)', async () => {
+      // The timer zero is 2 s after the course gun, inside the course range.
+      vi.mocked(api.getSessionRaceTimerEventsForAccess).mockResolvedValue({ activities: [
+        startTimerActivity('a', gun + 2_000), startTimerActivity('b', gun + 2_000),
+      ] })
+      vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue(sharedCourse({ gun_utc: new Date(gun).toISOString(), end_utc: null }))
+      await mountViewer()
+      const startTimes = () => [...container.querySelectorAll('[data-start]')].map((button) => button.getAttribute('data-start-time'))
+      expect(startTimes()).toEqual([String(gun)])
+      expect(section()!.querySelectorAll('[data-start-analysis-row]')).toHaveLength(1)
+      expect(container.querySelector('[data-race]')).toBeNull()
+
+      await act(async () => root.unmount())
+      root = createRoot(container)
+      vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue(sharedCourse({ gun_utc: null, end_utc: null }))
+      await mountViewer()
+      expect(startTimes()).toEqual([String(gun + 2_000)])
+      expect(section()!.textContent).not.toContain('Course · Admin')
     })
 
     it.each(['original', 'temporary'] as const)('is absent without inferred Starts on %s access', async (accessKind) => {
