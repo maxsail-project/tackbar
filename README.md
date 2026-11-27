@@ -153,10 +153,11 @@ The Viewer offers:
 
 * comparison of one or two Activities over a shared GPS/UTC Analysis Window,
   with synchronized replay on the map;
-* race shortcuts from available Vakaros timing to focus that shared window,
-  including a five-minute pre-start margin;
-* Start Analysis from inferred timer starts and recorded GPS evidence, with
-  neutral line-crossing and around-the-gun readings when a start line exists;
+* race shortcuts from available Vakaros timing or an attached course to focus
+  that shared window, including a five-minute pre-start margin;
+* Start Analysis from inferred timer starts or an Admin-reviewed course gun
+  and start line, with recorded GPS evidence and neutral line-crossing and
+  around-the-gun readings when a start line exists;
 * one compact Start, Maneuvers and Points of Sail selector for the Viewer’s
   analysis panels;
 * SOG, COG, HEEL and TRIM signal charts and distributions;
@@ -169,7 +170,9 @@ The Viewer offers:
 * wind-relative segments and window analysis, including tack context and
   progress along the effective wind axis when evidence supports it;
 * other visible Activities as passive fleet context on the map, while analysis
-  stays limited to two.
+  stays limited to two;
+* optional Admin-reviewed course marks and start/finish lines shown at replay
+  time.
 
 Maneuver evidence is not a track-quality rating or an accuracy guarantee. See
 [Session Viewer](docs/current/session-viewer.md) and
@@ -453,10 +456,12 @@ El Viewer ofrece:
 * comparación de una o dos Activities sobre una Analysis Window GPS/UTC
   compartida, con replay sincronizado en el mapa;
 * accesos directos a carreras a partir de los tiempos disponibles de Vakaros
-  para centrar esa ventana, incluidos cinco minutos previos a la salida;
-* Start Analysis a partir de salidas inferidas del temporizador y datos GPS
-  registrados, con lecturas neutrales del cruce y del entorno de la salida
-  cuando hay una línea de salida;
+  o de un recorrido asociado para centrar esa ventana, incluidos cinco minutos
+  previos a la salida;
+* Start Analysis a partir de salidas inferidas del temporizador o de la hora
+  de salida y la línea de un recorrido revisado en Admin, con datos GPS
+  registrados y lecturas neutrales del cruce y del entorno de la salida cuando
+  hay una línea de salida;
 * un selector compacto Start, Maneuvers y Points of Sail para los paneles de
   análisis del Viewer;
 * charts y distribuciones de señal SOG, COG, HEEL y TRIM;
@@ -470,7 +475,9 @@ El Viewer ofrece:
 * segmentos y análisis de la ventana relativos al viento, incluidos el contexto
   de bordos y el avance sobre el eje de viento efectivo cuando hay evidencia;
 * otras Activities visibles como contexto pasivo de flota en el mapa, mientras
-  el análisis sigue limitado a dos.
+  el análisis sigue limitado a dos;
+* balizas y líneas de salida y llegada de un recorrido revisado en Admin,
+  cuando existen, mostradas según la hora del replay.
 
 La evidencia de maniobras no califica la calidad global del track ni garantiza
 precisión. Consulta [Session Viewer](docs/current/session-viewer.md) y

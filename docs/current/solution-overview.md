@@ -110,7 +110,9 @@ flowchart TB
 - **Course contexts are Admin-attached and descriptive.** An Admin turns a
   GeoRacing elements export into a reviewed course and attaches it to a
   Session; the Viewer draws its marks and lines at replay time through the
-  shared reads. A course never creates, splits or merges Activities or
+  shared reads. An Admin-entered gun also supplies a Session Start from the
+  course start line, replacing inferred Starts within that course's time range.
+  A course never creates, splits or merges Activities or
   Sessions.
 - **Providers and storage are backend concerns.** The frontend consumes
   APIs, not private files; acquisition and context providers remain replaceable.

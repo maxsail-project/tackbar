@@ -2,6 +2,58 @@
 
 All notable changes to TackBar will be documented in this file.
 
+## v0.7.31 Californian — Garota de Ipanema
+
+### English
+
+This release adds reviewed GeoRacing race courses to Sessions, so sailors can see course elements during replay and use a course gun and start line in Start Analysis.
+
+### Added
+
+* Admin **Courses** imports a GeoRacing elements GPX separately from Activity ingestion. It proposes track roles and stable position intervals, flags duplicate or stationary trackers, and lets an Admin review roles, gate ids, intervals, gun and race end on a timed map preview. A validated course can be downloaded as JSON.
+* A reviewed course can be attached to a Session, with one course per race and overlapping courses replaced. When validation finds exactly one candidate Session, attachment occurs in that action; otherwise the Admin chooses a Session. Admin Session detail lists attached courses and supports detaching or editing their gun and end times. The original GPX is preserved while the course is attached.
+* The shared Viewer draws course marks, a solid start line and a dashed finish line at their valid replay times. Original and temporary Session capabilities use the existing authorization and expiry checks to read courses.
+* A course with an Admin-entered gun supplies a Session Start. Within the course time range it replaces inferred VKX Starts; Start Analysis uses the course gun and available line endpoints with the source **Course · Admin**. Race shortcuts use the course end when set and otherwise retain the existing VKX race-end rule.
+
+### Limitations
+
+Course import is Admin-only and requires human review. It does not admit multi-track GPX as an Activity, infer an official gun or wind, or provide mark-rounding, race-result or tactical analysis. A course without a gun supplies no Start; line-dependent readings remain unavailable when its start-line endpoints have no position at the gun. GeoRacing source exports are not committed as fixtures; the committed tests use synthetic course data.
+
+### Issues
+
+- [#242](https://github.com/maxsail-project/tackbar/issues/242) — [#242] Import a GeoRacing course as Session course context (Admin)
+
+### Validation
+
+The completed Issue records focused parser, persistence, authorization, Viewer and Start Analysis tests, CI for each increment, and product-owner tablet checks with real GeoRacing course and Activity exports. [SonarQube CI on the merged main candidate](https://github.com/maxsail-project/tackbar/actions/runs/46029020853) passed the full backend and frontend suites, typecheck, Quality Gate and production build. Release preparation checked Issue inclusion, current documentation, bilingual consistency, publication absence, exact release-body correspondence and the final diff; it did not repeat product tests.
+
+---
+
+### Español
+
+Esta versión añade recorridos de GeoRacing revisados a las Sessions para ver sus elementos durante el replay y utilizar la hora y la línea de salida del recorrido en Start Analysis.
+
+### Añadido
+
+* Admin **Courses** importa un GPX de elementos de GeoRacing por separado de la ingesta de Activities. Propone funciones para los tracks e intervalos de posición estables, señala rastreadores duplicados o estacionarios y permite revisar funciones, identificadores de puertas, intervalos, hora de salida y fin de carrera en un mapa con control temporal. El recorrido validado puede descargarse como JSON.
+* Un recorrido revisado se puede asociar a una Session, con uno por carrera y sustitución de recorridos cuyos rangos se solapan. Si la validación encuentra exactamente una Session candidata, la asociación ocurre en esa acción; en los demás casos Admin elige la Session. El detalle de la Session en Admin muestra los recorridos asociados y permite desvincularlos o editar sus horas de salida y fin. El GPX original se conserva mientras el recorrido está asociado.
+* El Viewer compartido muestra las balizas, una línea de salida continua y una línea de llegada discontinua en sus momentos válidos de replay. Las capabilities originales y temporales de Session usan los controles de autorización y caducidad existentes para leer los recorridos.
+* Un recorrido con hora de salida introducida en Admin aporta una Session Start. Dentro del rango temporal del recorrido sustituye las salidas inferidas de VKX; Start Analysis usa la hora y los extremos disponibles de la línea con la fuente **Course · Admin**. Los accesos directos a carreras usan el fin del recorrido cuando existe y, en caso contrario, conservan la regla existente para el fin de carrera de VKX.
+
+### Limitaciones
+
+La importación de recorridos es exclusiva de Admin y requiere revisión humana. No admite GPX de varios tracks como Activity, no infiere una hora de salida oficial ni el viento y no ofrece análisis de pasos de baliza, resultados o decisiones tácticas. Un recorrido sin hora de salida no aporta ninguna Start; las lecturas que necesitan la línea quedan indisponibles si sus extremos no tienen posición en esa hora. Los archivos originales de GeoRacing no se incluyen como fixtures; las pruebas incluidas usan datos sintéticos.
+
+### Issues
+
+- [#242](https://github.com/maxsail-project/tackbar/issues/242) — [#242] Import a GeoRacing course as Session course context (Admin)
+
+### Validación
+
+El Issue completado registra pruebas focalizadas de parsing, persistencia, autorización, Viewer y Start Analysis, CI de cada incremento y comprobaciones en tablet del responsable de producto con archivos reales de recorrido y Activity de GeoRacing. El [CI de SonarQube sobre el candidato integrado en main](https://github.com/maxsail-project/tackbar/actions/runs/46029020853) pasó las suites completas de backend y frontend, typecheck, Quality Gate y build de producción. Durante la preparación se comprobaron la inclusión del Issue, la documentación vigente, la coherencia bilingüe, la ausencia de publicación, la correspondencia exacta del cuerpo de la release y el diff final; no se repitieron las pruebas de producto.
+
+---
+
 ## v0.7.30 Californian — Blink and You'll Miss It
 
 ### English
