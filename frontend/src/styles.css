@@ -4079,9 +4079,6 @@ input:focus-visible {
 .admin-course-map__slider input { width: 100%; min-height: 44px; }
 .admin-course-map__gun { position: absolute; top: 4px; bottom: 4px; width: 3px; margin-left: -1px; border-radius: 2px; background: #B46B42; pointer-events: none; }
 .admin-course-map__range { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
-.admin-course-mark { display: inline-flex; align-items: center; gap: 4px; pointer-events: none; transform: translateX(calc(50% - 7px)); }
-.admin-course-mark__dot { width: 14px; height: 14px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; background: var(--course-mark-color); box-shadow: 0 1px 2px rgb(0 0 0 / 25%); }
-.admin-course-mark__label { padding: 1px 5px; border-radius: 4px; color: #fff; background: var(--course-mark-color); font-size: .68rem; font-weight: 700; white-space: nowrap; box-shadow: 0 1px 2px rgb(0 0 0 / 20%); }
 @media (min-width: 700px) {
   .admin-course-track__head h3 { flex: 1 1 auto; }
   .admin-course-track__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -4093,8 +4090,12 @@ input:focus-visible {
   width: auto;
   min-width: 26px;
   max-width: 160px;
-  padding: 0 8px;
+  padding: 0 9px;
   border-radius: 13px;
+}
+.course-element-label__text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }

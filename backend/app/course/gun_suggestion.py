@@ -36,7 +36,7 @@ class LineCrossing:
     activity_id: str
 
 
-def _position_at(element: CourseElement, moment: datetime) -> tuple[float, float] | None:
+def position_at(element: CourseElement, moment: datetime) -> tuple[float, float] | None:
     # Closed intervals; where two touch, the later applies (as courseState.ts).
     match = None
     for position in element.positions:
@@ -75,8 +75,8 @@ def _frame_at(course: ReviewedCourse, moment: datetime) -> _LineFrame | None:
     if course.start_line is None:
         return None
     elements = {element.id: element for element in course.elements}
-    boat = _position_at(elements[course.start_line.boat], moment)
-    pin = _position_at(elements[course.start_line.pin], moment)
+    boat = position_at(elements[course.start_line.boat], moment)
+    pin = position_at(elements[course.start_line.pin], moment)
     if boat is None or pin is None:
         return None
     frame = _LineFrame(pin, boat)

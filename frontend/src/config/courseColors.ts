@@ -14,3 +14,13 @@ export const COURSE_CHANGE_MARK_COLOR = '#D62828'
 export function courseElementColor(role: CourseElementRole): string {
   return role === 'change_mark' ? COURSE_CHANGE_MARK_COLOR : COURSE_MARK_COLOR
 }
+
+/** Start line solid, finish line dashed; width and opacity of the Viewer start line. */
+export function courseLinePaint(kind: 'start' | 'finish') {
+  return {
+    'line-color': COURSE_LINE_COLOR,
+    'line-opacity': 0.85,
+    'line-width': 2.5,
+    ...(kind === 'finish' ? { 'line-dasharray': [2, 1.5] } : {}),
+  }
+}

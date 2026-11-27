@@ -30,6 +30,7 @@ from app.parsers.georacing_elements import (
     parse_georacing_elements,
 )
 from app.parsers.gpx import MAX_GPX_BYTES
+from app.repositories.activities import ActivityRepository
 from app.repositories.sessions import SessionRepository
 from app.services.session_courses import (
     AttachedCourseSummary,
@@ -144,7 +145,9 @@ session_router = APIRouter(
 
 
 def _course_service() -> SessionCourseService:
-    return SessionCourseService(SessionRepository(), CourseStorage(), TrackStorage())
+    return SessionCourseService(
+        SessionRepository(), CourseStorage(), TrackStorage(), activities=ActivityRepository(),
+    )
 
 
 def _summary_json(summary: AttachedCourseSummary) -> dict:
@@ -248,3 +251,23 @@ async def suggest_session_course_gun(session_id: str, request: Request) -> dict:
         "activity_id": crossing.activity_id,
         "basis": "earliest_start_line_crossing",
     }}
+
+
+@router.post("/session-candidates")
+async def course_session_candidates(request: Request) -> dict:
+    """Sessions that plausibly sailed this course; preselection help only.
+
+    Returns Session ids with time overlap and minimum distance to the start
+    line midpoint; nothing is attached or persisted.
+    """
+    body = await _read_bounded_body(request, MAX_VALIDATE_BODY_BYTES, "Request body exceeds 1 MiB")
+    reviewed = _reviewed_course(_json_body(body))
+    candidates = await run_in_threadpool(_course_service().session_candidates, reviewed)
+    return {"candidates": [
+        {
+            "session_id": candidate.session_id,
+            "overlap_seconds": candidate.overlap_seconds,
+            "min_distance_m": candidate.min_distance_m,
+        }
+        for candidate in candidates
+    ]}

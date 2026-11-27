@@ -104,3 +104,10 @@ export interface CourseGunSuggestion {
   activity_id: string
   basis: 'earliest_start_line_crossing'
 }
+
+/** Admin preselection help (#242): a Session that plausibly sailed the course. */
+export interface CourseSessionCandidate {
+  session_id: string
+  overlap_seconds: number
+  min_distance_m: number
+}

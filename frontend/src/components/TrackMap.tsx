@@ -24,8 +24,9 @@ import { formatGpsTime, type TrackPosition } from '../utils/replay'
 import type { ManeuverActivityRole } from '../utils/maneuverEvents'
 import type { SelectedManeuverHighlight } from '../utils/selectedManeuverGeometry'
 import type { SessionStartLine } from '../utils/sessionStartLines'
-import { COURSE_LINE_COLOR } from '../config/courseColors'
-import { courseStateAt, type CourseShape } from '../utils/courseState'
+import { courseLinePaint } from '../config/courseColors'
+import { courseStateAt, isWithinCourseStartLineRange, type ViewerCourse } from '../utils/courseState'
+import CourseElementLabel from './CourseElementLabel'
 import type { TwdReference } from '../utils/twdReference'
 import { resolveGestureTwd, type TwdPresentation } from '../utils/twdPresentation'
 import type { TwsPresentation, TwsReference } from '../utils/twsReference'
@@ -58,7 +59,7 @@ interface TrackMapProps {
   contextualActivities?: ContextualMapActivity[]
   sessionStartLines?: SessionStartLine[]
   /** Session course contexts (#242): elements and lines valid at `playbackTime` are drawn. */
-  courses?: (CourseShape & { course_id: string })[]
+  courses?: ViewerCourse[]
   fitContextKey: string
   focusRequest?: MapFocusRequest | null
   selectedManeuverHighlights?: SelectedManeuverHighlight[]
@@ -508,13 +509,13 @@ export function mapWeatherDetailDismissHandlers(onDismiss: () => void, onTwdDism
   }
 }
 
-const NO_COURSES: (CourseShape & { course_id: string })[] = []
+const NO_COURSES: ViewerCourse[] = []
 
 export default function TrackMap({
   primaryVisibleSamples,
   comparisonVisibleSamples = [],
   contextualActivities = [],
-  sessionStartLines = [],
+  sessionStartLines: inferredStartLines = [],
   courses = NO_COURSES,
   fitContextKey,
   focusRequest = null,
@@ -554,6 +555,11 @@ export default function TrackMap({
   const courseStates = useMemo(
     () => courses.map((course) => ({ courseId: course.course_id, state: courseStateAt(course, playbackTime) })),
     [courses, playbackTime],
+  )
+  // #242 B (map only): a course start line replaces the inferred VKX line inside its time range.
+  const sessionStartLines = useMemo(
+    () => inferredStartLines.filter((line) => !isWithinCourseStartLineRange(courses, line.time)),
+    [inferredStartLines, courses],
   )
   const ownMapPanelRef = useRef<HTMLElement>(null)
   const mapPanelRef = panelRef ?? ownMapPanelRef
@@ -853,20 +859,18 @@ export default function TrackMap({
           </Marker>
         ))}
         {courseStates.flatMap(({ courseId, state }) => [
-          ...(state.startLine ? [{ kind: 'start', line: state.startLine }] : []),
-          ...(state.finishLine ? [{ kind: 'finish', line: state.finishLine }] : []),
+          ...(state.startLine ? [{ kind: 'start' as const, line: state.startLine }] : []),
+          ...(state.finishLine ? [{ kind: 'finish' as const, line: state.finishLine }] : []),
         ].map(({ kind, line }) => (
           <Source key={`course-${kind}-line-${courseId}`} id={`course-${kind}-line-${courseId}`} type="geojson" data={{
             type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[line.pin.lon, line.pin.lat], [line.boat.lon, line.boat.lat]] },
           }}>
-            <Layer id={`course-${kind}-line-layer-${courseId}`} type="line" layout={TRACK_LAYOUT}
-              paint={{ 'line-color': COURSE_LINE_COLOR, 'line-opacity': 0.85, 'line-width': 2.5, ...(kind === 'finish' ? { 'line-dasharray': [2, 1.5] } : {}) }} />
+            <Layer id={`course-${kind}-line-layer-${courseId}`} type="line" layout={TRACK_LAYOUT} paint={courseLinePaint(kind)} />
           </Source>
         )))}
         {courseStates.flatMap(({ courseId, state }) => state.elements.map((element) => (
           <Marker key={`course-element-${courseId}-${element.id}`} longitude={element.lon} latitude={element.lat} anchor="center" style={{ zIndex: 2 }}>
-            <span className="session-start-line-endpoint course-element-label" data-role={element.role}
-              style={{ background: element.color }} role="img" aria-label={`${element.label} course element`}>{element.label}</span>
+            <CourseElementLabel element={element} />
           </Marker>
         )))}
         {contextualGeometries.map(({ activity, geometry }) => geometry && (

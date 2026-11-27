@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { COURSE_CHANGE_MARK_COLOR, COURSE_LINE_COLOR, COURSE_MARK_COLOR } from '../config/courseColors'
 import type { CourseElement } from '../types/course'
 import type { TrackSample } from '../types/track'
+import CourseMapPreview from './CourseMapPreview'
 import TrackMap from './TrackMap'
 
 vi.mock('react-map-gl/maplibre', async () => {
@@ -43,16 +44,22 @@ const course = {
     element('finish', 'finish_pin', 'Finish Pin', [['10:13:00', '10:53:00', 10.25, -30.4986]]),
     element('change', 'change_mark', 'Change Mark', [['10:25:00', '10:28:00', 10.265, -30.5]]),
   ],
-  start_line: { boat: 'rc', pin: 'pin' },
+  start_line: { boat: 'rc', pin: 'pin' } as { boat: string, pin: string } | null,
   finish_line: { boat: 'rc', pin: 'finish' },
+  time_range: { from: '2031-03-14T10:00:00Z', to: '2031-03-14T11:00:00Z' },
 }
+type StartLine = { label: string, time: number, pin: { latitude: number, longitude: number }, boat: { latitude: number, longitude: number } }
+const inferred = (label: string, time: number): StartLine => ({
+  label, time, pin: { latitude: 10.24, longitude: -30.49 }, boat: { latitude: 10.24, longitude: -30.5 },
+})
 
-function render(playbackTime: number, courses = [course]) {
+function render(playbackTime: number, courses = [course], sessionStartLines: StartLine[] = []) {
   const container = document.createElement('div')
   container.innerHTML = renderToStaticMarkup(<TrackMap
     primaryVisibleSamples={samples}
     fitContextKey="courses"
     courses={courses}
+    sessionStartLines={sessionStartLines}
     primaryActivityIdentity="Primary"
     primaryBoatPosition={{ lat: 10.25, lon: -30.5 }}
     playbackTime={playbackTime}
@@ -117,5 +124,48 @@ describe('Session course on the Viewer map', () => {
       primaryActivityIdentity="Primary" primaryBoatPosition={{ lat: 10.25, lon: -30.5 }} playbackTime={at('10:15:00')}
       primarySog={5} primaryCog={90} primaryHeel={null} primaryTrim={null} />)
     expect(defaultProps.innerHTML).toBe(withoutCourse.innerHTML)
+  })
+
+  it('shows the GPX label itself (no code) in a pill with the endpoint style, zIndex and full-label tooltip', () => {
+    const long = 'Buoy Windward Gate Member With A Very Long GeoRacing Name'
+    const map = render(at('10:05:00'), [{ ...course, elements: [
+      ...course.elements,
+      { id: 'w1', role: 'gate', gate: 'Windward gate with a long id', label: long, positions: [{ from: '2031-03-14T10:00:00Z', to: '2031-03-14T10:30:00Z', lat: 10.27, lon: -30.5 }] },
+    ] }])
+    const label = map.querySelector<HTMLElement>(`[aria-label="${long} course element"]`)!
+    expect(label.textContent).toBe(long)
+    expect(label.getAttribute('title')).toBe(long)
+    expect(label.querySelector('.course-element-label__text')?.textContent).toBe(long)
+    expect(label.className).toBe('session-start-line-endpoint course-element-label')
+    expect(label.closest<HTMLElement>('.maplibregl-marker')?.style.zIndex).toBe('2')
+    expect(labels(map)).toContain('Race committee')
+  })
+
+  it('hides an inferred VKX start line and its endpoints inside a course time range and keeps it outside', () => {
+    const map = render(at('10:05:00'), [course], [inferred('S1', at('10:05:00')), inferred('S2', at('11:30:00'))])
+    expect(map.querySelector('[data-source="session-start-line-S1"]')).toBeNull()
+    expect(map.querySelector('[aria-label="P1 Session start line endpoint"]')).toBeNull()
+    expect(map.querySelector('[aria-label="B1 Session start line endpoint"]')).toBeNull()
+    expect(map.querySelector('[data-source="session-start-line-S2"]')).not.toBeNull()
+    expect(map.querySelector('[aria-label="P2 Session start line endpoint"]')).not.toBeNull()
+    // Range bounds are included.
+    expect(render(at('10:05:00'), [course], [inferred('S1', at('11:00:00'))]).querySelector('[data-source="session-start-line-S1"]')).toBeNull()
+  })
+
+  it('keeps the inferred line when the course has no start line or there is no course', () => {
+    const withoutStartLine = render(at('10:05:00'), [{ ...course, start_line: null }], [inferred('S1', at('10:05:00'))])
+    expect(withoutStartLine.querySelector('[data-source="session-start-line-S1"]')).not.toBeNull()
+    expect(render(at('10:05:00'), [], [inferred('S1', at('10:05:00'))]).querySelector('[data-source="session-start-line-S1"]')).not.toBeNull()
+  })
+
+  it('uses the same markers and line paint in the Admin Courses preview', () => {
+    const preview = document.createElement('div')
+    preview.innerHTML = renderToStaticMarkup(<CourseMapPreview course={course} timeRange={course.time_range} gunUtc={null} />)
+    const viewer = render(at('10:00:00'))
+    const label = preview.querySelector<HTMLElement>('[aria-label="Race committee course element"]')!
+    expect(label.outerHTML).toBe(viewer.querySelector<HTMLElement>('[aria-label="Race committee course element"]')!.outerHTML)
+    expect(label.closest<HTMLElement>('.maplibregl-marker')?.style.zIndex).toBe('2')
+    expect(preview.querySelector('[data-layer="course-start-line-layer"]')?.getAttribute('data-color')).toBe(COURSE_LINE_COLOR)
+    expect(preview.querySelector('[data-layer="course-start-line-layer"]')?.hasAttribute('data-dasharray')).toBe(false)
   })
 })

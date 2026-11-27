@@ -869,6 +869,16 @@ describe('Viewer selected maneuver interactions', () => {
     expect(document.querySelector('[data-map-courses]')?.getAttribute('data-map-courses')).toBe('course-1')
   })
 
+  it('keeps inferred S1 controls when a course time range covers that Start (map-only hiding)', async () => {
+    vi.mocked(api.getSessionCoursesForAccess).mockResolvedValue({ courses: [{
+      course_id: 'course-1', start_line: { boat: 'rc', pin: 'pin' }, finish_line: null, elements: [],
+      time_range: { from: new Date(start).toISOString(), to: new Date(start + 60_000).toISOString() },
+    }] } as never)
+    await mountViewer()
+    expect(document.querySelector('[data-map-courses]')?.getAttribute('data-map-courses')).toBe('course-1')
+    expect(container.querySelector('[data-start="S1"]')).not.toBeNull()
+  })
+
   it('keeps the Viewer usable without courses when the course read fails', async () => {
     vi.mocked(api.getSessionCoursesForAccess).mockRejectedValue(new Error('unavailable'))
     await mountViewer()

@@ -1,5 +1,5 @@
 import type { AdminActivity, AdminActivitySummary, AdminIngestion, AdminIngestionDetail, AdminMailboxReview, AdminManeuverState, AdminSailor, AdminSailorDetail, AdminSession, AdminSessionSummary } from '../types/admin'
-import type { AttachedCourseSummary, CourseContextV1, CourseGunSuggestion, CourseImportDraft, ReviewedCourse } from '../types/course'
+import type { AttachedCourseSummary, CourseContextV1, CourseGunSuggestion, CourseImportDraft, CourseSessionCandidate, ReviewedCourse } from '../types/course'
 
 export type IngestionStatusFilter = 'all' | AdminIngestion['status']
 export type IngestionDispositionFilter = 'all' | 'active' | 'discarded'
@@ -118,3 +118,5 @@ export const detachSessionCourse = (key: string, sessionId: string, courseId: st
   adminRequest<{ courses: AttachedCourseSummary[] }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/${encodeURIComponent(courseId)}/detach`, key, 'POST')
 export const suggestSessionCourseGun = (key: string, sessionId: string, course: ReviewedCourse) =>
   adminRequest<{ suggestion: CourseGunSuggestion | null }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/gun-suggestion`, key, 'POST', course)
+export const findCourseSessionCandidates = (key: string, course: ReviewedCourse) =>
+  adminRequest<{ candidates: CourseSessionCandidate[] }>('/api/admin/course-imports/session-candidates', key, 'POST', course)

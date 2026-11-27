@@ -19,6 +19,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from app.course.gun_suggestion import LineCrossing, TrackPoint, suggest_gun
+from app.course.session_candidates import MemberActivity, SessionCandidate, evaluate_session
 from app.course.schema import (
     COURSE_SCHEMA_VERSION,
     CourseContextV1,
@@ -29,6 +30,7 @@ from app.course.schema import (
 )
 from app.models import Session
 from app.parsers.georacing_elements import parse_georacing_elements
+from app.repositories.activities import ActivityRepository
 from app.repositories.sessions import SessionRepository
 from app.services.ingestion_lock import ingestion_lock
 from app.storage.course_storage import CourseStorage
@@ -81,10 +83,12 @@ class SessionCourseService:
         storage: CourseStorage,
         track_storage: TrackStorage | None = None,
         clock=None,
+        activities: ActivityRepository | None = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
         self.track_storage = track_storage
+        self.activities = activities
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     @property
@@ -228,6 +232,23 @@ class SessionCourseService:
             (activity_id, points) for activity_id in session.activity_ids
             if (points := self._track_points(activity_id)) is not None
         ))
+
+    # --- Candidate Sessions (Admin help, never attaches) ---
+
+    def session_candidates(self, course: ReviewedCourse) -> list[SessionCandidate]:
+        if self.track_storage is None or self.activities is None:
+            raise RuntimeError("Tracks and Activities are required for Session candidates")
+        activities = {activity.id: activity for activity in self.activities.all()}
+        candidates = []
+        for session in self.sessions.all():
+            members = [
+                MemberActivity(activity_id, activities[activity_id].start_time, activities[activity_id].end_time)
+                for activity_id in session.activity_ids if activity_id in activities
+            ]
+            candidate = evaluate_session(course, session.id, members, self._track_points)
+            if candidate is not None:
+                candidates.append(candidate)
+        return sorted(candidates, key=lambda item: (item.min_distance_m, -item.overlap_seconds, item.session_id))
 
     def _track_points(self, activity_id: str) -> list[TrackPoint] | None:
         try:

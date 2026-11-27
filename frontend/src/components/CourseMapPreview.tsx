@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import Map, { Layer, Marker, Source } from 'react-map-gl/maplibre'
-import { COURSE_LINE_COLOR } from '../config/courseColors'
+import { courseLinePaint } from '../config/courseColors'
 import { MAP_STYLE_URL } from '../config/map'
 import type { CourseTimeRange } from '../types/course'
 import { formatUtcTime } from '../utils/courseImport'
 import { courseStateAt, type CourseLineAt, type CourseShape } from '../utils/courseState'
+import CourseElementLabel from './CourseElementLabel'
 
 // Admin course preview (Issue #242, increment 242.2): elements valid at the
 // slider time, their labels, and the start/finish line when both ends exist.
@@ -24,8 +25,7 @@ function LineSource({ id, line, dashed }: { id: string; line: CourseLineAt; dash
     type: 'Feature', properties: {},
     geometry: { type: 'LineString', coordinates: [[line.pin.lon, line.pin.lat], [line.boat.lon, line.boat.lat]] },
   }}>
-    <Layer id={`${id}-layer`} type="line" layout={LINE_LAYOUT}
-      paint={{ 'line-color': COURSE_LINE_COLOR, 'line-opacity': 0.9, 'line-width': 2.5, ...(dashed ? { 'line-dasharray': [2, 1.5] } : {}) }} />
+    <Layer id={`${id}-layer`} type="line" layout={LINE_LAYOUT} paint={courseLinePaint(dashed ? 'finish' : 'start')} />
   </Source>
 }
 
@@ -53,12 +53,8 @@ export default function CourseMapPreview({ course, timeRange, gunUtc }: {
         {state.startLine && <LineSource id="course-start-line" line={state.startLine} />}
         {state.finishLine && <LineSource id="course-finish-line" line={state.finishLine} dashed />}
         {state.elements.map((element) => (
-          <Marker key={element.id} longitude={element.lon} latitude={element.lat} anchor="center">
-            <span className="admin-course-mark" style={{ ['--course-mark-color' as string]: element.color }}
-              role="img" aria-label={`${element.label} (${element.role})`} data-role={element.role}>
-              <span className="admin-course-mark__dot" />
-              <span className="admin-course-mark__label">{element.label}</span>
-            </span>
+          <Marker key={element.id} longitude={element.lon} latitude={element.lat} anchor="center" style={{ zIndex: 2 }}>
+            <CourseElementLabel element={element} />
           </Marker>
         ))}
       </Map> : <p className="admin-meta">No stable positions to preview.</p>}

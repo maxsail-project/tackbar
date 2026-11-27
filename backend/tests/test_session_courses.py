@@ -567,3 +567,64 @@ def test_admin_gun_suggestion_over_http(admin_root, reviewed_payload):
     gun = datetime.fromisoformat(suggestion["gun_utc"])
     assert gun.microsecond == 0 and abs((gun - synthetic.at(5 + 20 / 60)).total_seconds()) <= 1
     assert "course_context_ids" not in session_record(admin_root)
+
+
+# --- Candidate Sessions (242.3 correction C) -----------------------------------------
+
+
+def set_activity_span(root: Path, activity_id: str, start_minutes: float, end_minutes: float) -> None:
+    records = json.loads((root / "activities.json").read_text(encoding="utf-8"))
+    record = next(item for item in records if item["id"] == activity_id)
+    record["start_time"] = synthetic.at(start_minutes).isoformat()
+    record["end_time"] = synthetic.at(end_minutes).isoformat()
+    shared_api._write_json(root / "activities.json", records)
+
+
+@pytest.fixture
+def candidate_root(admin_root):
+    # SESSION_ID holds ACTIVITY_A; OTHER_SESSION_ID holds ACTIVITY_OTHER. Both overlap the course in time.
+    set_activity_span(admin_root, shared_api.ACTIVITY_A, -5, 30)
+    set_activity_span(admin_root, shared_api.ACTIVITY_OTHER, 0, 40)
+    return admin_root
+
+
+NEAR_LINE = ((75, 300), (75, -300), 120)  # passes the start-line midpoint
+FAR_AWAY = ((5000, 5000), (5200, 5000), 120)  # ~7 km from the line
+
+
+def candidates(payload) -> list[dict]:
+    code, body, _ = call("POST", "/api/admin/course-imports/session-candidates", body=json.dumps(payload).encode())
+    assert code == 200
+    return body["candidates"]
+
+
+def test_exactly_one_candidate_and_time_only_overlap_is_not_a_candidate(candidate_root, reviewed_payload):
+    write_track(candidate_root, shared_api.ACTIVITY_A, boat_track(NEAR_LINE, start_s=300))
+    write_track(candidate_root, shared_api.ACTIVITY_OTHER, boat_track(FAR_AWAY, start_s=300))
+    [only] = candidates(reviewed_payload)
+    assert only["session_id"] == SESSION_ID
+    assert only["min_distance_m"] <= 10
+    assert only["overlap_seconds"] == 30 * 60  # 10:00-10:30 of the course range
+    assert set(only) == {"session_id", "overlap_seconds", "min_distance_m"}
+    assert course_files(candidate_root) == set()  # never attaches
+
+
+def test_several_candidates_are_ordered_by_distance(candidate_root, reviewed_payload):
+    write_track(candidate_root, shared_api.ACTIVITY_A, boat_track(((75, 1500), (75, 1200), 120), start_s=300))
+    write_track(candidate_root, shared_api.ACTIVITY_OTHER, boat_track(NEAR_LINE, start_s=300))
+    found = candidates(reviewed_payload)
+    assert [item["session_id"] for item in found] == [shared_api.OTHER_SESSION_ID, SESSION_ID]
+    assert 1100 <= found[1]["min_distance_m"] <= 2000
+
+
+def test_no_candidate_when_nearby_only_while_the_start_line_is_not_valid_or_far(candidate_root, reviewed_payload):
+    # Near the line after the start pin is recovered (10:40+): the line is not valid then.
+    write_track(candidate_root, shared_api.ACTIVITY_A, boat_track(NEAR_LINE, start_s=41 * 60))
+    write_track(candidate_root, shared_api.ACTIVITY_OTHER, boat_track(FAR_AWAY, start_s=300))
+    assert candidates(reviewed_payload) == []
+
+
+def test_no_candidate_without_time_overlap(admin_root, reviewed_payload):
+    # Default fixture Activities sail in June 2031, outside the March course range.
+    write_track(admin_root, shared_api.ACTIVITY_A, boat_track(NEAR_LINE, start_s=300))
+    assert candidates(reviewed_payload) == []

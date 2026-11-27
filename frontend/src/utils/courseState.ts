@@ -62,3 +62,18 @@ export function courseStateAt(course: CourseShape, timeMs: number): CourseStateA
   }
   return { elements, startLine: line(course.start_line), finishLine: line(course.finish_line) }
 }
+
+/** A Session course as the Viewer receives it (schema v1 subset). */
+export interface ViewerCourse extends CourseShape {
+  course_id: string
+  time_range: { from: string, to: string }
+}
+
+/**
+ * True when `timeMs` lies in the time range (bounds included) of a course that
+ * has a start line (#242 B): the inferred VKX start line is not drawn there.
+ */
+export function isWithinCourseStartLineRange(courses: readonly ViewerCourse[], timeMs: number) {
+  return courses.some((course) => course.start_line !== null
+    && Date.parse(course.time_range.from) <= timeMs && timeMs <= Date.parse(course.time_range.to))
+}

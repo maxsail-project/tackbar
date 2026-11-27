@@ -1,10 +1,12 @@
 import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react'
 import {
-  AdminApiError, attachSessionCourse, createGeoRacingCourseDraft, listSessionCourses, suggestSessionCourseGun, validateCourse,
+  AdminApiError, attachSessionCourse, createGeoRacingCourseDraft, findCourseSessionCandidates, listSessionCourses,
+  suggestSessionCourseGun, validateCourse,
 } from '../api/adminApi'
 import type { AdminSessionSummary } from '../types/admin'
 import {
   COURSE_ROLES, type AttachedCourseSummary, type CourseContextV1, type CourseGunSuggestion, type CourseImportDraft, type CourseRole,
+  type CourseSessionCandidate,
 } from '../types/course'
 import {
   buildReviewedCourse, courseElements, courseFilename, editableTracks, editInterval, formatUtcInput, formatUtcTime,
@@ -39,24 +41,39 @@ export function courseDraftError(error: unknown) {
   return 'The draft request failed. Try again.'
 }
 
+/** Overlap and distance of a candidate Session, e.g. "candidate · 30 min overlap · 0.4 km". */
+export function candidateLabel(candidate: CourseSessionCandidate) {
+  const distance = candidate.min_distance_m < 1000
+    ? `${Math.round(candidate.min_distance_m)} m`
+    : `${(candidate.min_distance_m / 1000).toFixed(1)} km`
+  return `candidate · ${Math.round(candidate.overlap_seconds / 60)} min overlap · ${distance} from start line`
+}
+
 /** Human-readable Session choice; times in UTC like the rest of the tool. */
-export function sessionOptionLabel(session: AdminSessionSummary) {
+export function sessionOptionLabel(session: AdminSessionSummary, candidate?: CourseSessionCandidate) {
   const place = [session.location_label, session.location_country].filter(Boolean).join(', ') || 'Session'
   const time = session.sailing_start && session.sailing_end
     ? `${formatUtcInput(session.sailing_start).slice(0, 16)}–${formatUtcTime(session.sailing_end).slice(0, 5)} UTC`
     : 'sailing time unavailable'
-  return `${place} · ${time} · ${session.total_activity_count} Activities`
+  return `${place} · ${time} · ${session.total_activity_count} Activities${candidate ? ` · ${candidateLabel(candidate)}` : ''}`
 }
 
 function overlaps(a: { from: string, to: string }, b: { from: string, to: string }) {
   return Date.parse(a.from) < Date.parse(b.to) && Date.parse(b.from) < Date.parse(a.to)
 }
 
-/** Sessions whose sailing interval overlaps the course first, newest first otherwise. */
-export function orderedSessionChoices(sessions: AdminSessionSummary[], range: { from: string, to: string }) {
+/**
+ * Candidate Sessions first in backend order (nearest start line first), then
+ * Sessions whose sailing interval overlaps the course, then newest first.
+ */
+export function orderedSessionChoices(
+  sessions: AdminSessionSummary[], range: { from: string, to: string }, candidates: CourseSessionCandidate[] = [],
+) {
+  const rank = new Map(candidates.map((candidate, index) => [candidate.session_id, index]))
   const overlapping = (session: AdminSessionSummary) => Boolean(session.sailing_start && session.sailing_end
     && overlaps({ from: session.sailing_start, to: session.sailing_end }, range))
-  return [...sessions].sort((a, b) => Number(overlapping(b)) - Number(overlapping(a))
+  return [...sessions].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity)
+    || Number(overlapping(b)) - Number(overlapping(a))
     || Date.parse(b.sailing_start ?? '') - Date.parse(a.sailing_start ?? ''))
 }
 
@@ -97,6 +114,8 @@ export default function AdminCourseImport({ adminKey, sessions = [], onUnauthori
   const [suggesting, setSuggesting] = useState(false)
   const [suggestion, setSuggestion] = useState<CourseGunSuggestion | null | undefined>(undefined)
   const [suggestionError, setSuggestionError] = useState<string | null>(null)
+  const [candidates, setCandidates] = useState<CourseSessionCandidate[] | null>(null)
+  const [findingCandidates, setFindingCandidates] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draft, setDraft] = useState<CourseImportDraft | null>(null)
@@ -118,9 +137,13 @@ export default function AdminCourseImport({ adminKey, sessions = [], onUnauthori
       setDraft(next)
       setDraftFile(file)
       setAttachResult(null); setAttachErrors([]); setSuggestion(undefined); setSuggestionError(null)
-      setTracks(editableTracks(next))
-      setRace({ label: next.suggested_course.race.label, gun: '', end: '' })
+      const initialTracks = editableTracks(next)
+      const initialRace = { label: next.suggested_course.race.label, gun: '', end: '' }
+      setTracks(initialTracks)
+      setRace(initialRace)
       setValidationErrors([]); setValidated(null)
+      setSessionId(''); setAttachedToSession(null); setCandidates(null)
+      void findCandidates(buildReviewedCourse(next, initialTracks, initialRace), true)
     } catch (cause) {
       setUploadError(courseDraftError(cause))
       if (cause instanceof AdminApiError && cause.status === 401) onUnauthorized(cause)
@@ -143,6 +166,18 @@ export default function AdminCourseImport({ adminKey, sessions = [], onUnauthori
     } catch (cause) {
       if (cause instanceof AdminApiError && cause.status === 401) onUnauthorized(cause)
     }
+  }
+  // Preselection help only: exactly one candidate is preselected, Attach stays explicit.
+  const findCandidates = async (course: ReturnType<typeof buildReviewedCourse>, preselect: boolean) => {
+    setFindingCandidates(true)
+    try {
+      const found = (await findCourseSessionCandidates(adminKey, course)).candidates
+      setCandidates(found)
+      if (preselect && found.length === 1) await chooseSession(found[0].session_id)
+    } catch (cause) {
+      setCandidates(null)
+      if (cause instanceof AdminApiError && cause.status === 401) onUnauthorized(cause)
+    } finally { setFindingCandidates(false) }
   }
   const updateTrack = (trackId: string, change: Partial<EditableTrack>) =>
     updateTracks((items) => items.map((item) => item.track.track_id === trackId ? { ...item, ...change } : item))
@@ -203,7 +238,8 @@ export default function AdminCourseImport({ adminKey, sessions = [], onUnauthori
   }
 
   const gunUtc = race.gun.trim() ? parseUtcInput(race.gun) : null
-  const sessionChoices = draft ? orderedSessionChoices(sessions, draft.time_range) : []
+  const sessionChoices = draft ? orderedSessionChoices(sessions, draft.time_range, candidates ?? []) : []
+  const candidateById = new Map((candidates ?? []).map((candidate) => [candidate.session_id, candidate]))
 
   return <div className="admin-course-import">
     <form className="admin-upload" aria-label="Import GeoRacing course" onSubmit={(event) => void upload(event)}>
@@ -254,8 +290,20 @@ export default function AdminCourseImport({ adminKey, sessions = [], onUnauthori
         <div className="admin-upload__fields">
           <label>Session<select value={sessionId} disabled={attaching} onChange={(event) => void chooseSession(event.target.value)}>
             <option value="">Select a Session</option>
-            {sessionChoices.map((session) => <option key={session.id} value={session.id}>{sessionOptionLabel(session)}</option>)}
+            {sessionChoices.map((session) => <option key={session.id} value={session.id}>{sessionOptionLabel(session, candidateById.get(session.id))}</option>)}
           </select></label>
+        </div>
+        {findingCandidates && <p className="admin-meta" role="status">Looking for Sessions that sailed this course…</p>}
+        {!findingCandidates && candidates && <p className="admin-meta" role="status">{
+          candidates.length === 1
+            ? 'One candidate Session sailed near the start line during the course and is preselected. Check it, then click Attach to Session.'
+            : candidates.length > 1
+              ? `${candidates.length} candidate Sessions are listed first. Choose one.`
+              : 'No candidate Session sailed near the start line during the course. Choose a Session explicitly.'
+        }</p>}
+        <div className="admin-actions">
+          <button type="button" className="admin-section-action" disabled={findingCandidates || issues.length > 0}
+            onClick={() => draft && void findCandidates(buildReviewedCourse(draft, tracks, race), !sessionId)}>Recheck candidates</button>
         </div>
         {sessions.length === 0 && <p className="admin-meta">No Sessions are available.</p>}
         {attachedToSession && attachedToSession.length > 0 && <p className="admin-meta">Already attached: {attachedToSession.map((course) => course.race_label ?? 'unavailable course').join(', ')}. A course overlapping this race’s time range is replaced.</p>}

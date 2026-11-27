@@ -14,6 +14,7 @@ vi.mock('../api/adminApi', async (importOriginal) => ({
   attachSessionCourse: vi.fn(),
   listSessionCourses: vi.fn(),
   suggestSessionCourseGun: vi.fn(),
+  findCourseSessionCandidates: vi.fn(),
 }))
 vi.mock('./CourseMapPreview', () => ({
   default: ({ course, gunUtc }: { course: { elements: unknown[], start_line: unknown }, gunUtc: string | null }) =>
@@ -39,6 +40,7 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
   vi.mocked(api.createGeoRacingCourseDraft).mockResolvedValue(courseDraftFixture())
   vi.mocked(api.listSessionCourses).mockResolvedValue({ courses: [] })
+  vi.mocked(api.findCourseSessionCandidates).mockResolvedValue({ candidates: [] })
   confirm.mockReturnValue(true)
 })
 afterEach(async () => {
@@ -268,5 +270,41 @@ describe('Admin Courses tool', () => {
     vi.mocked(api.suggestSessionCourseGun).mockResolvedValueOnce({ suggestion: null })
     await press(button('Suggest gun'))
     expect(container.textContent).toContain('No start-line crossing was found in the course time range.')
+  })
+
+  describe('candidate Session preselection', () => {
+    const picker = () => labelled(container, 'Session') as unknown as HTMLSelectElement
+
+    it('preselects exactly one candidate, labels it, and still needs the explicit Attach click', async () => {
+      vi.mocked(api.findCourseSessionCandidates).mockResolvedValue({ candidates: [{ session_id: 'session-old', overlap_seconds: 1800, min_distance_m: 420 }] })
+      await upload()
+      await vi.waitFor(() => expect(picker().value).toBe('session-old'))
+      expect(api.findCourseSessionCandidates).toHaveBeenCalledWith('key', expect.objectContaining({ time_range: courseDraftFixture().time_range }))
+      expect(picker().options[1].textContent).toBe('Elsewhere · 2031-01-01 10:00–11:00 UTC · 1 Activities · candidate · 30 min overlap · 420 m from start line')
+      expect(api.listSessionCourses).toHaveBeenCalledWith('key', 'session-old')
+      expect(container.textContent).toContain('One candidate Session sailed near the start line during the course and is preselected.')
+      expect(api.attachSessionCourse).not.toHaveBeenCalled()
+      expect(button('Attach to Session').disabled).toBe(false)
+    })
+
+    it('lists several candidates first with overlap and distance and preselects none', async () => {
+      vi.mocked(api.findCourseSessionCandidates).mockResolvedValue({ candidates: [
+        { session_id: 'session-old', overlap_seconds: 600, min_distance_m: 150 },
+        { session_id: 'session-race', overlap_seconds: 3600, min_distance_m: 1500 },
+      ] })
+      await upload()
+      await vi.waitFor(() => expect(container.textContent).toContain('2 candidate Sessions are listed first. Choose one.'))
+      expect(picker().value).toBe('')
+      expect([...picker().options].slice(1).map((option) => option.value)).toEqual(['session-old', 'session-race'])
+      expect(picker().options[2].textContent).toContain('candidate · 60 min overlap · 1.5 km from start line')
+      expect(api.attachSessionCourse).not.toHaveBeenCalled()
+    })
+
+    it('reports no candidate and keeps the explicit choice', async () => {
+      await upload()
+      await vi.waitFor(() => expect(container.textContent).toContain('No candidate Session sailed near the start line during the course.'))
+      expect(picker().value).toBe('')
+      expect([...picker().options].some((option) => option.textContent?.includes('candidate ·'))).toBe(false)
+    })
   })
 })
