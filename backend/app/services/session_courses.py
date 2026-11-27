@@ -5,7 +5,8 @@ course whose time range overlaps one already attached to that Session replaces
 it atomically, without version history (D6). Writes run under the ingestion
 lock and are ordered so a Session never references a missing course file:
 course files first, then the Session record; superseded files are removed only
-after the Session update.
+after the Session update. An attached course's race times (gun and end) can be
+edited in place (D14); that rewrites only its context file.
 """
 
 from dataclasses import dataclass, replace
@@ -48,6 +49,10 @@ class CourseNotAttachedError(LookupError):
     pass
 
 
+class CourseUnavailableError(RuntimeError):
+    """The attached course file is missing or unreadable."""
+
+
 class CourseOriginalMismatchError(ValueError):
     """The uploaded original is not the file the reviewed course was built from."""
 
@@ -66,6 +71,7 @@ class AttachedCourseSummary:
     time_from: datetime | None = None
     time_to: datetime | None = None
     gun_utc: datetime | None = None
+    end_utc: datetime | None = None
     source_filename: str | None = None
     imported_at: datetime | None = None
     element_count: int | None = None
@@ -142,6 +148,7 @@ class SessionCourseService:
                 time_from=course.time_range.from_,
                 time_to=course.time_range.to,
                 gun_utc=course.race.gun_utc,
+                end_utc=course.race.end_utc,
                 source_filename=course.source.filename,
                 imported_at=course.source.imported_at,
                 element_count=len(course.elements),
@@ -220,9 +227,39 @@ class SessionCourseService:
             ))
             self._discard(course_id)
 
+    def update_race_times(
+        self,
+        session_id: str,
+        course_id: str,
+        gun_utc: datetime | None,
+        end_utc: datetime | None,
+    ) -> CourseContextV1:
+        """Set, change or clear the gun and end of an attached course (D14).
+
+        Only ``race.gun_utc``, ``race.gun_source`` and ``race.end_utc`` change.
+        The whole updated course must satisfy the schema (``ValidationError``
+        otherwise); the Session record and the preserved original are not touched.
+        """
+        with ingestion_lock(self._lock_root):
+            payload = self._attached(session_id, course_id).model_dump(by_alias=True)
+            payload["race"].update(
+                gun_utc=gun_utc,
+                gun_source="admin_entered" if gun_utc is not None else None,
+                end_utc=end_utc,
+            )
+            updated = CourseContextV1.model_validate(payload)
+            self.storage.write_context(course_id, course_json(updated))
+        return updated
+
     # --- Gun suggestion (D2) ---
 
-    def suggest_gun(self, session_id: str, course: ReviewedCourse) -> LineCrossing | None:
+    def suggest_attached_gun(self, session_id: str, course_id: str) -> LineCrossing | None:
+        """The same suggestion for a course already attached to the Session (D14)."""
+        return self.suggest_gun(session_id, self._attached(session_id, course_id))
+
+    def suggest_gun(
+        self, session_id: str, course: ReviewedCourse | CourseContextV1,
+    ) -> LineCrossing | None:
         if course.start_line is None:
             raise ValueError("The course has no start line")
         if self.track_storage is None:
@@ -269,6 +306,15 @@ class SessionCourseService:
         if session is None:
             raise SessionNotFoundError("Session not found")
         return session
+
+    def _attached(self, session_id: str, course_id: str) -> CourseContextV1:
+        # Membership is checked first, so only a referenced id reaches storage.
+        if course_id not in self._session(session_id).course_context_ids:
+            raise CourseNotAttachedError("Course is not attached to this Session")
+        course = self.load(course_id)
+        if course is None:
+            raise CourseUnavailableError("Course file is unavailable")
+        return course
 
     def _discard(self, course_id: str) -> None:
         try:

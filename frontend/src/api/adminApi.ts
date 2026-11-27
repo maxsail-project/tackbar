@@ -116,6 +116,10 @@ export const attachSessionCourse = (key: string, sessionId: string, filename: st
     key, 'POST', { course, original_base64: originalBase64 })
 export const detachSessionCourse = (key: string, sessionId: string, courseId: string) =>
   adminRequest<{ courses: AttachedCourseSummary[] }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/${encodeURIComponent(courseId)}/detach`, key, 'POST')
+export const updateSessionCourseRaceTimes = (key: string, sessionId: string, courseId: string, times: { gun_utc: string | null; end_utc: string | null }) =>
+  adminRequest<{ courses: AttachedCourseSummary[] }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/${encodeURIComponent(courseId)}/race-times`, key, 'PATCH', times)
+export const suggestAttachedCourseGun = (key: string, sessionId: string, courseId: string) =>
+  adminRequest<{ suggestion: CourseGunSuggestion | null }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/${encodeURIComponent(courseId)}/gun-suggestion`, key, 'POST')
 export const suggestSessionCourseGun = (key: string, sessionId: string, course: ReviewedCourse) =>
   adminRequest<{ suggestion: CourseGunSuggestion | null }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/courses/gun-suggestion`, key, 'POST', course)
 export const findCourseSessionCandidates = (key: string, course: ReviewedCourse) =>

@@ -2,9 +2,10 @@
 
 Course import is Admin-only and separate from track ingestion. The draft and
 validate endpoints (242.1) are stateless. The Session-scoped endpoints (242.3)
-attach, list, detach and suggest a gun for course contexts; they never create
-or change an Ingestion, Activity or Sailor, nor Session membership. The
-provider is selected explicitly by the path, not detected.
+attach, list, detach and suggest a gun for course contexts, and edit the race
+times of an attached one (242.3.2); they never create or change an Ingestion,
+Activity or Sailor, nor Session membership. The provider is selected explicitly
+by the path, not detected.
 """
 
 from datetime import datetime, timezone
@@ -23,8 +24,8 @@ from starlette.requests import ClientDisconnect
 
 from app.admin_auth import require_admin_key
 from app.course.draft import CourseImportDraft, build_course_draft
-from app.course.gun_suggestion import to_whole_second
-from app.course.schema import CourseContextV1, ReviewedCourse, course_json
+from app.course.gun_suggestion import LineCrossing, to_whole_second
+from app.course.schema import CourseContextV1, CourseRaceTimes, ReviewedCourse, course_json
 from app.parsers.georacing_elements import (
     GeoRacingElementsParseError,
     parse_georacing_elements,
@@ -36,6 +37,7 @@ from app.services.session_courses import (
     AttachedCourseSummary,
     CourseNotAttachedError,
     CourseOriginalMismatchError,
+    CourseUnavailableError,
     SessionCourseService,
     SessionNotFoundError,
 )
@@ -127,9 +129,14 @@ def _reviewed_course(payload, location: tuple = ("body",)) -> ReviewedCourse:
     try:
         return ReviewedCourse.model_validate(payload)
     except ValidationError as error:
-        raise RequestValidationError(
-            [{**item, "loc": (*location, *item["loc"])} for item in error.errors(include_url=False)]
-        ) from error
+        raise _request_errors(error, location) from error
+
+
+def _request_errors(error: ValidationError, location: tuple = ("body",)) -> RequestValidationError:
+    """Schema errors in the standard 422 shape, located in the request."""
+    return RequestValidationError(
+        [{**item, "loc": (*location, *item["loc"])} for item in error.errors(include_url=False)]
+    )
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -160,6 +167,7 @@ def _summary_json(summary: AttachedCourseSummary) -> dict:
             if summary.available else None
         ),
         "gun_utc": _iso(summary.gun_utc),
+        "end_utc": _iso(summary.end_utc),
         "source_filename": summary.source_filename,
         "imported_at": _iso(summary.imported_at),
         "element_count": summary.element_count,
@@ -168,6 +176,14 @@ def _summary_json(summary: AttachedCourseSummary) -> dict:
 
 def _session_not_found() -> HTTPException:
     return HTTPException(status_code=404, detail="Session not found")
+
+
+def _course_not_attached() -> HTTPException:
+    return HTTPException(status_code=404, detail="Course is not attached to this Session")
+
+
+def _course_unavailable() -> HTTPException:
+    return HTTPException(status_code=409, detail="Course file is unavailable")
 
 
 @session_router.get("/{session_id}/courses")
@@ -228,8 +244,53 @@ def detach_session_course(session_id: str, course_id: str) -> dict:
     except SessionNotFoundError as error:
         raise _session_not_found() from error
     except CourseNotAttachedError as error:
-        raise HTTPException(status_code=404, detail="Course is not attached to this Session") from error
+        raise _course_not_attached() from error
     return {"courses": [_summary_json(summary) for summary in summaries]}
+
+
+@session_router.patch("/{session_id}/courses/{course_id}/race-times")
+async def update_session_course_race_times(session_id: str, course_id: str, request: Request) -> dict:
+    """Set, change or clear the gun and end of an attached course (D14).
+
+    Body: ``{"gun_utc": <UTC or null>, "end_utc": <UTC or null>}``. Returns the
+    Session's attached courses.
+    """
+    body = await _read_bounded_body(request, MAX_VALIDATE_BODY_BYTES, "Request body exceeds 1 MiB")
+    try:
+        times = CourseRaceTimes.model_validate(_json_body(body))
+    except ValidationError as error:
+        raise _request_errors(error) from error
+    service = _course_service()
+    try:
+        await run_in_threadpool(
+            service.update_race_times, session_id, course_id, times.gun_utc, times.end_utc,
+        )
+        summaries = await run_in_threadpool(service.list_attached, session_id)
+    except SessionNotFoundError as error:
+        raise _session_not_found() from error
+    except CourseNotAttachedError as error:
+        raise _course_not_attached() from error
+    except CourseUnavailableError as error:
+        raise _course_unavailable() from error
+    except ValidationError as error:
+        raise _request_errors(error) from error
+    return {"courses": [_summary_json(summary) for summary in summaries]}
+
+
+@session_router.post("/{session_id}/courses/{course_id}/gun-suggestion")
+def suggest_attached_course_gun(session_id: str, course_id: str) -> dict:
+    """The gun suggestion for an attached course (D14); a suggestion only."""
+    try:
+        crossing = _course_service().suggest_attached_gun(session_id, course_id)
+    except SessionNotFoundError as error:
+        raise _session_not_found() from error
+    except CourseNotAttachedError as error:
+        raise _course_not_attached() from error
+    except CourseUnavailableError as error:
+        raise _course_unavailable() from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return _suggestion_json(crossing)
 
 
 @session_router.post("/{session_id}/courses/gun-suggestion")
@@ -243,6 +304,10 @@ async def suggest_session_course_gun(session_id: str, request: Request) -> dict:
         raise _session_not_found() from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    return _suggestion_json(crossing)
+
+
+def _suggestion_json(crossing: LineCrossing | None) -> dict:
     if crossing is None:
         return {"suggestion": None}
     return {"suggestion": {

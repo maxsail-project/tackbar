@@ -235,7 +235,7 @@ describe('Admin Courses tool', () => {
   it('asks before replacing an overlapping course and attaches nothing when declined', async () => {
     vi.mocked(api.listSessionCourses).mockResolvedValue({ courses: [{
       course_id: 'old', available: true, race_label: 'Race 7 (first import)', time_range: { from: '2031-03-14T10:10:00Z', to: '2031-03-14T10:50:00Z' },
-      gun_utc: null, source_filename: 'old.gpx', imported_at: '2031-03-14T12:00:00Z', element_count: 4,
+      gun_utc: null, end_utc: null, source_filename: 'old.gpx', imported_at: '2031-03-14T12:00:00Z', element_count: 4,
     }] })
     confirm.mockReturnValue(false)
     await upload()
@@ -266,8 +266,16 @@ describe('Admin Courses tool', () => {
     expect(api.suggestSessionCourseGun).toHaveBeenCalledWith('key', 'session-race', expect.objectContaining({ race: expect.objectContaining({ gun_utc: null }) }))
     expect(container.textContent).toContain('Suggested gun: 2031-03-14 10:05:20 UTC')
     expect(labelled(container, 'Gun').value).toBe('')
+    const note = 'Copied to the gun field — adjust to the official gun if needed'
+    expect(container.textContent).not.toContain(note)
     await press(button('Use as gun'))
     expect(labelled(container, 'Gun').value).toBe('2031-03-14 10:05:20')
+    expect(container.querySelector('.admin-course-suggestion')!.textContent).toContain(note)
+    // Only a copy: nothing is validated or attached, and the gun stays editable before Validate.
+    expect(api.validateCourse).not.toHaveBeenCalled()
+    expect(api.attachSessionCourse).not.toHaveBeenCalled()
+    await type(labelled(container, 'Gun'), '2031-03-14 10:05:00')
+    expect((await validated()).race.gun_utc).toBe('2031-03-14T10:05:00Z')
     vi.mocked(api.suggestSessionCourseGun).mockResolvedValueOnce({ suggestion: null })
     await press(button('Suggest gun'))
     expect(container.textContent).toContain('No start-line crossing was found in the course time range.')
@@ -280,7 +288,7 @@ describe('Admin Courses tool', () => {
     const hasButton = (label: string) => [...container.querySelectorAll('button')].some((item) => item.textContent === label)
     const summary = (courseId: string, raceLabel: string) => ({
       course_id: courseId, available: true, race_label: raceLabel, time_range: courseDraftFixture().time_range,
-      gun_utc: null, source_filename: 'x.gpx', imported_at: '2031-03-14T12:00:00Z', element_count: 4,
+      gun_utc: null, end_utc: null, source_filename: 'x.gpx', imported_at: '2031-03-14T12:00:00Z', element_count: 4,
     })
     const attachedText = 'Attached to Session Elsewhere · 2031-01-01 10:00–11:00 UTC · 1 Activities — matched automatically'
 

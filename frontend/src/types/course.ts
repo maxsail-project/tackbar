@@ -93,6 +93,7 @@ export interface AttachedCourseSummary {
   race_label: string | null
   time_range: CourseTimeRange | null
   gun_utc: string | null
+  end_utc: string | null
   source_filename: string | null
   imported_at: string | null
   element_count: number | null

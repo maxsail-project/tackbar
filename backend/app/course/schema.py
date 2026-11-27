@@ -104,6 +104,17 @@ class CourseRace(_Strict):
         return self
 
 
+class CourseRaceTimes(_Strict):
+    """Admin edit of an attached course's race times (D14): both keys, null clears.
+
+    The rules between the times and the course (gun source, time_range, end
+    after gun) are those of the whole updated course.
+    """
+
+    gun_utc: UtcDatetime | None
+    end_utc: UtcDatetime | None
+
+
 class TimeRange(_Strict):
     from_: UtcDatetime = Field(alias="from")
     to: UtcDatetime

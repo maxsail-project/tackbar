@@ -6,6 +6,7 @@ Courses come from the deterministic synthetic elements GPX of 242.1.
 
 import asyncio
 import base64
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -555,7 +556,7 @@ def test_admin_attach_list_and_detach_over_http(admin_root, elements_bytes, revi
     assert listed == {"courses": [{
         "course_id": course_id, "available": True, "race_label": "Synthetic Race 7",
         "time_range": {"from": "2031-03-14T10:00:00Z", "to": "2031-03-14T11:00:00Z"},
-        "gun_utc": "2031-03-14T10:05:00Z", "source_filename": FILENAME,
+        "gun_utc": "2031-03-14T10:05:00Z", "end_utc": None, "source_filename": FILENAME,
         "imported_at": "2031-03-15T00:00:00Z", "element_count": len(reviewed_payload["elements"]),
     }]}
     status, after, _ = call("POST", f"{path}/{course_id}/detach")
@@ -590,6 +591,7 @@ def test_admin_attach_rejects_sha256_mismatch_and_unknown_session(admin_root, el
 
 @pytest.mark.parametrize("method, suffix", [
     ("GET", "/courses"), ("POST", "/courses"), ("POST", "/courses/x/detach"), ("POST", "/courses/gun-suggestion"),
+    ("PATCH", "/courses/x/race-times"), ("POST", "/courses/x/gun-suggestion"),
 ])
 def test_admin_session_course_endpoints_require_authorization_before_reading(admin_root, method, suffix):
     code, _, reads = call(method, f"/api/admin/sessions/{SESSION_ID}{suffix}", body=b"{}", key="wrong",
@@ -608,6 +610,177 @@ def test_admin_gun_suggestion_over_http(admin_root, reviewed_payload):
     gun = datetime.fromisoformat(suggestion["gun_utc"])
     assert gun.microsecond == 0 and abs((gun - synthetic.at(5 + 20 / 60)).total_seconds()) <= 1
     assert "course_context_ids" not in session_record(admin_root)
+
+
+# --- Race times of an attached course (D14, 242.3.2) ----------------------------
+
+
+def stored_course(root: Path, course_id: str) -> dict:
+    return json.loads((root / "course_contexts" / f"{course_id}.json").read_text(encoding="utf-8"))
+
+
+def race_times(root: Path, course_id: str, gun: str | None, end: str | None, session_id: str = SESSION_ID):
+    code, body, _ = call("PATCH", f"/api/admin/sessions/{session_id}/courses/{course_id}/race-times",
+                         body=json.dumps({"gun_utc": gun, "end_utc": end}).encode())
+    return code, body
+
+
+def test_admin_sets_changes_and_clears_race_times_without_touching_anything_else(
+    admin_root, elements_bytes, reviewed_payload,
+):
+    payload = json.loads(json.dumps(reviewed_payload))
+    payload["race"].update(gun_utc=None, gun_source=None)
+    course_id = attach(admin_root, payload, elements_bytes)
+    before = stored_course(admin_root, course_id)
+    sessions_before = (admin_root / "sessions.json").read_bytes()
+    originals_before = {path: (admin_root / path).read_bytes() for path in course_files(admin_root) if "originals" in path}
+
+    for gun, end, source in [
+        ("2031-03-14T10:05:00Z", None, "admin_entered"),                        # set the gun
+        ("2031-03-14T10:06:30Z", None, "admin_entered"),                        # change it
+        ("2031-03-14T10:06:30Z", "2031-03-14T10:50:00Z", "admin_entered"),      # set the end
+        (None, "2031-03-14T10:50:00Z", None),                                   # clear the gun only
+        (None, None, None),                                                     # clear both
+    ]:
+        code, body = race_times(admin_root, course_id, gun, end)
+        assert code == 200, body
+        [summary] = body["courses"]
+        assert (summary["course_id"], summary["race_label"], summary["gun_utc"], summary["end_utc"]) == (
+            course_id, "Synthetic Race 7", gun, end,
+        )
+        stored = stored_course(admin_root, course_id)
+        assert stored["race"] == {"label": "Synthetic Race 7", "gun_utc": gun, "gun_source": source, "end_utc": end}
+        # course_id, elements, lines, time range and source provenance are unchanged.
+        assert {key: value for key, value in stored.items() if key != "race"} == {
+            key: value for key, value in before.items() if key != "race"
+        }
+
+    assert (admin_root / "sessions.json").read_bytes() == sessions_before
+    assert {path: (admin_root / path).read_bytes() for path in originals_before} == originals_before
+    assert list((admin_root / "course_contexts").glob("*.tmp")) == []
+
+
+def test_admin_race_times_are_stored_in_utc_from_an_offset_timestamp(admin_root, elements_bytes, reviewed_payload):
+    course_id = attach(admin_root, reviewed_payload, elements_bytes)
+    code, _ = race_times(admin_root, course_id, "2031-03-14T07:07:00-03:00", None)
+    assert code == 200
+    assert stored_course(admin_root, course_id)["race"]["gun_utc"] == "2031-03-14T10:07:00Z"
+
+
+@pytest.mark.parametrize("body, message", [
+    ({"gun_utc": "2031-03-14T10:30:00Z", "end_utc": "2031-03-14T10:20:00Z"}, "end_utc must be after gun_utc"),
+    ({"gun_utc": "2031-03-14T10:30:00Z", "end_utc": "2031-03-14T10:30:00Z"}, "end_utc must be after gun_utc"),
+    ({"gun_utc": "2031-03-14T09:59:59Z", "end_utc": None}, "race gun_utc must lie within time_range"),
+    ({"gun_utc": "2031-03-14T11:00:01Z", "end_utc": None}, "race gun_utc must lie within time_range"),
+    ({"gun_utc": None, "end_utc": "2031-03-14T11:00:01Z"}, "race end_utc must lie within time_range"),
+    ({"gun_utc": "2031-03-14T10:05:00", "end_utc": None}, "timezone"),
+    ({"gun_utc": None}, "Field required"),
+    ({"gun_utc": None, "end_utc": None, "label": "x"}, "Extra inputs are not permitted"),
+    ([], "valid dictionary"),
+])
+def test_admin_race_times_reject_invalid_values_and_keep_the_course(
+    admin_root, elements_bytes, reviewed_payload, body, message,
+):
+    course_id = attach(admin_root, reviewed_payload, elements_bytes)
+    before = (admin_root / "course_contexts" / f"{course_id}.json").read_bytes()
+    code, response, _ = call("PATCH", f"/api/admin/sessions/{SESSION_ID}/courses/{course_id}/race-times",
+                             body=json.dumps(body).encode())
+    assert code == 422
+    assert isinstance(response["detail"], list) and response["detail"][0]["loc"][0] == "body"
+    assert message in json.dumps(response["detail"])
+    assert (admin_root / "course_contexts" / f"{course_id}.json").read_bytes() == before
+
+
+def test_admin_race_times_not_found_unavailable_and_bounded(admin_root, elements_bytes, reviewed_payload):
+    course_id = attach(admin_root, reviewed_payload, elements_bytes)
+    other = "6f1c2f0e-8a8e-4c3e-9a55-0d3f3b1c9e01"
+    assert race_times(admin_root, other, None, None) == (404, {"detail": "Course is not attached to this Session"})
+    unknown = "20000000-0000-4000-8000-00000000ffff"
+    assert race_times(admin_root, course_id, None, None, session_id=unknown) == (404, {"detail": "Session not found"})
+    code, _, _ = call("PATCH", f"/api/admin/sessions/{SESSION_ID}/courses/{course_id}/race-times",
+                      body=b" " * (1024 * 1024 + 1))
+    assert code == 413
+    (admin_root / "course_contexts" / f"{course_id}.json").write_text("not json", encoding="utf-8")
+    assert race_times(admin_root, course_id, None, None) == (409, {"detail": "Course file is unavailable"})
+
+
+def test_race_times_are_written_under_the_ingestion_lock(
+    service, root, elements_bytes, reviewed_payload, monkeypatch,
+):
+    course_id = str(service.attach(SESSION_ID, FILENAME, elements_bytes, reviewed(reviewed_payload)).course.course_id)
+    held, writes = [], []
+
+    @contextmanager
+    def tracking_lock(path):
+        held.append(path)
+        try:
+            yield
+        finally:
+            held.pop()
+
+    original_write = service.storage.write_context
+    monkeypatch.setattr("app.services.session_courses.ingestion_lock", tracking_lock)
+    monkeypatch.setattr(
+        service.storage, "write_context",
+        lambda *args: (writes.append(list(held)), original_write(*args))[-1],
+    )
+    service.update_race_times(SESSION_ID, course_id, synthetic.at(7), None)
+    assert writes == [[root]]
+
+
+def test_a_failed_race_time_write_keeps_the_previous_course(
+    service, root, elements_bytes, reviewed_payload, monkeypatch,
+):
+    course_id = str(service.attach(SESSION_ID, FILENAME, elements_bytes, reviewed(reviewed_payload)).course.course_id)
+    before = (root / "course_contexts" / f"{course_id}.json").read_bytes()
+
+    def fail_replace(*_args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("app.repositories.atomic_json.os.replace", fail_replace)
+    with pytest.raises(OSError, match="disk full"):
+        service.update_race_times(SESSION_ID, course_id, synthetic.at(7), None)
+    assert (root / "course_contexts" / f"{course_id}.json").read_bytes() == before
+    assert list((root / "course_contexts").glob("*.tmp")) == []
+
+
+def test_shared_read_returns_the_edited_gun(admin_root, elements_bytes, reviewed_payload):
+    course_id = attach(admin_root, reviewed_payload, elements_bytes)
+    assert race_times(admin_root, course_id, "2031-03-14T10:08:00Z", "2031-03-14T10:40:00Z")[0] == 200
+    response = shared_api._get(f"/api/shared/sessions/{shared_api.TOKEN}/courses")
+    assert response.status_code == 200
+    [shared] = response.json["courses"]
+    assert (shared["course_id"], shared["race"]["gun_utc"], shared["race"]["end_utc"]) == (
+        course_id, "2031-03-14T10:08:00Z", "2031-03-14T10:40:00Z",
+    )
+
+
+def test_admin_gun_suggestion_for_an_attached_course(admin_root, elements_bytes, reviewed_payload):
+    course_id = attach(admin_root, reviewed_payload, elements_bytes)
+    path = f"/api/admin/sessions/{SESSION_ID}/courses/{course_id}/gun-suggestion"
+    assert call("POST", path)[:2] == (200, {"suggestion": None})  # no member track yet
+    write_track(admin_root, shared_api.ACTIVITY_A, boat_track(((75, 100), (75, -100), 40), start_s=300))
+    before = (admin_root / "course_contexts" / f"{course_id}.json").read_bytes()
+    code, body, _ = call("POST", path)
+    assert code == 200
+    # Same rule and response as the suggestion for a reviewed course.
+    _, reviewed_body, _ = call("POST", f"/api/admin/sessions/{SESSION_ID}/courses/gun-suggestion",
+                               body=json.dumps(reviewed_payload).encode())
+    assert body == reviewed_body and body["suggestion"]["activity_id"] == shared_api.ACTIVITY_A
+    # A suggestion only: nothing is persisted.
+    assert (admin_root / "course_contexts" / f"{course_id}.json").read_bytes() == before
+    missing = "6f1c2f0e-8a8e-4c3e-9a55-0d3f3b1c9e01"
+    assert call("POST", f"/api/admin/sessions/{SESSION_ID}/courses/{missing}/gun-suggestion")[0] == 404
+    unknown = "20000000-0000-4000-8000-00000000ffff"
+    assert call("POST", f"/api/admin/sessions/{unknown}/courses/{course_id}/gun-suggestion")[0] == 404
+
+
+def test_admin_gun_suggestion_for_an_attached_course_without_a_start_line(
+    admin_root, elements_bytes, reviewed_payload,
+):
+    course_id = attach(admin_root, {**reviewed_payload, "start_line": None}, elements_bytes)
+    code, body, _ = call("POST", f"/api/admin/sessions/{SESSION_ID}/courses/{course_id}/gun-suggestion")
+    assert (code, body) == (422, {"detail": "The course has no start line"})
 
 
 # --- Candidate Sessions (242.3 correction C) -----------------------------------------

@@ -13,6 +13,7 @@ import {
   MAX_GATE_ID_LENGTH, MAX_RACE_LABEL_LENGTH, parseUtcInput, reviewIssues, validationMessages,
   type EditableInterval, type EditableTrack, type IntervalEdit, type RaceInputs,
 } from '../utils/courseImport'
+import CourseGunSuggestionNotice from './CourseGunSuggestionNotice'
 
 // Admin Courses tool (Issue #242): review a GeoRacing elements GPX (242.2) and
 // attach the course with its original to an explicitly chosen Session (242.3,
@@ -386,10 +387,7 @@ export default function AdminCourseImport({ adminKey, sessions = [], onUnauthori
         <div className="admin-actions">
           <button type="button" className="admin-section-action" disabled={!sessionId || suggesting || issues.length > 0 || !previewCourse.start_line} onClick={() => void suggestGun()}>{suggesting ? 'Searching crossings…' : 'Suggest gun'}</button>
         </div>
-        {suggestion && <div className="admin-course-suggestion" role="status">
-          <p>Suggested gun: <strong>{formatUtcInput(suggestion.gun_utc)} UTC</strong> — earliest start-line crossing by a member Activity ({formatUtcTime(suggestion.crossing_utc)} UTC). A suggestion only; the gun is what you enter.</p>
-          <div className="admin-actions"><button type="button" className="admin-section-action" onClick={() => updateRace({ gun: formatUtcInput(suggestion.gun_utc) })}>Use as gun</button></div>
-        </div>}
+        {suggestion && <CourseGunSuggestionNotice suggestion={suggestion} onUse={(gun) => updateRace({ gun })} />}
         {suggestion === null && <p className="admin-meta" role="status">No start-line crossing was found in the course time range.</p>}
         {suggestionError && <p className="admin-error" role="alert">{suggestionError}</p>}
         {attachErrors.length > 0 && <div className="admin-error" role="alert"><p>The course could not be attached:</p><ul>{attachErrors.map((message, index) => <li key={index}>{message}</li>)}</ul></div>}
