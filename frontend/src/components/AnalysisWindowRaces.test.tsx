@@ -2,7 +2,7 @@
 import { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { commitSessionTimelineWindow, type AnalysisWindowRange } from '../utils/analysisWindow'
+import { commitSessionTimelineWindow, reconcileAnalysisWindow, type AnalysisWindowRange } from '../utils/analysisWindow'
 import { inferSessionRaces, type InferredSessionRace } from '../utils/sessionRaces'
 import { PAIRED_RACE_ACTIVITIES, raceFixtureTime } from '../utils/sessionRaceTestFixtures'
 import { inferSessionStarts } from '../utils/sessionStarts'
@@ -24,19 +24,35 @@ afterEach(async () => {
 /** Commits through the same clamping path as the Viewer and exposes an outside window change. */
 function Harness({ races, onRangeChange }: { races: InferredSessionRace[], onRangeChange: (range: AnalysisWindowRange) => void }) {
   const [analysisWindow, setAnalysisWindow] = useState<AnalysisWindowRange>(AVAILABLE)
+  const [availableRange, setAvailableRange] = useState(AVAILABLE)
+  const [raceList, setRaceList] = useState(races)
   const commit = (requested: AnalysisWindowRange) => {
     onRangeChange(requested)
-    const next = commitSessionTimelineWindow(requested, AVAILABLE, AVAILABLE.start)
+    const next = commitSessionTimelineWindow(requested, availableRange, availableRange.start)
     if (next !== null) setAnalysisWindow(next.analysisWindow)
+  }
+  const reconcile = (nextRange: AnalysisWindowRange) => {
+    setAvailableRange(nextRange)
+    setAnalysisWindow((current) => reconcileAnalysisWindow(current, nextRange))
   }
   return <>
     <button type="button" data-outside-window onClick={() => setAnalysisWindow(SEGMENT)}>Wind segment</button>
+    <button type="button" data-restore-window onClick={() => setAnalysisWindow(RACES[1].window)}>Restore window</button>
+    <button type="button" data-reconcile-keep onClick={() => reconcile({ start: raceFixtureTime(45), end: AVAILABLE.end })}>Reconcile inside race</button>
+    <button type="button" data-reconcile-change onClick={() => reconcile({ start: raceFixtureTime(50), end: AVAILABLE.end })}>Reconcile outside race</button>
+    <button type="button" data-remove-race onClick={() => setRaceList([RACES[0]])}>Remove race</button>
+    <button type="button" data-renumber-race onClick={() => setRaceList([RACES[0], {
+      ...RACES[1],
+      startTime: raceFixtureTime(54),
+      window: { start: raceFixtureTime(49), end: raceFixtureTime(82) },
+    }])}>Replace race under label</button>
+    <button type="button" data-restore-races onClick={() => setRaceList(races)}>Restore races</button>
     <output data-window={`${analysisWindow.start}:${analysisWindow.end}`} />
     <AnalysisWindow
-      availableRange={AVAILABLE}
+      availableRange={availableRange}
       analysisWindow={analysisWindow}
       primarySamples={[]}
-      sessionRaces={races}
+      sessionRaces={raceList}
       replay={{ playbackTime: AVAILABLE.start, isPlaying: false, speed: 5, onTogglePlayback: vi.fn(), onSpeedChange: vi.fn() }}
       onRangeChange={commit}
     />
@@ -121,6 +137,48 @@ describe('Analysis Window Race control (#220)', () => {
     await choose('all')
     expect(onRangeChange).toHaveBeenLastCalledWith(AVAILABLE)
     expect(windowValue()).toBe(`${AVAILABLE.start}:${AVAILABLE.end}`)
+    expect(raceSelect()!.value).toBe('all')
+  })
+
+  it('keeps Rn when Activity reconciliation preserves its clamped bounds', async () => {
+    const { raceSelect, choose, click } = await renderHarness()
+    await choose('R2')
+    await click('[data-reconcile-keep]')
+    expect(raceSelect()!.value).toBe('R2')
+  })
+
+  it('clears Rn when Activity reconciliation moves outside that race', async () => {
+    const { raceSelect, choose, click } = await renderHarness()
+    await choose('R1')
+    await click('[data-reconcile-change]')
+    expect(raceSelect()!.value).toBe('all')
+    await choose('R2')
+    expect(raceSelect()!.value).toBe('R2')
+  })
+
+  it('clears a selected race when it disappears or another race takes its label', async () => {
+    const { raceSelect, choose, click } = await renderHarness()
+    await choose('R2')
+    await click('[data-remove-race]')
+    expect(raceSelect()!.value).toBe('all')
+    await click('[data-restore-races]')
+    expect(raceSelect()!.value).toBe('all')
+    await choose('R2')
+    // Both races clamp to 50–82 in this available range, despite different Starts.
+    await click('[data-reconcile-change]')
+    expect(raceSelect()!.value).toBe('R2')
+    await click('[data-renumber-race]')
+    expect(raceSelect()!.value).toBe('all')
+    await click('[data-restore-races]')
+    expect(raceSelect()!.value).toBe('all')
+  })
+
+  it('clears the selection after an outside window change even if race bounds return', async () => {
+    const { raceSelect, choose, click } = await renderHarness()
+    await choose('R2')
+    await click('[data-outside-window]')
+    expect(raceSelect()!.value).toBe('all')
+    await click('[data-restore-window]')
     expect(raceSelect()!.value).toBe('all')
   })
 })

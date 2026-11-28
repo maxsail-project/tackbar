@@ -482,15 +482,20 @@ export default function AnalysisWindow({
   const pointerStartClientXRef = useRef<number | null>(null)
   const pointerStartedOnMarkerRef = useRef(false)
   const completedGestureWasDragRef = useRef(false)
-  const [selectedRaceLabel, setSelectedRaceLabel] = useState<string | null>(null)
+  const [selectedRace, setSelectedRace] = useState<Pick<InferredSessionRace, 'label' | 'startTime' | 'endTime'> | null>(null)
   const raceOptions = useMemo(
     () => resolveAnalysisWindowRaceOptions(sessionRaces, availableRange),
     [availableRange, sessionRaces],
   )
-  // The control shows a race only while the window equals its clamped bounds, so any
-  // window change from outside it (Wind segment, Activity change…) returns to All (#220 D4-rev).
-  const activeRaceLabel = raceOptions.find(({ race, window: raceWindow }) => race.label === selectedRaceLabel
+  // Revalidate the chosen race itself, not just its label: Starts can be renumbered when
+  // visible Activities or courses change. A changed window also invalidates the choice.
+  const activeRaceLabel = raceOptions.find(({ race, window: raceWindow }) => race.label === selectedRace?.label
+    && race.startTime === selectedRace.startTime
+    && race.endTime === selectedRace.endTime
     && sameAnalysisWindow(raceWindow, analysisWindow))?.race.label ?? null
+  useEffect(() => {
+    if (selectedRace !== null && activeRaceLabel === null) setSelectedRace(null)
+  }, [activeRaceLabel, selectedRace])
   const displayRange = analysisWindow
   const primaryPoints = useMemo(
     () => displayRange === null ? [] : reduceSogTimelinePoints(
@@ -532,7 +537,7 @@ export default function AnalysisWindow({
 
   // Drag, Reset and `All` leave the selected race even when the window bounds coincide.
   function changeRangeClearingRace(requestedRange: AnalysisWindowRange) {
-    setSelectedRaceLabel(null)
+    setSelectedRace(null)
     onRangeChange(requestedRange)
   }
 
@@ -677,7 +682,7 @@ export default function AnalysisWindow({
             options={raceOptions}
             selectedLabel={activeRaceLabel}
             onSelectRace={({ race }) => {
-              setSelectedRaceLabel(race.label)
+              setSelectedRace({ label: race.label, startTime: race.startTime, endTime: race.endTime })
               onRangeChange(race.window)
             }}
             onSelectAll={() => requestAnalysisWindowReset(availableRange, changeRangeClearingRace)}
